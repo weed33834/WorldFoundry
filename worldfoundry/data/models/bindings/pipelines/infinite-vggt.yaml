@@ -1,0 +1,14 @@
+schema_version: 2
+binding_id: infinite-vggt
+model_id: infinite-vggt
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.infinite_vggt.pipeline_infinite_vggt:InfiniteVGGTPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation
+aliases:
+- stream-vggt
+- streamvggt

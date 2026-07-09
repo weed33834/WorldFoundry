@@ -1,0 +1,53 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+availability: open_source
+checkpoints:
+- tencent/HunyuanWorld-Voyager
+family: Tencent Hunyuan / HY-World
+id: hunyuanworld-voyager
+integration:
+  notes:
+  - Existing in-tree runtime is now exposed through a BaseSynthesis subclass.
+  - The WorldFoundry runner follows the official case1 conditioned-video demo and
+    upstream single-GPU command shape.
+  status: integrated
+license: other:tencent-hunyuanworld-community
+modalities:
+- image-to-video
+- 3d-reconstruction
+- world-generation
+- long-range
+name: HunyuanWorld-Voyager
+pipeline_binding: hunyuanworld-voyager
+official_sources:
+  github:
+    confirmed_by: git ls-remote --heads
+    confirmed_ref: refs/heads/main
+    url: https://github.com/Tencent-Hunyuan/HunyuanWorld-Voyager
+  huggingface:
+  - confirmed_by: https://huggingface.co/api/models/tencent/HunyuanWorld-Voyager
+    repo_id: tencent/HunyuanWorld-Voyager
+    status: confirmed
+    type: model
+release_type: code_and_weights
+runtime_profile: runtime-profile:hunyuanworld-voyager
+starred: true
+runner_parity:
+  notes:
+  - HunyuanWorldVoyagerPipeline is registered against the in-tree Voyager runtime
+    and no external repo checkout is required at import or inference time.
+  - >-
+    The official README case1 defaults are represented in the runtime profile:
+    num_frames=49, infer_steps=50, flow_shift=7.0, seed=0,
+    embedded_cfg_scale=6.0, i2v_stability=true, ulysses_degree=1, and ring_degree=1.
+  - Per-run visual QA and artifact checks are tracked outside the catalog.
+  status: verified
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models
+catalog_policy:
+  checkpoint_rule: Only list checkpoints that were confirmed on official Hugging Face
+    model pages. Do not download weights.
+  integration_rule: Closed, API-only, or unknown releases stay blocked or planned
+    until an official integration surface is available.
+  open_source_rule: Only mark open_source when an official GitHub repository or official
+    Hugging Face model page was confirmed. Do not infer checkpoint availability from
+    papers, demos, or third-party mirrors.

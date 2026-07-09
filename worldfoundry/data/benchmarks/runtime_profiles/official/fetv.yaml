@@ -1,0 +1,95 @@
+benchmark_ids:
+- fetv
+blocked_reason: FETV-EVAL source is vendored in tree; full leaderboard recomputation still requires generated artifacts,
+  reference frame assets, and metric model packages.
+environment_id: worldplay-video-normalizer
+id: fetv
+name: FETV
+needs_new_env: false
+notes:
+- In-tree official runtime vendors the FETV-EVAL CLIP/FID scorer glue; BLIP retrieval and StyleGAN-V FVD source are
+  reused from worldfoundry/base_models.
+- The runner can also normalize caller-provided CSV/JSON/JSONL/TSV outputs and FETV-EVAL result directories.
+- This profile does not claim leaderboard validity until the full upstream scorer is executed on official generated
+  artifacts.
+base_model_dependency_preflight:
+  notes:
+  - CLIP ViT-B/32 and RAFT reusable video-quality assets are tracked through the WorldFoundry base-model registry.
+  - FETV-specific BLIP, FID/FVD, and official scorer assets are metric assets, not external checkout requirements.
+  status: integrated
+base_model_dependencies:
+- video_quality_motion_stack
+- fetv_blip_retrieval_source
+- fetv_stylegan_v_fvd_source
+preflight_command: PYTHONPATH=. ${WORLDFOUNDRY_CONDA_ROOT}/worldplay/bin/python -m
+  worldfoundry.evaluation.tasks.execution.orchestration.runtime_preflight --profile fetv --manifest
+  worldfoundry/data/benchmarks/runtime_profiles/official/fetv.yaml --output-dir tmp/worldfoundry_preflight/fetv --json
+python_path: ${WORLDFOUNDRY_CONDA_ROOT}/worldplay/bin/python
+required_assets:
+  local_dataset_paths:
+  - cache/worldfoundry/data/hfd_datasets/lyx97__FETV
+  in_tree_runtime_paths:
+  - worldfoundry/evaluation/tasks/execution/runners/fetv/run_fetv_official_runner.py
+  - worldfoundry/evaluation/tasks/execution/runners/fetv/fetv_official_runtime.py
+  - worldfoundry/evaluation/tasks/execution/runners/fetv/runtime/fetv_eval/auto_eval.py
+  - worldfoundry/evaluation/tasks/execution/runners/fetv/runtime/fetv_eval/compute_fid.py
+  - worldfoundry/base_models/perception_core/video_quality/fetv_stylegan_v/src/scripts/calc_metrics_for_dataset.py
+  - worldfoundry/base_models/perception_core/video_text/fetv_blip/models/blip_retrieval.py
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/fetv.yaml
+required_env:
+- WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+optional_env:
+- WORLDFOUNDRY_FETV_RUNTIME_ROOT
+- WORLDFOUNDRY_FETV_ARTIFACT_SCORE_DIR
+- WORLDFOUNDRY_FETV_RESULTS_PATH
+- WORLDFOUNDRY_FETV_FID_REAL_VIDEO_DIR
+- WORLDFOUNDRY_FETV_FVD_REAL_VIDEO_DIR
+required_paths:
+- id: official_runner_script
+  path: worldfoundry/evaluation/tasks/execution/runners/fetv/run_fetv_official_runner.py
+- id: official_runtime_adapter
+  path: worldfoundry/evaluation/tasks/execution/runners/fetv/fetv_official_runtime.py
+- id: task_yaml
+  path: worldfoundry/data/benchmarks/tasks/external/fetv.yaml
+- id: in_tree_runtime_root
+  path: worldfoundry/evaluation/tasks/execution/runners/fetv/runtime/fetv_eval
+- id: fetv_auto_eval
+  path: worldfoundry/evaluation/tasks/execution/runners/fetv/runtime/fetv_eval/auto_eval.py
+- id: fetv_compute_fid
+  path: worldfoundry/evaluation/tasks/execution/runners/fetv/runtime/fetv_eval/compute_fid.py
+- id: fetv_stylegan_fvd
+  path: worldfoundry/base_models/perception_core/video_quality/fetv_stylegan_v/src/scripts/calc_metrics_for_dataset.py
+- id: fetv_blip_retrieval
+  path: worldfoundry/base_models/perception_core/video_text/fetv_blip/models/blip_retrieval.py
+requires_cuda_visibility: false
+status: in_tree_official_source_integrated_full_metric_assets_pending
+optional_imports:
+- numpy
+- cv2
+- decord
+- torch
+- torchvision
+- clip
+- torchmetrics
+- cleanfid
+- omegaconf
+- scipy
+- transformers
+- timm
+- fairscale
+- ruamel.yaml
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- fetv
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.csv-or-FETV-EVAL-dir>
+- --generated-artifact-dir
+- <generated_videos>
+- --output-dir
+- <out>
+- --json

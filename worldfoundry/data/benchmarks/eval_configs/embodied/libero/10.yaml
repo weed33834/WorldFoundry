@@ -1,0 +1,15 @@
+id: libero_10_eval
+output_dir: ./results/libero_10_eval
+model_id: external-policy-server
+server:
+  url: ws://localhost:8000
+benchmark_id: libero
+benchmark_kwargs:
+  suite: libero_10
+  seed: 7
+  num_steps_wait: 10
+episodes_per_task: 50
+max_tasks: 10
+metric_ids:
+  - task_success
+  - success_rate

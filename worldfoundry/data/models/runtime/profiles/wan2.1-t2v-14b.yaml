@@ -1,0 +1,27 @@
+schema_version: 2
+model_id: wan2.1-t2v-14b
+display_name: Wan2.1 T2V 14B
+task_family: video_generation
+groups:
+- video
+source_repos:
+- url: https://github.com/Wan-Video/Wan2.1
+checkpoints:
+- repo_id: Wan-AI/Wan2.1-T2V-14B
+  revision: a064a6c71f5be440641209c07bf2a5ce7a2ff5e4
+  role: t2v_checkpoint
+input_schema:
+  prompt: true
+  image: false
+  video: false
+  actions:
+  - seed
+artifact_kind: generated_video
+artifact_filename: wan2.1-t2v-14b.mp4
+execution:
+  backend_stage: in_tree_runtime_plan
+  runtime_status: profile_resolves_catalog_variant_runner_parity_pending
+  integration_status: integrated
+  pipeline_binding: wan2.1-t2v-14b
+integration:
+  status: integrated

@@ -1,0 +1,128 @@
+id: metaworld
+name: Meta-World
+benchmark_kind:
+- embodied-action
+- robot-manipulation
+- simulator
+- multi-task
+- meta-rl
+domains:
+- embodied-action
+- robot-manipulation
+- simulator
+- multi-task
+- meta-rl
+modalities:
+- vision
+- action
+- state
+aliases:
+- MetaWorld
+- meta-world
+status: open_source
+official_sources:
+  github:
+    url: https://github.com/Farama-Foundation/Metaworld
+    head_sha: c26e9a6c9cd44a0487670a77468fafec079a9b98
+  project_page: https://meta-world.github.io/
+  paper_url: https://arxiv.org/abs/1910.10897
+  license: mit
+  huggingface_status: not_applicable_or_not_found
+  access_notes: GitHub repository is public under MIT; simulator/runtime assets are external requirements.
+dataset:
+  not_applicable: true
+  reason: Meta-World evaluates continuous-control manipulation policies in simulator; result JSON/CSV files are 
+    normalized by WorldFoundry.
+runner:
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:MetaWorldContract
+  verification_status: normalizer_only
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - metaworld
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <official_results.json>
+  - --output-dir
+  - <out>
+  - --json
+  expected_artifacts:
+  - scorecard.json
+  - raw_results.jsonl
+  runtime:
+    kind: external_official_results_runner
+    results_path_env: WORLDFOUNDRY_METAWORLD_RESULTS_PATH
+  required_env:
+  - WORLDFOUNDRY_METAWORLD_RESULTS_PATH
+  notes:
+  - WorldFoundry public benchmark-run can normalize caller-provided official result files without simulator execution.
+metrics:
+- id: success_rate
+  name: Success Rate
+  higher_is_better: true
+  normalizer: percent_or_fraction_to_unit
+  primary: true
+- id: task_success
+  name: Task Success
+  higher_is_better: true
+  normalizer: percent_or_fraction_to_unit
+- id: reward
+  name: Reward
+  higher_is_better: true
+- id: normalized_return
+  name: Normalized Return
+  higher_is_better: true
+integration:
+  status: integrated
+  blocked_reasons:
+  - Meta-World task-suite mapping and official-style policy result validation must be validated before integrated 
+    status.
+release_status: normalizer_only
+maturity: contract_ready
+open_source_status: normalizer_only
+official_benchmark_verified: false
+integration_evidence: true
+leaderboard_valid: false
+full_test_harness_ready: true
+full_suite_testable: true
+full_suite_execution_recorded: false
+requires:
+- Official Meta-World package or repository checkout
+- MuJoCo-compatible runtime
+- MT/ML suite mapping
+- Benchmark-specific policy checkpoint or controller
+blockers:
+- Meta-World task-suite mapping and official-style policy result validation must be validated before integrated status.
+data_refs:
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/metaworld.yaml
+runner_availability:
+  available: true
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:MetaWorldContract
+  runner_script_available: false
+  task_yaml_available: true
+  runtime_verified: false
+  normalizer_verified: true
+  surface: official_result_normalizer
+optional_base_model_dependencies:
+- spatial_perception_core_stack
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- metaworld
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.json>
+- --output-dir
+- <out>
+- --json
+checkpoint_refs: []
+artifact_layout:
+  generated_artifact_dir_env: WORLDFOUNDRY_METAWORLD_RESULTS_PATH
+  output_artifact: benchmark_scorecard
+  filename_template: scorecard.json

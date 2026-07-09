@@ -1,0 +1,114 @@
+id: cogvideox
+name: CogVideoX
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: cogvideox
+runtime_profile: runtime-profile:cogvideox-5b-t2v
+tasks:
+  - text-to-video
+  - image-to-video
+source_status:
+  status: confirmed_official_github
+  github:
+    url: https://github.com/THUDM/CogVideo
+    verified_by: git ls-remote --symref https://github.com/THUDM/CogVideo.git HEAD
+    default_branch: main
+    head_sha: 7a1af7154511e0ce4e4be8d62faa8c5e5a3532d2
+checkpoint:
+  status: confirmed_public_hf
+  verified_by: GET https://huggingface.co/api/models/<repo_id>
+  repos:
+    - id: THUDM/CogVideoX-2b
+      sha: 1137dacfc2c9c012bed6a0793f4ecf2ca8e7ba01
+      license: apache-2.0
+      private: false
+      gated: false
+      tasks:
+        - text-to-video
+    - id: THUDM/CogVideoX-5b
+      sha: 8fc5b281006c82b82d34fd2543d2f0ebb4e7e321
+      license: other
+      private: false
+      gated: false
+      tasks:
+        - text-to-video
+    - id: THUDM/CogVideoX-5b-I2V
+      sha: a6f0f4858a8395e7429d82493864ce92bf73af11
+      license: other
+      private: false
+      gated: false
+      tasks:
+        - image-to-video
+    - id: THUDM/CogVideoX1.5-5B
+      sha: fdc5267c90b5c06492985b966e43aae984e189e0
+      license: other
+      private: false
+      gated: false
+      tasks:
+        - text-to-video
+        - image-to-video
+    - id: THUDM/CogVideoX1.5-5B-I2V
+      sha: 46c90528707aebbe69066390b4fe7e7d24c9c2a4
+      license: other
+      private: false
+      gated: false
+      tasks:
+        - image-to-video
+  notes: The SAT checkpoint candidate checked in this pass returned 401 and is not listed.
+demo_parity:
+  status: verified
+  notes: CogVideoX 2B T2V, 5B T2V, and 5B I2V are wired through Studio/API-compatible runners with correct parameter propagation. The I2V configuration follows the official-style 49-frame, 50-step Diffusers recipe.
+notes: HF cardData reports Apache-2.0 for 2B and 'other' for several larger variants.
+runner_parity:
+  status: verified
+  notes:
+    - WorldFoundry pipeline targets are registered for 2B T2V, 5B T2V, and 5B I2V.
+    - T2V profiles expose `num_inference_steps`, `num_frames`, `height`, `width`, and `fps`.
+    - The I2V profile exposes `num_inference_steps`, `num_frames`, `height`, `width`, `guidance_scale`, and `fps`.
+    - Per-run visual QA and artifact checks are tracked outside the model catalog.
+catalog_category: video
+catalog_scope: Official GitHub and/or Hugging Face confirmed open-source or open-weight video generation models. Checkpoints are not tracked in git; local validation may download selected repos under cache/hfd.
+catalog_policy:
+  github: Validated with git ls-remote, preferring git ls-remote --symref <repo>.git HEAD for default branch and HEAD SHA.
+  huggingface: Validated with the Hugging Face /api/models endpoint. Recorded repo id, sha, private, gated, license, and selected task tags only.
+  parity: This manifest does not claim WorldFoundry runtime parity unless an explicit parity run and expected artifact are recorded.
+integration:
+  status: integrated
+  notes:
+    - WorldFoundry wraps the in-tree CogVideoX T2V/I2V runtimes.
+variants:
+  - id: cogvideox-2b-t2v
+    task: text-to-video
+    runtime_profile: cogvideox-2b-t2v
+    runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+    pipeline_binding: cogvideox-2b-t2v
+    integration:
+      status: verified
+    runner_parity:
+      status: verified
+      notes:
+        - The in-tree CogVideoX 2B T2V runner supports the Studio/API T2V parameter contract.
+        - Per-run evidence is tracked outside the model catalog.
+  - id: cogvideox-5b-t2v
+    task: text-to-video
+    runtime_profile: cogvideox-5b-t2v
+    runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+    pipeline_binding: cogvideox-5b-t2v
+    integration:
+      status: verified
+    runner_parity:
+      status: verified
+      notes:
+        - The in-tree CogVideoX 5B T2V runner supports the Studio/API T2V parameter contract.
+        - Per-run evidence is tracked outside the model catalog.
+  - id: cogvideox-5b-i2v
+    task: image-to-video
+    runtime_profile: cogvideox-5b-i2v
+    runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+    pipeline_binding: cogvideox-5b-i2v
+    integration:
+      status: verified
+    runner_parity:
+      status: verified
+      notes:
+        - The in-tree CogVideoX 5B I2V runner supports the official-style I2V parameter contract.
+        - Per-run evidence is tracked outside the model catalog.

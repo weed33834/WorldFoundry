@@ -1,0 +1,32 @@
+schema_version: 2
+model_id: vggt-omega
+display_name: VGGT-Omega
+task_family: three_dimension
+groups:
+- 3d
+- reconstruction
+- gaussian_splatting
+source_repos:
+- url: https://huggingface.co/facebook/VGGT-Omega
+checkpoints:
+- repo_id: facebook/VGGT-Omega
+  role: vggt_omega_checkpoint
+input_schema:
+  prompt: false
+  image: true
+  video: true
+  actions:
+  - camera_view
+  - image_sequence
+artifact_kind: generated_3d_asset
+artifact_filename: scene_conf20.0_blackFalse_whiteFalse_camTrue_skyFalse_max200k.glb
+execution:
+  backend_stage: in_tree_runtime
+  runtime_status: official_scene_export_contract
+  integration_status: integrated
+  pipeline_binding: vggt-omega
+integration:
+  status: integrated
+notes:
+- VGGT-Omega uses the in-tree official scene-export runner and emits predictions.npz
+  plus GLB scene artifacts.

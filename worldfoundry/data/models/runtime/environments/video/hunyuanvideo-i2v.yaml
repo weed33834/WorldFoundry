@@ -1,0 +1,30 @@
+conda_packages:
+- python
+- pip
+- ffmpeg
+cuda_profile: cu124
+driver_status: compatible
+env_name: HunyuanVideo
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: hunyuanvideo-i2v
+notes:
+- Reuses the dedicated HunyuanVideo environment for the original I2V CLI stack; this keeps the older diffusers/xfuser runtime
+  isolated from the unified CUDA 12.8 environment without adding another conda env.
+pip_packages:
+- torch
+- torchvision
+- diffusers==0.31.0
+- transformers
+- accelerate
+- safetensors
+- imageio
+- imageio-ffmpeg
+- opencv-python
+- sentencepiece
+- xfuser==0.4.0
+python: '3.10'
+validation_imports:
+- torch
+- diffusers
+- transformers
+- xfuser

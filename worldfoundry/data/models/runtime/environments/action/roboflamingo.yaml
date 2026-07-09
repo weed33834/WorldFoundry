@@ -1,0 +1,35 @@
+conda_packages:
+- python
+- pip
+- ffmpeg
+cuda_profile: prepare_only
+driver_status: prepare_only_vlm_policy_runtime_requires_checkpoint_validation
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: roboflamingo
+notes:
+- Prepare-only RoboFlamingo VLM/VLA policy profile aligned with its Python 3.8 and cu113 torch requirements. Full official
+  CALVIN eval also needs CALVIN assets and the released RoboFlamingo/OpenFlamingo/MPT checkpoints.
+pip_packages:
+- numpy
+- Pillow
+- opencv-python
+- torch
+- torchvision
+- torchaudio
+- transformers
+- huggingface-hub
+- open-clip-torch
+- einops
+- einops-exts
+- pytorch-lightning
+- omegaconf
+- safetensors
+python: '3.8'
+validation_imports:
+- numpy
+- PIL
+- cv2
+- torch
+- transformers
+- open_clip

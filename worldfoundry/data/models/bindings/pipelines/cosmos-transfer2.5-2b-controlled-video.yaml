@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: cosmos-transfer2.5-2b-controlled-video
+model_id: cosmos-transfer2.5-2b-controlled-video
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.cosmos.pipeline_cosmos_transfer2p5:CosmosTransfer2p5Pipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

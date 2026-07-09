@@ -1,0 +1,59 @@
+id: longvie-2
+name: LongVie 2
+aliases:
+- longvie2
+- longvie-v2
+tasks:
+- image-to-video
+- long-video-generation
+- depth-controlled-video
+- trajectory-controlled-video
+output_artifacts:
+- generated_video
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/Vchitect/LongVie
+  hf_repo_id: Vchitect/LongVie2
+official_sources:
+  project_page: https://vchitect.github.io/LongVie2-project/
+  github:
+    url: https://github.com/Vchitect/LongVie
+  huggingface:
+  - repo_id: Vchitect/LongVie2
+    status: confirmed
+  - repo_id: Wan-AI/Wan2.1-I2V-14B-480P
+    status: confirmed
+checkpoint_refs:
+- repo_id: Vchitect/LongVie2
+  role: longvie_control_and_dit_attention_weights
+- repo_id: Wan-AI/Wan2.1-I2V-14B-480P
+  license: apache-2.0
+  role: wan2.1_i2v_14b_base
+checkpoints:
+- repo_id: Vchitect/LongVie2
+  role: longvie_control_and_dit_attention_weights
+- repo_id: Wan-AI/Wan2.1-I2V-14B-480P
+  role: wan2.1_i2v_14b_base
+integration:
+  status: integrated
+  notes:
+  - WorldFoundry vendors the official LongVie DiffSynth runtime under worldfoundry/synthesis/visual_generation/longvie/longvie_runtime.
+  - The LongVie 2 adapter loads control.safetensors and dit.safetensors, preserves
+    the official history/noise continuation loop, and supports the official USP ring/ulysses
+    distributed inference controls when execute=True.
+runner_parity:
+  status: pending
+  notes:
+  - The runner preserves the official LongVie direct DiffSynth pipeline, target 640x352
+    segment size, negative prompt, history/noise continuation state, VRAM management,
+    and optional USP ring/ulysses controls.
+  - Official release-parity evidence remains pending; per-run artifact checks are
+    tracked outside the model catalog.
+runtime_profile: runtime-profile:longvie-2
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: longvie-2
+catalog_category: video
+catalog_scope: Video-generation and video-token catalog entries. Integrated entries
+  expose WorldFoundry pipeline targets; metadata-only entries retain upstream provenance
+  without runnable WorldFoundry backends.

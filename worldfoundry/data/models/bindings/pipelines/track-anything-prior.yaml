@@ -1,0 +1,15 @@
+schema_version: 2
+binding_id: track-anything-prior
+model_id: track-anything-prior
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.geometry_priors.pipeline_geometry_priors:TrackAnythingPriorPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation
+aliases:
+- segment-and-track-anything
+- track-anything
+- aot-deaot-l

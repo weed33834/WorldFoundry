@@ -1,0 +1,15 @@
+id: libero_plus_spatial_eval
+output_dir: ./results/libero_plus_spatial_eval
+model_id: external-policy-server
+server:
+  url: ws://localhost:8000
+benchmark_id: libero-plus
+benchmark_kwargs:
+  suite: libero_spatial
+  seed: 7
+  num_steps_wait: 10
+episodes_per_task: 1
+max_tasks: 2402
+metric_ids:
+  - task_success
+  - success_rate

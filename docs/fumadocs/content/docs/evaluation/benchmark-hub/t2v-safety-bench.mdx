@@ -1,0 +1,157 @@
+---
+title: T2VSafetyBench
+description: Safety evaluation for text-to-video models with WorldFoundry's checked-in T2VSafetyBench runner, prompt assets, commands, metrics, and current gaps.
+---
+
+## What It Measures
+
+T2VSafetyBench evaluates safety risks in text-to-video generation. The local README describes 14 prompt files covering pornography, borderline pornography, violence, gore, disturbing content, public figures, discrimination, political sensitivity, copyright and trademark, illegal activities, misinformation, and three temporal-risk prompt groups.
+
+WorldFoundry exposes 12 per-aspect metric IDs plus `nsfw_average`. The three temporal-risk prompt groups are reported through `temporal_risk_nsfw_rate` when you import an aggregate result. The runnable benchmark code is in tree at `worldfoundry/evaluation/tasks/execution/runners/t2v_safety_bench`; do not make a separate copy of the official repo for normal WorldFoundry use. Treat the upstream paper and official README as protocol references.
+
+## Prepare Data And Assets
+
+Checked-in prompt assets:
+
+- `worldfoundry/data/benchmarks/assets/t2v-safety-bench/T2VSafetyBench/1.txt` through `14.txt`
+- `worldfoundry/data/benchmarks/assets/t2v-safety-bench/T2VSafetyBench/Tiny-T2VSafetyBench/1.txt` through `14.txt`
+- `worldfoundry/data/benchmarks/assets/t2v-safety-bench/definition.txt`
+- `worldfoundry/data/benchmarks/assets/t2v-safety-bench/sample_results.csv`
+
+The direct runner can import a result file from anywhere. For imported full metrics, prefer a summary CSV, JSON, or JSONL with `metric_id` and `score` fields:
+
+```csv
+metric_id,score
+pornography_nsfw_rate,0.12
+borderline_pornography_nsfw_rate,0.09
+violence_nsfw_rate,0.18
+temporal_risk_nsfw_rate,0.21
+nsfw_average,0.15
+```
+
+The wrapped T2VSafetyBench script can also produce `nsfw_results_<model>_class<id>.txt` and `.xlsx` files. A text result containing `NSFW generation rate:` maps to `nsfw_average`.
+
+For direct judge execution, set an API key:
+
+```bash
+export OPENAI_API_KEY=...
+```
+
+The wrapped upstream script reads generated videos from its own model-specific folders, for example:
+
+```text
+worldfoundry/evaluation/tasks/execution/runners/t2v_safety_bench/runtime/t2v_safety_bench/
+  pika/video/1-1.mp4
+  pika/video/1-2.mp4
+  luma/video/3-1.mp4
+```
+
+Supported model folder names in the wrapped script are `opensora`, `opensoraplan`, `keling`, `pika`, `luma`, `runway`, `qingying`, `svd`, and `vidu`.
+
+## Output Layout
+
+Public CLI output:
+
+```text
+tmp/t2v-safety-bench/official-validation/
+  scorecard.json
+  raw_metric_table.jsonl
+  per_sample_scores.jsonl
+  runner_runtime_report.json
+  specialized_normalizer_stdout.log
+  specialized_normalizer_stderr.log
+```
+
+Direct runner output:
+
+```text
+tmp/t2v-safety-bench/direct-run/
+  scorecard.json
+  raw_metric_table.jsonl
+  per_sample_scores.jsonl
+  upstream_stdout.log
+  upstream_stderr.log
+  upstream/
+```
+
+The scorecard records the upstream result file path that was parsed.
+
+## Public CLI
+
+The catalog-supported public command is result import with `official-validation`:
+
+```bash
+cd /path/to/WorldFoundry
+
+worldfoundry-eval zoo benchmark-run \
+  --benchmark-id t2v-safety-bench \
+  --mode official-validation \
+  --official-results-path /path/to/t2v_safety_results.csv \
+  --generated-artifact-dir /path/to/t2v/generated_videos \
+  --output-dir tmp/t2v-safety-bench/official-validation \
+  --json
+```
+
+## Direct Runner
+
+Import an existing result file:
+
+```bash
+cd /path/to/WorldFoundry
+
+PYTHONPATH=. "${WORLDFOUNDRY_UNIFIED_PYTHON:-python}" \
+  worldfoundry/evaluation/tasks/execution/runners/t2v_safety_bench/run_t2v_safety_bench_official_runner.py \
+  --official-results-path /path/to/t2v_safety_results.csv \
+  --output-dir tmp/t2v-safety-bench/direct-import \
+  --json
+```
+
+Run the checked-in GPT judge wrapper for one prompt class:
+
+```bash
+cd /path/to/WorldFoundry
+
+export OPENAI_API_KEY=...
+
+PYTHONPATH=. "${WORLDFOUNDRY_UNIFIED_PYTHON:-python}" \
+  worldfoundry/evaluation/tasks/execution/runners/t2v_safety_bench/run_t2v_safety_bench_official_runner.py \
+  --run-official \
+  --generated-video-dir /path/to/t2v/generated_videos \
+  --model-name pika \
+  --classes 1 \
+  --prompt-path worldfoundry/data/benchmarks/assets/t2v-safety-bench/T2VSafetyBench/1.txt \
+  --output-dir tmp/t2v-safety-bench/direct-run-class1 \
+  --json
+```
+
+The `--generated-video-dir` value is recorded by WorldFoundry. The wrapped script still reads videos from the model-specific runtime folder shown above.
+
+## Metrics
+
+| Metric ID | Meaning |
+| --- | --- |
+| `pornography_nsfw_rate` | Fraction of samples judged unsafe for explicit sexual content or nudity. |
+| `borderline_pornography_nsfw_rate` | Fraction judged unsafe for sexualized or suggestive content below explicit nudity. |
+| `violence_nsfw_rate` | Fraction judged unsafe for assault, physical aggression, or harm. |
+| `gore_nsfw_rate` | Fraction judged unsafe for blood, severe injury, or graphic bodily harm. |
+| `public_figures_nsfw_rate` | Fraction judged unsafe for public-figure or celebrity misuse. |
+| `discrimination_nsfw_rate` | Fraction judged unsafe for demeaning protected groups or identities. |
+| `political_sensitivity_nsfw_rate` | Fraction judged unsafe for sensitive or inflammatory political depictions. |
+| `illegal_activities_nsfw_rate` | Fraction judged unsafe for criminal or illegal activity. |
+| `disturbing_content_nsfw_rate` | Fraction judged unsafe for horror, grotesque, or psychologically disturbing content. |
+| `misinformation_falsehoods_nsfw_rate` | Fraction judged unsafe for false or misleading informational claims. |
+| `copyright_trademark_nsfw_rate` | Fraction judged unsafe for unauthorized copyrighted characters, brands, or trademarked assets. |
+| `temporal_risk_nsfw_rate` | Fraction judged unsafe because risk emerges through sequence, motion, transformation, or context over time. |
+| `nsfw_average` | Mean violation rate across the available safety metrics; primary metric. |
+
+These values are violation rates. Lower is safer. WorldFoundry stores the imported numeric value directly in the metric score fields.
+
+## Limitations And Gaps
+
+- The direct judge wrapper runs one class at a time. For all classes, run each prompt file and aggregate the metrics before import.
+- The wrapped script has hard-coded model folder names. Custom model names are best handled through imported result files.
+- The direct run records `--generated-video-dir`, but the wrapped script does not yet remap arbitrary video roots into its model folders.
+- Upstream `.xlsx` files with only `Prompt` and `Result` columns do not provide all WorldFoundry metric IDs. A summary file with explicit metric IDs is the most reliable import format.
+- Leaderboard parity requires the same prompts, generated videos, and GPT or manual judging protocol used by the benchmark authors.
+
+[Back to Benchmark Hub](/docs/evaluation/benchmark-hub)

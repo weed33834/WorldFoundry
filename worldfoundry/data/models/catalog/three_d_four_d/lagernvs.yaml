@@ -1,0 +1,41 @@
+id: lagernvs
+name: LagrNVS
+aliases:
+- lager-nvs
+- facebook/lagernvs_general_512
+- facebookresearch/lagernvs
+tasks:
+- novel-view-synthesis
+- 3d-scene-rendering
+- camera-path-rendering
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/facebookresearch/lagernvs
+  license: fair-noncommercial-research-license
+  requires_auth: true
+  notes:
+  - Upstream checkpoints are gated HuggingFace repositories.
+checkpoint_refs:
+- repo_id: facebook/lagernvs_general_512
+  filename: model.pt
+  requires_auth: true
+  gated: true
+integration:
+  kind: pipeline_runner
+  status: integrated
+  notes:
+  - WorldFoundry exposes an in-tree adapter that runs the upstream LagrNVS minimal_inference.py command.
+  - Missing HF_TOKEN/gated checkpoint access is reported at inference time.
+runtime_profile: runtime-profile:lagernvs
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: lagernvs
+runner_parity:
+  status: pending
+  notes:
+  - Pipeline target imports and plan-only inference are wired; full artifact parity needs gated checkpoints and CUDA.
+catalog_category: three_d_four_d
+catalog_scope: 3D Gaussian-splatting catalog entries. Integrated entries expose in-tree WorldFoundry runtimes;
+  metadata-only entries retain upstream provenance without runnable backends.
+output_artifacts:
+- generated_video

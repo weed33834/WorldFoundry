@@ -1,0 +1,288 @@
+---
+title: Registry 与参考
+description: MetricRegistry 发现、已注册指标表、CLI、checkpoint 与包结构说明。
+---
+
+import { MetricQuickNav } from '@/components/metric-quick-nav';
+
+<MetricQuickNav locale="zh" variant="hub" />
+
+## MetricRegistry
+
+默认 registry 从 `registry.py` 的 `BUILTIN_METRIC_REGISTRY_ENTRIES` 加载全部内置条目。
+
+### 发现与查询
+
+```bash
+worldfoundry-eval metric list
+worldfoundry-eval metric list --json
+
+worldfoundry-eval metric show fid
+worldfoundry-eval metric show clip-score --json
+
+worldfoundry-eval metric validate fid clip_score has_artifact:generated_artifact
+```
+
+Registry key 大小写不敏感，下划线会归一化为连字符（`clip_score`、`clip-score`、`clipscore` 等价）。参数化 id 使用前缀：
+
+| 模式 | 示例 | 含义 |
+| --- | --- | --- |
+| `has_artifact:<name>` | `has_artifact:generated_artifact` | 指定 artifact 存在时返回 1。 |
+| `numeric:<name>` | `numeric:reward` | 从 result metadata/scores 读取名为 `<name>` 的数值字段。 |
+
+### Python API
+
+```python
+from worldfoundry.evaluation.tasks.metrics.registry import (
+    default_metric_registry,
+    list_metric_registry_entries,
+    validate_metric_ids,
+    create_existing_results_metric,
+)
+
+for entry in list_metric_registry_entries():
+    print(entry.id, entry.family, entry.aliases)
+
+registry = default_metric_registry()
+entry = registry.get("clip-score")
+canonical = registry.canonical_metric_id("numeric:reward")
+
+payload = validate_metric_ids(["fid", "unknown_metric"])
+assert payload["ok"] is False
+
+metric = create_existing_results_metric(
+    metrics=["artifact_count", "has_artifact:video"],
+    required_artifacts=["generated_artifact"],
+)
+```
+
+## 已注册指标
+
+方向：**↑** 越高越好，**↓** 越低越好。
+
+### 图像分布（`family=distribution`）
+
+比较 reference 与 generated 图像集合的 set-level 指标。Torch-fidelity 系列（`fid/`、`kid/`、`inception_score/` 等）共用 `_shared/vendor/torch_fidelity/`；独立实现包括 Clean-FID、CMMD、IPR、Vendi、Rarity 以及 `fwd/vendor/pytorchfwd`。
+
+| 指标 | 别名 | 方向 | 主要 API |
+| --- | --- | --- | --- |
+| inception_score | is, isc | ↑ | `compute_inception_score(images_dir)` |
+| fid | frechet-inception-distance, clip-fid, clip_fid, fid-vid, fid_vid, fvid, swav-fid, swav_fid, scene-fid, scene_fid, object-crop-fid | ↓ | `compute_fid(...)`；变体通过 `feature_extractor` 或 `compute_scene_fid` |
+| kid | kernel-inception-distance | ↓ | `compute_kid(...)` |
+| precision_recall | prc, precision-recall | ↑ | `compute_precision_recall(...)` |
+| fwd | frechet-wavelet-distance | ↓ | `compute_fwd(...)` |
+| cmmd | clip-mmd, clip_mmd | ↓ | `compute_cmmd(reference_dir, eval_dir)` |
+| ppl | perceptual-path-length, perceptual_path_length | ↓ | `compute_ppl(...)` |
+| mind | mid, monge-inception-distance, monge_inception_distance | ↓ | `compute_mind(...)` |
+| clean_fid | clean-fid, improved-fid | ↓ | `compute_clean_fid(reference, generated)` |
+| vendi_score | vendi-score, vendi | ↑ | `compute_vendi_score(...)` |
+| improved_precision_recall | ipr, alpha-precision, beta-recall, realism_score, ipr-realism, realism | ↑ | `compute_improved_precision_recall(...)`、`compute_realism_score(...)` |
+| rarity_score | rarity-score, rs | ↑ | `compute_mean_rarity_score(...)` |
+| facescore | face-score, face_score | ↑ | `compute_facescore(...)` |
+| facesim_cur | face-sim-cur, facesim-curricular | ↑ | `compute_facesim_cur(...)`（OpenS2V） |
+| gme_score | gmescore, gme-score | ↑ | `compute_gme_score(...)`（OpenS2V） |
+| nexus_score | nexusscore, nexus-score | ↑ | `compute_nexus_score(...)`（OpenS2V） |
+| natural_score | naturalscore, natural-score | ↑ | `compute_natural_score(...)`（OpenS2V；需 GPT API） |
+| artscore | art-score, art_score | ↑ | `load_artscore_model(...)` |
+| trend | trend-jsd | ↓ | `compute_trend(...)` |
+| fld | feature-likelihood-divergence, fls | ↓ | `compute_fld(...)` |
+| multimodal_mid | mid-metric, mutual-information-divergence | ↑ | `compute_multimodal_mid(...)` |
+| fjd | frechet-joint-distance | ↓ | `compute_fjd_from_joint_embeddings(...)` |
+| crosslid | cross-lid | ↓ | `compute_crosslid(...)` |
+| cfid | conditional-fid | ↓ | `compute_cfid(...)` |
+| ssd | semantic-similarity-distance | ↓ | `compute_ssd(...)` |
+| linear_separability | linear-separability, stylegan-ls | ↑ | `compute_linear_separability(...)` |
+| rke | renyi-kernel-entropy, rke-mc | ↑ | `compute_rke(features)`, `compute_rrke(ref, gen)` |
+| fdd | frechet-denoised-distance | ↓ | `compute_fdd(reference_dir, generated_dir)` |
+| cis | conditional-inception-score, bcis, wcis | ↑ | `compute_cis(class_probs)` |
+| rnd | rnd-score, random-network-distillation | ↑ | `compute_rnd(features)` |
+| attribute_sad | sad, attribute-sad | ↓ | `compute_attribute_sad(hcs_real, hcs_gen, text_list)` |
+| attribute_pad | pad, attribute-pad | ↓ | `compute_attribute_pad(hcs_real, hcs_gen, text_list)` |
+
+```python
+from worldfoundry.evaluation.tasks.metrics import (
+    compute_distribution_metrics,
+    compute_fid,
+    compute_inception_score,
+    compute_clip_fid,
+    compute_cmmd,
+    compute_clean_fid,
+    compute_fwd,
+    compute_improved_precision_recall,
+    compute_vendi_score,
+    compute_mean_rarity_score,
+)
+
+scores = compute_distribution_metrics(
+    "/path/to/reference",
+    "/path/to/generated",
+    metrics=("fid", "kid", "prc"),
+)
+
+fid = compute_fid("/path/to/reference", "/path/to/generated")
+clip_fid = compute_fid("/path/to/reference", "/path/to/generated", feature_extractor="clip-vit-b-32")
+is_scores = compute_inception_score("/path/to/generated")
+cmmd = compute_cmmd("/path/to/reference", "/path/to/generated")
+clean_fid = compute_clean_fid("/path/to/reference", "/path/to/generated")
+fwd = compute_fwd("/path/to/reference", "/path/to/generated")
+ipr = compute_improved_precision_recall("/path/to/reference", "/path/to/generated")
+vendi = compute_vendi_score(feature_matrix)
+```
+
+### 视频分布（`family=distribution`，video tags）
+
+| 指标 | 别名 | 方向 | 主要 API |
+| --- | --- | --- | --- |
+| fvd | frechet-video-distance | ↓ | `compute_fvd_from_numpy(...)`、`compute_fvd_from_frame_dirs(...)` |
+| fvmd | frechet-video-motion-distance | ↓ | `compute_fvmd(reference_videos, generated_videos)` |
+| jedi | jedi-mmd, video-jedi | ↓ | `compute_jedi_from_features(...)`、`JEDiMetric(...)` |
+
+```python
+import numpy as np
+from worldfoundry.evaluation.tasks.metrics import (
+    compute_fvd_from_numpy,
+    compute_fvd_from_frame_dirs,
+    compute_fid_vid,
+    compute_fvmd,
+    compute_jedi_from_features,
+)
+
+# uint8 数组形状：(N, T, H, W, C)
+fvd = compute_fvd_from_numpy(real_videos, gen_videos, device="cuda")
+
+fvd = compute_fvd_from_frame_dirs(
+    reference_frame_dirs=["/path/to/ref_frames/video_0"],
+    generated_frame_dirs=["/path/to/gen_frames/video_0"],
+)
+
+fid_vid = compute_fid("/path/to/ref_frames", "/path/to/gen_frames")  # 别名 fid_vid
+fvmd = compute_fvmd("/path/to/reference_videos", "/path/to/generated_videos")
+
+jedi = compute_jedi_from_features(train_features, test_features)
+```
+
+### 感知成对（`family=perceptual`）
+
+reference 与 generated 图像之间的成对相似度（条件一致性、重建质量）。
+
+| 指标 | 别名 | 方向 | 主要 API |
+| --- | --- | --- | --- |
+| lpips | — | ↓ | `compute_lpips(ref_image, gen_image)` |
+| ssim | — | ↑ | `compute_ssim(...)` |
+| ms_ssim | ms-ssim | ↑ | `compute_ms_ssim(...)` |
+| psnr | — | ↑ | `compute_psnr(...)` |
+| dino_similarity | dino-similarity, dino_sim | ↑ | `compute_dino_similarity(...)` |
+| dreamsim | dream-sim | ↓ | `compute_dreamsim(...)` |
+| cpbd | cpbd-sharpness | ↑ | `compute_cpbd(image)` |
+| fsim | feature-similarity-index, fsimc | ↑ | `compute_fsim(ref_image, gen_image)` |
+| mask_accuracy | mask-accuracy | ↑ | `compute_mask_accuracy(...)` |
+| object_detection | object-detection | ↑ | `compute_object_detection_success_rate(...)` |
+| lqs | layout-quality-score | ↑ | `compute_lqs(groundtruth_layout, predicted_layout)` |
+
+```python
+import numpy as np
+from worldfoundry.evaluation.tasks.metrics import (
+    compute_lpips,
+    compute_ssim,
+    compute_ms_ssim,
+    compute_psnr,
+    compute_perceptual_bundle,
+    compute_dino_similarity,
+    compute_dreamsim,
+)
+
+ref = np.load("reference.npy")
+gen = np.load("generated.npy")
+
+bundle = compute_perceptual_bundle(ref, gen)
+dino_sim = compute_dino_similarity(ref, gen)
+dreamsim_dist = compute_dreamsim(ref, gen)
+```
+
+## CLI 接口
+
+| 命令 | 范围 |
+| --- | --- |
+| `worldfoundry-eval metric list` | 列出或 JSON 导出全部 registry 条目。 |
+| `worldfoundry-eval metric show <id>` | 查看单条 entry、别名、参数化前缀。 |
+| `worldfoundry-eval metric validate <id>...` | 批量解析 id；未知 id 时 exit 1。 |
+| `worldfoundry-eval evaluate --metric ...` | **仅内置 existing-results 指标**（`artifact_count`、`required_artifacts_present`、`has_artifact:<name>`、`numeric`、`numeric:<name>`）。 |
+| `worldfoundry-eval plan create --metric ...` | 构造 run plan JSON 时使用相同内置 metric id。 |
+
+分布与感知类指标目前通过 Python 调用。Benchmark runner 在计算官方 metric stack 时可能复用相同底层实现（EvalCrafter IS/FID、MiraBench FVD 等）。多模态 scorer（CLIPScore、VQAScore、ITMScore）通过 `worldfoundry.evaluation.tasks.metrics.get_score_model(...)` 暴露，实现位于 `execution/runners/_scorers/`。
+
+## 依赖
+
+安装 distribution-metrics extra 以使用 torch-fidelity、Clean-FID、CMMD、感知 torchmetrics 等：
+
+```bash
+pip install -e ".[distribution_metrics]"
+```
+
+`distribution_metrics` extra 核心依赖包括 `torch`、`torchvision`、`torchmetrics`、`scikit-learn`、`scipy`、`transformers`、`pillow`，以及 `pyproject.toml` 中声明的可选 metric 包。
+
+重依赖保持 lazy import：导入 `worldfoundry.evaluation.tasks.metrics` 不应要求所有 checkpoint 已就绪，直到具体 `compute_*` 被调用。
+
+## Checkpoint 与环境变量
+
+| 变量 | 使用者 | 用途 |
+| --- | --- | --- |
+| `WORLDFOUNDRY_HFD_ROOT` | Hugging Face based metrics 与 scorers | 共享 HF cache 根目录或本地 staged model 根目录。 |
+| `WORLDFOUNDRY_T2V_METRICS_CACHE_DIR` | CLIPScore、ITMScore、VQAScore | 多模态 scorer 模型的优先 cache；未设置时回退到 `WORLDFOUNDRY_HFD_ROOT`。 |
+| `WORLDFOUNDRY_CKPT_DIR` | FVD、ArtScore、共享 standalone 文件 | `.pt`、`.pth`、`.bin` 等非 HF 文件的默认准备目录。 |
+| `WORLDFOUNDRY_FVD_I3D_CKPT` | FVD | Inception I3D 特征权重 `i3d_pretrained_400.pt`。 |
+| `WORLDFOUNDRY_MIRABENCH_FVD_I3D_CKPT` | FVD（MiraBench 回退） | 备用 I3D checkpoint 路径。 |
+| `WORLDFOUNDRY_JEDI_MODEL_DIR` / `WORLDFOUNDRY_JEDI_VJEPA_DIR` / `WORLDFOUNDRY_VJEPA_MODEL_DIR` | JEDi | V-JEPA 模型目录。 |
+| `WORLDFOUNDRY_JEDI_CONFIG_PATH` | JEDi | YAML 配置；bundled 资产见 `worldfoundry/data/benchmarks/assets/jedi/vith16_ssv2_16x2x3.yaml`。 |
+| `WORLDFOUNDRY_JEDI_FEATURE_PATH` | JEDi | 可选预计算 feature 归档。 |
+| `WORLDFOUNDRY_FDD_DAE_CKPT` | FDD | Frechet Denoised Distance 预训练 DAE 权重。 |
+| `WORLDFOUNDRY_DINOV2_BASE_MODEL_DIR` | DINO similarity | 本地 `facebook/dinov2-base` 模型目录。 |
+| `WORLDFOUNDRY_DINO_VITB16_MODEL_DIR` | DINO-family metrics | 本地 `facebook/dino-vitb16` 模型目录。 |
+| `WORLDFOUNDRY_OPENS2V_WEIGHT_DIR` | FaceSim-Cur | OpenS2V InsightFace + CurricularFace 权重目录。 |
+| `WORLDFOUNDRY_GME_MODEL_PATH` | GmeScore、NexusScore | GME-Qwen2-VL 模型路径。 |
+| `WORLDFOUNDRY_YOLO_WORLD_CKPT` | NexusScore | YOLO-World image-prompt adapter checkpoint。 |
+| `WORLDFOUNDRY_YOLO_CLIP_MODEL` | NexusScore | YOLO-World 评估用 CLIP backbone。 |
+| `OPENAI_API_KEY` | NaturalScore | OpenS2V 自然度 GPT 评分 API key。 |
+
+FVD 解析顺序见 `fvd/fvd_core.py`：显式 `i3d_checkpoint` → `WORLDFOUNDRY_FVD_I3D_CKPT` → `WORLDFOUNDRY_MIRABENCH_FVD_I3D_CKPT` → `WORLDFOUNDRY_CKPT_DIR` 下路径。
+
+## 架构
+
+```
+worldfoundry/evaluation/tasks/metrics/
+├── _base.py             # MetricModuleSpec 协议 + registry entry 工厂
+├── _discover.py         # 从各 metric 文件夹自动发现 METRIC_MODULE
+├── _shared/             # 跨 metric 基础设施（distribution helper、torch-fidelity loader）
+│   └── vendor/torch_fidelity/  # Vendored torch-fidelity（Apache-2.0）
+├── registry.py          # MetricRegistryEntry、MetricRegistry、legacy + discovered entries
+├── fid/ kid/ …          # 每个分布 metric 一个文件夹（METRIC_ID、compute、METRIC_MODULE）
+├── lpips/ ssim/ …       # 每个成对感知 metric 一个文件夹
+├── fvd/ fvmd/ opens2v/ sadpad/  # 视频分布 + OpenS2V + SadPaD
+├── cmmd/ clean_fid/ vendi_score/ …      # 独立分布 helper
+└── jedi/                # Video JEPA distance（wrapper.py + vendored JEDi）
+```
+
+### 统一 metric 模块布局
+
+每个已迁移的 metric 文件夹导出统一接口：
+
+| 导出 | 用途 |
+| --- | --- |
+| `METRIC_ID`、`ALIASES`、`HIGHER_IS_BETTER`、`FAMILY`、`TAGS` | Registry 元数据 |
+| `METRIC_MODULE` | 供 auto-discovery 的 :class:`MetricModuleSpec` |
+| `compute(...)` / `compute_<name>(...)` | 按 metric family 的稳定 compute API |
+| 论文 / 仓库链接 | 见 [指标配方子页面](/zh/docs/evaluation/metrics) 各 metric 小节内联说明 |
+
+已迁移 metric 的 registry entry 通过 `_discover.discover_metric_registry_entries()` 注册，而非在 `registry.py` 中硬编码重复项。
+
+### Import 入口
+
+顶层 `metrics/__init__.py` 从各 per-metric 模块 re-export `compute_*` 函数，保持 `from worldfoundry.evaluation.tasks.metrics import compute_fid` 等现有 import 可用。
+
+Benchmark catalog metric 与官方结果归一化在 `execution/runners/` 完成；benchmark-specific 配置应写在对应的 [Benchmark Hub](/zh/docs/evaluation/benchmark-hub) 子页面。
+
+## 相关页面
+
+- [Evaluation](/zh/docs/evaluation) — run 契约、`evaluate` 与 scorecard 输出。
+- [Benchmark Hub](/zh/docs/evaluation/benchmark-hub) — 每个 benchmark 的指标、资产与运行命令。
+- [Local asset preparation](/zh/docs/guides/local-assets) — checkpoint 准备，含 FVD I3D 权重。

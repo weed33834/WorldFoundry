@@ -1,0 +1,30 @@
+id: cut3r
+name: CUT3R
+tasks:
+- 3d-reconstruction
+- 3dgs
+- point-cloud
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/CUT3R/CUT3R
+  license: apache-2.0
+official_sources:
+  github:
+    url: https://github.com/CUT3R/CUT3R
+  huggingface:
+  - repo_id: liguang0115/cut3r
+    type: model
+    status: confirmed
+integration:
+  status: runtime_ported
+  notes:
+  - In-tree CUT3R point-cloud and two-stage 3DGS routes are registered through Studio discovery.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: cut3r
+runner_parity:
+  status: pending
+  notes:
+  - Checkpoint-backed inference depends on staged local or Hugging Face cut3r weights.
+catalog_category: three_d_four_d
+catalog_scope: Official-source manifest for 3D, 4D, and camera-controlled world/model generation projects.

@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: infinite-world
+model_id: infinite-world
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.infinite_world.pipeline_infinite_world:InfiniteWorldPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

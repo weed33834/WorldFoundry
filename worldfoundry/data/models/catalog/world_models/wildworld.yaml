@@ -1,0 +1,32 @@
+id: wildworld
+name: WildWorld
+tasks:
+- world-model-benchmark
+- dataset
+- evaluation
+output_artifacts:
+- evaluation_report
+provider: official_repo
+source:
+  status: unknown
+  official_repo_url: https://github.com/ShandaAI/WildWorld
+  license: non-commercial-research
+official_sources:
+  github:
+    url: https://github.com/ShandaAI/WildWorld
+    head_sha: 23971043ae34d802b83661a964fe291f14d277f7
+runtime_profile: runtime-profile:wildworld
+integration:
+  status: runtime_ported
+  notes:
+  - WildWorld official source route is registered; benchmark/dataset assets are runtime-gated.
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - resolve_model_zoo_config and pipeline import are expected to pass; real generation
+    emits a runtime plan until required checkpoints/assets are staged.
+catalog_category: world_models
+catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry
+  runtimes; blocked entries retain upstream provenance without runnable backends.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: wildworld

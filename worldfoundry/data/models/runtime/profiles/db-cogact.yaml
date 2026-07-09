@@ -1,0 +1,53 @@
+schema_version: 2
+model_id: db-cogact
+display_name: DB-CogACT / Dexbotic
+task_family: vla_policy
+groups:
+- vla
+- robot_policy
+- action_chunk
+source_repos:
+- url: https://github.com/Dexmal/dexbotic
+  revision: 0f5ae6382bf0
+checkpoints:
+- repo_id: Dexmal/libero-db-cogact
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Dexmal--libero-db-cogact
+  role: libero_db_cogact_checkpoint
+- repo_id: Dexmal/Dexbotic-CogACT-SArm
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Dexmal--Dexbotic-CogACT-SArm
+  role: single_arm_foundation_checkpoint
+- repo_id: Dexmal/Dexbotic-CogACT-HArm
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Dexmal--Dexbotic-CogACT-HArm
+  role: dual_arm_foundation_checkpoint
+- repo_id: Dexmal/calvin-db-cogact
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Dexmal--calvin-db-cogact
+  role: calvin_checkpoint
+- repo_id: Dexmal/simpler-db-cogact
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Dexmal--simpler-db-cogact
+  role: simpler_checkpoint
+input_schema:
+  model_id: db-cogact
+  image: true
+  prompt: true
+  state: optional
+  image_slots:
+  - front
+  - left_wrist
+  - right_wrist
+  policy_family: dexbotic_v1_select_action_policy
+  action_representation: model_declared_relative_or_absolute_action_chunk
+artifact_kind: action_trace
+artifact_filename: db-cogact_action_trace.json
+execution:
+  backend_stage: in_tree_vendored_in_process_checkpoint_runtime
+  runtime_status: checkpoint_backed_action_trace_verified
+  integration_status: checkpoint_backed_runtime_ready
+  pipeline_binding: db-cogact
+integration:
+  status: checkpoint_backed_runtime_ready
+notes:
+- Official v1 route is POST /v1/infer with observation.prompt, image slots, optional state, and sampling parameters.
+- WorldFoundry runtime constructs the vendored Dexbotic CogACT policy in-process and calls select_action directly.
+- Minimal runtime excludes FastAPI/Flask servers, Triton realtime DM0 backend, training, and benchmark launchers.
+- Workspace inference uses configured Dexmal/libero-db-cogact assets and emits
+  an action trace with shape [1, 16, 7].

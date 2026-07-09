@@ -1,0 +1,6 @@
+{
+  "camera_motion": [0.8, []],
+  "diversity": [0.75, []],
+  "instance_preservation": [0.82, []],
+  "motion_rationality": [0.77, []]
+}

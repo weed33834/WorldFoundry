@@ -1,0 +1,119 @@
+id: ai2thor
+name: AI2-THOR
+benchmark_kind:
+- vla
+- embodied-action
+- navigation
+- simulator
+domains:
+- vla
+- embodied-action
+- navigation
+- indoor-scene
+modalities:
+- language
+- vision
+- action
+aliases:
+- AI2-THOR
+- ai2-thor
+status: open_source
+official_sources:
+  github:
+    url: https://github.com/allenai/ai2thor
+  paper_url: https://ai2thor.allenai.org/
+  license: upstream_terms
+runner:
+  runner_target: worldfoundry.evaluation.tasks.embodied.rollout_runner:build_ai2thor_closed_loop_runner
+  run_command:
+  - worldfoundry-eval
+  - embodied
+  - run
+  - --config
+  - worldfoundry/data/benchmarks/eval_configs/embodied/ai2thor/floorplan1.yaml
+  expected_artifacts:
+  - scorecard.json
+  - run_manifest.json
+  - results.jsonl
+  - metrics/summary.json
+  runtime:
+    kind: native_closed_loop_simulator
+    root_env: WORLDFOUNDRY_AI2THOR_ROOT
+    results_path_env: WORLDFOUNDRY_AI2THOR_RESULTS_PATH
+    task_manifest: worldfoundry/data/benchmarks/tasks/external/ai2thor.yaml
+    required_assets:
+    - AI2-THOR Python package
+    - AI2-THOR Unity simulator build/cache
+    - display backend or CloudRendering headless runtime
+    eval_config: worldfoundry/data/benchmarks/eval_configs/embodied/ai2thor/floorplan1.yaml
+    model_runner: worldfoundry.embodied-closed-loop
+    output_artifact: rollout_metrics
+  verification_status: integration_ready
+  notes:
+  - Native closed-loop execution is wired through worldfoundry-eval embodied run.
+  - Policies should emit discrete simulator tokens such as forward/left/pickup.
+metrics:
+- id: success_rate
+  name: Success Rate
+  higher_is_better: true
+  normalizer: percent_or_fraction_to_unit
+  primary: true
+- id: task_success
+  name: Task Success
+  higher_is_better: true
+  normalizer: percent_or_fraction_to_unit
+- id: episode_success
+  name: Episode Success
+  higher_is_better: true
+  normalizer: percent_or_fraction_to_unit
+- id: reward
+  name: Reward
+  higher_is_better: true
+integration:
+  status: integrated
+  evidence:
+    official_benchmark_verified: false
+    integration_evidence: true
+    leaderboard_valid: false
+  blocked_reasons:
+  - Full leaderboard parity still requires recorded policy rollouts with Unity assets and task-specific success
+    definitions.
+release_status: experimental
+maturity: contract_ready
+open_source_status: experimental
+official_benchmark_verified: false
+integration_evidence: true
+leaderboard_valid: false
+full_test_harness_ready: true
+full_suite_testable: true
+full_suite_execution_recorded: false
+requires:
+- AI2-THOR Python package
+- AI2-THOR Unity simulator build/cache
+- Headless CloudRendering or X11 display backend
+- Policy checkpoint or external policy server for non-zero rollouts
+blockers:
+- Official task suites such as ALFRED/TEACh are not bundled yet; default scene tasks are provided for wiring validation.
+data_refs:
+  local_repo_paths:
+  - cache/vla_va_wam/repos/allenai--ai2thor
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/ai2thor.yaml
+runner_availability:
+  available: true
+  runner_target: worldfoundry.evaluation.tasks.embodied.rollout_runner:build_ai2thor_closed_loop_runner
+  runner_script_available: false
+  task_yaml_available: true
+  runtime_verified: false
+  normalizer_verified: true
+  surface: native_closed_loop_simulator
+validation_command:
+- worldfoundry-eval
+- embodied
+- run
+- --config
+- worldfoundry/data/benchmarks/eval_configs/embodied/ai2thor/floorplan1.yaml
+checkpoint_refs: []
+artifact_layout:
+  generated_artifact_dir_env: WORLDFOUNDRY_AI2THOR_RESULTS_PATH
+  output_artifact: benchmark_scorecard
+  filename_template: scorecard.json

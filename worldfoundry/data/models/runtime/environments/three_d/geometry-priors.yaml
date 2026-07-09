@@ -1,0 +1,317 @@
+envs:
+- model_id: dap
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - numpy
+  - pillow
+  - opencv-python
+  - huggingface-hub
+  validation_imports:
+  - torch
+  - torchvision
+  - numpy
+  - PIL
+  - cv2
+  - huggingface_hub
+  notes:
+  - Uses the shared CUDA 12.8 environment for in-tree geometry-prior inference.
+- model_id: depth-anything-v2-prior
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - numpy
+  - pillow
+  - opencv-python
+  validation_imports:
+  - torch
+  - torchvision
+  - numpy
+  - PIL
+  - cv2
+  notes:
+  - Uses the shared CUDA 12.8 environment for in-tree geometry-prior inference.
+- model_id: depth-anything-v3-prior
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - numpy
+  - pillow
+  - opencv-python
+  - safetensors
+  - huggingface-hub
+  validation_imports:
+  - torch
+  - torchvision
+  - numpy
+  - PIL
+  - cv2
+  - safetensors
+  - huggingface_hub
+  notes:
+  - Uses the shared CUDA 12.8 environment for in-tree geometry-prior inference.
+- model_id: dust3r
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - numpy
+  - pillow
+  - opencv-python
+  - scipy
+  validation_imports:
+  - torch
+  - torchvision
+  - numpy
+  - PIL
+  - cv2
+  - scipy
+  notes:
+  - Uses the shared CUDA 12.8 environment for in-tree geometry-prior inference.
+- model_id: dust3r-base-model
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - numpy
+  - pillow
+  - opencv-python
+  - scipy
+  validation_imports:
+  - torch
+  - torchvision
+  - numpy
+  - PIL
+  - cv2
+  - scipy
+  notes:
+  - Uses the shared CUDA 12.8 environment for in-tree geometry-prior inference.
+- model_id: geocalib-prior
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - numpy
+  - pillow
+  - opencv-python
+  validation_imports:
+  - torch
+  - torchvision
+  - numpy
+  - PIL
+  - cv2
+  notes:
+  - Uses the shared CUDA 12.8 environment for in-tree geometry-prior inference.
+- model_id: metric3d-prior
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - numpy
+  - pillow
+  - opencv-python
+  - timm
+  validation_imports:
+  - torch
+  - torchvision
+  - numpy
+  - PIL
+  - cv2
+  - timm
+  notes:
+  - Uses the shared CUDA 12.8 environment for in-tree geometry-prior inference.
+- model_id: prior-depth-anything
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - numpy
+  - pillow
+  - opencv-python
+  - einops
+  - huggingface-hub
+  validation_imports:
+  - torch
+  - torchvision
+  - numpy
+  - PIL
+  - cv2
+  - einops
+  - huggingface_hub
+  notes:
+  - Uses the shared CUDA 12.8 environment for in-tree geometry-prior inference.
+- model_id: track-anything-prior
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - numpy
+  - pillow
+  - opencv-python
+  - gdown
+  validation_imports:
+  - torch
+  - torchvision
+  - numpy
+  - PIL
+  - cv2
+  - gdown
+  notes:
+  - Uses the shared CUDA 12.8 environment for in-tree geometry-prior inference.
+- model_id: unidepth-v2-prior
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - numpy
+  - pillow
+  - opencv-python
+  - safetensors
+  - huggingface-hub
+  validation_imports:
+  - torch
+  - torchvision
+  - numpy
+  - PIL
+  - cv2
+  - safetensors
+  - huggingface_hub
+  notes:
+  - Uses the shared CUDA 12.8 environment for in-tree geometry-prior inference.
+- model_id: unik3d-prior
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - numpy
+  - pillow
+  - opencv-python
+  - safetensors
+  - huggingface-hub
+  validation_imports:
+  - torch
+  - torchvision
+  - numpy
+  - PIL
+  - cv2
+  - safetensors
+  - huggingface_hub
+  notes:
+  - Uses the shared CUDA 12.8 environment for in-tree geometry-prior inference.
+- model_id: video-depth-anything-prior
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - numpy
+  - pillow
+  - opencv-python
+  - imageio
+  validation_imports:
+  - torch
+  - torchvision
+  - numpy
+  - PIL
+  - cv2
+  - imageio
+  notes:
+  - Uses the shared CUDA 12.8 environment for in-tree geometry-prior inference.

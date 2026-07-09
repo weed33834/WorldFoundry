@@ -1,0 +1,9 @@
+{
+  "title": "Maintainers",
+  "defaultOpen": false,
+  "pages": [
+    "contributing",
+    "plan",
+    "architecture"
+  ]
+}

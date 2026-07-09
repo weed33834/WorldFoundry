@@ -1,0 +1,36 @@
+id: sana-wm
+name: SANA-WM
+aliases:
+- sana world model
+- sana-wm-2.6b
+tasks:
+- world-model
+- camera-controlled-video
+- controllable-world-generation
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/NVlabs/Sana
+  license: apache-2.0
+official_sources:
+  paper: https://arxiv.org/abs/2605.15178
+  github:
+    url: https://github.com/NVlabs/Sana
+runtime_profile: runtime-profile:sana-wm
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: sana-wm
+integration:
+  status: runtime_ported
+  blocked_reasons:
+  - Official Sana/SANA-WM source is vendored in-tree under base_models/diffusion_model/image/sana; runnable execution still
+    requires the official dependency environment, checkpoints, and task assets.
+  notes:
+  - WorldFoundry registers an in-tree runtime manifest pipeline for the vendored Sana-WM source.
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - The pipeline resolves the vendored Sana-WM inference entrypoint and returns blocked runtime diagnostics until checkpoints,
+    dependencies, and task assets are staged.
+catalog_category: world_models
+catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry runtimes; blocked entries retain
+  upstream provenance without runnable backends.

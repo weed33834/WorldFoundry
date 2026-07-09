@@ -1,0 +1,266 @@
+id: worldscore
+name: WorldScore
+benchmark_kind:
+- world-generation
+- image-to-video
+- image-to-3d
+- camera-trajectory
+domains:
+- world-generation
+- camera-control
+- 3d-generation
+- 4d-generation
+modalities:
+- image
+- video
+- 3d
+- 4d
+status: confirmed_official_code_and_hf_data
+open_source_status: experimental
+official_benchmark_verified: false
+integration_evidence: false
+leaderboard_valid: false
+requires:
+- WORLDFOUNDRY_WORLDSCORE_ROOT optional override for the bundled WorldScore core runtime
+- WORLDFOUNDRY_WORLDSCORE_CONFIG_ROOT optional override for bundled WorldScore config assets
+- WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+- Local Howieeeee/WorldScore dataset or DATA_PATH
+- Upstream WorldScore GPU metric runtime for full evaluation
+blockers:
+- Bounded official GPU validation verifies one dynamic sample only; full-suite validation remains pending.
+- DROID/GroundingDINO/SAM/RAFT/SEA-RAFT are reusable WorldFoundry base-model dependencies and have local checkpoint/env 
+  preflight evidence.
+- Leaderboard parity requires complete evaluation.json trees and official metric definitions.
+official_gpu_validation:
+  verified: true
+  split: dynamic
+  generated_video_count: 1
+  official_benchmark_verified: true
+  integration_evidence: true
+  leaderboard_valid: false
+  full_suite_verified: false
+  metrics_available: 4
+  scope: bounded_official_gpu_validation
+  scorecard: tmp/local_open_eval/worldscore_bounded_gpu_validation_after_readiness_layers_20260525/scorecard.json
+official_sources:
+  github:
+    url: https://github.com/haoyi-duan/WorldScore
+    verified_by: git ls-remote --symref https://github.com/haoyi-duan/WorldScore.git HEAD
+    default_branch: main
+    head_sha: 344983c1be7d515c1e4ecb167d40d622adf502bc
+  project_page: https://haoyi-duan.github.io/WorldScore/
+  huggingface_datasets:
+  - repo_id: Howieeeee/WorldScore
+    verified_by: GET https://huggingface.co/api/datasets/Howieeeee/WorldScore
+    sha: 42c4e267e1cc0529af1b0284ce018e04d43906e3
+    private: false
+    gated: false
+    license: mit
+    task_categories:
+    - image-to-video
+    - image-to-3d
+  paper_url: https://arxiv.org/abs/2504.00983
+  license: mit
+  access_notes: Official GitHub repository is public under MIT; benchmark assets/runtime remain external requirements.
+dataset_refs:
+- repo_id: Howieeeee/WorldScore
+  revision: 42c4e267e1cc0529af1b0284ce018e04d43906e3
+  license: mit
+  path: cache/benchmark_zoo/hf_datasets/Howieeeee--WorldScore
+evaluation_surface:
+  num_examples: 3000
+  metrics:
+  - controllability
+  - quality
+  - dynamics
+  model_types:
+  - threedgen
+  - fourdgen
+  - videogen
+  requires_api: false
+  base_model_dependency_ids:
+  - droid_slam
+  - grounding_dino
+  - raft
+  - sam_v1
+  - sam2
+  - sea_raft
+metrics:
+- id: controllability
+  name: Controllability
+  description: WorldScore camera and condition controllability metric family.
+  higher_is_better: true
+  leaderboard_key: controllability
+  aggregator: mean
+  output_unit: score
+- id: quality
+  name: Quality
+  description: WorldScore visual and reconstruction quality metric family.
+  higher_is_better: true
+  leaderboard_key: quality
+  aggregator: mean
+  output_unit: score
+- id: dynamics
+  name: Dynamics
+  description: WorldScore temporal dynamics metric family.
+  higher_is_better: true
+  leaderboard_key: dynamics
+  aggregator: mean
+  output_unit: score
+- id: worldscore_average
+  name: WorldScore Average
+  description: Normalized aggregate across WorldScore metric families.
+  higher_is_better: true
+  leaderboard_key: worldscore_average
+  aggregator: mean
+  output_unit: score
+  primary: true
+runner:
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:WorldScoreContract
+  repo_url: https://github.com/haoyi-duan/WorldScore
+  repo_revision: 344983c1be7d515c1e4ecb167d40d622adf502bc
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - worldscore
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <official_results.json>
+  - --generated-artifact-dir
+  - <generated_videos>
+  - --output-dir
+  - <out>
+  - --json
+  run_command: PYTHONPATH=. "${WORLDFOUNDRY_UNIFIED_PYTHON:-python}" 
+    worldfoundry/evaluation/tasks/execution/runners/worldscore/run_worldscore_official_runner.py --worldscore-root 
+    "${WORLDFOUNDRY_WORLDSCORE_ROOT:-worldfoundry/evaluation/tasks/execution/runners/worldscore/runtime/worldscore}" 
+    --worldscore-config-root "${WORLDFOUNDRY_WORLDSCORE_CONFIG_ROOT:-worldfoundry/data/benchmarks/assets/worldscore/config}" 
+    --model-name "${WORLDFOUNDRY_WORLDSCORE_MODEL_NAME:-wan2.1_i2v}" --model-path 
+    "${WORLDFOUNDRY_WORLDSCORE_MODEL_PATH:-${WORLDFOUNDRY_BENCHMARK_OUTPUT_DIR}/worldscore_model_path}" --data-path 
+    "${WORLDFOUNDRY_WORLDSCORE_HF_DATASET_ROOT}" --stage-target-frames 
+    "${WORLDFOUNDRY_WORLDSCORE_STAGE_TARGET_FRAMES:-8}" --stage-overwrite --python 
+    "${WORLDFOUNDRY_UNIFIED_PYTHON:-python}" --timeout "${WORLDFOUNDRY_WORLDSCORE_TIMEOUT:-1800}" --num-jobs 
+    "${WORLDFOUNDRY_WORLDSCORE_NUM_JOBS:-1}" --output-dir "${WORLDFOUNDRY_BENCHMARK_OUTPUT_DIR}" --json
+  runtime:
+    kind: in_tree_official_runtime
+    repo_url: https://github.com/haoyi-duan/WorldScore
+    repo_revision: 344983c1be7d515c1e4ecb167d40d622adf502bc
+    root: worldfoundry/evaluation/tasks/execution/runners/worldscore/runtime/worldscore
+    root_env: WORLDFOUNDRY_WORLDSCORE_ROOT
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+    official_results_path_env: WORLDFOUNDRY_WORLDSCORE_RESULTS_PATH
+    evaluation_output_dir_env: WORLDFOUNDRY_WORLDSCORE_OUTPUT_DIR
+    entrypoints:
+      evaluate: worldfoundry/evaluation/tasks/execution/runners/worldscore/run_worldscore_official_runner.py
+  expected_artifacts:
+  - scorecard.json
+  - per_sample_metrics.jsonl
+  - raw_metric_table.jsonl
+  - official_stdout.log
+  - official_stderr.log
+  assets:
+    official_gpu_validation:
+      status: verified
+      split: dynamic
+      generated_video_count: 1
+      official_benchmark_verified: true
+      integration_evidence: true
+      leaderboard_valid: false
+      full_suite_verified: false
+      metrics_available: 4
+      verified: true
+      scope: bounded_official_gpu_validation
+      scorecard: tmp/local_open_eval/worldscore_bounded_gpu_validation_after_readiness_layers_20260525/scorecard.json
+  verification_status: verified
+  notes:
+  - Offline normalization accepts explicit WorldScore result artifacts via --official-results-path; no checked-in fixture 
+    is required.
+  - Workspace and TUI generate model outputs through WorldFoundry integrations; the WorldScore runner evaluates staged 
+    output trees or imports existing result artifacts.
+  - Bounded official GPU validation verified one dynamic sample with official_benchmark_verified=true and 
+    integration_evidence=true.
+  - Runner resolves DATA_PATH from explicit args/env or a local Howieeeee/WorldScore Hugging Face cache snapshot and can
+    aggregate generated evaluation.json trees into non-leaderboard scorecards.
+  - Leaderboard parity requires complete evaluation.json trees and official metric definitions; 
+    eligibility.leaderboard_valid stays false unless full evidence is recorded.
+integration:
+  status: integrated
+  evidence:
+    official_benchmark_verified: false
+    integration_evidence: false
+    leaderboard_valid: false
+  notes:
+  - 'Surfaces: in-tree WorldScore metric runtime, benchmark-validation, official runtime runner, HF dataset_ref for download tooling.'
+  - Bounded official GPU validation is available; full dataset materialization and complete metric execution remain 
+    release validation responsibilities.
+release_status: experimental
+maturity: contract_ready
+data_refs:
+  dataset_refs:
+  - repo_id: Howieeeee/WorldScore
+    revision: 42c4e267e1cc0529af1b0284ce018e04d43906e3
+    license: mit
+    path: cache/benchmark_zoo/hf_datasets/Howieeeee--WorldScore
+  local_dataset_paths:
+  - cache/worldfoundry/data/hfd_datasets/Howieeeee/WorldScore
+  - cache/worldfoundry/data/hfd_datasets/Howieeeee__WorldScore
+  in_tree_runtime: worldfoundry/evaluation/tasks/execution/runners/worldscore/runtime/worldscore
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/worldscore.yaml
+runner_availability:
+  available: true
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:WorldScoreContract
+  runner_script_available: true
+  task_yaml_available: true
+  runtime_verified: true
+  normalizer_verified: false
+  surface: official_runner
+base_model_dependencies:
+- worldscore_spatial_metric_stack
+base_model_dependency_preflight:
+  status: ready
+  python: ${WORLDFOUNDRY_UNIFIED_PYTHON}
+  verified_at: '2026-05-25T07:16:04+00:00'
+  in_tree_capabilities:
+  - droid_slam
+  - grounding_dino
+  - raft
+  - sam_v1
+  - sam2
+  - sea_raft
+  ready_env:
+    WORLDFOUNDRY_DROID_SLAM_CKPT: cache/worldfoundry/assets/worldscore_official/metrics/checkpoints/droid.pth
+    WORLDFOUNDRY_GROUNDING_DINO_CKPT: cache/hfd/ShilongLiu--GroundingDINO/groundingdino_swint_ogc.pth
+    WORLDFOUNDRY_RAFT_THINGS_CKPT: 
+      cache/worldfoundry/assets/worldscore_official/metrics/checkpoints/models/raft-things.pth
+    WORLDFOUNDRY_SAM_VIT_H_CKPT: cache/worldfoundry/assets/worldscore_official/metrics/checkpoints/sam_vit_h_4b8939.pth
+    WORLDFOUNDRY_SAM2_CKPT: cache/hfd/facebook--sam2.1-hiera-base-plus/sam2.1_hiera_base_plus.pt
+    WORLDFOUNDRY_SEA_RAFT_CKPT: 
+      cache/worldfoundry/assets/worldscore_official/metrics/checkpoints/Tartan-C-T-TSKH-spring540x960-M.pth
+  runtime_env:
+    WORLDFOUNDRY_WORLDSCORE_ROOT: worldfoundry/evaluation/tasks/execution/runners/worldscore/runtime/worldscore
+    WORLDFOUNDRY_WORLDSCORE_CONFIG_ROOT: worldfoundry/data/benchmarks/assets/worldscore/config
+    WORLDFOUNDRY_WORLDSCORE_ASSET_CHECKPOINT_DIR: cache/worldfoundry/assets/worldscore_official/metrics/checkpoints
+  missing: []
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- worldscore
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.json>
+- --generated-artifact-dir
+- <generated_videos>
+- --output-dir
+- <out>
+- --json
+checkpoint_refs: []
+artifact_layout:
+  generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  output_artifact: benchmark_scorecard
+  filename_template: scorecard.json

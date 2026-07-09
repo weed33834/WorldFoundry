@@ -1,0 +1,191 @@
+id: world-in-world
+name: World-in-World
+benchmark_kind:
+- closed-loop-world-model
+- embodied-action
+- planning
+domains:
+- closed-loop
+- planning
+- embodied-world-model
+- action-control
+modalities:
+- video
+- action
+- observation
+status: confirmed_official_code
+official_sources:
+  github:
+    url: https://github.com/World-In-World/world-in-world
+    verified_by: git ls-remote https://github.com/World-In-World/world-in-world HEAD
+    head_sha: 6ac81ef12451c29d22cdec9ac96e3fe46b22ac2a
+  paper_url: https://arxiv.org/abs/2510.18135
+  project_page: https://world-in-world.github.io/
+benchmark_assets:
+  prompt_suite:
+    status: bundled_in_tree
+    path: worldfoundry/data/benchmarks/assets/world-in-world
+evaluation_surface:
+  purpose: Closed-loop utility benchmark for visual world models.
+  claimed_task_groups: 4
+  requires_planner_and_environment: true
+  metric_protocol:
+    metric_ids:
+    - active_recognition_success_rate
+    - image_goal_navigation_success_rate
+    - image_goal_navigation_spl
+    - active_embodied_qa_score
+    - active_embodied_qa_spl
+    - robotic_manipulation_success_rate
+    - interaction_trace_consistency
+    - world_in_world_average
+    primary_metric: world_in_world_average
+metrics:
+- id: active_recognition_success_rate
+  name: Active Recognition Success Rate
+  description: active_recognition_success_rate normalized benchmark score.
+  higher_is_better: true
+  leaderboard_key: active_recognition_success_rate
+  aggregator: mean
+  output_unit: rate
+- id: image_goal_navigation_success_rate
+  name: Image Goal Navigation Success Rate
+  description: image_goal_navigation_success_rate normalized benchmark score.
+  higher_is_better: true
+  leaderboard_key: image_goal_navigation_success_rate
+  aggregator: mean
+  output_unit: rate
+- id: image_goal_navigation_spl
+  name: Image Goal Navigation Spl
+  description: image_goal_navigation_spl normalized benchmark score.
+  higher_is_better: true
+  leaderboard_key: image_goal_navigation_spl
+  aggregator: mean
+  output_unit: score
+- id: active_embodied_qa_score
+  name: Active Embodied Qa Score
+  description: active_embodied_qa_score normalized benchmark score.
+  higher_is_better: true
+  leaderboard_key: active_embodied_qa_score
+  aggregator: mean
+  output_unit: score
+- id: active_embodied_qa_spl
+  name: Active Embodied Qa Spl
+  description: active_embodied_qa_spl normalized benchmark score.
+  higher_is_better: true
+  leaderboard_key: active_embodied_qa_spl
+  aggregator: mean
+  output_unit: score
+- id: robotic_manipulation_success_rate
+  name: Robotic Manipulation Success Rate
+  description: robotic_manipulation_success_rate normalized benchmark score.
+  higher_is_better: true
+  leaderboard_key: robotic_manipulation_success_rate
+  aggregator: mean
+  output_unit: rate
+- id: interaction_trace_consistency
+  name: Interaction Trace Consistency
+  description: interaction_trace_consistency normalized benchmark score.
+  higher_is_better: true
+  leaderboard_key: interaction_trace_consistency
+  aggregator: mean
+  output_unit: score
+- id: world_in_world_average
+  name: World In World Average
+  description: world_in_world_average normalized benchmark score.
+  higher_is_better: true
+  leaderboard_key: world_in_world_average
+  aggregator: mean
+  output_unit: score
+  primary: true
+runner:
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:WorldInWorldContract
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - world-in-world
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <official_results.json>
+  - --generated-artifact-dir
+  - <generated_videos>
+  - --output-dir
+  - <out>
+  - --json
+  runtime:
+    kind: in_tree_artifact_evaluator
+    root: worldfoundry/evaluation/tasks/execution/runners/world_in_world
+    results_path_env: WORLDFOUNDRY_WORLD_IN_WORLD_RESULTS_PATH
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  expected_artifacts:
+  - scorecard.json
+  - benchmark_contract.json
+  - raw_metric_table.jsonl
+  verification_status: in_tree_artifact_evaluator
+  notes:
+  - WorldFoundry normalizes caller-provided World-in-World official result files through the unified benchmark-run 
+    entrypoint.
+  - Model inference is run by the WorldFoundry model pipeline; this runner consumes generated artifacts and metrics.
+  - Full validation requires complete official closed-loop rollout assets and generated metrics.
+  required_env: []
+integration:
+  status: integrated
+  blocked_reasons:
+  - Full-suite leaderboard parity still requires official closed-loop rollout assets and complete task metrics.
+  - Workspace/TUI inference is run through WorldFoundry model entries, not benchmark-local model workers.
+release_status: experimental
+maturity: contract_ready
+open_source_status: experimental
+official_benchmark_verified: false
+integration_evidence: true
+leaderboard_valid: false
+requires:
+- bundled assets under worldfoundry/data/benchmarks/assets/world-in-world
+- generated artifacts or official result files supplied via CLI or optional env
+blockers:
+- Official repository/source metadata and the official-result normalizer are integrated.
+- Full validation requires generated videos or rollouts for the official prompt/task suite.
+- Leaderboard parity requires official judge/checkpoint/API assets and normalized official result files.
+data_refs:
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/world-in-world.yaml
+  bundled_assets: worldfoundry/data/benchmarks/assets/world-in-world
+  in_tree_official_runtime: worldfoundry/evaluation/tasks/execution/runners/world_in_world/runtime/official
+official_runner_script: 
+  worldfoundry/evaluation/tasks/execution/runners/world_in_world/run_world_in_world_official_runner.py
+runner_availability:
+  available: true
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:WorldInWorldContract
+  runner_script_available: true
+  task_yaml_available: true
+  runtime_verified: true
+  surface: in_tree_artifact_evaluator
+  normalizer_verified: true
+dataset:
+  not_applicable: true
+  reason: Official prompt assets are bundled in-tree; generated artifacts or official result files are supplied by the
+    caller, so no Hugging Face dataset is required for this contract entry.
+optional_base_model_dependencies:
+- video_world_perception_stack
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- world-in-world
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.json>
+- --generated-artifact-dir
+- <generated_videos>
+- --output-dir
+- <out>
+- --json
+checkpoint_refs: []
+artifact_layout:
+  generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  output_artifact: benchmark_scorecard
+  filename_template: scorecard.json

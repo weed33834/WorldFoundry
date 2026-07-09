@@ -1,0 +1,31 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+id: xvla
+name: X-VLA
+aliases:
+- x-vla
+- 2toinf/x-vla
+availability: open_source
+provider: official_repo
+official_sources:
+  github:
+    head_sha: 6bc2513f5f1cbec715cc668b414392a6cae5c671
+    url: https://github.com/2toinf/X-VLA
+integration:
+  status: runtime_ported
+  notes:
+  - Concrete X-VLA algorithm entry sourced from the official 2toINF repository.
+  - WorldFoundry routes X-VLA through the in-tree official-policy runtime using the official XVLA processor/model entry.
+  - Checkpoint absence is reported by runtime missing_assets and is not a catalog blocker.
+tasks:
+- vla
+- cross_embodiment_vla
+- vla.policy_rollout
+- robot_policy
+output_artifacts:
+- action_trace
+pipeline_binding: xvla
+runtime_profile: runtime-profile:xvla
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint
+  metadata, and runtime-profile planning records. Runner or pipeline targets are present
+  only after a complete in-tree WorldFoundry model runtime is registered and validated.

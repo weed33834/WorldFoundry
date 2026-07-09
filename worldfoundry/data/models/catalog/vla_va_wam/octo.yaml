@@ -1,0 +1,60 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+aliases:
+- octo-base
+- octo-base-1.5
+- octo-small-1.5
+availability: open_source
+checkpoint:
+  repo_id: rail-berkeley/octo-base-1.5
+  revision: ee3c10e8edd6ce2e8b1e8744d3c6fba4097bed48
+id: octo
+integration:
+  notes:
+  - Octo runtime is vendored in-tree; py_compile, import/from_pretrained, plan-only
+    predict, and alias validation passed.
+  - The in-tree runtime supports sample_actions after resolving upstream
+    octo.data.utils checkpoint references.
+  status: integrated
+name: Octo
+official_sources:
+  github:
+    head_sha: 241fb3514b7c40957a86d869fecb7c7fc353f540
+    url: https://github.com/octo-models/octo
+  huggingface:
+  - repo_id: rail-berkeley/octo-base-1.5
+    revision: ee3c10e8edd6ce2e8b1e8744d3c6fba4097bed48
+    status: confirmed
+  - repo_id: rail-berkeley/octo-small-1.5
+    revision: dc9aa3019f764726c770814b27e4ab0fc6e32a58
+    status: confirmed
+pipeline_binding: octo
+provider: official_repo
+runtime_profile: runtime-profile:octo
+tasks:
+- vla
+- vla.policy_rollout
+- robot_policy
+- generalist_policy
+variants:
+- checkpoint_refs:
+  - repo_id: rail-berkeley/octo-base-1.5
+    revision: ee3c10e8edd6ce2e8b1e8744d3c6fba4097bed48
+  id: octo-base-1.5
+  integration_status: runtime_ported
+  notes:
+  - WorldFoundry vendors Octo runtime under worldfoundry/synthesis/action_generation/octo/octo_runtime;
+    base checkpoint sampling remains pending a separate checkpoint-backed Studio/API run.
+  task: vla.policy_rollout
+- checkpoint_refs:
+  - repo_id: rail-berkeley/octo-small-1.5
+    revision: dc9aa3019f764726c770814b27e4ab0fc6e32a58
+  id: octo-small-1.5
+  integration_status: integrated
+  notes:
+  - WorldFoundry vendors Octo runtime under worldfoundry/synthesis/action_generation/octo/octo_runtime;
+    sample_actions emits the configured action schema when checkpoints are staged.
+  task: vla.policy_rollout
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint
+  metadata, and runtime-profile planning records. Runner or pipeline targets are present
+  only after a complete in-tree WorldFoundry model runtime is registered and validated.

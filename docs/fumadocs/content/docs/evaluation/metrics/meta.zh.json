@@ -1,0 +1,14 @@
+{
+  "title": "指标",
+  "defaultOpen": false,
+  "pages": [
+    "index",
+    "---配方---",
+    "scorers",
+    "distribution",
+    "perceptual",
+    "editing",
+    "---参考---",
+    "reference"
+  ]
+}

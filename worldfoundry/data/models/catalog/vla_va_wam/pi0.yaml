@@ -1,0 +1,28 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+id: pi0
+name: pi0
+aliases:
+- openpi-pi0
+availability: open_source
+provider: official_repo
+official_sources:
+  github:
+    head_sha: c23745b5ad24e98f66967ea795a07b2588ed6c79
+    url: https://github.com/Physical-Intelligence/openpi
+integration:
+  status: runtime_ported
+  notes:
+  - Concrete pi0 algorithm entry backed by Physical Intelligence openpi. The generic openpi runtime record remains as shared runtime infrastructure.
+  - WorldFoundry reuses the in-tree OpenPI runtime under worldfoundry/synthesis/action_generation/openpi/openpi_runtime with pi0-specific runtime config.
+tasks:
+- vla
+- vla.policy_rollout
+- robot_policy
+output_artifacts:
+- action_trace
+pipeline_binding: pi0
+runtime_profile: runtime-profile:pi0
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint
+  metadata, and runtime-profile planning records. Runner or pipeline targets are present
+  only after a complete in-tree WorldFoundry model runtime is registered and validated.

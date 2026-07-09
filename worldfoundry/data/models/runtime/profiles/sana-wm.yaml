@@ -1,0 +1,32 @@
+schema_version: 2
+model_id: sana-wm
+display_name: SANA-WM
+task_family: world_model
+groups:
+- world
+- camera_control
+source_repos:
+- url: https://github.com/NVlabs/Sana
+checkpoints:
+- repo_id: Efficient-Large-Model/SANA-WM_bidirectional
+  role: sana_wm_bidirectional_checkpoint
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - camera_action
+  - world_action
+  - interaction
+artifact_kind: generated_world
+artifact_filename: sana-wm.mp4
+execution:
+  backend_stage: in_tree_runtime_manifest
+  runtime_status: in_tree_runtime_manifest_checkpoint_env_pending
+  integration_status: runtime_ported
+  pipeline_binding: sana-wm
+integration:
+  status: runtime_ported
+notes:
+- SANA-WM source is vendored in-tree under base_models/diffusion_model/image/sana.
+- The pipeline resolves the vendored camera-controlled inference entrypoint; execution remains dependency, checkpoint, and task-asset gated.

@@ -1,0 +1,39 @@
+id: leworldmodel
+name: LeWorldModel
+tasks:
+- latent-world-model
+- jepa-world-model
+- pixel-world-model
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/lucas-maes/le-wm
+  hf_repo_id: eren23/lewm-models
+official_sources:
+  project_page: https://le-wm.github.io/
+  github:
+    url: https://github.com/lucas-maes/le-wm
+  huggingface:
+  - repo_id: eren23/lewm-models
+    status: confirmed
+checkpoints:
+- repo_id: eren23/lewm-models
+integration:
+  status: runtime_ported
+  notes:
+  - WorldFoundry exposes an infer-only wrapper for the official LeWorldModel eval route under synthesis/visual_generation/world_model/le_wm.
+  - Runtime eval configs live under data/models/runtime/configs/le_wm/config/eval; train configs are not required for inference.
+runner_parity:
+  status: pending
+  notes:
+  - The route matches the official eval.py config flow and reports missing stable-worldmodel packages, task datasets, or non-random policy checkpoints before execution.
+  - Official PushT evaluation parity remains pending; per-run validation evidence
+    is tracked outside the model catalog.
+runtime_profile: runtime-profile:leworldmodel
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: leworldmodel
+output_artifacts:
+- generated_world
+catalog_category: world_models
+catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry runtimes; blocked
+  entries retain upstream provenance without runnable backends.

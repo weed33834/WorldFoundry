@@ -1,0 +1,121 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+aliases:
+- molmo-act2
+- molmoact
+- molmoact2-droid
+- molmoact2-yam
+availability: open_source
+checkpoint:
+  license: apache-2.0
+  repo_id: allenai/MolmoAct2-DROID
+id: molmoact2
+integration:
+  notes:
+  - WorldFoundry in-tree MolmoAct2 runtime lives under worldfoundry/synthesis/action_generation/molmoact2
+    and no longer depends on the external molmoact2 checkout at runtime.
+  - The runtime ports the official DROID/YAM predict_action server contracts into
+    a WorldFoundry action_trace pipeline.
+  - Configured DROID, YAM, SO100, LIBERO, and Think-LIBERO profiles expose
+    checkpoint-backed action_trace routes.
+  status: runtime_ported
+license: apache-2.0
+name: MolmoAct2
+official_sources:
+  github:
+    head_sha: 40ac992dd4b5e4f31a37b3aa26cfbb5c9fb2cf05
+    url: https://github.com/allenai/molmoact2
+  huggingface:
+  - license: apache-2.0
+    repo_id: allenai/MolmoAct2
+    role: base_checkpoint
+    status: confirmed
+  - license: apache-2.0
+    repo_id: allenai/MolmoAct2-Think
+    role: depth_reasoning_base_checkpoint
+    status: confirmed
+  - license: apache-2.0
+    repo_id: allenai/MolmoAct2-DROID
+    role: droid_franka_policy_checkpoint
+    status: confirmed
+  - license: apache-2.0
+    repo_id: allenai/MolmoAct2-BimanualYAM
+    role: bimanual_yam_policy_checkpoint
+    status: confirmed
+  - license: apache-2.0
+    repo_id: allenai/MolmoAct2-SO100_101
+    role: so100_so101_policy_checkpoint
+    status: confirmed
+  - license: apache-2.0
+    repo_id: allenai/MolmoAct2-LIBERO
+    role: libero_policy_checkpoint
+    status: confirmed
+  - license: apache-2.0
+    repo_id: allenai/MolmoAct2-Think-LIBERO
+    role: libero_depth_reasoning_policy_checkpoint
+    status: confirmed
+output_artifacts:
+- action_trace
+pipeline_binding: molmoact2
+provider: official_repo
+runtime_profile: runtime-profile:molmoact2
+tasks:
+- vla
+- vla.action_prediction
+- vla.policy_rollout
+- robot_policy
+variants:
+- checkpoint_refs:
+  - license: apache-2.0
+    repo_id: allenai/MolmoAct2-DROID
+  id: molmoact2-droid
+  integration_status: integrated
+  notes:
+  - DROID defaults use external_cam, wrist_cam, franka_droid normalization, and an
+    8-D state vector.
+  task: vla.policy_rollout
+- checkpoint_refs:
+  - license: apache-2.0
+    repo_id: allenai/MolmoAct2-BimanualYAM
+  id: molmoact2-bimanual-yam
+  integration_status: integrated
+  notes:
+  - YAM defaults use top_cam, left_cam, right_cam, yam_dual_molmoact2 normalization,
+    and a 14-D state vector.
+  task: vla.policy_rollout
+- checkpoint_refs:
+  - license: apache-2.0
+    repo_id: allenai/MolmoAct2-SO100_101
+  id: molmoact2-so100-101
+  integration_status: integrated
+  notes:
+  - SO100/SO101 defaults use top_cam, side_cam, so100_so101_molmoact2 normalization,
+    and a 6-D state vector.
+  task: vla.policy_rollout
+- checkpoint_refs:
+  - license: apache-2.0
+    repo_id: allenai/MolmoAct2-LIBERO
+  id: molmoact2-libero
+  integration_status: integrated
+  notes:
+  - LIBERO checkpoint is cataloged, but the in-tree runtime defaults are currently
+    validated with the agentview/wrist RGB schema and libero normalization.
+  task: vla.policy_rollout
+- checkpoint_refs:
+  - license: apache-2.0
+    repo_id: allenai/MolmoAct2-Think-LIBERO
+  id: molmoact2-think-libero
+  integration_status: integrated
+  notes:
+  - Think-LIBERO uses the LIBERO camera/state schema with depth reasoning enabled.
+  task: vla.policy_rollout
+runner_parity:
+  notes:
+  - Plan-only pipeline creation is covered by test/eval_core/test_molmoact2_in_tree_integration.py.
+  - The runtime loads DROID, YAM, SO100/SO101, LIBERO, and Think-LIBERO checkpoints
+    through the official HF in-tree runtime route.
+  - Per-run action trace evidence is tracked outside the model catalog.
+  status: verified
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint
+  metadata, and runtime-profile planning records. Runner or pipeline targets are present
+  only after a complete in-tree WorldFoundry model runtime is registered and validated.

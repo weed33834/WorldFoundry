@@ -1,0 +1,75 @@
+id: skyreels-v2
+name: SkyReels-V2
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+runtime_profile: runtime-profile:skyreels-v2
+tasks:
+- text-to-video
+- image-to-video
+source_status:
+  status: confirmed_official_github
+  github:
+    url: https://github.com/SkyworkAI/SkyReels-V2
+    verified_by: git ls-remote --symref https://github.com/SkyworkAI/SkyReels-V2.git
+      HEAD
+    default_branch: main
+    head_sha: 9351d13152207cc04de780e055346b08ade0b851
+checkpoint:
+  status: confirmed_public_hf_license_pending
+  verified_by: GET https://huggingface.co/api/models/<repo_id>
+  repos:
+  - id: Skywork/SkyReels-V2-DF-1.3B-540P
+    sha: 1100111771ba2d921f10e76991f54db9f73edb3d
+    license: other
+    private: false
+    gated: false
+    tasks:
+    - text-to-video
+    license_status: manual_review_required
+  - id: Skywork/SkyReels-V2-T2V-14B-720P
+    sha: 57bc84a2172b60f4307d8560b10b7f811f8bcaff
+    license: other
+    private: false
+    gated: false
+    tasks:
+    - text-to-video
+    license_status: manual_review_required
+  - id: Skywork/SkyReels-V2-I2V-1.3B-540P
+    sha: e86231f3882225e5a93eeec740c77bc7f01954ca
+    license: other
+    private: false
+    gated: false
+    tasks:
+    - image-to-video
+    license_status: manual_review_required
+  - id: Skywork/SkyReels-V2-I2V-14B-720P
+    sha: 641b1257f44f81f883bde5614f30b3c6054f2196
+    license: other
+    private: false
+    gated: false
+    tasks:
+    - image-to-video
+    license_status: manual_review_required
+  notes: Representative public HF repos were metadata-checked only; license is reported
+    as 'other'.
+integration:
+  status: integrated
+  notes:
+  - WorldFoundry route is complete; missing checkpoint/assets are reported at runtime.
+demo_parity:
+  status: pending_visual_qa
+  notes: The in-tree SkyReels-V2 route is wired to the official DF runtime, but
+    release parity requires a 97-frame official-configuration Studio run with
+    coherent visual output.
+notes: Tracked as a current long-video/open-weight candidate; do not mark integrated
+  before official demo and runner parity pass.
+catalog_category: video
+catalog_scope: Official GitHub and/or Hugging Face confirmed open-source or open-weight
+  video generation models. Checkpoints are not tracked in git; local validation may
+  download selected repos under cache/hfd.
+catalog_policy:
+  github: Validated with git ls-remote, preferring git ls-remote --symref <repo>.git
+    HEAD for default branch and HEAD SHA.
+  huggingface: Validated with the Hugging Face /api/models endpoint. Recorded repo
+    id, sha, private, gated, license, and selected task tags only.
+  parity: This manifest does not claim WorldFoundry runtime parity unless an explicit
+    parity run and expected artifact are recorded.

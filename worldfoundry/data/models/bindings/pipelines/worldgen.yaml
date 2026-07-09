@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: worldgen
+model_id: worldgen
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.three_d_four_d.pipeline_runtime:WorldGenPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

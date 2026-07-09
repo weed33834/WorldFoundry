@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: skyreels-v3
+model_id: skyreels-v3
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.skyreels_v3.pipeline_skyreels_v3:SkyReelsV3Pipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

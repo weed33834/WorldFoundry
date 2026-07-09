@@ -1,0 +1,68 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+aliases:
+- molmob0t
+- molmobot-droid
+- molmobot-pi0
+availability: open_source
+checkpoint:
+  license: apache-2.0
+  repo_id: allenai/MolmoBot-DROID
+id: molmobot
+integration:
+  status: in_tree_vendored_import_verified
+  notes:
+  - WorldFoundry records MolmoBot OLMo/MolmoBot-Pi0 action inference contracts with an independent synthesis entrypoint.
+  - The current runtime calls the official SynthManip MolmoBot wrapper in-process from the in-tree vendored infer subset under worldfoundry/synthesis/action_generation/molmobot/molmobot_runtime.
+  - Resolver, runtime import, and compileall checks pass without an external github_repos checkout; checkpoint-backed action chunk validation remains required before demo parity is claimed.
+license: apache-2.0
+name: MolmoBot
+official_sources:
+  github:
+    head_sha: 33c0ca77bf60
+    url: https://github.com/allenai/MolmoBot
+  huggingface:
+  - repo_id: allenai/MolmoBot-DROID
+    role: franka_droid_checkpoint
+    status: confirmed_from_readme
+  - repo_id: allenai/MolmoBot-Img-DROID
+    role: image_droid_checkpoint
+    status: confirmed_from_readme
+  - repo_id: allenai/MolmoBot-RBY1Multitask
+    role: rby1_multitask_checkpoint
+    status: confirmed_from_readme
+  - repo_id: allenai/MolmoBot-Pi0-DROID
+    role: pi0_droid_checkpoint
+    status: confirmed_from_readme
+output_artifacts:
+- action_trace
+pipeline_binding: molmobot
+provider: official_repo
+runtime_profile: runtime-profile:molmobot
+tasks:
+- vla
+- vla.action_prediction
+- vla.policy_rollout
+- robot_policy
+variants:
+- id: molmobot-droid
+  integration_status: in_tree_vendored_checkpoint_pending
+  task: vla.policy_rollout
+  checkpoint_refs:
+  - repo_id: allenai/MolmoBot-DROID
+    license: apache-2.0
+  notes:
+  - Official command serves MolmoBot-DROID with launch_scripts/serve_molmo.py --hf-repo allenai/MolmoBot-DROID.
+- id: molmobot-pi0-droid
+  integration_status: entrypoint_profiled_runtime_port_pending
+  task: vla.policy_rollout
+  checkpoint_refs:
+  - repo_id: allenai/MolmoBot-Pi0-DROID
+    license: apache-2.0
+  notes:
+  - Official demo uses PiJointPosPolicy with qpos arm/gripper, exo_camera_1, wrist_camera, and task prompt.
+runner_parity:
+  status: in_tree_vendor_ready_checkpoint_pending
+  notes:
+  - MolmoSpaces simulator, real robot clients, training code, W&B/SPoC paths, and benchmark assets are excluded.
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata, and runtime-profile planning records.

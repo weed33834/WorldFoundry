@@ -1,0 +1,83 @@
+id: dynamicrafter
+name: DynamiCrafter
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: dynamicrafter
+runtime_profile: runtime-profile:dynamicrafter-512-i2v
+tasks:
+- image-to-video
+source_status:
+  status: confirmed_official_github
+  github:
+    url: https://github.com/Doubiiu/DynamiCrafter
+    verified_by: git ls-remote --symref https://github.com/Doubiiu/DynamiCrafter.git HEAD
+    default_branch: main
+    head_sha: 859021927d8e0f8eb4d91d16f86711b8c25a2023
+checkpoint:
+  status: confirmed_public_hf_license_pending
+  verified_by: GET https://huggingface.co/api/models/<repo_id>
+  repos:
+  - id: Doubiiu/DynamiCrafter
+    sha: 07cf16c248afcc953e8781026fc4b261b0b871c2
+    private: false
+    gated: false
+    tasks:
+    - image-to-video
+    license_status: pending
+  - id: Doubiiu/DynamiCrafter_512
+    sha: 9eb874455b7903c0244fe7bf53ca21cb979cd05a
+    private: false
+    gated: false
+    tasks:
+    - image-to-video
+    license_status: pending
+  - id: Doubiiu/DynamiCrafter_1024
+    sha: 73398ed78fa307316f355fdbbdc823564057f375
+    private: false
+    gated: false
+    tasks:
+    - image-to-video
+    license_status: pending
+  notes: HF repos are public and non-gated, but cardData did not expose a license.
+demo_parity:
+  status: pending
+  notes: DynamicCrafter 512 and 1024 I2V routes are wired in the unified environment profile. Official long-config parity
+    remains pending.
+notes: Keep redistribution gated until the upstream license is reviewed manually.
+catalog_category: video
+catalog_scope: Official GitHub and/or Hugging Face confirmed open-source or open-weight video generation models. Checkpoints
+  are not tracked in git; local validation may download selected repos under cache/hfd.
+catalog_policy:
+  github: Validated with git ls-remote, preferring git ls-remote --symref <repo>.git HEAD for default branch and HEAD SHA.
+  huggingface: Validated with the Hugging Face /api/models endpoint. Recorded repo id, sha, private, gated, license, and selected
+    task tags only.
+  parity: This manifest does not claim WorldFoundry runtime parity unless an explicit parity run and expected artifact are
+    recorded.
+integration:
+  status: integrated
+  notes:
+  - WorldFoundry wraps the in-tree DynamiCrafter I2V runtimes.
+runner_parity:
+  status: pending
+  notes:
+  - DynamicCrafter 512 I2V is wired with the staged checkpoint/runtime environment.
+  - DynamicCrafter 1024 I2V is wired with the staged checkpoint/runtime environment.
+  - Official long-config parity remains pending for both variants.
+variants:
+- id: dynamicrafter-512-i2v
+  task: image-to-video
+  runtime_profile: dynamicrafter-512-i2v
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: dynamicrafter-512-i2v
+  integration:
+    status: integrated
+  runner_parity:
+    status: pending
+- id: dynamicrafter-1024-i2v
+  task: image-to-video
+  runtime_profile: dynamicrafter-1024-i2v
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: dynamicrafter-1024-i2v
+  integration:
+    status: integrated
+  runner_parity:
+    status: pending

@@ -1,0 +1,13 @@
+{
+  "title": "Guides",
+  "defaultOpen": false,
+  "pages": [
+    "local-assets",
+    "tui",
+    "inference",
+    "supported-models",
+    "studio",
+    "add-model",
+    "add-benchmark"
+  ]
+}

@@ -1,0 +1,170 @@
+id: genai-bench
+name: GenAI-Bench
+benchmark_kind:
+- human-preference
+- generative-model
+- video-generation-quality
+domains:
+- human-preference
+- judge-alignment
+- video-generation
+modalities:
+- image
+- video
+- text
+status: confirmed_official_code
+official_sources:
+  github:
+    url: https://github.com/TIGER-AI-Lab/GenAI-Bench
+    verified_by: git ls-remote https://github.com/TIGER-AI-Lab/GenAI-Bench HEAD
+    head_sha: f0b0334d414074c6b1c97e2c60ad8d8a592bda9f
+  paper_url: https://arxiv.org/abs/2406.04485
+  project_page: https://github.com/TIGER-AI-Lab/GenAI-Bench
+benchmark_assets:
+  prompt_suite:
+    status: official_repo_data
+evaluation_surface:
+  purpose: Human-preference alignment benchmark for generative content including video.
+  requires_preference_data: true
+  requires_judge_model_or_api: true
+  official_result_normalization: implemented for caller-provided official CSV/JSON outputs
+  blocked_without_required_inputs:
+  - human_label or human_preference
+  - prediction or judge_prediction
+  - 'task field: image_generation, image_editing, or video_generation'
+  - generated content artifacts referenced by the official pairwise task
+metrics:
+- id: pairwise_accuracy
+  name: Pairwise Accuracy
+  description: GenAI-Bench pairwise accuracy against human preference labels across available tasks.
+  higher_is_better: true
+  leaderboard_key: pairwise_accuracy
+  aggregator: mean
+  output_unit: score
+- id: image_generation_preference_accuracy
+  name: Image Generation Preference Accuracy
+  description: GenAI-Bench image-generation preference accuracy against human labels.
+  higher_is_better: true
+  leaderboard_key: image_generation_preference_accuracy
+  aggregator: mean
+  output_unit: score
+- id: image_editing_preference_accuracy
+  name: Image Editing Preference Accuracy
+  description: GenAI-Bench image-editing preference accuracy against human labels.
+  higher_is_better: true
+  leaderboard_key: image_editing_preference_accuracy
+  aggregator: mean
+  output_unit: score
+- id: video_preference_accuracy
+  name: Video Preference Accuracy
+  description: GenAI-Bench video-generation preference accuracy against human labels.
+  higher_is_better: true
+  leaderboard_key: video_preference_accuracy
+  aggregator: mean
+  output_unit: score
+- id: genai_bench_average
+  name: Genai Bench Average
+  description: Mean of task preference accuracies when task-level labels and predictions are available.
+  higher_is_better: true
+  leaderboard_key: genai_bench_average
+  aggregator: mean
+  output_unit: score
+  primary: true
+runner:
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:GenAIBenchContract
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - genai-bench
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <official_results.jsonl>
+  - --generated-artifact-dir
+  - <generated_videos>
+  - --output-dir
+  - <out>
+  - --json
+  runtime:
+    kind: in_tree_official_runtime
+    results_path_env: WORLDFOUNDRY_GENAI_BENCH_RESULTS_PATH
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  expected_artifacts:
+  - scorecard.json
+  - benchmark_contract.json
+  - raw_metric_table.jsonl
+  verification_status: pending
+  notes:
+  - WorldFoundry normalizes caller-provided official result files through the in-tree GenAI-Bench runner.
+  - Full leaderboard validation still depends on official preference labels or judge outputs plus the corresponding 
+    generated artifacts.
+integration:
+  status: integrated
+  surface: genai_bench_official_in_tree
+  normalizer_available: true
+  full_leaderboard_ready: false
+  blocked_reasons:
+  - Official repository/source metadata and in-tree official-result normalizer are integrated.
+  - Full leaderboard validation still requires official human preference labels or judge/API outputs plus generated 
+    artifacts for the official prompt/task suite.
+  - WorldFoundry normalizes caller-provided official outputs; it does not execute the upstream judge/model API path for 
+    GenAI-Bench.
+release_status: experimental
+maturity: contract_ready
+open_source_status: in_tree_runtime
+official_benchmark_verified: false
+integration_evidence: true
+leaderboard_valid: false
+requires:
+- official_results_path or WORLDFOUNDRY_GENAI_BENCH_RESULTS_PATH
+- human_label or human_preference
+- prediction or judge_prediction
+- 'task field: image_generation, image_editing, or video_generation'
+- generated content artifacts referenced by the official pairwise task
+blockers:
+- Official repository/source metadata and in-tree official-result normalizer are integrated.
+- Full leaderboard validation still requires official human preference labels or judge outputs plus generated artifacts 
+  for the official prompt/task suite.
+data_refs:
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/genai-bench.yaml
+runner_availability:
+  available: true
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:GenAIBenchContract
+  runner_script_available: true
+  task_yaml_available: true
+  runtime_verified: true
+  surface: genai_bench_official_in_tree
+  normalizer_verified: true
+dataset:
+  not_applicable: true
+  reason: Official benchmark assets are supplied by the source repository or caller-provided generated artifacts; no 
+    Hugging Face dataset is required for this contract entry.
+base_model_dependencies:
+- genai_bench_dataset_assets
+- t2v_metrics_source_assets
+optional_base_model_dependencies:
+- genai_bench_metric_stack
+- t2v_metrics_metric_stack
+- t2v_metrics_clip_flant5_xxl
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- genai-bench
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.jsonl>
+- --generated-artifact-dir
+- <generated_videos>
+- --output-dir
+- <out>
+- --json
+checkpoint_refs: []
+artifact_layout:
+  generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  output_artifact: benchmark_scorecard
+  filename_template: scorecard.json

@@ -1,0 +1,30 @@
+id: adaworld
+name: AdaWorld
+tasks:
+- latent-action-world-model
+- action-conditioned-video
+- multi-domain-world-model
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/Little-Podi/AdaWorld
+official_sources:
+  project_page: https://adaptable-world-model.github.io/
+  github:
+    url: https://github.com/Little-Podi/AdaWorld
+integration:
+  status: blocked
+  blocked_reasons:
+  - Official source is vendored in-tree, and public checkpoints are available, but the official runner still requires
+    AdaWorld-specific dependencies and task/demo video assets that are not reproducibly available in the unified Studio
+    environment.
+  notes:
+  - AdaWorld is retained as open-source provenance/source-only metadata and hidden from the formal Studio infer catalog.
+runner_parity:
+  status: not_applicable
+  notes:
+  - No release-facing WorldFoundry infer runner is advertised until official environment and asset parity is reproducible.
+runtime_profile: runtime-profile:adaworld
+catalog_category: world_models
+catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry runtimes; blocked entries retain
+  upstream provenance without runnable backends.

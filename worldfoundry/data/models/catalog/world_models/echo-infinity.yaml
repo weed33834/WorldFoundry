@@ -1,0 +1,39 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+availability: open_source
+family: Autoregressive Video Diffusion
+id: echo-infinity
+aliases:
+- Echo-Infinity
+- EchoInfinity
+- echo_infinity
+tasks:
+- text-to-video
+- autoregressive-video-generation
+integration:
+  status: integrated
+  notes:
+  - WorldFoundry vendors the Echo-Infinity inference path in-tree.
+  - Runtime assets are local paths under WORLDFOUNDRY_CKPT_DIR; weights are not tracked in git.
+license: unknown
+modalities:
+- text-to-video
+- long-video-generation
+name: Echo-Infinity
+official_sources:
+  github:
+    url: https://github.com/Echo-Team-Joy-Future-Academy-JD/Echo-Infinity
+  huggingface:
+    url: https://huggingface.co/Echo-Team/Echo-Infinity
+pipeline_binding: echo-infinity
+release_type: code_and_weights
+runtime_profile: runtime-profile:echo-infinity
+runner_parity:
+  status: implemented_pending_gpu_parity
+  notes:
+  - Full parity requires local Echo-Infinity and Wan2.1 weights staged under WORLDFOUNDRY_CKPT_DIR.
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models
+catalog_policy:
+  checkpoint_rule: Only list local checkpoint expectations; do not download weights from runtime code.
+  integration_rule: Echo-Infinity is packaged as a regular synthesis work, not as a shared base_models owner.
+  open_source_rule: Source code was integrated from the local upstream checkout.

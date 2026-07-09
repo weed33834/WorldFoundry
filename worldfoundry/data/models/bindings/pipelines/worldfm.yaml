@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: worldfm
+model_id: worldfm
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.worldfm.pipeline_worldfm:WorldFMPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

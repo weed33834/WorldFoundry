@@ -1,0 +1,8 @@
+{
+  "scores": {
+    "instruction_following": 2.1,
+    "common_sense": 1.4,
+    "physical_adherence": 3.6,
+    "world_model_average": 7.1
+  }
+}

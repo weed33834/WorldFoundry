@@ -1,0 +1,33 @@
+schema_version: 2
+model_id: cogvideox-5b-i2v
+display_name: CogVideoX 5B I2V
+task_family: video_generation
+groups:
+- video
+- image_to_video
+- cogvideox
+source_repos:
+- url: https://github.com/THUDM/CogVideo
+checkpoints:
+- repo_id: THUDM/CogVideoX-5b-I2V
+  revision: a6f0f4858a8395e7429d82493864ce92bf73af11
+  role: i2v_checkpoint
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - seed
+artifact_kind: generated_video
+artifact_filename: cogvideox-5b-i2v.mp4
+execution:
+  backend_stage: official_in_tree_runtime
+  runtime_status: official_in_tree_runtime_contract
+  integration_status: verified
+  pipeline_binding: cogvideox-5b-i2v
+integration:
+  status: verified
+notes:
+- CogVideoX 5B image-to-video runtime wrapper is packaged in-tree.
+- Runtime defaults use the native Hugging Face Diffusers loading path `THUDM/CogVideoX-5b-I2V`;
+  local mirrors can still be passed as `model_path`.

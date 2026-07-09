@@ -1,0 +1,26 @@
+artifact_filename: vggt_world_runtime_plan.json
+artifact_kind: generated_world
+backend_stage: worldfoundry_runtime_plan
+display_name: VGGT-World
+id: vggt-world
+input_schema:
+  actions:
+  - camera_navigation
+  - view_sequence
+  image: true
+  prompt: true
+  video: true
+integration_status: runtime_ported
+notes:
+- VGGT-World official source route is registered; checkpoints/assets are runtime-gated.
+- Missing checkpoints/assets are reported by the runtime plan and are not catalog
+  blockers.
+- WorldFoundry tracks upstream source and checkpoint metadata only; no runnable pipeline
+  is registered.
+- Official source is bound from ${WORLDFOUNDRY_MODEL_SOURCE_DIR}/VGGT-World at c90f5ee289036277fe75a69aa96418c04ccd5cc7.
+runtime_status: route_ready_assets_pending
+task_family: world_model
+execution:
+  pipeline_binding: vggt-world
+  backend_stage: worldfoundry_runtime_plan
+  runtime_status: route_ready_assets_pending

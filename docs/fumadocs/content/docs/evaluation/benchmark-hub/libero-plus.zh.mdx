@@ -1,0 +1,126 @@
+---
+title: LIBERO-Plus
+description: LIBERO-Plus — 指标、依赖与运行命令。
+---
+
+## 简介
+
+
+
+LIBERO-Plus external benchmark manifest for extended language-conditioned manipulation suites.
+
+
+
+## 指标
+
+LIBERO-Plus external benchmark manifest for extended language-conditioned manipulation suites.
+
+### Task YAML
+
+`worldfoundry/data/benchmarks/tasks/external/libero-plus.yaml`
+
+### Primary
+
+- `success_rate`
+
+| Metric | 关注点 |
+| --- | --- |
+| `success_rate` | episode / task 是否成功完成的比例或成功率。 |
+| `task_success` | episode / task 是否成功完成的比例或成功率。 |
+| `episode_success` | episode / task 是否成功完成的比例或成功率。 |
+| `action_accuracy` | 预测动作、状态或结果相对 benchmark 成功标准的正确性。 |
+
+
+
+## 环境准备
+
+### 运行环境
+
+- **Conda 环境：** `libero-plus-runtime`。
+- **单独配置：** 需要 benchmark 专用 conda 环境，不要与统一 runtime 混用。
+- LIBERO and LIBERO-Plus package constraints may conflict; use a separate environment if the unified runtime cannot satisfy both.
+
+### 测评数据
+
+- 待测模型输出目录：设置 `WORLDFOUNDRY_LIBERO_PLUS_RESULTS_PATH` 指向生成视频或 rollout artifact 根目录。
+- `${WORLDFOUNDRY_DATA_DIR}/datasets/libero-plus`
+- `${WORLDFOUNDRY_CACHE_DIR}/repos/Lifelong-Robot-Learning--LIBERO`
+
+### Checkpoint 与资产
+
+- 该 benchmark 以官方结果归一化或仿真 rollout 为主；policy / simulator checkpoint 见 catalog `requires` 与 task YAML。
+
+### 关键环境变量
+
+- `WORLDFOUNDRY_LIBERO_PLUS_ROOT`
+- `WORLDFOUNDRY_LIBERO_PLUS_RESULTS_PATH`
+
+
+
+## 运行评测
+
+
+
+准备好该 benchmark 页面列出的资产和候选产物后，使用下面的公开运行入口。
+
+### 设置候选产物目录
+
+```bash
+export WORLDFOUNDRY_GENERATED_ARTIFACT_DIR=/path/to/generated/artifacts
+```
+
+### 导入已有官方结果
+
+```bash
+worldfoundry-eval zoo benchmark-run \
+  --benchmark-id libero-plus \
+  --mode normalizer \
+  --official-results-path /path/to/official/results-or-report \
+  --generated-artifact-dir "${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}" \
+  --output-dir tmp/libero-plus/normalizer \
+  --json
+```
+
+### 从生成产物重新打分
+
+```bash
+worldfoundry-eval zoo benchmark-run \
+  --benchmark-id libero-plus \
+  --mode official-run \
+  --generated-artifact-dir "${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}" \
+  --output-dir tmp/libero-plus/official-run \
+  --json
+```
+
+### 直接调用仓内 runner
+
+```bash
+worldfoundry-eval zoo benchmark-run --benchmark-id libero-plus --mode official-validation --official-results-path <official_results.json> --output-dir <out> --json
+```
+
+
+
+## 依赖与产物
+
+
+
+### Inputs
+
+- Official simulator runtime
+- benchmark assets
+- policy checkpoint
+- official result dump
+
+### Environment
+
+- `WORLDFOUNDRY_LIBERO_PLUS_RESULTS_PATH`
+
+### Outputs
+
+- `scorecard.json`
+- `raw_results.jsonl`
+- `evaluation/summary.json`
+
+
+
+[← 返回 Benchmark Hub](/zh/docs/evaluation/benchmark-hub)

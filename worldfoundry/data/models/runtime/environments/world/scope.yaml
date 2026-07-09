@@ -1,0 +1,61 @@
+conda_packages:
+- python=3.10
+- pip
+- ffmpeg
+- setuptools
+- wheel
+cuda_profile: cu128
+driver_status: compatible
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: scope
+notes:
+- SCOPE official inference is vendored in-tree. Prefer the unified cu128 runtime or ${WORLDFOUNDRY_HOME}/venvs/worldfoundry-scope-cu128.
+- Full checkpoint-backed SCOPE generation depends on staged zizhaotong/SCOPE weights under ${WORLDFOUNDRY_HFD_ROOT}/SCOPE
+  or SCOPE_MODEL_DIR.
+pip_packages:
+- torch
+- torchvision
+- numpy
+- pillow
+- opencv-python
+- transformers>=4.57.0,<5
+- accelerate
+- huggingface_hub
+- safetensors
+- einops
+- modelscope
+- sentencepiece
+- protobuf
+- ftfy
+- tqdm
+- imageio
+- imageio[ffmpeg]
+- pandas
+- pyarrow
+- pynvml
+- peft
+- typing_extensions
+python: '3.10'
+pythonpath_dirs:
+- worldfoundry/synthesis/visual_generation/scope/scope_runtime
+validation_imports:
+- torch
+- torchvision
+- numpy
+- PIL
+- cv2
+- transformers
+- accelerate
+- huggingface_hub
+- safetensors
+- einops
+- modelscope
+- sentencepiece
+- pandas
+- pyarrow
+- imageio
+- peft
+- worldfoundry.base_models.diffusion_model.diffsynth
+- worldfoundry.base_models.diffusion_model.diffsynth.models.scope_dit
+- worldfoundry.base_models.diffusion_model.diffsynth.pipelines.scope_pipeline

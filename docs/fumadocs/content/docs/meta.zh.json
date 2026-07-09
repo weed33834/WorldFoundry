@@ -1,0 +1,12 @@
+{
+  "title": "WorldFoundry",
+  "pages": [
+    "index",
+    "quickstart",
+    "reference",
+    "guides",
+    "evaluation",
+
+    "maintainers"
+  ]
+}

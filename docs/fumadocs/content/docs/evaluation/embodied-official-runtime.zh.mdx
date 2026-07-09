@@ -1,0 +1,199 @@
+---
+title: Embodied 官方运行准备
+description: 克隆 WorldFoundry 后，如何配置 checkpoint、Docker simulator 资产和结果路径，并完成具身 benchmark 测评。
+---
+
+## 你会用到什么
+
+WorldFoundry 在仓库内提供具身 benchmark 的 **结果归一化、CLI 和 simulator 接口**（`worldfoundry.evaluation.tasks.embodied`）。**Checkpoint、simulator 资产、Docker image 和 rollout 结果不会打进 git**——这些路径由你在本机通过环境变量或 CLI 参数指定。
+
+两类测评 surface：
+
+| Surface | Benchmark ids | 在 WorldFoundry 里能做什么 |
+| --- | --- | --- |
+| 原生闭环 simulator | `ai2thor`, `behavior1k`, `calvin`, `kinetix`, `libero`, `libero-mem`, `libero-plus`, `libero-pro`, `maniskill2`, `maniskill`, `mikasa`, `molmospaces`, `rlbench`, `robocasa`, `robocerebra`, `robomme`, `robotwin`, `simpler-env`, `vlabench` | official result import、in-tree simulator API、Docker-backed rollout hooks |
+| 仅结果导入 | `bridgedata-v2`, `libero-para`, `metaworld` | 归一化官方格式的结果文件 |
+
+`integration_status: integrated` 只表示接口已接入，**不等于** leaderboard 已验证。未跑完官方 protocol 前，scorecard 保持 `official_benchmark_verified=false`。
+
+---
+
+## 快速开始（无需下载资产）
+
+克隆仓库后，先确认测评框架本身可用：
+
+```bash
+worldfoundry-eval zoo benchmarks --json
+```
+
+这会确认 `libero` / `robomme` / `robotwin` 等条目可被 CLI 发现。不需要 GPU，也不需要 checkpoint。
+
+---
+
+## 第一步：指定你的根目录
+
+所有路径都通过 **`WORLDFOUNDRY_*` 环境变量** 或 **CLI 参数** 解析。请把下面的占位符换成你机器上的实际目录：
+
+```bash
+export WORLDFOUNDRY_DATA_DIR="$HOME/worldfoundry-data"
+export WORLDFOUNDRY_HFD_DATASET_ROOT="$HOME/worldfoundry-data"   # HF 数据集镜像根目录，可与 DATA_DIR 相同
+export WORLDFOUNDRY_CKPT_DIR="$HOME/worldfoundry-checkpoints"
+export WORLDFOUNDRY_MODEL_DIR="$HOME/worldfoundry-models"
+export WORLDFOUNDRY_CACHE_DIR="$HOME/worldfoundry-cache"
+export WORLDFOUNDRY_ARTIFACT_DIR="$HOME/worldfoundry-artifacts"
+export WORLDFOUNDRY_MODEL_SOURCE_DIR="$HOME/worldfoundry-upstream-repos"  # 上游 benchmark / policy 代码 clone 根目录
+```
+
+**目录 layout 没有唯一标准。** 常见两种都可以：
+
+- **HF 平铺**：在 `WORLDFOUNDRY_HFD_DATASET_ROOT` 下放 `lerobot__libero`、`TianxingChen__RoboTwin2.0` 等
+- **自定义子树**：在 `WORLDFOUNDRY_DATA_DIR/datasets/...` 下组织
+
+只要对应的 `WORLDFOUNDRY_*_ROOT` / `WORLDFOUNDRY_*_CHECKPOINT` 指向真实文件即可。
+
+---
+
+## 第二步：生成 scaffold，再填你的路径
+
+运行 scaffold 脚本（只生成模板和占位目录，不会替你下载大文件）：
+
+```bash
+PYTHONPATH=. ${WORLDFOUNDRY_UNIFIED_PYTHON} scripts/setup/prepare_embodied_official_assets.py \
+  --create-dirs \
+  --json
+```
+
+生成文件（默认在 `tmp/benchmark_zoo/embodied_official_assets/`，可用 `--output-root` 改）：
+
+| 文件 | 用途 |
+| --- | --- |
+| `embodied_official_env.sh` | 可 `source` 的 env 模板；**你已 export 的变量优先**（`${VAR:-default}`） |
+| `local_assets_manifest.yaml` | 本地 asset 清单；可复制到 git 外并通过 `WORLDFOUNDRY_LOCAL_ASSET_MANIFEST` 指向 |
+| `check_repo_assets.sh` | 检查已配置的 source/runtime 根目录，并报告缺失路径 |
+| `download_public_assets.sh` | 公开 HF 资源下载命令 |
+| `validate_official_results.sh` | rollout 完成后的批量导入命令 |
+
+加载并覆盖为你自己的路径：
+
+```bash
+# 若 scaffold 在默认位置
+source tmp/benchmark_zoo/embodied_official_assets/embodied_official_env.sh
+bash tmp/benchmark_zoo/embodied_official_assets/check_repo_assets.sh
+
+# 示例：把 LIBERO 指到你 clone 的位置
+export WORLDFOUNDRY_LIBERO_ROOT="$WORLDFOUNDRY_MODEL_SOURCE_DIR/LIBERO"
+export WORLDFOUNDRY_LIBERO_POLICY_CHECKPOINT="$WORLDFOUNDRY_CKPT_DIR/your-policy-for-libero"
+export WORLDFOUNDRY_LIBERO_RESULTS_PATH="$WORLDFOUNDRY_ARTIFACT_DIR/runs/libero/official_results.json"
+```
+
+也可复制 `worldfoundry/data/benchmarks/local_assets.example.yaml` 到任意位置，编辑其中的 `${WORLDFOUNDRY_*}` 占位符后：
+
+```bash
+export WORLDFOUNDRY_LOCAL_ASSET_MANIFEST=/path/to/your/local_assets_manifest.yaml
+```
+
+---
+
+## 第三步：按目标选择验证深度
+
+| 目标 | 命令 | 需要 GPU / 资产 |
+| --- | --- | --- |
+| 验证框架接线 | `worldfoundry-eval zoo benchmarks --json` | 否 |
+| Official result import | `worldfoundry-eval zoo benchmark-run --benchmark-id robotwin --mode official-validation --official-results-path <official_results.json> --output-dir tmp/benchmark_zoo/official_validation/robotwin --json` | 否 |
+| 检查还缺哪些 env / 路径 | `worldfoundry-eval zoo benchmark-show --benchmark-id robotwin --json` | 否（会列出缺失项） |
+| 导入已有 official 结果 | 见下文「导入官方结果」 | 只需结果文件 |
+| 完整 simulator rollout | 在上游 repo 内按官方文档跑 | 是 |
+
+---
+
+## 环境策略
+
+优先使用统一 CUDA 环境：
+
+```bash
+bash scripts/setup/bootstrap_worldfoundry.sh --cuda cu128
+source tmp/worldfoundry_unified_env.sh
+```
+
+| Runtime family | 推荐环境 | 何时独立环境 |
+| --- | --- | --- |
+| LIBERO、CALVIN、RoboCasa、MiKASA、RoboCerebra、RoboMME | `worldfoundry-unified-cu128` | robosuite/MuJoCo pin 冲突时 |
+| LIBERO-Plus | `libero-plus` profile | 与 base LIBERO 包可能不共存 |
+| BEHAVIOR-1K | OmniGibson/Isaac Sim 独立环境 | 需接受上游 terms + 大型资产 |
+| Kinetix | JAX 独立环境 | |
+| RLBench | CoppeliaSim/PyRep 独立环境 | |
+| RoboTwin、VLABench、ManiSkill2、SimplerEnv | 导入用统一环境；rollout 用外部 simulator runtime | SAPIEN/Curobo 等 |
+| AI2-THOR | 外部 simulator runtime | Unity 二进制 + CloudRendering/X11 |
+| Octo/OpenPI 系 policy | 按 model profile | |
+
+查看 model 环境映射：`bash scripts/setup/model_env_install.sh --list`
+
+---
+
+## Benchmark 环境变量参考
+
+每个 benchmark 用独立 env 指向 **你的** checkout、checkpoint 和结果文件：
+
+| Benchmark id | Split | Policy checkpoint | Official results |
+| --- | --- | --- | --- |
+| `ai2thor` | eval config 中的 `scene` / `benchmark_kwargs` | policy checkpoint 或 external policy server | `WORLDFOUNDRY_AI2THOR_RESULTS_PATH` |
+| `libero` | `WORLDFOUNDRY_LIBERO_SUITE` | `WORLDFOUNDRY_LIBERO_POLICY_CHECKPOINT` | `WORLDFOUNDRY_LIBERO_RESULTS_PATH` |
+| `robotwin` | `WORLDFOUNDRY_ROBOTWIN_TASK_CONFIG` | `WORLDFOUNDRY_ROBOTWIN_POLICY_CHECKPOINT` | `WORLDFOUNDRY_ROBOTWIN_RESULTS_PATH` |
+| `robomme` | `WORLDFOUNDRY_ROBOMME_SUITE` | `WORLDFOUNDRY_ROBOMME_POLICY_CHECKPOINT` | `WORLDFOUNDRY_ROBOMME_RESULTS_PATH` |
+| `libero-para` | `WORLDFOUNDRY_LIBERO_PARA_SPLIT` | `WORLDFOUNDRY_LIBERO_PARA_POLICY_CHECKPOINT` | `WORLDFOUNDRY_LIBERO_PARA_RESULTS_PATH` |
+| `calvin` | `WORLDFOUNDRY_CALVIN_SPLIT` | `WORLDFOUNDRY_CALVIN_POLICY_CHECKPOINT` | `WORLDFOUNDRY_CALVIN_RESULTS_PATH` |
+| `robocasa` | `WORLDFOUNDRY_ROBOCASA_SUITE` | `WORLDFOUNDRY_ROBOCASA_POLICY_CHECKPOINT` | `WORLDFOUNDRY_ROBOCASA_RESULTS_PATH` |
+| `maniskill2` | `WORLDFOUNDRY_MANISKILL2_SUITE` | `WORLDFOUNDRY_MANISKILL2_POLICY_CHECKPOINT` | `WORLDFOUNDRY_MANISKILL2_RESULTS_PATH` |
+| `rlbench` | `WORLDFOUNDRY_RLBENCH_TASK_SPLIT` | `WORLDFOUNDRY_RLBENCH_POLICY_CHECKPOINT` | `WORLDFOUNDRY_RLBENCH_RESULTS_PATH` |
+| `behavior1k` | `WORLDFOUNDRY_BEHAVIOR1K_TASK_SPLIT` | `WORLDFOUNDRY_BEHAVIOR1K_POLICY_CHECKPOINT` | `WORLDFOUNDRY_BEHAVIOR1K_RESULTS_PATH` |
+| `simpler-env` | `WORLDFOUNDRY_SIMPLERENV_SUITE` | `WORLDFOUNDRY_SIMPLERENV_POLICY_CHECKPOINT` | `WORLDFOUNDRY_SIMPLERENV_RESULTS_PATH` |
+| `vlabench` | `WORLDFOUNDRY_VLABENCH_TASK_SPLIT` | `WORLDFOUNDRY_VLABENCH_POLICY_CHECKPOINT` | `WORLDFOUNDRY_VLABENCH_RESULTS_PATH` |
+| `bridgedata-v2` | `WORLDFOUNDRY_BRIDGEDATA_V2_SPLIT` | `WORLDFOUNDRY_BRIDGEDATA_V2_POLICY_CHECKPOINT` | `WORLDFOUNDRY_BRIDGEDATA_V2_RESULTS_PATH` |
+
+上游代码根目录通常用 `WORLDFOUNDRY_<BENCHMARK>_ROOT`（例如 `WORLDFOUNDRY_LIBERO_ROOT`）。完整列表见 `prepare_embodied_official_assets.py` 生成的 `embodied_official_env.sh`。
+
+---
+
+## 验证与导入
+
+**导入官方结果（已有 rollout 输出时）：**
+
+```bash
+worldfoundry-eval zoo benchmark-run \
+  --benchmark-id libero \
+  --mode official-validation \
+  --official-results-path "$WORLDFOUNDRY_LIBERO_RESULTS_PATH" \
+  --output-dir "$WORLDFOUNDRY_ARTIFACT_DIR/validation/libero" \
+  --json
+```
+
+`--official-results-path` 和 `--benchmark-data-root` 也可直接在命令行指定，无需事先 export env。
+
+检查输出中的 `scorecard.json`、`raw_results.jsonl`、`evaluation/summary.json`。`official_benchmark_verified=false` 在仅做 import 时是预期行为。
+
+---
+
+## 完整 Rollout
+
+使用 Docker-backed official evaluator 或 VLA evaluation harness 运行指定 policy checkpoint，生成 result 文件，再用上一节的 `official-validation` 导入。
+
+Rollout 前建议记录：benchmark id、上游 commit、simulator 版本、dataset split、checkpoint 路径、action/observation 约定、结果文件路径。
+
+
+接入真实 policy 时，把 eval config 里的 `model_id` 换成已配置的 VLA policy，或通过 `server.url` 指向 external policy server；policy 返回 `{"token": "forward"}` 或等价离散 action 即可。
+
+---
+
+## 内置验证 fixture
+
+零资产 validation 用的 minimal 结果在：
+
+`worldfoundry/data/test_cases/evaluation/embodied_fixtures/`
+
+覆盖 `libero`、`robomme`、`robotwin`，与真实 rollout 后的导入路径相同，但不构成 leaderboard 证据。
+
+---
+
+## 发版维护说明
+
+Maintainer 的 release gate 与 `official_benchmark_verified` 标注流程见 [验证证据](/zh/docs/reference/validation)。

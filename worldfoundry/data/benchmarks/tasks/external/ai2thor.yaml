@@ -1,0 +1,142 @@
+benchmark: ai2thor
+description: AI2-THOR external task manifest for native embodied closed-loop rollouts.
+tags:
+- benchmark-zoo
+- ai2thor
+- vla
+- embodied-action
+- navigation
+- simulator
+splits:
+- ai2thor_default
+metrics:
+  success_rate:
+    aggregation: mean
+    primary: true
+  task_success:
+    aggregation: mean
+  episode_success:
+    aggregation: mean
+  reward:
+    aggregation: mean
+metadata:
+  source_kind: benchmark_zoo
+  benchmark_id: ai2thor
+  status: integrated
+  release_status: experimental
+  maturity: contract_ready
+  open_source_status: experimental
+  official_benchmark_verified: false
+  integration_evidence: true
+  leaderboard_valid: false
+  full_test_harness_ready: true
+  full_suite_testable: true
+  full_suite_execution_recorded: false
+  official_repository:
+    repo_url: https://github.com/allenai/ai2thor.git
+    clone_dir: ${WORLDFOUNDRY_CACHE_DIR}/repos/allenai--ai2thor
+  requires:
+  - AI2-THOR Python package
+  - AI2-THOR Unity simulator build/cache
+  - Headless CloudRendering or X11 display backend
+  - Policy checkpoint or external policy server for non-zero rollouts
+  blockers:
+  - Official task suites such as ALFRED/TEACh are not bundled yet; default scene tasks are provided for wiring
+    validation.
+  runner_availability:
+    available: true
+    runner_target: worldfoundry.evaluation.tasks.embodied.rollout_runner:build_ai2thor_closed_loop_runner
+    runner_script_available: false
+    task_yaml_available: true
+    runtime_verified: false
+    normalizer_verified: true
+    surface: native_closed_loop_simulator
+  runtime:
+    kind: native_closed_loop_simulator
+    root_env: WORLDFOUNDRY_AI2THOR_ROOT
+    results_path_env: WORLDFOUNDRY_AI2THOR_RESULTS_PATH
+    eval_config: worldfoundry/data/benchmarks/eval_configs/embodied/ai2thor/floorplan1.yaml
+  contract_validation_command: worldfoundry-eval zoo benchmark-run --benchmark-id ai2thor --mode contract --output-dir
+    tmp/benchmark_zoo/benchmark_contract/ai2thor --json
+  artifact_layout:
+    generated_artifact_dir_env: WORLDFOUNDRY_AI2THOR_RESULTS_PATH
+    output_artifact: benchmark_scorecard
+    filename_template: scorecard.json
+  data_refs:
+    local_repo_paths:
+    - cache/vla_va_wam/repos/allenai--ai2thor
+    task_yaml: worldfoundry/data/benchmarks/tasks/external/ai2thor.yaml
+  checkpoint_refs: []
+  validation_command:
+  - worldfoundry-eval
+  - embodied
+  - run
+  - --config
+  - worldfoundry/data/benchmarks/eval_configs/embodied/ai2thor/floorplan1.yaml
+  official_runner_target: worldfoundry.evaluation.tasks.embodied.rollout_runner:build_ai2thor_closed_loop_runner
+tasks:
+  ai2thor_scene_rollouts:
+    benchmark_name: ai2thor
+    protocol: external_official_benchmark
+    capability_track: vla,embodied-action,navigation,simulator
+    input_keys:
+    - scene
+    - language_instruction
+    - observation_image
+    - policy_action
+    output_keys:
+    - scorecard
+    - raw_results
+    - per_sample_metrics
+    - rollout_logs
+    metric_ids:
+    - success_rate
+    - task_success
+    - episode_success
+    - reward
+    tags:
+    - benchmark-zoo
+    - external-official
+    - ai2thor
+    - vla
+    - embodied-action
+    metadata:
+      source_kind: benchmark_zoo
+      benchmark_id: ai2thor
+      leaderboard_valid: false
+      scene_tasks:
+      - task_id: 0
+        name: Explore FloorPlan1
+        scene: FloorPlan1
+        suite: ai2thor_default
+      - task_id: 1
+        name: Explore FloorPlan2
+        scene: FloorPlan2
+        suite: ai2thor_default
+      - task_id: 2
+        name: Explore FloorPlan3
+        scene: FloorPlan3
+        suite: ai2thor_default
+      official_benchmark_verified: false
+      integration_evidence: true
+    dataset:
+      split: ai2thor_default
+      scenes:
+      - FloorPlan1
+      - FloorPlan2
+      - FloorPlan3
+    runtime_requirements:
+      simulator_root_env: WORLDFOUNDRY_AI2THOR_ROOT
+      results_path_env: WORLDFOUNDRY_AI2THOR_RESULTS_PATH
+    artifact_contract:
+      required:
+        benchmark_scorecard:
+          kind: benchmark_result
+    evaluation_protocol:
+    - name: external_official_runner
+      metric_ids:
+      - success_rate
+      - task_success
+      - episode_success
+      - reward
+      runner_target: worldfoundry.evaluation.tasks.embodied.rollout_runner:build_ai2thor_closed_loop_runner

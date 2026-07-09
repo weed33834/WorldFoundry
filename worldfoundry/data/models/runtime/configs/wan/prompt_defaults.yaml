@@ -1,0 +1,29 @@
+version: "1.0"
+tasks:
+  t2v-1.3B:
+    prompt: Two anthropomorphic cats in comfy boxing gear and bright gloves fight intensely on a spotlighted stage.
+  t2v-14B:
+    prompt: Two anthropomorphic cats in comfy boxing gear and bright gloves fight intensely on a spotlighted stage.
+  t2i-14B:
+    prompt: 一个朴素端庄的美人
+  i2v-14B:
+    prompt: >-
+      Summer beach vacation style, a white cat wearing sunglasses sits on a surfboard. The fluffy-furred feline
+      gazes directly at the camera with a relaxed expression. Blurred beach scenery forms the background featuring
+      crystal-clear waters, distant green hills, and a blue sky dotted with white clouds. The cat assumes a naturally
+      relaxed posture, as if savoring the sea breeze and warm sunlight. A close-up shot highlights the feline's
+      intricate details and the refreshing atmosphere of the seaside.
+    image: wan/i2v_input.png
+  flf2v-14B:
+    prompt: >-
+      CG动画风格，一只蓝色的小鸟从地面起飞，煽动翅膀。小鸟羽毛细腻，胸前有独特的花纹，背景是蓝天白云，阳光明媚。镜跟随小鸟向上移动，展现出小鸟飞翔的姿态和天空的广阔。近景，仰视视角。
+    first_frame: wan/flf2v_input_first_frame.png
+    last_frame: wan/flf2v_input_last_frame.png
+  vace-1.3B:
+    src_ref_images: wan/girl.png,wan/snake.png
+    prompt: >-
+      在一个欢乐而充满节日气氛的场景中，穿着鲜艳红色春服的小女孩正与她的可爱卡通蛇嬉戏。她的春服上绣着金色吉祥图案，散发着喜庆的气息，脸上洋溢着灿烂的笑容。蛇身呈现出亮眼的绿色，形状圆润，宽大的眼睛让它显得既友善又幽默。小女孩欢快地用手轻轻抚摸着蛇的头部，共同享受着这温馨的时刻。周围五彩斑斓的灯笼和彩带装饰着环境，阳光透过洒在她们身上，营造出一个充满友爱与幸福的新年气氛。
+  vace-14B:
+    src_ref_images: wan/girl.png,wan/snake.png
+    prompt: >-
+      在一个欢乐而充满节日气氛的场景中，穿着鲜艳红色春服的小女孩正与她的可爱卡通蛇嬉戏。她的春服上绣着金色吉祥图案，散发着喜庆的气息，脸上洋溢着灿烂的笑容。蛇身呈现出亮眼的绿色，形状圆润，宽大的眼睛让它显得既友善又幽默。小女孩欢快地用手轻轻抚摸着蛇的头部，共同享受着这温馨的时刻。周围五彩斑斓的灯笼和彩带装饰着环境，阳光透过洒在她们身上，营造出一个充满友爱与幸福的新年气氛。

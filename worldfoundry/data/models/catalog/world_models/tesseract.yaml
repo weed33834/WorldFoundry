@@ -1,0 +1,39 @@
+id: tesseract
+name: TesserAct
+aliases:
+- tesser-act
+tasks:
+- embodied-world-model
+- robotics-world-model
+- action-conditioned-video
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/UMass-Embodied-AGI/TesserAct
+official_sources:
+  worldarena_space: https://huggingface.co/spaces/WorldArena/WorldArena
+  github:
+    url: https://github.com/UMass-Embodied-AGI/TesserAct
+    head_sha: d2fe4b1d509e54a3cf95da40ec6e232b68361d07
+    verified_by: official GitHub repository selected from WorldArena open-source result names
+  huggingface:
+  - repo_id: anyeZHY/tesseract
+    status: confirmed
+checkpoint_refs:
+- repo_id: anyeZHY/tesseract
+integration:
+  status: runtime_ported
+  notes:
+  - WorldFoundry registers an in-tree runtime manifest pipeline for the vendored TesserAct source.
+  - Official WorldArena-listed source is vendored in-tree under worldfoundry/synthesis/visual_generation/tesseract/tesseract_runtime.
+runtime_profile: runtime-profile:tesseract
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: tesseract
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - The pipeline resolves the vendored TesserAct inference entrypoint and returns blocked runtime diagnostics until checkpoints
+    and embodied task assets are staged.
+catalog_category: world_models
+catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry runtimes; blocked entries retain
+  upstream provenance without runnable backends.

@@ -1,0 +1,30 @@
+schema_version: 2
+model_id: matrix-game-2-universal-ref-image-seed42-15f
+display_name: Matrix-Game 2 Universal Ref Image Seed 42 15F
+task_family: world_model
+groups:
+- world
+- interactive
+source_repos:
+- url: https://github.com/SkyworkAI/Matrix-Game
+checkpoints:
+- repo_id: Skywork/Matrix-Game-2.0
+  revision: f1729d99a80e0f07993a77d7dad4a3190e23c2c8
+  role: matrix_game_2_checkpoint
+input_schema:
+  prompt: false
+  image: true
+  video: false
+  official_bench_actions: true
+artifact_kind: generated_world
+artifact_filename: matrix-game-2-universal-ref-image-seed42-15f.mp4
+execution:
+  backend_stage: in_tree_runtime_ready
+  runtime_status: official_demo_parity_pending
+  integration_status: integrated
+  pipeline_binding: matrix-game-2-universal-ref-image-seed42-15f
+integration:
+  status: integrated
+notes:
+- Runtime profile records stable environment, checkpoint, and parameter assumptions
+  only; run readiness is kept in release run manifests.

@@ -1,0 +1,68 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+availability: open_source
+checkpoint_refs:
+- role: kairos_sensenova_robot_4b_480p_distilled
+  repo_id: kairos-agi/kairos-sensenova-robot-4B-480P-distilled
+- role: kairos_sensenova_4b_480p_pretrained
+  repo_id: kairos-agi/kairos-sensenova-4B-480P-pretrained
+- role: kairos_sensenova_4b_720p
+  repo_id: kairos-agi/kairos-sensenova-4B-720P
+base_model_refs:
+- role: qwen2_5_vl_7b_awq_text_encoder
+  repo_id: Qwen/Qwen2.5-VL-7B-Instruct-AWQ
+- role: wan2_1_t2v_14b_vae
+  repo_id: Wan-AI/Wan2.1-T2V-14B
+family: Embodied World Model
+id: kairos-sensenova
+aliases:
+- Kairos
+- Kairos Sensenova
+- kairos-4b
+- kairos-sensenova-4b
+tasks:
+- text-to-video
+- image-to-video
+- text-image-to-video
+- embodied-world-model
+integration:
+  notes:
+  - Uses the in-tree Apache-2.0 official torchrun runtime under
+    worldfoundry/synthesis/visual_generation/kairos/kairos_runtime.
+  - The default runnable variant follows the official robot 4B 480P distilled recipe with kairos_4b_config_DMD.py,
+    81 frames, 480x640 resolution, cfg_scale 5, tiled VAE decode, and no CFG-parallel.
+  - Set WORLDFOUNDRY_KAIROS_MODELS_ROOT or models_root to a directory containing Kairos, Qwen, and Wan2.1-T2V-14B
+    subdirectories matching the official config layout.
+  status: verified
+license: Apache-2.0
+modalities:
+- text-to-video
+- image-to-video
+- text-image-to-video
+- action-prediction
+name: Kairos Sensenova
+official_sources:
+  github:
+    url: https://github.com/kairos-agi/kairos-sensenova
+  huggingface:
+  - repo_id: kairos-agi/kairos-sensenova-4B-480P-pretrained
+    type: model
+  - repo_id: kairos-agi/kairos-sensenova-robot-4B-480P-distilled
+    type: model
+  - repo_id: kairos-agi/kairos-sensenova-4B-720P
+    type: model
+pipeline_binding: kairos-sensenova
+release_type: code_and_weights
+runtime_profile: runtime-profile:kairos-sensenova
+starred: true
+runner_parity:
+  notes:
+  - Default 480P DMD text-to-video recipe is integrated through the in-tree runtime and verified through the Workspace
+    infer path with 8 torchrun ranks.
+  - 720P and non-distilled variants require the corresponding checkpoint paths and config override.
+  status: verified
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models
+catalog_policy:
+  checkpoint_rule: Only list checkpoints that were confirmed on official source pages. Do not download weights.
+  integration_rule: Closed, API-only, or unknown releases stay blocked or planned until an official integration surface is available.
+  open_source_rule: Only mark open_source when an official GitHub repository or official model page was confirmed.

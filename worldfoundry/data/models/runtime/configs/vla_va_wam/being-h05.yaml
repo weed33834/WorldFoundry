@@ -1,0 +1,7 @@
+data_config_name: libero_nonorm
+dataset_name: libero_posttrain
+embodiment_tag: libero
+instruction_template: '{task_description}'
+enable_rtc: true
+stats_selection_mode: auto
+attention_mask_kind: dense

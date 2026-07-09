@@ -1,0 +1,49 @@
+availability: open_source
+checkpoints:
+- tencent/HunyuanWorld-1
+family: Tencent Hunyuan / HY-World
+id: hunyuanworld-1
+integration:
+  status: runtime_ported
+  notes:
+  - HunyuanWorld 1.0 official source route is registered; checkpoints and third-party
+    assets are runtime-gated.
+license: other:tencent-hunyuanworld-community
+modalities:
+- text-to-3d-world
+- image-to-3d-world
+- panorama
+- mesh-export
+name: HunyuanWorld 1.0
+official_sources:
+  github:
+    confirmed_by: git ls-remote --heads
+    confirmed_ref: refs/heads/main
+    url: https://github.com/Tencent-Hunyuan/HunyuanWorld-1.0
+  huggingface:
+  - confirmed_by: https://huggingface.co/api/models/tencent/HunyuanWorld-1
+    repo_id: tencent/HunyuanWorld-1
+    status: confirmed
+    type: model
+release_type: code_and_weights
+starred: true
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models
+catalog_policy:
+  checkpoint_rule: Only list checkpoints that were confirmed on official Hugging Face
+    model pages. Do not download weights.
+  integration_rule: Closed, API-only, or unknown releases stay blocked or planned
+    until an official integration surface is available.
+  open_source_rule: Only mark open_source when an official GitHub repository or official
+    Hugging Face model page was confirmed. Do not infer checkpoint availability from
+    papers, demos, or third-party mirrors.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: hunyuanworld-1
+runtime_profile: runtime-profile:hunyuanworld-1
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - resolve_model_zoo_config and pipeline import are expected to pass; real generation
+    emits a runtime plan until required checkpoints/assets are staged.
+output_artifacts:
+- generated_world

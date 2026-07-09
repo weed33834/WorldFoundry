@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: scope
+model_id: scope
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.scope.pipeline_scope:SCOPEPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

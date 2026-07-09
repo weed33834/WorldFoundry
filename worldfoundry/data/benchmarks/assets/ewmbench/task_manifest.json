@@ -1,0 +1,50 @@
+{
+  "version": "1",
+  "description": "Minimal EWMBench task/episode manifest for WorldFoundry generation and contract validation.",
+  "canonical_episode_count": 12,
+  "trials_per_episode": [1, 2, 3],
+  "episodes": [
+    {
+      "episode_id": "task_1__episode_1",
+      "task_id": "task_1",
+      "episode_name": "episode_1",
+      "introduction": "The robot opens a drawer and picks up a red block.",
+      "trials": [1, 2, 3]
+    },
+    {
+      "episode_id": "task_1__episode_2",
+      "task_id": "task_1",
+      "episode_name": "episode_2",
+      "introduction": "The robot places the red block into a storage bin.",
+      "trials": [1, 2, 3]
+    },
+    {
+      "episode_id": "task_2__episode_1",
+      "task_id": "task_2",
+      "episode_name": "episode_1",
+      "introduction": "The robot pushes a cup to the center of the table.",
+      "trials": [1, 2, 3]
+    },
+    {
+      "episode_id": "task_2__episode_2",
+      "task_id": "task_2",
+      "episode_name": "episode_2",
+      "introduction": "The robot grasps the cup handle and lifts it upright.",
+      "trials": [1, 2, 3]
+    },
+    {
+      "episode_id": "task_3__episode_1",
+      "task_id": "task_3",
+      "episode_name": "episode_1",
+      "introduction": "The robot opens a cabinet door before reaching inside.",
+      "trials": [1, 2, 3]
+    },
+    {
+      "episode_id": "task_3__episode_2",
+      "task_id": "task_3",
+      "episode_name": "episode_2",
+      "introduction": "The robot retrieves a bottle from the cabinet and closes the door.",
+      "trials": [1, 2, 3]
+    }
+  ]
+}

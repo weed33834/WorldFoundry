@@ -1,0 +1,9 @@
+train:
+  id: BreakoutNoFrameskip-v4
+  done_on_life_loss: true
+  size: 64
+test:
+  id: ${..train.id}
+  done_on_life_loss: false
+  size: ${..train.size}
+keymap: atari/${.train.id}

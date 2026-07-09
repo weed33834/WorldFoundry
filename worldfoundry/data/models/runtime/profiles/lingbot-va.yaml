@@ -1,0 +1,48 @@
+artifact_filename: lingbot_va_action_trace.json
+artifact_kind: action_trace
+backend_stage: in_tree_plan_wrapper
+checkpoints:
+- local_dir: ${WORLDFOUNDRY_HFD_ROOT}/lingbot-va-base
+  repo_id: robbyant/lingbot-va-base
+  role: shared_backbone_base_checkpoint
+  status: local_checkpoint_staged_transformer_gpu_forward_ready_server_init_ready
+- local_dir: ${WORLDFOUNDRY_HFD_ROOT}/lingbot-va-posttrain-robotwin
+  repo_id: robbyant/lingbot-va-posttrain-robotwin
+  role: robotwin_posttrain_demo_checkpoint
+  status: local_checkpoint_staged_checkpoint_gpu_probe_ready_server_command_ready
+- local_dir: ${WORLDFOUNDRY_HFD_ROOT}/lingbot-va-posttrain-libero-long
+  repo_id: robbyant/lingbot-va-posttrain-libero-long
+  role: libero_long_posttrain_demo_checkpoint
+  status: local_checkpoint_staged_checkpoint_gpu_probe_ready_server_init_ready
+display_name: LingBot-VA
+id: lingbot-va
+input_schema:
+  actions:
+  - robot_action
+  - action_chunk
+  - video_action
+  - world_action
+  - proprio
+  env_type: libero_or_robotwin
+  image: true
+  instruction: true
+  prompt: true
+  state: true
+  video: true
+integration_status: plan_ready
+notes:
+- LingBot-VA is an autoregressive video-action world model for robot control. The
+  profile emits action_trace artifacts and can carry predicted-video metadata, but
+  it is not routed through generic video-generation scorecards.
+- The upstream server/client evaluation entry points are wan_va/wan_va_server.py plus
+  evaluation/libero and evaluation/robotwin, but runtime plans must use repo-integrated
+  code rather than an external checkout path.
+- The staged checkpoint transformer/config.json files are set to attn_mode=torch,
+  and the repo-integrated server command passes --checkpoint-dir for the selected
+  local checkpoint.
+- WorldFoundry vendors the official wan_va architecture, server, client, and utils under
+  worldfoundry/synthesis/action_generation/wan_va. py_compile, conda import/from_pretrained,
+  pipeline plan, plan-only predict, and libero-long server initialization passed;
+  full client rollout/action decoding remains unready.
+runtime_status: in_tree_source_vendored_server_init_ready_client_rollout_unready
+task_family: embodied_action

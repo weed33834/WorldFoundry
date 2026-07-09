@@ -1,0 +1,19 @@
+id: molmospaces_pick_and_place_eval
+output_dir: ./results/molmospaces_pick_and_place_eval
+model_id: external-policy-server
+server:
+  url: ws://localhost:8000
+  timeout: 600.0
+benchmark_id: molmospaces
+benchmark_kwargs:
+  benchmark_dir: /assets/benchmarks/molmospaces-bench-v2/procthor-objaverse/FrankaPickandPlaceHardBench/FrankaPickandPlaceHardBench_20260212_200ep_json_benchmark
+  eval_config_cls: olmo.eval.configure_molmo_spaces:FrankaState8ClampAbsPosConfig
+  task_horizon: 600
+  send_wrist_image: true
+  send_state: true
+episodes_per_task: 1
+max_tasks: 200
+max_steps: 600
+metric_ids:
+  - task_success
+  - success_rate

@@ -1,0 +1,27 @@
+schema_version: 2
+model_id: skyreels-v2
+display_name: SkyReels-V2
+task_family: video_generation
+groups:
+- video
+- text_to_video
+- image_to_video
+source_repos:
+- url: https://github.com/SkyworkAI/SkyReels-V2
+checkpoints:
+- repo_id: Skywork/SkyReels-V2-DF-1.3B-540P
+  role: t2v_checkpoint
+- repo_id: Skywork/SkyReels-V2-I2V-1.3B-540P
+  role: i2v_checkpoint
+input_schema:
+  prompt: true
+  image: optional
+artifact_kind: generated_video
+artifact_filename: skyreels-v2.mp4
+execution:
+  backend_stage: official_runtime_bridge
+  runtime_status: official_demo_parity_pending
+  integration_status: integrated
+  pipeline_binding: skyreels-v2
+integration:
+  status: integrated

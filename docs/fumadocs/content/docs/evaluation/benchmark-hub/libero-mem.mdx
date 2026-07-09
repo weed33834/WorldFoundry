@@ -1,0 +1,126 @@
+---
+title: LIBERO-Mem
+description: LIBERO-Mem — metrics, requirements, and run commands.
+---
+
+## About
+
+
+
+LIBERO-Mem external benchmark manifest for memory-dependent language-conditioned manipulation.
+
+
+
+## Metrics
+
+LIBERO-Mem external benchmark manifest for memory-dependent language-conditioned manipulation.
+
+### Task YAML
+
+`worldfoundry/data/benchmarks/tasks/external/libero-mem.yaml`
+
+### Primary
+
+- `success_rate`
+
+| Metric | Focus |
+| --- | --- |
+| `success_rate` | Share of episodes or tasks that complete successfully. |
+| `memory_success_rate` | Share of episodes or tasks that complete successfully. |
+| `task_success` | Share of episodes or tasks that complete successfully. |
+| `action_accuracy` | Correctness of predicted actions, states, or outcomes against the benchmark success criterion. |
+
+
+
+## Environment setup
+
+### Runtime environment
+
+- **Conda env:** `worldfoundry-unified-cu128`.
+- **Separate setup:** defaults to the unified WorldFoundry env (`needs_new_env: false`); a benchmark-only conda env is usually not required.
+- WorldFoundry provides contract and official result normalization for caller-provided LIBERO-Mem outputs.
+
+### Evaluation data
+
+- Candidate model outputs: set `WORLDFOUNDRY_LIBERO_MEM_RESULTS_PATH` to the generated-video or rollout artifact root.
+- `${WORLDFOUNDRY_DATA_DIR}/datasets/libero-mem`
+- `${WORLDFOUNDRY_CACHE_DIR}/repos/Lifelong-Robot-Learning--LIBERO`
+
+### Checkpoints & assets
+
+- This benchmark is primarily rollout- or official-result-driven; see catalog `requires` and the task YAML for policy/simulator checkpoints.
+
+### Key environment variables
+
+- `WORLDFOUNDRY_LIBERO_MEM_ROOT`
+- `WORLDFOUNDRY_LIBERO_MEM_RESULTS_PATH`
+
+
+
+## Run Evaluation
+
+
+
+After preparing the assets and candidate artifacts listed on this page, use the public run entry points below.
+
+### Set Candidate Artifacts
+
+```bash
+export WORLDFOUNDRY_GENERATED_ARTIFACT_DIR=/path/to/generated/artifacts
+```
+
+### Import Official Results
+
+```bash
+worldfoundry-eval zoo benchmark-run \
+  --benchmark-id libero-mem \
+  --mode normalizer \
+  --official-results-path /path/to/official/results-or-report \
+  --generated-artifact-dir "${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}" \
+  --output-dir tmp/libero-mem/normalizer \
+  --json
+```
+
+### Score Generated Artifacts
+
+```bash
+worldfoundry-eval zoo benchmark-run \
+  --benchmark-id libero-mem \
+  --mode official-run \
+  --generated-artifact-dir "${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}" \
+  --output-dir tmp/libero-mem/official-run \
+  --json
+```
+
+### Direct In-Tree Runner
+
+```bash
+worldfoundry-eval zoo benchmark-run --benchmark-id libero-mem --mode official-validation --official-results-path <official_results.json> --output-dir <out> --json
+```
+
+
+
+## Requirements
+
+
+
+### Inputs
+
+- Official simulator runtime
+- benchmark assets
+- policy checkpoint
+- official result dump
+
+### Environment
+
+- `WORLDFOUNDRY_LIBERO_MEM_RESULTS_PATH`
+
+### Outputs
+
+- `scorecard.json`
+- `raw_results.jsonl`
+- `evaluation/summary.json`
+
+
+
+[← Benchmark Hub](/docs/evaluation/benchmark-hub)

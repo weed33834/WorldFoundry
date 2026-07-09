@@ -1,0 +1,33 @@
+conda_packages:
+- python
+- pip
+- ffmpeg
+cuda_profile: cu124
+driver_status: requires_local_extension_build:pytorch3d
+env_name: wonderworld
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: wonderworld
+notes:
+- Uses the local WonderWorld runtime environment because the infer path imports PyTorch3D CUDA extensions.
+- WonderWorld runtime source is in tree under worldfoundry/synthesis/visual_generation/wonderworld/wonderworld_runtime;
+  prepare checkpoint/runtime assets and PyTorch3D-compatible CUDA extensions before running inference.
+pip_packages:
+- torch
+- torchvision
+- pytorch3d
+- transformers
+- diffusers
+- omegaconf
+- opencv-python
+- imageio
+- imageio-ffmpeg
+- spacy
+- flask
+python: '3.10'
+validation_imports:
+- torch
+- pytorch3d
+- transformers
+- diffusers
+- omegaconf
+- cv2

@@ -1,0 +1,13 @@
+schema_version: 2
+binding_id: self-forcing
+model_id: self-forcing
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.forcing.pipeline_forcing:SelfForcingPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation
+aliases:
+- self_forcing

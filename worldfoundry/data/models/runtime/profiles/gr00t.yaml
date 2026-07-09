@@ -1,0 +1,34 @@
+artifact_filename: gr00t_action_trace.json
+artifact_kind: action_trace
+backend_stage: in_tree_runtime
+checkpoints:
+- local_dir: ${WORLDFOUNDRY_HFD_ROOT}/nvidia--GR00T-N1.7-LIBERO
+  repo_id: nvidia/GR00T-N1.7-LIBERO
+  role: libero_10_demo_checkpoint
+  status: local_checkpoint_staged_real_predict_ready
+- local_dir: ${WORLDFOUNDRY_HFD_ROOT}/nvidia--Cosmos-Reason2-2B
+  repo_id: nvidia/Cosmos-Reason2-2B
+  role: reasoner_model
+  status: local_checkpoint_staged_weight_gpu_probe_ready_real_predict_ready
+id: gr00t
+input_schema:
+  actions:
+  - robot_action
+  - humanoid_state
+  - action_space
+  image: true
+  instruction: true
+  prompt: true
+  video: false
+integration_status: runtime_ported
+notes:
+- VLA policy profile for GR00T-style humanoid/generalist robot actions.
+- The staged GR00T-N1.7-LIBERO asset intentionally downloads only the official libero_10
+  runtime subset.
+- WorldFoundry vendors the GR00T configs, data transforms, model, and policy runtime
+  under worldfoundry/synthesis/action_generation/gr00t/gr00t_runtime. py_compile,
+  import/from_pretrained, checkpoint metadata parsing, local HFD backbone resolution,
+  and plan-only predict passed.
+runtime_status: in_tree_runtime_predict_ready_local_cosmos_reason2
+task_family: vla_policy
+verification_status: real_predict_ready_local_cosmos_reason2_cuda118_sdpa

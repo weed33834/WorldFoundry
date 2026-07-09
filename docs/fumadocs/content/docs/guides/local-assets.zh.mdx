@@ -1,0 +1,274 @@
+---
+title: 本地资产
+description: 从哪里查来源、下载到哪里、用什么命令准备 checkpoint/dataset/repo。
+---
+
+## 0. 前置条件
+
+当命令提示缺 checkpoint、dataset、metric 权重、生成输出或官方结果文件时，优先看这一页。WorldFoundry 把这些大型或带 license 的文件放在 git 外；仓库内保存代码和 manifest，本机或共享存储保存 manifest 引用的资产。
+
+典型路径：用 `worldfoundry-eval zoo ... --json` 查看模型或 benchmark id；评测时再生成单个 benchmark 的 asset plan；只补齐本次运行需要的路径。使用框架不需要提前准备所有 benchmark 资产。统一 conda 环境见 [环境配置](/zh/docs/reference/environments)。
+
+安装 Hugging Face Hub 包。`hf` / `huggingface-cli` 是可选入口；下载脚本会优先用 CLI，缺少时回退到 `huggingface_hub.snapshot_download`：
+
+```bash
+python -m pip install "huggingface_hub[cli]"
+```
+
+Gated 模型/数据集需先在上游接受 license，再导出 token：
+
+```bash
+export HF_TOKEN="hf_..."   # 或 huggingface-cli login
+```
+
+访问 huggingface.co 较慢时，可用 [HF-Mirror](https://hf-mirror.com) 的 `hfd`（依赖 `aria2c`）：
+
+```bash
+wget https://hf-mirror.com/hfd/hfd.sh
+chmod a+x hfd.sh
+export HF_ENDPOINT=https://hf-mirror.com
+
+./hfd.sh Skywork/Matrix-Game-2.0 \
+  --local-dir "${WORLDFOUNDRY_HFD_ROOT:-${HOME}/.cache/worldfoundry/models/checkpoints/hfd}/Skywork--Matrix-Game-2.0"
+
+./hfd.sh BestWishYsh/ChronoMagic-Pro --dataset \
+  --local-dir "${WORLDFOUNDRY_HFD_DATASET_ROOT:-${HOME}/.cache/worldfoundry/cache/data/datasets}/BestWishYsh__ChronoMagic-Pro"
+```
+
+也可设置 `HF_ENDPOINT=https://hf-mirror.com` 后继续用 `hf download`。Gated repo 需先在 Hugging Face 官网申请许可，再用 `--hf_token "${HF_TOKEN}"`。
+
+## 1. 初始化目录与环境变量
+
+这些目录是 runtime state，不是源码。放在容量足够的本地盘或共享文件系统上。
+
+```bash
+export WORLDFOUNDRY_HOME="${WORLDFOUNDRY_HOME:-${HOME}/.cache/worldfoundry}"
+export WORLDFOUNDRY_CACHE_DIR="${WORLDFOUNDRY_CACHE_DIR:-${WORLDFOUNDRY_HOME}/cache}"
+export WORLDFOUNDRY_DATA_DIR="${WORLDFOUNDRY_DATA_DIR:-${WORLDFOUNDRY_CACHE_DIR}/data}"
+export WORLDFOUNDRY_MODEL_DIR="${WORLDFOUNDRY_MODEL_DIR:-${WORLDFOUNDRY_CACHE_DIR}/models}"
+export WORLDFOUNDRY_CKPT_DIR="${WORLDFOUNDRY_CKPT_DIR:-${WORLDFOUNDRY_MODEL_DIR}/checkpoints}"
+export WORLDFOUNDRY_HFD_ROOT="${WORLDFOUNDRY_HFD_ROOT:-${WORLDFOUNDRY_CKPT_DIR}/hfd}"
+export WORLDFOUNDRY_HFD_DATASET_ROOT="${WORLDFOUNDRY_HFD_DATASET_ROOT:-${WORLDFOUNDRY_DATA_DIR}/datasets}"
+export WORLDFOUNDRY_ARTIFACT_DIR="${WORLDFOUNDRY_ARTIFACT_DIR:-${WORLDFOUNDRY_HOME}/artifacts}"
+export HF_HOME="${HF_HOME:-${WORLDFOUNDRY_HOME}/huggingface}"
+export HF_HUB_CACHE="${HF_HUB_CACHE:-${HF_HOME}/hub}"
+
+mkdir -p \
+  "${WORLDFOUNDRY_HFD_ROOT}" \
+  "${WORLDFOUNDRY_HFD_DATASET_ROOT}" \
+  "${WORLDFOUNDRY_CACHE_DIR}/repos" \
+  "${WORLDFOUNDRY_ARTIFACT_DIR}/runs"
+```
+
+共享机器可用 bootstrap 或 Workspace 参数指定根目录：
+
+```bash
+bash scripts/setup/bootstrap_worldfoundry.sh \
+  --home /path/to/worldfoundry-home \
+  --data-root /path/to/worldfoundry-data \
+  --model-root /path/to/worldfoundry-models \
+  --artifact-root /path/to/worldfoundry-artifacts
+source tmp/worldfoundry_unified_env.sh
+```
+
+```text
+parent/
+  WorldFoundry/
+  ckpt/
+  data/
+```
+
+未导出 `WORLDFOUNDRY_CKPT_DIR` / `WORLDFOUNDRY_DATA_DIR` 时，`scripts/workspace/run_workspace.sh` 会在同级 `ckpt/`、`data/` 存在时自动使用。CI 中建议显式传参：
+
+```bash
+bash scripts/workspace/run_workspace.sh \
+  --ckpt-dir /path/to/ckpt \
+  --data-dir /path/to/data
+```
+
+### 路径命名约定
+
+| 来源 | 本地目录名规则 | 示例 |
+| --- | --- | --- |
+| HF 模型 `org/name` | `org--name` | `Skywork/Matrix-Game-2.0` → `Skywork--Matrix-Game-2.0` |
+| HF 数据集 `org/name` | `org__name` | `lerobot/libero` → `lerobot__libero` |
+| GitHub `owner/repo` | 常见为 `owner--repo` | `Lifelong-Robot-Learning/LIBERO` → `Lifelong-Robot-Learning--LIBERO` |
+
+**以 catalog 或 `local_assets.example.yaml` 里的 `path` 为准。** 部分具身 benchmark 仍引用 legacy 路径如 `cache/vla_va_wam/hf_datasets/org--name`，可按同样结构放置，或在 manifest 里改路径。
+
+## 2. 去哪里查「要下载什么」
+
+资产需求写在 manifest 里，docs / TUI / CLI / runner 才能描述同一件事。优先看 CLI summary；需要核对准确来源时再打开 YAML。
+
+### 走读示例：`matrix-game-2`（模型 checkpoint）
+
+`worldfoundry/data/models/catalog/world_models/matrix-game-2.yaml`
+
+```yaml
+id: matrix-game-2
+name: Matrix-Game 2.0
+checkpoints:
+- Skywork/Matrix-Game-2.0
+checkpoint:
+  repos:
+  - id: Skywork/Matrix-Game-2.0
+    sha: f1729d99a80e0f07993a77d7dad4a3190e23c2c8
+    gated: false
+    license: mit
+  status: confirmed_public_hf
+runtime_profile: runtime-profile:matrix-game-2-universal-ref-image-seed42-15f
+official_sources:
+  huggingface:
+  - repo_id: Skywork/Matrix-Game-2.0
+    type: model
+    status: confirmed
+```
+
+`checkpoints` / `checkpoint.repos[].id` 是要下载的仓库；`sha` 钉 revision；`runtime_profile` 指向期望本地路径与 env。同一信息也在 CLI JSON 里：
+
+```bash
+worldfoundry-eval zoo model-show --model-id matrix-game-2 --json
+```
+
+落盘后大致是：
+
+```text
+${WORLDFOUNDRY_HFD_ROOT}/hub/models--Skywork--Matrix-Game-2.0/
+# 或：
+${WORLDFOUNDRY_CKPT_DIR}/Skywork--Matrix-Game-2.0/
+```
+
+### 走读示例：`libero`（benchmark 资产）
+
+`worldfoundry/data/benchmarks/catalog/embodied/libero.yaml`
+
+```yaml
+id: libero
+name: LIBERO
+official_sources:
+  github:
+    url: https://github.com/Lifelong-Robot-Learning/LIBERO
+  huggingface_datasets:
+  - repo_id: yifengzhu-hf/LIBERO-datasets
+    revision: f13aa24a3da8c43c7225569f28c562979fa0e35a
+  - repo_id: lerobot/libero
+    revision: 1595a93b43aa055e55c127a4f0b4a99bb8035447
+dataset_refs:
+- repo_id: yifengzhu-hf/LIBERO-datasets
+  path: cache/vla_va_wam/hf_datasets/yifengzhu-hf--LIBERO-datasets
+- repo_id: lerobot/libero
+  path: cache/vla_va_wam/hf_datasets/lerobot--libero
+runner:
+  runtime:
+    root_env: WORLDFOUNDRY_LIBERO_ROOT
+    results_path_env: WORLDFOUNDRY_LIBERO_RESULTS_PATH
+    required_assets:
+    - LIBERO dataset root or LeRobot conversion
+    - suite-specific policy checkpoint
+    - official rollout logs/result dump
+```
+
+`dataset_refs[].repo_id` 是 HF 下载源；`path` 是数据根下的期望相对路径；`required_assets` / `*_env` 列出其余要准备的东西。把 catalog + task + profile 合成清单：
+
+```bash
+worldfoundry-eval zoo benchmark-show --benchmark-id libero --json
+
+python scripts/setup/prepare_benchmark_assets.py \
+  --benchmark-id libero \
+  --json
+```
+
+重点看 planner 字段：`assets.data`、`assets.checkpoints`、`env.api_or_secret`、`download_hints.hf`、`commands.official_runtime`、`commands.official_result_import`。
+
+## 3. 模型 checkpoint（推理）
+
+先 plan，确认存储与 license 后再 execute：
+
+```bash
+worldfoundry-eval zoo model-download \
+  --model-id matrix-game-2 \
+  --cache-dir "${WORLDFOUNDRY_HFD_ROOT}" \
+  --check-local \
+  --json
+
+worldfoundry-eval zoo model-download \
+  --model-id matrix-game-2 \
+  --cache-dir "${WORLDFOUNDRY_HFD_ROOT}" \
+  --execute \
+  --disable-xet \
+  --check-local \
+  --json
+```
+
+备选：
+
+```bash
+bash scripts/inference/prepare_model_infer.sh matrix-game-2 --download
+
+hf download Skywork/Matrix-Game-2.0 \
+  --revision f1729d99a80e0f07993a77d7dad4a3190e23c2c8 \
+  --local-dir "${WORLDFOUNDRY_HFD_ROOT}/Skywork--Matrix-Game-2.0"
+
+bash scripts/download_hfd_models.sh matrix-game-2
+```
+
+其他模型按各自 catalog 里的 `repo_id` / `revision` 同样下载。共享机器上若已有 snapshot，设置 `WORLDFOUNDRY_MODEL_DIR` 并用软链镜像 HF cache 名，不要复制权重：
+
+```bash
+bash scripts/setup/link_hf_checkpoints.sh \
+  --ckpt-dir "${WORLDFOUNDRY_CKPT_DIR}" \
+  --hfd-root "${WORLDFOUNDRY_HFD_ROOT}" \
+  --hf-hub-cache "${HF_HUB_CACHE}" \
+  --repo Skywork/Matrix-Game-2.0=Matrix-Game-2.0 \
+  --default-world
+```
+
+优先走原生 HF 加载（`from_pretrained`、`snapshot_download`、`HF_HOME` / `HF_HUB_CACHE`）。`${WORLDFOUNDRY_CKPT_DIR}` 软链只给需要固定目录布局的上游 runtime。VBench 系 metric 权重见对应 [Benchmark Hub](/zh/docs/evaluation/benchmark-hub) / [指标](/zh/docs/evaluation/metrics) 页，或 planner JSON 的 `assets.checkpoints`。
+
+## 4. Benchmark 数据集
+
+WorldFoundry **不会** bulk-download 所有 benchmark 数据集。先生成 plan，再跑 `download_hints.hf`（或 `source_provenance` 里的官方 URL）：
+
+```bash
+python scripts/setup/prepare_benchmark_assets.py \
+  --benchmark-id <benchmark-id> \
+  --json
+
+python scripts/setup/prepare_benchmark_assets.py \
+  --benchmark-id <benchmark-id> \
+  --write-env "${WORLDFOUNDRY_HOME:-${HOME}/.cache/worldfoundry}/<benchmark-id>.env" \
+  --create-dirs
+
+source "${WORLDFOUNDRY_HOME:-${HOME}/.cache/worldfoundry}/<benchmark-id>.env"
+```
+
+手动下载示例：
+
+```bash
+hf download Howieeeee/WorldScore \
+  --repo-type dataset \
+  --local-dir "${WORLDFOUNDRY_DATA_DIR}/datasets/Howieeeee__WorldScore"
+```
+
+Gated 数据集先接受上游 license 并设置 `HF_TOKEN`。各 benchmark 的布局与运行要求见 [Benchmark Hub](/zh/docs/evaluation/benchmark-hub)。
+
+## 5. `local_assets` manifest
+
+把示例拷到 git 外，并用环境变量指向它：
+
+```bash
+cp worldfoundry/data/benchmarks/local_assets.example.yaml \
+   "${WORLDFOUNDRY_HOME}/local_assets.yaml"
+
+export WORLDFOUNDRY_LOCAL_ASSET_MANIFEST="${WORLDFOUNDRY_HOME}/local_assets.yaml"
+```
+
+| `kind` | 你要准备 | 典型命令 |
+| --- | --- | --- |
+| `repo` | 已有 source/runtime root | 设置 `WORLDFOUNDRY_<BENCHMARK>_ROOT=<path>` |
+| `dataset` | HF dataset snapshot | `hf download <id> --repo-type dataset --local-dir <path>` |
+| `checkpoint` | 模型权重 | `hf download <id> --local-dir <path>` |
+| `simulator_asset` | 仿真器文件 | 按各 benchmark 文档手动安装 |
+| `result_dump` | 上游官方结果 | 跑完上游 evaluator 后拷贝 |
+
+具身仿真器 root 与 helper 脚本见 [Embodied official runtime](/zh/docs/evaluation/embodied-official-runtime)。

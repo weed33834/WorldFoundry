@@ -1,0 +1,59 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+availability: open_source
+checkpoint_refs:
+- role: self_forcing_dmd
+  repo_id: gdhe17/Self-Forcing
+  filename: checkpoints/self_forcing_dmd.pt
+base_model_refs:
+- role: wan2_1_t2v_1_3b
+  repo_id: Wan-AI/Wan2.1-T2V-1.3B
+- role: wan2_1_t2v_14b
+  repo_id: Wan-AI/Wan2.1-T2V-14B
+family: Autoregressive Video Diffusion
+id: self-forcing
+aliases:
+- Self-Forcing
+- selfforcing
+- self_forcing
+tasks:
+- text-to-video
+- image-to-video
+- autoregressive-video-generation
+integration:
+  notes:
+  - WorldFoundry vendors the official infer-only Self-Forcing runtime under
+    worldfoundry/synthesis/visual_generation/forcing/self_forcing_runtime; the runner owns prompt/i2v data
+    materialization, Wan weight symlinks, command construction, output loading, and pipeline/catalog exposure in-tree.
+  - The default checkpoint path follows the official Hugging Face layout under ${WORLDFOUNDRY_CKPT_DIR}/Self-Forcing.
+    Override checkpoint_path if the local checkpoint is staged elsewhere.
+  status: integrated
+license: unknown
+modalities:
+- text-to-video
+- image-to-video
+- real-time-video-generation
+name: Self-Forcing
+official_sources:
+  project_page: https://self-forcing.github.io
+  paper: https://arxiv.org/abs/2506.08009
+  github:
+    url: https://github.com/guandeh17/Self-Forcing
+  huggingface:
+  - repo_id: gdhe17/Self-Forcing
+    type: model
+pipeline_binding: self-forcing
+release_type: code_and_weights
+runtime_profile: runtime-profile:self-forcing
+starred: true
+runner_parity:
+  notes:
+  - The adapter executes the vendored official inference.py path. Full parity requires the Self-Forcing checkpoint and
+    local Wan2.1 weights under a wan_models-compatible layout.
+  - Per-run visual QA and artifact checks are tracked outside the model catalog.
+  status: pending
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models
+catalog_policy:
+  checkpoint_rule: Only list checkpoints that were confirmed on official source pages or staged locally. Do not download weights.
+  integration_rule: Closed, API-only, or unknown releases stay blocked or planned until an official integration surface is available.
+  open_source_rule: Only mark open_source when an official GitHub repository or official model page was confirmed.

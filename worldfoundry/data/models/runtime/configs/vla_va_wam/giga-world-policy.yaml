@@ -1,0 +1,17 @@
+dtype: bf16
+t5_len: 64
+dst_width: 768
+dst_height: 192
+action_chunk: 48
+num_frames: 5
+num_inference_steps: 10
+guidance_scale: 0.0
+norm_mode: zscore
+crop_mode: center
+state_dim: 14
+action_dim: 14
+delta_mask: 1,1,1,1,1,1,0,1,1,1,1,1,1,0
+image_keys:
+- observation.images.cam_high
+- observation.images.cam_left_wrist
+- observation.images.cam_right_wrist

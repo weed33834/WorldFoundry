@@ -1,0 +1,38 @@
+conda_packages:
+- python
+- pip
+- ffmpeg
+cuda_profile: cu128
+driver_status: compatible
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: causal-forcing
+notes:
+- Causal-Forcing upstream uses the same environment family as Self-Forcing. WorldFoundry uses the
+  in-tree infer-only runtime under worldfoundry/synthesis/visual_generation/forcing/causal_forcing_runtime
+  and launches it through the active Python executable unless python_executable is provided.
+pip_packages:
+- torch
+- torchvision
+- diffusers
+- transformers>=4.49.0
+- tokenizers>=0.20.3
+- accelerate>=1.1.1
+- omegaconf
+- einops
+- imageio
+- imageio-ffmpeg
+- av
+- numpy
+- ftfy
+- lmdb
+- sentencepiece
+- open_clip_torch
+- torchao
+- ninja
+python: '3.10'
+validation_imports:
+- torch
+- torchvision
+- omegaconf
+- einops

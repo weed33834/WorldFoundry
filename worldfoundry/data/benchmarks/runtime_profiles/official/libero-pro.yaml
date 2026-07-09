@@ -1,0 +1,49 @@
+benchmark_ids:
+- libero-pro
+blocked_reason: LIBERO-Pro full status requires its upstream task assets, selected split, policy checkpoint, and 
+  official rollout outputs.
+environment_id: worldfoundry-unified-cu128
+id: libero-pro
+name: LIBERO-Pro
+docker:
+  image: ghcr.io/allenai/vla-evaluation-harness/libero-pro:latest
+  source_image: ghcr.io/allenai/vla-evaluation-harness/libero-pro:latest
+  python_env: libero
+  gpus: all
+needs_new_env: false
+notes:
+- WorldFoundry provides contract and official result normalization for caller-provided LIBERO-Pro outputs.
+python_path: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}/worldfoundry-unified-cu128/bin/python
+required_assets:
+  local_dataset_paths:
+  - ${WORLDFOUNDRY_DATA_DIR}/datasets/libero-pro
+  local_repo_paths:
+  - ${WORLDFOUNDRY_CACHE_DIR}/repos/Lifelong-Robot-Learning--LIBERO
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/libero-pro.yaml
+required_env:
+- WORLDFOUNDRY_LIBERO_PRO_ROOT
+- WORLDFOUNDRY_LIBERO_PRO_RESULTS_PATH
+required_imports:
+- numpy
+required_packages:
+- numpy
+required_paths:
+- id: official_result_normalizer
+  path: worldfoundry/evaluation/tasks/embodied/normalizer.py
+- id: task_yaml
+  path: worldfoundry/data/benchmarks/tasks/external/libero-pro.yaml
+requires_cuda_visibility: false
+status: official_result_normalizer_ready_full_runtime_pending
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- libero-pro
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.json>
+- --output-dir
+- <out>
+- --json

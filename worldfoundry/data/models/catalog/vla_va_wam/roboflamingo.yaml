@@ -1,0 +1,35 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+aliases:
+- robo-flamingo
+availability: open_source
+id: roboflamingo
+integration:
+  notes:
+  - RoboFlamingo/OpenFlamingo architecture and inference source are vendored in-tree; public pipeline CUDA action_trace validation
+    passed.
+  status: integrated
+  verification_status: gpu_validation_verified
+name: RoboFlamingo
+official_sources:
+  github:
+    head_sha: 1475a07d043a62bb07ab11abfc71115bb72e2a16
+    url: https://github.com/RoboFlamingo/RoboFlamingo
+output_artifacts:
+- action_trace
+pipeline_binding: roboflamingo
+provider: official_repo
+runtime_profile: runtime-profile:roboflamingo
+tasks:
+- vla
+- vla.policy_rollout
+- vlm_policy
+- robot_policy
+runner_parity:
+  notes:
+  - Verified through the public WorldFoundry pipeline runner on CUDA with the staged RoboFlamingo, OpenFlamingo, and MPT checkpoints.
+  - Per-run action trace evidence is tracked outside the model catalog.
+  status: verified
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata, and runtime-profile
+  planning records. Runner or pipeline targets are present only after a complete in-tree WorldFoundry model runtime is registered
+  and validated.

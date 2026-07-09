@@ -1,0 +1,42 @@
+id: vggt-omega
+name: VGGT-Omega
+aliases:
+- vggt_omega
+- facebook/VGGT-Omega
+tasks:
+- 3d-reconstruction
+- gaussian-splatting
+- novel-view-synthesis
+provider: huggingface
+source:
+  status: open_source
+  hf_repo_id: facebook/VGGT-Omega
+  license: cc-by-nc-4.0
+checkpoint_refs:
+- repo_id: facebook/VGGT-Omega
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/VGGT-Omega
+  estimated_size_gb: 9.29
+  license: cc-by-nc-4.0
+integration:
+  kind: pipeline_runner
+  status: integrated
+  notes:
+  - VGGT-Omega uses an official-architecture representation runner plus the existing
+    WorldFoundry VGGTResult/save interface.
+  - Weights stay under assets/checkpoints and are not committed into source files.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: vggt-omega
+runtime_profile: runtime-profile:vggt-omega
+runner_parity:
+  status: verified
+  notes:
+  - Single-image GPU parity against ${WORLDFOUNDRY_MODEL_SOURCE_DIR}/vggt-omega commit
+    815432d4384d707c8e33478a9a72e214cb4cf9f1 passed with max_abs_diff=0.0 for comparable
+    outputs.
+  - The in-tree runner supports the official scene-export route and WorldFoundry
+    representation artifacts.
+  - Per-run validation evidence is tracked outside the model catalog.
+catalog_category: three_d_four_d
+catalog_scope: 3D Gaussian-splatting catalog entries. Integrated entries expose in-tree
+  WorldFoundry runtimes; metadata-only entries retain upstream provenance without runnable
+  backends.

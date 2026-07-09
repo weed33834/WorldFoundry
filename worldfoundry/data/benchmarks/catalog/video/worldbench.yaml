@@ -1,0 +1,178 @@
+id: worldbench
+name: WorldBench
+benchmark_kind:
+- physical-understanding
+- video-to-video
+- visual-question-answering
+status: confirmed_public_hf_dataset
+official_sources:
+  project_page: https://world-bench.github.io/
+  huggingface_datasets:
+  - repo_id: worldbenchmark/WorldBench
+    verified_by: GET https://huggingface.co/api/datasets/worldbenchmark/WorldBench redirects to 
+      worldbenchmark/IntuitivePhysics
+    sha: c72084cfc4500035032450b812bfd6b2956ed3e9
+    private: false
+    gated: false
+    path: cache/worldfoundry/data/hfd_datasets/worldbenchmark__WorldBench
+    task_categories:
+    - visual-question-answering
+    - text-to-video
+  paper_url: https://arxiv.org/abs/2601.21282
+  github_status: unknown_pending_review
+  license: unknown_pending_review
+  access_notes: Public HF dataset metadata is confirmed but license is null; worldbenchmark/WorldBench redirects to 
+    worldbenchmark/IntuitivePhysics; official evaluation code points outside GitHub/HF and remains pending review.
+benchmark_assets:
+  video_based:
+    status: confirmed_by_hf_card_metadata
+    num_scenes: 425
+    modalities:
+    - rgb
+    - normals
+    - depth
+    - flow
+    - segmentation
+  text_based:
+    status: confirmed_by_hf_card_metadata
+    num_videos: 181
+    question_types:
+    - multiple_choice
+    - binary
+  evaluation_code:
+    status: blocked_external_drive_only
+    notes: HF card points to Google Drive for evaluation code; no official GitHub/HF code repo was confirmed.
+metrics:
+- id: video_based_accuracy
+  name: Video-Based Accuracy
+  description: Normalized accuracy from official WorldBench video-based result summaries or per-sample rows.
+  higher_is_better: true
+  leaderboard_key: video_based_accuracy
+  normalizer: percent_or_fraction_to_unit
+  aggregator: mean
+  output_unit: accuracy
+- id: text_based_accuracy
+  name: Text-Based Accuracy
+  description: Normalized accuracy from official WorldBench text-question result summaries or per-sample rows.
+  higher_is_better: true
+  leaderboard_key: text_based_accuracy
+  normalizer: percent_or_fraction_to_unit
+  aggregator: mean
+  output_unit: accuracy
+- id: multiple_choice_accuracy
+  name: Multiple-Choice Accuracy
+  description: Normalized accuracy for WorldBench multiple-choice text questions when available.
+  higher_is_better: true
+  leaderboard_key: multiple_choice_accuracy
+  normalizer: percent_or_fraction_to_unit
+  aggregator: mean
+  output_unit: accuracy
+- id: binary_accuracy
+  name: Binary Accuracy
+  description: Normalized accuracy for WorldBench binary text questions when available.
+  higher_is_better: true
+  leaderboard_key: binary_accuracy
+  normalizer: percent_or_fraction_to_unit
+  aggregator: mean
+  output_unit: accuracy
+- id: worldbench_average
+  name: WorldBench Average
+  description: Mean normalized WorldBench score across available official result components.
+  higher_is_better: true
+  leaderboard_key: worldbench_average
+  normalizer: identity
+  aggregator: mean
+  output_unit: accuracy
+  primary: true
+runner:
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:WorldBenchContract
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - worldbench
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <official_results.json>
+  - --generated-artifact-dir
+  - <generated_videos>
+  - --output-dir
+  - <out>
+  - --json
+  required_env:
+  - WORLDFOUNDRY_WORLDBENCH_RESULTS_PATH
+  expected_artifacts:
+  - scorecard.json
+  - per_sample_scores.jsonl
+  - raw_metric_table.jsonl
+  verification_status: pending
+  notes:
+  - WorldFoundry provides a strict in-tree artifact-score runtime and still reads existing WorldBench JSON/JSONL/CSV/TSV
+    outputs from WORLDFOUNDRY_WORLDBENCH_RESULTS_PATH.
+  - Leaderboard parity remains false until complete official task coverage and submission protocol are audited.
+  runtime:
+    kind: in_tree_official_runtime
+    root: worldfoundry/evaluation/tasks/execution/runners/worldbench
+    artifact_score_dir_env: WORLDFOUNDRY_WORLDBENCH_ARTIFACT_SCORE_DIR
+    results_path_env: WORLDFOUNDRY_WORLDBENCH_RESULTS_PATH
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+integration:
+  status: integrated
+  blocked_reasons:
+  - In-tree runtime is wired; source-verified upstream official evaluation code was not confirmed from official GitHub
+    or Hugging Face sources.
+  - Dataset license is null in HF API response.
+  - Requires video-to-video and VQA task split mapping.
+release_status: experimental
+maturity: contract_ready
+open_source_status: in_tree_runtime
+official_benchmark_verified: false
+integration_evidence: true
+leaderboard_valid: false
+requires:
+- WORLDFOUNDRY_WORLDBENCH_ARTIFACT_SCORE_DIR or --artifact-score-dir for in-tree runtime execution
+- official_results_path or WORLDFOUNDRY_WORLDBENCH_RESULTS_PATH for result import
+blockers:
+- In-tree runtime is wired; source-verified upstream official evaluation code was not confirmed from official GitHub
+  or Hugging Face sources.
+- Dataset license is null in HF API response.
+- Requires video-to-video and VQA task split mapping.
+data_refs:
+  local_dataset_paths:
+  - cache/worldfoundry/data/hfd_datasets/worldbenchmark/WorldBench
+  - cache/worldfoundry/data/hfd_datasets/worldbenchmark__WorldBench
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/worldbench.yaml
+runner_availability:
+  available: true
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:WorldBenchContract
+  runner_script_available: true
+  task_yaml_available: true
+  runtime_verified: true
+  surface: worldbench_official_in_tree
+  normalizer_verified: true
+base_model_dependencies:
+- worldbench_dataset_assets
+optional_base_model_dependencies:
+- video_world_perception_stack
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- worldbench
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.json>
+- --generated-artifact-dir
+- <generated_videos>
+- --output-dir
+- <out>
+- --json
+checkpoint_refs: []
+artifact_layout:
+  generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  output_artifact: benchmark_scorecard
+  filename_template: scorecard.json

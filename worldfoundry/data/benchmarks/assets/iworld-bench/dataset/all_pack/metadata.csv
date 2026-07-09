@@ -1,0 +1,4 @@
+sample_id,text_description,first_frame,video_path
+000001,A camera moves forward through a sunlit forest path.,000001.png,000001.mp4
+000002,A robot arm rotates smoothly on a tabletop.,000002.png,000002.mp4
+000003,Water ripples across a still pond at dawn.,000003.png,000003.mp4

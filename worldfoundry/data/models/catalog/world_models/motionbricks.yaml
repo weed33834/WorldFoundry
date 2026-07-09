@@ -1,0 +1,34 @@
+id: motionbricks
+name: MotionBricks
+tasks:
+- human-action-generation
+- motion-generation
+- world-model
+output_artifacts:
+- action_trace
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/NVlabs/GR00T-WholeBodyControl
+  license: apache-2.0
+official_sources:
+  paper: https://arxiv.org/pdf/2604.24833
+  github:
+    url: https://github.com/NVlabs/GR00T-WholeBodyControl
+    head_sha: a9d20b2ac0949244d94461a1a3263f38c5027c4a
+    subdir: motionbricks
+runtime_profile: runtime-profile:motionbricks
+integration:
+  status: runtime_ported
+  notes:
+  - MotionBricks official source route is registered; motion/robot assets are runtime-gated.
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - resolve_model_zoo_config and pipeline import are expected to pass; real generation
+    emits a runtime plan until required checkpoints/assets are staged.
+catalog_category: world_models
+catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry
+  runtimes; blocked entries retain upstream provenance without runnable backends.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: motionbricks

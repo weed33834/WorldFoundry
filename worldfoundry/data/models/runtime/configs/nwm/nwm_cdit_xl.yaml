@@ -1,0 +1,8 @@
+run_name: nwm_cdit_xl
+results_dir: logs
+model: CDiT-XL/2
+batch_size: 16
+num_workers: 12
+normalize: true
+context_size: 4
+image_size: 224

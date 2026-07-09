@@ -1,0 +1,484 @@
+---
+title: Studio
+description: Launch and operate the multi-frontend Studio for pipeline preview, streaming, and interactive world-model debugging.
+---
+
+## Introduction
+
+WorldFoundry Studio is a thin visual entrypoint around repo pipelines. The model is fixed at launch time; use a new process for a different model family.
+
+Studio exposes multiple frontends:
+
+| Frontend | Best for | Notes |
+| --- | --- | --- |
+| `world` | Interactive world models | Standalone Studio-native console using the repository `load` / `start` / `step` / `reset` API. It does not render through Gradio. |
+| `points` | Viser point clouds / meshes | Starts native Viser directly instead of embedding it in the console shell. |
+| `embodied` | Embodied simulators | **Planned.** URL bridge only: Studio registers an external simulator URL and tunnel hints; no in-tree embodied viewer yet. |
+| `spark` | 3DGS | Starts the standalone Spark 3DGS viewer with repository-local Spark assets. |
+| `auto` | Default | Routes interactive worlds to `world`, 3D scenes to `spark`, point/depth workflows to `points`, and embodied policies to `embodied`. |
+
+## What it shows
+
+| Surface | Purpose |
+| --- | --- |
+| Preview Video | Latest generated or streamed video. |
+| Preview Image | Still-image outputs and imported reference frames. |
+| 3D World | Gaussian splat, point cloud, or spatial outputs when exported. |
+| Gallery | Recent shots and preview artifacts. |
+| Artifacts | Raw output artifacts for inspection and download. |
+
+By default, Studio hides most advanced panels. Use `--show-aux-panels` for history, notes, catalog, 3DGS import, and low-level runtime controls.
+
+## Workspace Mode
+
+For multi-model validation and release QA, run the workspace app instead of a single-model Studio process:
+
+```bash
+source tmp/worldfoundry_unified_env.sh
+conda activate "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}"
+```
+
+```bash
+bash scripts/workspace/run_workspace.sh \
+  --host 127.0.0.1 \
+  --port 7870 \
+  --max-jobs 8
+```
+
+Use explicit roots when your checkpoints or benchmark data live outside the
+default cache:
+
+```bash
+bash scripts/workspace/run_workspace.sh \
+  --ckpt-dir /path/to/checkpoints \
+  --data-dir /path/to/benchmark-data
+```
+
+The launcher is open-source friendly and does not depend on machine-specific
+paths. It resolves assets in this order: command-line option, already exported
+environment variable, repo-sibling `ckpt/` or `data/` directory when present,
+env-file value from `tmp/worldfoundry_unified_env.sh`, then
+`~/.cache/worldfoundry/...`.
+
+Start the Workspace from the unified model runtime environment, not from a
+lightweight UI-only environment. For CUDA 12.8 hosts this is usually
+`worldfoundry-unified-cu128` after `source tmp/worldfoundry_unified_env.sh`. If
+**LOAD** or **START** fails with a missing import such as `cv2`, restart `7870`
+from that unified environment before debugging model code.
+
+Do not copy or relocate a prepared conda environment between machines. Native
+Python and OpenSSL links can point back to the original prefix, which makes
+resident inference workers fail even when the browser server starts. If the
+Workspace reports a missing `python3.x`, missing `cv2`, or `libssl`/`libcrypto`
+error, recreate or verify the unified env through the public setup command:
+
+```bash
+bash scripts/setup/bootstrap_worldfoundry.sh --verify-only
+source tmp/worldfoundry_unified_env.sh
+bash scripts/workspace/run_workspace.sh
+```
+
+Open:
+
+```text
+http://127.0.0.1:7870/
+```
+
+The workspace is the preferred UI for release validation.
+Use it to submit inference jobs, inspect model-specific forms, review artifacts,
+and compare runs without switching between multiple one-off scripts.
+
+Workspace also supports evaluation jobs. For VBench, select **Evaluation**,
+choose benchmark `vbench`, put generated videos in **Dataset Root** (or an
+official VBench results JSON in **Results Path**), and set **Metrics** to one or
+more dimensions such as `aesthetic_quality`, `motion_smoothness`, or the preset
+`custom_supported`. VBench-specific runtime options such as
+`{"mode":"custom_input","load_ckpt_from_local":true}` go in **Eval Runtime
+JSON**.
+
+### Create Job configuration
+
+There is no separate **Settings** page in the Workspace UI. Configure each job
+in the **Create Job** dialog before submission.
+
+| Field group | What it controls |
+| --- | --- |
+| Model / variant / task profile | Which catalog entry runs and which official input contract is exposed. |
+| Prompt, input path, dynamic task fields | Model-specific inputs from the inference contract. |
+| Device, backend, attention | Runtime device and loading path (`auto`, `from_pretrained`, `api_init`). |
+| Frames, FPS, height, width, steps, guidance, seed | Generation parameters sent in the job payload. |
+| Runtime checks | Optional memory/compile toggles such as Torch Compile, CPU Offload, VAE Offload, and Text Encoder Offload. These appear only when the selected model advertises support. |
+| Call JSON / Load JSON | Advanced overrides merged into `call_kwargs` and `load_kwargs`. |
+
+When you open **Create Job** or switch task profiles, the form is prefilled from
+Workspace defaults loaded at startup. Model-specific official demo values from
+the catalog and task profile still take precedence over those shared defaults.
+
+Default values when no settings file is present:
+
+| Key | Default |
+| --- | --- |
+| `device` | `cuda`, or `WORLDFOUNDRY_STUDIO_DEVICE` when set |
+| `backend` | `auto` |
+| `attention_backend` | `auto` |
+| `fps` | `16` |
+| `num_frames` | `81` |
+| `height` × `width` | `720` × `1280` |
+| `num_inference_steps` | `30` |
+| `guidance_scale` | `7.5` |
+| `seed` | `-1` |
+| `torch_compile` / `cpu_offload` | `false` |
+
+### Optional persisted defaults
+
+To reuse the same defaults across Workspace restarts, point the server at a
+JSON settings file:
+
+```bash
+export WORLDFOUNDRY_STUDIO_SETTINGS_FILE=/path/to/studio-settings.json
+```
+
+On startup, the Workspace loads that file into `/api/settings`. The Create Job
+form reads those values through `GET /api/settings`. Operators can also update
+the file programmatically with `POST /api/settings`:
+
+```bash
+curl -sS -X POST http://127.0.0.1:7870/api/settings \
+  -H 'Content-Type: application/json' \
+  -d '{"values":{"fps":12,"num_frames":49,"attention_backend":"torch"}}'
+```
+
+When `WORLDFOUNDRY_STUDIO_SETTINGS_FILE` is unset, defaults live only in the
+running Workspace process and reset on restart.
+
+### Fast jobs and preflight checks
+
+Workspace inference defaults to a fast job path. It assumes the selected conda
+environment, checkpoint roots, and viewer dependencies were prepared before the
+server was launched. Keep this default for normal repeated inference.
+
+Turn checks on only for setup debugging or release preflight:
+
+| Env var | Default | Effect |
+| --- | --- | --- |
+| `WORLDFOUNDRY_STUDIO_RUNTIME_CHECKS=strict` | skipped | Validate runtime imports and local model paths before loading a pipeline. |
+| `WORLDFOUNDRY_STUDIO_CHECK_RUNTIME_COMPLETENESS=1` | skipped | Recheck in-tree 3D/4D entrypoints while building the Studio catalog. |
+| `WORLDFOUNDRY_STUDIO_RESIDENT_WORKERS=0` | `auto` | Disable long-lived conda workers and return to subprocess-per-job dispatch. |
+| `WORLDFOUNDRY_STUDIO_RESIDENT_WORKER_MODELS=matrix-game-2` | all eligible | Limit resident workers to selected model ids; torchrun/multi-GPU jobs still use one-shot subprocesses. |
+| `WORLDFOUNDRY_STUDIO_ARTIFACT_SCAN_MODE=missing` | `missing` | Scan the output directory only when required artifacts are missing from the run record. |
+| `WORLDFOUNDRY_STUDIO_ARTIFACT_SCAN_MODE=always` | off by default | Force a full recursive output scan for models that do not return artifact paths. |
+| `WORLDFOUNDRY_STUDIO_ARTIFACT_SCAN_MODE=off` | off by default | Never scan the output directory; rely on `preview_*`, `artifact_paths`, and `rrd_path`. |
+| `WORLDFOUNDRY_STUDIO_VALIDATE_PREVIEW_VIDEO=1` | skipped | Decode candidate preview videos before accepting them. |
+| `WORLDFOUNDRY_STUDIO_EXTRACT_VIDEO_PREVIEW_IMAGE=1` | skipped | Extract a still image from generated videos for preview. |
+| `WORLDFOUNDRY_STUDIO_BUILD_RERUN_PREVIEW=1` | skipped | Build `.rrd` previews automatically for geometry outputs. |
+
+For the fastest finish path, model runtimes should return explicit
+`preview_image`, `preview_video`, `artifact_paths`, `rrd_path`, and `output_dir`
+values in their run record. Use `always` scanning only as a compatibility mode
+for older runtimes that write files without reporting them.
+
+Resident workers keep the conda child process alive across jobs so the child
+`StudioManager` can reuse its pipeline cache. Set
+`WORLDFOUNDRY_STUDIO_RESIDENT_WORKERS=0` when debugging process startup or when
+you need every job to release GPU memory immediately after completion.
+
+Use **Visualizers**, **Gallery**, and **Artifacts** for quick visual QA.
+They expose recent generated videos, images, manifests, and direct artifact
+links. Before making release claims, record the verified run in the model
+inference validation page.
+
+## Workspace Visualizers
+
+The `7870` Workspace is the browser entrypoint for the visualization stack.
+Open the **Visualizers** tab, then use each card's **Launch**, **Open**, and
+**Stop** buttons. The iframe under each card embeds the live viewer, so users
+do not need to copy URLs during normal QA. The **Embodied Simulator Bridge**
+card is marked **Planned**: unlike Viser, Spark, Rerun, and World Rollout, it
+does not yet launch an in-tree embodied viewer.
+
+<StudioVisualizerGallery locale="en" />
+
+`world` defaults to port `7868`. Set a port manually only when your deployment
+requires a fixed proxy route.
+
+For remote workstations, expose the Workspace port and the viewer ports you use.
+For example:
+
+```bash
+ssh -L 7870:127.0.0.1:7870 \
+    -L 18590:127.0.0.1:18590 \
+    -L 8765:127.0.0.1:8765 \
+    -L 9876:127.0.0.1:9876 \
+    user@host
+```
+
+## Artifact Visualization Routing
+
+When an inference job finishes, the Workspace scans the run record and output
+directory for visualizable artifacts. The **Artifacts** tab shows **Open** and
+**Open in ...** actions for supported files. **Job Detail** keeps inline
+preview video/image only; it does not duplicate viewer launch shortcuts.
+
+| Artifact shape | Viewer |
+| --- | --- |
+| `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.bmp`, `.mp4`, `.mov`, `.webm`, `.mkv`, `.avi`, `.wav`, `.mp3`, `.flac`, `.ogg` media files | Inline Workspace preview and direct **Open** link |
+| `.ply`, `.pcd`, `.xyz`, `.glb`, `.gltf`, `.obj` geometry files; `.npz` files with supported geometry/depth keys | Viser Geometry Viewer |
+| `.splat`, `.spz`, `.ksplat`, `.sog`, and Gaussian-splat `.ply` files | Spark Gaussian Splat Viewer |
+| `.rrd` recordings | Rerun Timeline Viewer |
+
+Open the run in Workspace and use the **Artifacts** tab to confirm viewer
+routing for files that already exist on disk. The table above is the routing
+reference; the Artifacts actions are authoritative for a specific run.
+
+For model authors, the most reproducible path is to write outputs under the
+Studio run output directory and include stable paths in the run record:
+
+- `preview_image` or `preview_video` for quick media review.
+- `artifact_paths` for raw generated assets.
+- `rrd_path` for Rerun recordings.
+- `output_dir` for additional files that should be discoverable from the run.
+
+3D reconstruction models should export browser-readable geometry such as
+`.ply`, `.glb`, `.gltf`, `.obj`, `.pcd`, `.xyz`, or compact point-cloud/depth
+`.npz` files. 3DGS models should export a native splat file, or a binary little-endian
+Gaussian-splat PLY whose header contains splat attributes such as scale,
+rotation, opacity, and spherical-harmonic color fields. The Workspace
+distinguishes ordinary PLY geometry from Gaussian-splat PLY files before
+choosing Viser or Spark.
+
+## Studio Screenshots
+
+These screenshots are from the `7870` workspace used for model release
+validation.
+
+| View | What to check |
+| --- | --- |
+| Inference jobs | Completed runs, inline preview media, status, and logs. |
+| Create Job | Model-specific inputs and official demo defaults. |
+| Catalog | World-model filtering and model metadata. |
+| Gallery | Recent visual outputs for side-by-side QA. |
+
+### Inference Jobs
+
+The queue shows submitted runs, final status, and inline preview video or image
+when the run record exposes them.
+
+![Studio inference job queue](/images/studio/screens/studio-inference-jobs.png)
+
+### Create Job
+
+The form should expose the model's actual input contract.
+The screenshot below is only a UI-shape example; release demo claims should be
+checked against the validation reference and the matching run manifest.
+
+![Studio Create Job dialog](/images/studio/screens/studio-create-job-ltx2-3.png)
+
+### Catalog
+
+Catalog filtering is useful for checking which world-model entries are visible
+to the workspace before submitting jobs.
+
+![Studio catalog filtered to world models](/images/studio/screens/studio-catalog-world-models.png)
+
+### Gallery
+
+The Gallery gives a compact visual pass over recent inference outputs and preview
+artifacts.
+
+
+## Inference Demo Results
+
+The gallery below is for visual orientation. It shows representative artifacts
+from in-tree Studio or Studio-compatible API runs. It is not a release-claim
+table; exact parameters, environment notes, run ids, and remaining gaps live in
+the validation reference. Only curated nontrivial examples are embedded here.
+
+<div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/skyreels-v3-reference-to-video.mp4" />
+    <figcaption><strong>SkyReels V3</strong><br /><span>Reference-to-video</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/wan2-1-vace-girl-snake.mp4" />
+    <figcaption><strong>Wan2.1 VACE</strong><br /><span>Image/control-to-video</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/hunyuanvideo-t2v-cat-grass-official.mp4" />
+    <figcaption><strong>HunyuanVideo T2V</strong><br /><span>Text-to-video</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/hunyuanvideo-i2v-firework-official.mp4" />
+    <figcaption><strong>HunyuanVideo I2V</strong><br /><span>Image-to-video</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/hunyuanvideo-1-5-t2v-cat.mp4" />
+    <figcaption><strong>HunyuanVideo 1.5 T2V</strong><br /><span>Text-to-video</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/hunyuanvideo-1-5-i2v-firework.mp4" />
+    <figcaption><strong>HunyuanVideo 1.5 I2V</strong><br /><span>Image-to-video</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/ltx2-3-i2v-penguin.mp4" />
+    <figcaption><strong>LTX-2.3 I2V</strong><br /><span>Image-to-video</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/unianimate-dit-human-animation.mp4" />
+    <figcaption><strong>UniAnimate-DiT</strong><br /><span>Human animation</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/matrix-game-2-official-universal.mp4" />
+    <figcaption><strong>Matrix-Game-2</strong><br /><span>Interactive world model</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/matrix-game-3-cityscape.mp4" />
+    <figcaption><strong>Matrix-Game-3</strong><br /><span>Cityscape world model</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/hy-worldplay-official-8gpu.mp4" />
+    <figcaption><strong>HY-WorldPlay</strong><br /><span>Image-pose world video</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/hunyuan-game-craft-village.mp4" />
+    <figcaption><strong>Hunyuan GameCraft</strong><br /><span>Interactive village world</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/worldcam-industrial.mp4" />
+    <figcaption><strong>WorldCam</strong><br /><span>Camera-path world video</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/yume-1p5-jungle-castle.mp4" />
+    <figcaption><strong>YUME-1.5</strong><br /><span>World navigation</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/neoverse-robot-tabletop.mp4" />
+    <figcaption><strong>NeoVerse</strong><br /><span>Robot video-input world model</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/hunyuan-world-voyager-case1.mp4" />
+    <figcaption><strong>HunyuanWorld-Voyager</strong><br /><span>Conditioned world video</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/open-sora-plan-tokyo-street.mp4" />
+    <figcaption><strong>Open-Sora-Plan</strong><br /><span>Text-to-video</span></figcaption>
+  </figure>
+</div>
+
+## Launch matrix
+
+| Use case | Command shape | Notes |
+| --- | --- | --- |
+| LingBot realtime | `python -m worldfoundry.studio.app lingbot-world --variant fast --frontend world --device cuda:1` | Standalone interactive world frontend; best fit for `INIT` + `STEP` loops. |
+| LingBot camera | `python -m worldfoundry.studio.app lingbot-world --variant base-camera --device cuda:1` | Slower, camera-centric profile. |
+| MatrixGame | `python -m worldfoundry.studio.app matrix-game-2 --device cuda:1` | Interactive world navigation. |
+| WorldCam | `python -m worldfoundry.studio.app worldcam --device cuda:1` | Camera-path generation and view control. |
+| Hosted APIs | `python -m worldfoundry.studio.app <model> --backend api_init --endpoint <url>` | Endpoint stays explicit at launch. |
+| Viser point cloud | `python -m worldfoundry.studio.app pi3 --frontend points --asset /path/to/scene.ply --port 18590` | Native Viser UI. |
+| Spark 3DGS | `python -m worldfoundry.studio.app vggt --frontend spark --asset /path/to/scene.splat --port 8765` | Standalone Spark canvas. |
+| Embodied simulator | `python -m worldfoundry.studio.app openvla --frontend embodied --simulator-url http://127.0.0.1:9000` | **Planned.** Registers an external simulator URL only; does not launch an in-tree viewer. |
+
+Recommended local start:
+
+```bash
+cd /path/to/WorldFoundry
+PYTHONPATH=. WORLDFOUNDRY_STUDIO_PORT=7868 conda run -p "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}" python -m worldfoundry.studio.app \
+  lingbot-world \
+  --variant fast \
+  --model-ref /path/to/checkpoints/lingbot-world-fast \
+  --device cuda:1
+```
+
+For an editable checkout that is not installed into the active environment, keep
+`PYTHONPATH=.` in the command.
+
+Studio prints the resolved workspace, model, cache, and Hugging Face cache roots
+at startup, so path issues are visible before a run begins.
+
+Open:
+
+```text
+http://127.0.0.1:7868
+```
+
+For remote GPU nodes, use the SSH tunnel printed by Studio.
+
+The `world` frontend follows the same pattern as the LagerNVS Browser Viewer:
+the remote process serves both the page and the WebSocket control/frame-update
+channel, while the local browser reaches it through one tunneled port.
+
+```bash
+ssh -N -L 7868:127.0.0.1:7868 user@gpu-host
+# local browser:
+# http://127.0.0.1:7868
+```
+
+The world status strip shows `WS VIEW ... / GPU ...` so you can separate browser/network latency from model-side render latency. If WebSocket is unavailable, the page automatically falls back to the HTTP API.
+
+## Interaction modes
+
+| Mode | Flow | Best for |
+| --- | --- | --- |
+| Image World | Select a tray image or upload an image -> `START` -> drag the left/right sticks for repeated `STEP` | Image-conditioned interactive world models. |
+| Video World | Upload a video -> `START` -> continue with video-to-video world-model flows | Video-conditioned world models. |
+| Stream | Seed input -> `INIT` -> repeated `STEP` | Interactive world models and continuation. |
+| Spatial preview | Run or export 3D asset -> open `3D World` | Gaussian splat, point cloud, or scene outputs. |
+
+Keyboard/live controls:
+
+```text
+WASD = move
+Arrow keys / IJKL = look
+```
+
+Dragging a stick or holding a keyboard direction waits for the previous step to finish before sending the next request.
+
+## Launch flags
+
+| Flag | Meaning |
+| --- | --- |
+| positional `model_id` / `--model` | Launch target. |
+| `--variant` | Runtime profile such as `fast` or `base-camera`. |
+| `--model-ref` / `--ckpt` / `--checkpoint` | Explicit local or repo reference. |
+| `--device` | Runtime device. |
+| `--backend` | `auto`, `from_pretrained`, or `api_init`. |
+| `--endpoint` | Explicit API endpoint. |
+| `--show-aux-panels` | Expose history, notes, catalog, and side panels. |
+| `--frontend` | `auto`, `world`, `points`, `embodied`, or `spark`. |
+| `--asset` | Remote asset path for native viewers, such as point cloud `.ply/.npz` or 3DGS `.splat/.spz/.ply`. |
+| `--simulator-url` | Native embodied simulator URL. |
+| `--host` / `--port` | Override frontend bind host and port. |
+
+## Environment
+
+| Variable | Effect |
+| --- | --- |
+| `WORLDFOUNDRY_WORKSPACE_PORT` | Workspace HTTP port (default `7870`). |
+| `WORLDFOUNDRY_WORKSPACE_MAX_JOBS` | Concurrent job worker limit. |
+| `WORLDFOUNDRY_STUDIO_SETTINGS_FILE` | Optional JSON file loaded into `/api/settings` for Create Job defaults. |
+| `WORLDFOUNDRY_STUDIO_PORT` | Single-model Studio server port. |
+| `WORLDFOUNDRY_STUDIO_MODEL` | Default model id. |
+| `WORLDFOUNDRY_STUDIO_VARIANT` | Default variant. |
+| `WORLDFOUNDRY_STUDIO_BACKEND` | Default backend. |
+| `WORLDFOUNDRY_STUDIO_DEVICE` | Default device. |
+| `WORLDFOUNDRY_STUDIO_ENDPOINT` | API endpoint. |
+| `WORLDFOUNDRY_STUDIO_FIXED_MODEL_REF` | Fixed local model/checkpoint ref. |
+| `WORLDFOUNDRY_STUDIO_SHOW_AUX_PANELS` | Show advanced panels. |
+| `WORLDFOUNDRY_STUDIO_FRONTEND` | Default frontend route. |
+| `WORLDFOUNDRY_STUDIO_ASSET` | Default native viewer asset. |
+| `WORLDFOUNDRY_STUDIO_SIMULATOR_URL` | Embodied simulator URL. |
+| `WORLDFOUNDRY_STUDIO_SPARK_PORT` / `WORLDFOUNDRY_STUDIO_POINTS_PORT` | Per-frontend default ports. |
+| `WORLDFOUNDRY_STUDIO_SSH_HOST` | SSH host shown in tunnel hints; set it to the user's own GPU node, for example `user@gpu-host`. |
+| `WORLDFOUNDRY_STUDIO_WORKSPACE_DIR` | Studio run/output root; falls back to `${WORLDFOUNDRY_ARTIFACT_DIR}/studio` when set, otherwise `tmp/worldfoundry_studio`. |
+| `WORLDFOUNDRY_STUDIO_MODEL_ROOT` | Extra local model repository root searched before shared roots. |
+| `WORLDFOUNDRY_MODEL_DIR` | Shared model/checkpoint root; Studio searches it for local repos and checkpoints. |
+| `WORLDFOUNDRY_CACHE_DIR` | Shared cache root; Studio searches `${WORLDFOUNDRY_CACHE_DIR}/hfd` and `${WORLDFOUNDRY_CACHE_DIR}/repos`. |
+| `WORLDFOUNDRY_HF_CACHE_DIR` | Optional Hugging Face Hub cache override. Leave unset to use Hugging Face's native `from_pretrained` / `snapshot_download` cache and auto-download behavior. |
+
+Only `WORLDFOUNDRY_*` Studio environment variables are supported.
+
+## Release Evidence
+
+Only add public demo media after the matching official configuration has run
+through the in-tree Studio or Studio-compatible API path. Keep the run manifest,
+decoded media metadata, and visual QA record with the validation artifacts so
+the embedded video can be traced back to an actual release candidate run.

@@ -1,0 +1,64 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+aliases:
+- dexbotic
+- db_cogact
+- dexbotic-cogact
+availability: open_source
+checkpoint:
+  license: apache-2.0
+  repo_id: Dexmal/libero-db-cogact
+id: db-cogact
+integration:
+  status: checkpoint_backed_runtime_ready
+  notes:
+  - WorldFoundry records the Dexbotic v1 inference contract with an independent DB-CogACT synthesis entrypoint.
+  - The current runtime constructs the official Dexbotic policy in-process from the in-tree vendored infer subset under worldfoundry/synthesis/action_generation/db_cogact/db_cogact_runtime.
+  - Checkpoint-backed Workspace inference does not require an external github_repos checkout and emits a LIBERO action trace.
+license: apache-2.0
+name: DB-CogACT / Dexbotic
+official_sources:
+  github:
+    head_sha: 0f5ae6382bf0
+    url: https://github.com/Dexmal/dexbotic
+  huggingface:
+  - repo_id: Dexmal/Dexbotic-CogACT-SArm
+    role: single_arm_foundation_checkpoint
+    status: confirmed_from_model_zoo
+  - repo_id: Dexmal/Dexbotic-CogACT-HArm
+    role: dual_arm_foundation_checkpoint
+    status: confirmed_from_model_zoo
+  - repo_id: Dexmal/libero-db-cogact
+    role: libero_db_cogact_checkpoint
+    status: confirmed_from_model_zoo
+  - repo_id: Dexmal/calvin-db-cogact
+    role: calvin_db_cogact_checkpoint
+    status: confirmed_from_model_zoo
+  - repo_id: Dexmal/simpler-db-cogact
+    role: simpler_db_cogact_checkpoint
+    status: confirmed_from_model_zoo
+output_artifacts:
+- action_trace
+pipeline_binding: db-cogact
+provider: official_repo
+runtime_profile: runtime-profile:db-cogact
+tasks:
+- vla
+- vla.action_prediction
+- vla.policy_rollout
+variants:
+- id: db-cogact-libero
+  integration_status: checkpoint_backed_runtime_ready
+  task: vla.policy_rollout
+  checkpoint_refs:
+  - repo_id: Dexmal/libero-db-cogact
+    license: apache-2.0
+  notes:
+  - Official v1 API request uses observation.prompt, observation.images slots 1/2/3, optional state, and sampling num_steps/cfg_scale/seed.
+  - Dexbotic declares CogACT action_mode as relative by default; checkpoint and benchmark may override this.
+runner_parity:
+  status: in_tree_checkpoint_runtime
+  notes:
+  - FastAPI/Flask serving contract is documented, but WorldFoundry does not depend on an external Dexbotic server or checkout.
+  - Workspace inference uses the in-tree Dexbotic package alias and configured Dexmal/libero-db-cogact assets.
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata, and runtime-profile planning records.

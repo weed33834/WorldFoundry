@@ -1,0 +1,38 @@
+id: animatediff
+name: AnimateDiff
+aliases:
+- animate-diff
+- animate_diff
+tasks:
+- text-to-video
+- legacy-unet-diffusion
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/guoyww/AnimateDiff
+  license: apache-2.0
+checkpoint_refs:
+- repo_id: guoyww/animatediff
+  license: apache-2.0
+- repo_id: guoyww/animatediff_t2i_backups
+- repo_id: stable-diffusion-v1-5/stable-diffusion-v1-5
+- repo_id: openai/clip-vit-large-patch14
+  notes:
+  - Resolved from the existing hfd HunyuanGameCraft local copy via HF cache symlinks.
+integration:
+  status: integrated
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+runtime_profile: runtime-profile:animatediff
+runner_parity:
+  status: verified
+  notes:
+  - Verified against the official repo default RealisticVision scripts.animate demo;
+    file SHA256, decoded pixel SHA256, and artifact size match exactly.
+  - The Studio/API route uses the unified environment profile after the current
+    diffusers/transformers checkpoint-key compatibility fixes.
+  - Per-run validation evidence is tracked outside the model catalog.
+pipeline_binding: animatediff
+catalog_category: video
+catalog_scope: Video-generation and video-token catalog entries. Integrated entries
+  expose WorldFoundry pipeline targets; metadata-only entries retain upstream provenance
+  without runnable WorldFoundry backends.

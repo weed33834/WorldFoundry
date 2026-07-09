@@ -1,0 +1,38 @@
+id: geocalib-prior
+name: GeoCalib Prior
+aliases:
+- geocalib
+- cvg-geocalib
+tasks:
+- camera-calibration
+- gravity-estimation
+- geometry-prior
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/cvg/GeoCalib
+  license: apache-2.0
+checkpoint_refs:
+- path: https://github.com/cvg/GeoCalib/releases/download/v1.0/geocalib-pinhole.tar
+  filename: geocalib-pinhole.tar
+integration:
+  kind: pipeline_runner
+  status: integrated
+  notes:
+  - Integrated as an independent camera-calibration prior at worldfoundry/base_models/three_dimensions/general_3d/geocalib.
+  - VIPE imports GeoCalib from the canonical three_dimensions.general_3d.geocalib
+    owner instead of owning a private copy.
+  - Exposed through the shared WorldFoundry geometry-prior pipeline/operator contract.
+base_model_target: worldfoundry.base_models.three_dimensions.general_3d.geocalib
+runtime_profile: runtime-profile:geocalib-prior
+runner_parity:
+  status: verified
+  notes:
+  - Checkpoint-backed inference is implemented through the shared geometry-prior
+    pipeline/operator contract.
+  - Per-run validation evidence is tracked outside the model catalog so this file
+    remains stable release metadata.
+catalog_category: three_d_four_d
+catalog_scope: Independent geometric prior integrations used by 3D and world-model
+  runtimes.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner

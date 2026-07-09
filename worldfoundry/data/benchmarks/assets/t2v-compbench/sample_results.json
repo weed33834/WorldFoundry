@@ -1,0 +1,11 @@
+{
+  "scores": {
+    "consistent_attribute_binding": 0.72,
+    "dynamic_attribute_binding": 0.55,
+    "spatial_relationships": 0.6,
+    "motion_binding": 0.5,
+    "action_binding": 0.68,
+    "object_interactions": 0.58,
+    "generative_numeracy": 0.45
+  }
+}

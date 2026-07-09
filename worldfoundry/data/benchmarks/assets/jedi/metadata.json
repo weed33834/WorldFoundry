@@ -1,0 +1,12 @@
+{
+  "metric_id": "jedi_score",
+  "description": "Bundled VideoJEDi assets for in-tree mock and official V-JEPA scoring.",
+  "upstream_repo": "oooolga/JEDi",
+  "config_file": "vith16_ssv2_16x2x3.yaml",
+  "default_backend": "mock",
+  "feature_layout": "T,3,H,W",
+  "pixel_range": [0, 1],
+  "default_num_samples": 5000,
+  "default_feature_dim": 1280,
+  "metric_package": "worldfoundry/evaluation/tasks/metrics/jedi"
+}

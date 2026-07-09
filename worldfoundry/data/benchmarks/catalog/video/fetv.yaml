@@ -1,0 +1,230 @@
+id: fetv
+name: FETV
+benchmark_kind:
+- text-to-video
+- fine-grained-evaluation
+- prompt-suite
+domains:
+- fine-grained-alignment
+- text-video-generation
+- human-evaluation
+modalities:
+- text
+- video
+status: confirmed_official_code_and_hf_data
+base_model_dependencies:
+- video_quality_motion_stack
+- fetv_blip_retrieval_source
+- fetv_stylegan_v_fvd_source
+base_model_dependency_preflight:
+  status: integrated
+  notes:
+  - CLIP ViT-B/32 and RAFT reusable video-quality assets are tracked through the WorldFoundry base-model registry.
+  - FETV-specific BLIP, FID/FVD, and official scorer assets are metric assets, not external checkout requirements.
+official_sources:
+  github:
+  - url: https://github.com/llyx97/FETV-EVAL
+    verified_by: git ls-remote --symref https://github.com/llyx97/FETV-EVAL.git HEAD
+    default_branch: main
+    head_sha: 1385218bc92899e85aae0941888d8ddcf94bd65d
+  - url: https://github.com/llyx97/FETV
+    verified_by: git ls-remote --symref https://github.com/llyx97/FETV.git HEAD
+    default_branch: main
+    head_sha: b11d85c4e25e9502f5050f4bb3216eb7d4bd6251
+  paper_url:
+    https://proceedings.neurips.cc/paper_files/paper/2023/hash/c481049f7410f38e788f67c171c64ad5-Abstract-Datasets_and_Benchmarks.html
+  huggingface_datasets:
+  - repo_id: lyx97/FETV
+    verified_by: GET https://huggingface.co/api/datasets/lyx97/FETV
+    sha: e9a6c057cb6ee9257f29e44d427117e8bd0d704f
+    private: false
+    gated: false
+    license: cc-by-4.0
+    task_categories:
+    - text-to-video
+  project_page: https://github.com/llyx97/FETV
+  license: cc-by-4.0
+  access_notes: Official FETV dataset lyx97/FETV is public on Hugging Face under cc-by-4.0; GitHub repos do not declare
+    a software license in GitHub API.
+benchmark_assets:
+  prompt_suite:
+    status: local_prompt_manifest_available
+    path_or_ref: worldfoundry/data/benchmarks/assets/fetv/fetv_data.json
+    num_prompts: 619
+  evaluation_code:
+    status: in_tree_vendored_official_source
+    path_or_ref: worldfoundry/evaluation/tasks/execution/runners/fetv/runtime/fetv_eval
+evaluation_surface:
+  prompt_aspects:
+  - major_content
+  - attribute_control
+  - prompt_complexity
+  metrics:
+  - manual_quality_alignment
+  - CLIPScore
+  - BLIPScore
+  - FID
+  - FVD
+  requires_api: false
+  requires_metric_runtime: true
+metrics:
+- id: static_quality
+  name: Static Quality
+  description: FETV manual static-quality score.
+  higher_is_better: true
+  leaderboard_key: static_quality
+  aggregator: mean
+  output_unit: score
+- id: temporal_quality
+  name: Temporal Quality
+  description: FETV manual temporal-quality score.
+  higher_is_better: true
+  leaderboard_key: temporal_quality
+  aggregator: mean
+  output_unit: score
+- id: overall_alignment
+  name: Overall Alignment
+  description: FETV overall text-video alignment score.
+  higher_is_better: true
+  leaderboard_key: overall_alignment
+  aggregator: mean
+  output_unit: score
+- id: fine_grained_alignment
+  name: Fine-Grained Alignment
+  description: FETV fine-grained prompt-aspect alignment score.
+  higher_is_better: true
+  leaderboard_key: fine_grained_alignment
+  aggregator: mean
+  output_unit: score
+- id: clip_score
+  name: CLIPScore
+  description: FETV automatic CLIPScore component.
+  higher_is_better: true
+  leaderboard_key: CLIPScore
+  aggregator: mean
+  output_unit: score
+- id: blip_score
+  name: BLIPScore
+  description: FETV automatic BLIPScore component.
+  higher_is_better: true
+  leaderboard_key: BLIPScore
+  aggregator: mean
+  output_unit: score
+- id: fid
+  name: FID
+  description: FETV Fréchet Inception Distance component.
+  higher_is_better: false
+  leaderboard_key: FID
+  aggregator: mean
+  output_unit: distance
+- id: fvd
+  name: FVD
+  description: FETV Fréchet Video Distance component.
+  higher_is_better: false
+  leaderboard_key: FVD
+  aggregator: mean
+  output_unit: distance
+- id: fetv_average
+  name: FETV Average
+  description: Mean over available normalized FETV scores.
+  higher_is_better: true
+  leaderboard_key: fetv_average
+  aggregator: mean
+  output_unit: score
+  primary: true
+runner:
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:FETVContract
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - fetv
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <official_results.csv-or-FETV-EVAL-dir>
+  - --generated-artifact-dir
+  - <generated_videos>
+  - --output-dir
+  - <out>
+  - --json
+  runtime:
+    kind: in_tree_official_runtime
+    root: worldfoundry/evaluation/tasks/execution/runners/fetv/runtime/fetv_eval
+    adapter: worldfoundry/evaluation/tasks/execution/runners/fetv/fetv_official_runtime.py
+    runtime_root_env: WORLDFOUNDRY_FETV_RUNTIME_ROOT
+    artifact_score_dir_env: WORLDFOUNDRY_FETV_ARTIFACT_SCORE_DIR
+    results_path_env: WORLDFOUNDRY_FETV_RESULTS_PATH
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  expected_artifacts:
+  - scorecard.json
+  - benchmark_contract.json
+  - raw_metric_table.jsonl
+  verification_status: pending
+  notes:
+  - WorldFoundry vendors the FETV-EVAL CLIP/BLIP/FID/FVD source in tree and can normalize caller-provided official result
+    files and FETV-EVAL auto/manual result directories.
+  - Full leaderboard validation still requires generated videos and metric model assets.
+integration:
+  status: integrated
+  blocked_reasons:
+  - FETV-EVAL CLIP/BLIP/FID/FVD source is vendored in tree.
+  - Full metric execution requires prepared BLIP/FID/FVD assets and metric packages.
+  - Full leaderboard validation requires generated videos and FETV metric dependency setup.
+release_status: experimental
+maturity: contract_ready
+open_source_status: in_tree_runtime
+official_benchmark_verified: false
+integration_evidence: true
+leaderboard_valid: false
+requires:
+- Official FETV result file, official_results rows, or FETV-EVAL auto/manual result directory
+- WORLDFOUNDRY_GENERATED_ARTIFACT_DIR with generated frame directories for in-tree official scorer execution
+- Reference frame directories for FID/FVD when those metric families are requested
+- FETV metric model packages/assets for full scorer recomputation and leaderboard validation
+blockers:
+- Full metric execution still requires BLIP/FID/FVD metric packages and reference frame assets.
+- Full leaderboard validation still requires generated videos and FETV metric dependency setup.
+data_refs:
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/fetv.yaml
+  dataset_refs:
+  - repo_id: lyx97/FETV
+    revision: e9a6c057cb6ee9257f29e44d427117e8bd0d704f
+    license: cc-by-4.0
+    path: cache/worldfoundry/data/hfd_datasets/lyx97__FETV
+  in_tree_runtime_paths:
+  - worldfoundry/evaluation/tasks/execution/runners/fetv/run_fetv_official_runner.py
+  - worldfoundry/evaluation/tasks/execution/runners/fetv/fetv_official_runtime.py
+  - worldfoundry/evaluation/tasks/execution/runners/fetv/runtime/fetv_eval/auto_eval.py
+  - worldfoundry/evaluation/tasks/execution/runners/fetv/runtime/fetv_eval/compute_fid.py
+  - worldfoundry/base_models/perception_core/video_quality/fetv_stylegan_v/src/scripts/calc_metrics_for_dataset.py
+  - worldfoundry/base_models/perception_core/video_text/fetv_blip/models/blip_retrieval.py
+runner_availability:
+  available: true
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:FETVContract
+  runner_script_available: true
+  task_yaml_available: true
+  runtime_verified: true
+  normalizer_verified: true
+  surface: fetv_official_in_tree
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- fetv
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.csv-or-FETV-EVAL-dir>
+- --generated-artifact-dir
+- <generated_videos>
+- --output-dir
+- <out>
+- --json
+checkpoint_refs: []
+artifact_layout:
+  generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  output_artifact: benchmark_scorecard
+  filename_template: scorecard.json

@@ -1,0 +1,32 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+id: pi0-worldfoundry
+name: PI0 (WorldFoundry native)
+aliases:
+- worldfoundry-pi0
+- pi0-policy-extension
+tasks:
+- vla.action_prediction
+- vla.policy_rollout
+output_artifacts:
+- action_trace
+provider: worldfoundry_native
+source:
+  status: open_source
+  official_repo_url: https://github.com/Physical-Intelligence/openpi
+  notes:
+  - Originally exposed by WorldFoundry-native-3D.
+integration:
+  status: runtime_ported
+  notes:
+  - WorldFoundry-native PI0 is routed through the same in-tree OpenPI runtime used by the concrete pi0 entry.
+  - Full checkpoint-backed PI0 inference remains asset gated on local checkpoint/tokenizer/normalization stats availability.
+runtime_profile: runtime-profile:pi0-worldfoundry
+pipeline_binding: pi0-worldfoundry
+runner_parity:
+  status: pending
+  notes:
+  - Runner resolves to the in-tree OpenPI component pipeline; checkpoint-backed PI0 parity remains pending.
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata,
+  and runtime-profile planning records. Runner or pipeline targets are present only after a complete in-tree
+  WorldFoundry model runtime is registered and validated.

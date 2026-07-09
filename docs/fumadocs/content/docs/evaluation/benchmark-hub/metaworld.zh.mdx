@@ -1,0 +1,130 @@
+---
+title: Meta-World
+description: Meta-World — 指标、依赖与运行命令。
+---
+
+## 简介
+
+
+
+Meta-World external benchmark task manifest for continuous-control manipulation rollouts.
+
+
+
+## 指标
+
+Meta-World external benchmark task manifest for continuous-control manipulation rollouts.
+
+### Task YAML
+
+`worldfoundry/data/benchmarks/tasks/external/metaworld.yaml`
+
+### Primary
+
+- `success_rate`
+
+| Metric | 关注点 |
+| --- | --- |
+| `success_rate` | episode / task 是否成功完成的比例或成功率。 |
+| `task_success` | episode / task 是否成功完成的比例或成功率。 |
+| `reward` | Meta-World MT50/MLxx meta-RL 操作技能 episode 中的环境 reward 信号。 |
+| `normalized_return` | Meta-World return 按评估任务集上的专家表现边界归一化。 |
+
+
+
+## 环境准备
+
+### 运行环境
+
+- **Conda 环境：** `worldplay-core`。
+- **单独配置：** 需要 benchmark 专用 conda 环境，不要与统一 runtime 混用。
+- Meta-World/MuJoCo 官方运行环境未在当前 checkout 中就绪；需要独立 mujoco/metaworld env 后再做 suite mapping。
+
+### 测评数据
+
+- Meta-World evaluates continuous-control manipulation policies in simulator; result JSON/CSV files are normalized by WorldFoundry.
+- 待测模型输出目录：设置 `WORLDFOUNDRY_METAWORLD_RESULTS_PATH` 指向生成视频或 rollout artifact 根目录。
+
+### Checkpoint 与资产
+
+- 该 benchmark 以官方结果归一化或仿真 rollout 为主；policy / simulator checkpoint 见 catalog `requires` 与 task YAML。
+
+### 关键环境变量
+
+- `WORLDFOUNDRY_METAWORLD_ROOT`
+- `WORLDFOUNDRY_METAWORLD_RESULTS_PATH`
+
+### 环境检查
+
+```bash
+PYTHONPATH=. ${WORLDFOUNDRY_CONDA_ROOT}/worldplay/bin/python -m worldfoundry.evaluation.tasks.execution.orchestration.runtime_preflight --profile metaworld --manifest worldfoundry/data/benchmarks/runtime_profiles/official/metaworld.yaml --output-dir tmp/worldfoundry_preflight/metaworld --json
+```
+
+
+
+## 运行评测
+
+
+
+准备好该 benchmark 页面列出的资产和候选产物后，使用下面的公开运行入口。
+
+### 设置候选产物目录
+
+```bash
+export WORLDFOUNDRY_GENERATED_ARTIFACT_DIR=/path/to/generated/artifacts
+```
+
+### 导入已有官方结果
+
+```bash
+worldfoundry-eval zoo benchmark-run \
+  --benchmark-id metaworld \
+  --mode normalizer \
+  --official-results-path /path/to/official/results-or-report \
+  --generated-artifact-dir "${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}" \
+  --output-dir tmp/metaworld/normalizer \
+  --json
+```
+
+### 从生成产物重新打分
+
+```bash
+worldfoundry-eval zoo benchmark-run \
+  --benchmark-id metaworld \
+  --mode official-run \
+  --generated-artifact-dir "${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}" \
+  --output-dir tmp/metaworld/official-run \
+  --json
+```
+
+### 直接调用仓内 runner
+
+```bash
+worldfoundry-eval zoo benchmark-run --benchmark-id metaworld --mode official-validation --official-results-path <official_results.json> --output-dir <out> --json
+```
+
+
+
+## 依赖与产物
+
+
+
+### Inputs
+
+- Official Meta-World package or repository checkout
+- MuJoCo-compatible runtime
+- MT/ML suite mapping
+- Benchmark-specific policy checkpoint or controller
+
+### Environment
+
+- `WORLDFOUNDRY_METAWORLD_RESULTS_PATH`
+
+### Outputs
+
+- `scorecard.json`
+- `raw_results.jsonl`
+
+
+
+[← 返回 Benchmark Hub](/zh/docs/evaluation/benchmark-hub)

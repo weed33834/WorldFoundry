@@ -1,0 +1,25 @@
+Analyze the video captured by the overhead camera mounted on a robotic and perform the following tasks:
+
+NOTED: There should be **no human hands** in the video. These are often wrongly generated from the robot's gripper. If human hands appear, note them as **abnormal** and a **violation of logical constraints**.
+
+1. Describe the video in general:
+   - Provide a brief description on what tasks the robotic is performing. When something anomaly happens, pay special attention to it.
+
+2. Describe the events:
+   - Provide a detailed, step-by-step description of all actions in the video, focusing on their sequence.
+
+3. Identify key events with logical constraints:
+   - Extract critical actions subject to logical rules, such as:
+   - Prerequisites (e.g., opening a door before accessing items).
+   - Avoiding physical violations (e.g., objects passing through barriers).
+   - Maintaining logical task order.
+   - Identify any violations of these constraints.
+
+Provide the result in json format with each key representing a task.
+
+{
+"General": Brief description on tasks the robotic is performing.
+"Events": Chronological list of all actions.
+"Logical_Constraints": Key actions, their constraints, and whether they are satisfied.
+"Overall_Constraints": True if the logical constraints are satisfied, false otherwise.
+}

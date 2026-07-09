@@ -1,0 +1,49 @@
+schema_version: worldfoundry.official_video_runtime.v1
+model_id: sama-14b
+runtime:
+  kind: official_cli
+  backend_quality: in_tree_official_runtime
+  repo_root_candidates:
+  - ${WORLDFOUNDRY_REPO_ROOT}/worldfoundry/synthesis/visual_generation/sama/sama_runtime
+  checkpoint_candidates:
+  - $WORLDFOUNDRY_CKPT_DIR/SAMA-14B
+  - $WORLDFOUNDRY_HFD_ROOT/syxbb--SAMA-14B
+  defaults:
+    wan_model_root: $WORLDFOUNDRY_CKPT_DIR/Wan2.1-T2V-14B
+    max_frames: 49
+    height: 480
+    width: 832
+    fps: 16
+    seed: 1
+    quality: 5
+  command:
+  - "{python}"
+  - "{repo_root}/infer_sh/inference.py"
+  - "--model-root"
+  - "{wan_model_root}"
+  - "--state-dict"
+  - "{checkpoint_path}/sama_14b_ema.safetensors"
+  - "--src-video"
+  - "{video_path}"
+  - "--prompt"
+  - "{prompt}"
+  - "--output-dir"
+  - "{output_dir}"
+  - "--max-frames"
+  - "{max_frames}"
+  - "--height"
+  - "{height}"
+  - "--width"
+  - "{width}"
+  - "--fps"
+  - "{fps}"
+  - "--seed"
+  - "{seed}"
+  - "--quality"
+  - "{quality}"
+  - "--prompt-prefix"
+  - "--tiled"
+  - "--overwrite"
+notes:
+- Official SAMA editing route; mask/reference inputs are passed by operator kwargs when available.
+- Runtime code is resolved from WorldFoundry's in-tree infer-only port.

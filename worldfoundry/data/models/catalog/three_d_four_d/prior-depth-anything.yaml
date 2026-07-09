@@ -1,0 +1,37 @@
+id: prior-depth-anything
+name: Prior Depth Anything
+aliases:
+- priorda
+- prior-depth-anything-prior
+tasks:
+- depth-completion
+- metric-depth-estimation
+- geometry-prior
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/SpatialVision/Prior-Depth-Anything
+  hf_repo_id: Rain729/Prior-Depth-Anything
+  license: apache-2.0
+checkpoint_refs:
+- repo_id: Rain729/Prior-Depth-Anything
+  filename: prior_depth_anything_vits.pth
+integration:
+  kind: pipeline_runner
+  status: integrated
+  notes:
+  - Integrated as an independent depth-completion prior at worldfoundry/base_models/three_dimensions/depth/priorda.
+  - It consumes prompt metric depth and is shared by higher-level geometry pipelines
+    without being nested under them.
+  - Exposed through the shared WorldFoundry geometry-prior pipeline/operator contract.
+base_model_target: worldfoundry.base_models.three_dimensions.depth.priorda
+runtime_profile: runtime-profile:prior-depth-anything
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - resolve_model_zoo_config and pipeline/operator import are expected to pass; real
+    prior inference remains gated by checkpoints/assets.
+catalog_category: three_d_four_d
+catalog_scope: Independent geometric prior integrations used by 3D and world-model
+  runtimes.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner

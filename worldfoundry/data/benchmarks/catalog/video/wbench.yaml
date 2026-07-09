@@ -1,0 +1,354 @@
+id: wbench
+name: WBench
+benchmark_kind:
+- interactive-video-world-model
+- video-generation-quality
+- multi-turn-control
+domains:
+- world-model
+- interactive-video
+- navigation
+- physical-plausibility
+modalities:
+- text
+- video
+- action
+status: confirmed_official_code
+official_sources:
+  github:
+    url: https://github.com/meituan-longcat/WBench
+    provenance: official source; runtime code is vendored in tree under the WorldFoundry runner
+  paper_url: https://arxiv.org/abs/2605.25874
+  project_page: https://meituan-longcat.github.io/WBench/
+  huggingface_datasets:
+  - repo_id: meituan-longcat/WBench
+    repo_type: dataset
+  - repo_id: meituan-longcat/WBench-examples
+    repo_type: dataset
+  huggingface_models:
+  - repo_id: meituan-longcat/WBench-weights
+benchmark_assets:
+  prompt_suite:
+    status: official_huggingface_dataset
+    repo_id: meituan-longcat/WBench
+  generated_examples:
+    status: official_huggingface_dataset
+    repo_id: meituan-longcat/WBench-examples
+evaluation_surface:
+  purpose: Multi-turn interactive video world model evaluation across quality, setting, interaction, consistency, and physical dimensions.
+  metric_protocol:
+    metric_ids:
+    - aesthetic_quality
+    - imaging_quality
+    - temporal_flickering
+    - dynamic_degree
+    - motion_smoothness
+    - hpsv3_quality
+    - scene_adherence
+    - subject_adherence
+    - navigation_trajectory
+    - event_edit_adherence
+    - subject_action_adherence
+    - perspective_switch_adherence
+    - background_consistency
+    - segment_continuity
+    - perspective_consistency
+    - subject_consistency
+    - geometric_consistency
+    - photometric_consistency
+    - spatial_consistency
+    - gated_spatial_consistency
+    - visual_plausibility
+    - causal_fidelity
+    - quality_score
+    - setting_score
+    - interaction_score
+    - consistency_score
+    - physical_score
+    - wbench_average
+    primary_metric: wbench_average
+metrics:
+- id: aesthetic_quality
+  name: Aesthetic Quality
+  description: Official WBench aesthetic quality score.
+  higher_is_better: true
+  leaderboard_key: aesthetic_quality
+  aggregator: mean
+  output_unit: score
+- id: imaging_quality
+  name: Imaging Quality
+  description: Official WBench imaging quality score.
+  higher_is_better: true
+  leaderboard_key: imaging_quality
+  aggregator: mean
+  output_unit: score
+- id: temporal_flickering
+  name: Temporal Flickering
+  description: Official WBench temporal flickering score.
+  higher_is_better: true
+  leaderboard_key: temporal_flickering
+  aggregator: mean
+  output_unit: score
+- id: dynamic_degree
+  name: Dynamic Degree
+  description: Official WBench dynamic degree score.
+  higher_is_better: true
+  leaderboard_key: dynamic_degree
+  aggregator: mean
+  output_unit: score
+- id: motion_smoothness
+  name: Motion Smoothness
+  description: Official WBench motion smoothness score.
+  higher_is_better: true
+  leaderboard_key: motion_smoothness
+  aggregator: mean
+  output_unit: score
+- id: hpsv3_quality
+  name: HPSv3 Quality
+  description: Official WBench HPSv3 quality score.
+  higher_is_better: true
+  leaderboard_key: hpsv3_quality
+  aggregator: mean
+  output_unit: score
+- id: scene_adherence
+  name: Scene Adherence
+  description: Official WBench scene adherence score.
+  higher_is_better: true
+  leaderboard_key: scene_adherence
+  aggregator: mean
+  output_unit: score
+- id: subject_adherence
+  name: Subject Adherence
+  description: Official WBench subject adherence score.
+  higher_is_better: true
+  leaderboard_key: subject_adherence
+  aggregator: mean
+  output_unit: score
+- id: navigation_trajectory
+  name: Navigation Trajectory
+  description: Official WBench navigation trajectory score.
+  higher_is_better: true
+  leaderboard_key: navigation_trajectory
+  aggregator: mean
+  output_unit: score
+- id: event_edit_adherence
+  name: Event Edit Adherence
+  description: Official WBench event edit adherence score.
+  higher_is_better: true
+  leaderboard_key: event_edit_adherence
+  aggregator: mean
+  output_unit: score
+- id: subject_action_adherence
+  name: Subject Action Adherence
+  description: Official WBench subject action adherence score.
+  higher_is_better: true
+  leaderboard_key: subject_action_adherence
+  aggregator: mean
+  output_unit: score
+- id: perspective_switch_adherence
+  name: Perspective Switch Adherence
+  description: Official WBench perspective switch adherence score.
+  higher_is_better: true
+  leaderboard_key: perspective_switch_adherence
+  aggregator: mean
+  output_unit: score
+- id: background_consistency
+  name: Background Consistency
+  description: Official WBench background consistency score.
+  higher_is_better: true
+  leaderboard_key: background_consistency
+  aggregator: mean
+  output_unit: score
+- id: segment_continuity
+  name: Segment Continuity
+  description: Official WBench segment continuity score.
+  higher_is_better: true
+  leaderboard_key: segment_continuity
+  aggregator: mean
+  output_unit: score
+- id: perspective_consistency
+  name: Perspective Consistency
+  description: Official WBench perspective consistency score.
+  higher_is_better: true
+  leaderboard_key: perspective_consistency
+  aggregator: mean
+  output_unit: score
+- id: subject_consistency
+  name: Subject Consistency
+  description: Official WBench subject consistency cross-model score.
+  higher_is_better: true
+  leaderboard_key: subject_consistency
+  aggregator: mean
+  output_unit: score
+- id: geometric_consistency
+  name: Geometric Consistency
+  description: Official WBench geometric reconstruction consistency score.
+  higher_is_better: true
+  leaderboard_key: geometric_consistency
+  aggregator: mean
+  output_unit: score
+- id: photometric_consistency
+  name: Photometric Consistency
+  description: Official WBench photometric reconstruction consistency score.
+  higher_is_better: true
+  leaderboard_key: photometric_consistency
+  aggregator: mean
+  output_unit: score
+- id: spatial_consistency
+  name: Spatial Consistency
+  description: Official WBench spatial consistency score.
+  higher_is_better: true
+  leaderboard_key: spatial_consistency
+  aggregator: mean
+  output_unit: score
+- id: gated_spatial_consistency
+  name: Gated Spatial Consistency
+  description: Official WBench gated spatial consistency score.
+  higher_is_better: true
+  leaderboard_key: gated_spatial_consistency
+  aggregator: mean
+  output_unit: score
+- id: visual_plausibility
+  name: Visual Plausibility
+  description: Official WBench visual plausibility score.
+  higher_is_better: true
+  leaderboard_key: visual_plausibility
+  aggregator: mean
+  output_unit: score
+- id: causal_fidelity
+  name: Causal Fidelity
+  description: Official WBench causal fidelity score.
+  higher_is_better: true
+  leaderboard_key: causal_fidelity
+  aggregator: mean
+  output_unit: score
+- id: quality_score
+  name: Quality Score
+  description: Mean WBench quality dimension score.
+  higher_is_better: true
+  leaderboard_key: quality_score
+  aggregator: mean
+  output_unit: score
+- id: setting_score
+  name: Setting Score
+  description: Mean WBench setting adherence dimension score.
+  higher_is_better: true
+  leaderboard_key: setting_score
+  aggregator: mean
+  output_unit: score
+- id: interaction_score
+  name: Interaction Score
+  description: Mean WBench interaction dimension score.
+  higher_is_better: true
+  leaderboard_key: interaction_score
+  aggregator: mean
+  output_unit: score
+- id: consistency_score
+  name: Consistency Score
+  description: Mean WBench consistency dimension score.
+  higher_is_better: true
+  leaderboard_key: consistency_score
+  aggregator: mean
+  output_unit: score
+- id: physical_score
+  name: Physical Score
+  description: Mean WBench physical dimension score.
+  higher_is_better: true
+  leaderboard_key: physical_score
+  aggregator: mean
+  output_unit: score
+- id: wbench_average
+  name: WBench Average
+  description: Mean WBench score across available official dimensions.
+  higher_is_better: true
+  leaderboard_key: wbench_average
+  aggregator: mean
+  output_unit: score
+  primary: true
+runner:
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:WBenchContract
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - wbench
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <report.json>
+  - --generated-artifact-dir
+  - <generated_videos>
+  - --output-dir
+  - <out>
+  - --json
+  runtime:
+    kind: in_tree_official_runtime
+    root: worldfoundry/evaluation/tasks/execution/runners/wbench
+    runtime_root: worldfoundry/evaluation/tasks/execution/runners/wbench/runtime/wbench
+    root_env: WORLDFOUNDRY_WBENCH_ROOT
+    results_path_env: WORLDFOUNDRY_WBENCH_RESULTS_PATH
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  expected_artifacts:
+  - scorecard.json
+  - raw_metric_table.jsonl
+  - report.json
+  verification_status: in_tree_runtime
+  notes:
+  - The public runner can execute the checked-in WBench metric runtime with --run-official or normalize an existing
+    WBench report.json/per-metric evaluation directory with --official-results-path.
+  - Default metric recomputation uses the in-tree WBench runtime backed by WorldFoundry base-model assets,
+    including HPSv3, TransNetV2 segment continuity, PAVRM visual plausibility, DreamSim, and MegaSAM pose precompute.
+  - Official GitHub sources are provenance only; runtime execution uses the checked-in WorldFoundry runner.
+integration:
+  status: integrated
+  blocked_reasons:
+  - Leaderboard parity requires a complete official WBench report for the full split.
+  - Recomputing all metrics requires the WBench base-model assets, generated videos, and judge credentials for VLM-based metrics.
+release_status: experimental
+maturity: contract_ready
+open_source_status: experimental
+official_benchmark_verified: false
+integration_evidence: false
+leaderboard_valid: false
+requires:
+- --run-official with --model-name or WORLDFOUNDRY_WBENCH_MODEL_NAME, or --official-results-path <report.json_or_eval_dir>
+  for result normalization
+- --generated-artifact-dir <generated_videos> when coverage metadata is required
+blockers:
+- Leaderboard-valid scores require a complete official report for the full split.
+data_refs:
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/wbench.yaml
+  hf_dataset_ids:
+  - meituan-longcat/WBench
+runner_availability:
+  available: true
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:WBenchContract
+  runner_script_available: true
+  task_yaml_available: true
+  runtime_verified: true
+  surface: official_runner
+  normalizer_verified: true
+base_model_dependencies:
+- video_world_perception_stack
+validation_command:
+- python
+- worldfoundry/evaluation/tasks/execution/runners/wbench/run_wbench_official_runner.py
+- --run-official
+- --model-name
+- <model_name>
+- --phase
+- report
+- --generated-artifact-dir
+- <generated_videos>
+- --output-dir
+- <out>
+- --json
+checkpoint_refs:
+- repo_id: meituan-longcat/WBench-weights
+  repo_type: model
+  role: metric_weights
+artifact_layout:
+  generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  output_artifact: benchmark_scorecard
+  filename_template: scorecard.json

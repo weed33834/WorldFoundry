@@ -1,0 +1,57 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+aliases:
+- cogact-base
+- cogact-small
+- cogact-large
+availability: open_source
+checkpoint:
+  license: mit
+  repo_id: CogACT/CogACT-Base
+id: cogact
+integration:
+  status: in_tree_vendored_import_verified
+  notes:
+  - WorldFoundry has an independent CogACT synthesis entrypoint and in-tree vendored VLA loader plus DiT action model under worldfoundry/synthesis/action_generation/cogact/cogact_runtime.
+  - Resolver, runtime import, and compileall checks pass without an external github_repos checkout; real action inference also requires gated access to meta-llama/Llama-2-7b-hf.
+license: mit
+name: CogACT
+official_sources:
+  github:
+    head_sha: b174a1b86dee
+    url: https://github.com/microsoft/CogACT
+  huggingface:
+  - repo_id: CogACT/CogACT-Small
+    role: small_checkpoint
+    status: confirmed_from_readme
+  - repo_id: CogACT/CogACT-Base
+    role: base_checkpoint
+    status: confirmed_from_readme
+  - repo_id: CogACT/CogACT-Large
+    role: large_checkpoint
+    status: confirmed_from_readme
+output_artifacts:
+- action_trace
+pipeline_binding: cogact
+provider: official_repo
+runtime_profile: runtime-profile:cogact
+tasks:
+- vla
+- vla.action_prediction
+- vla.policy_rollout
+variants:
+- id: cogact-base
+  integration_status: in_tree_vendored_checkpoint_blocked_gated_llama2
+  task: vla.action_prediction
+  checkpoint_refs:
+  - repo_id: CogACT/CogACT-Base
+    license: mit
+  notes:
+  - Official minimal demo calls vla.load_vla(... action_model_type=DiT-B ...).predict_action(image, prompt, unnorm_key, cfg_scale, use_ddim, num_ddim_steps).
+  - Output is a 16 x 7 action chunk; default SimplerEnv setups use bridge_orig or fractal20220817_data normalization.
+runner_parity:
+  status: in_tree_vendor_ready_blocked_gated_llama2
+  notes:
+  - FSDP training, TensorFlow/RLDS loaders, deployment server, and SimplerEnv benchmark adapters are excluded.
+  - Official CogACT reconstructs the Prismatic base VLM with meta-llama/Llama-2-7b-hf; action inference is blocked until the user accepts the Llama 2 license and provides a token with gated access or a local mirror.
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata, and runtime-profile planning records.

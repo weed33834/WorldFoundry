@@ -1,0 +1,66 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+aliases:
+- dreamzero-droid
+- dreamzero-agibot
+- DreamZero-DROID
+availability: open_source
+checkpoint:
+  license: apache-2.0
+  repo_id: GEAR-Dreams/DreamZero-DROID
+id: dreamzero
+integration:
+  notes:
+  - DreamZero DROID and AgiBot checkpoints are staged under ${WORLDFOUNDRY_HFD_ROOT},
+    and official inference still requires Python 3.11, torch 2.8+/cu129, flash-attn, and
+    at least 2 GPUs on a CUDA 12.9-capable driver.
+  - DreamZero server/model code is now vendored in-tree under worldfoundry/synthesis/action_generation/dreamzero/dreamzero_runtime.
+  status: runtime_ported
+license: apache-2.0
+name: NVIDIA DreamZero
+official_sources:
+  github:
+    head_sha: ab790c198fbce33503358efbbd4187ce9a89adf3
+    url: https://github.com/dreamzero0/dreamzero
+  huggingface:
+  - license: apache-2.0
+    repo_id: GEAR-Dreams/DreamZero-DROID
+    status: local_checkpoint_staged_checkpoint_gpu_probe_verified_server_blocked_cuda129_multigpu
+  - license: apache-2.0
+    repo_id: GEAR-Dreams/DreamZero-AgiBot
+    status: local_checkpoint_staged_checkpoint_gpu_probe_verified_server_blocked_cuda129_multigpu
+pipeline_binding: dreamzero
+provider: official_repo
+runtime_profile: runtime-profile:dreamzero
+tasks:
+- wam
+- world_action_model
+- wam.world_action_modeling
+- robot_policy
+- video_prediction
+variants:
+- checkpoint_refs:
+  - license: apache-2.0
+    repo_id: GEAR-Dreams/DreamZero-DROID
+  id: dreamzero-droid
+  integration_status: runtime_ported
+  notes:
+  - Official default demo is the distributed server plus test_client_AR.py with debug_image
+    videos.
+  - WorldFoundry vendors the official DreamZero server/model runtime and builds an in-tree
+    torch.distributed server command; live inference still requires compatible CUDA/multi-GPU
+    and checkpoints.
+  task: wam.world_action_modeling
+- checkpoint_refs:
+  - license: apache-2.0
+    repo_id: GEAR-Dreams/DreamZero-AgiBot
+  id: dreamzero-agibot
+  integration_status: runtime_ported
+  notes:
+  - WorldFoundry vendors the official DreamZero server/model runtime and builds an in-tree
+    torch.distributed server command; live inference still requires compatible CUDA/multi-GPU
+    and checkpoints.
+  task: wam.post_training_base
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint
+  metadata, and runtime-profile planning records. Runner or pipeline targets are present
+  only after a complete in-tree WorldFoundry model runtime is registered and validated.

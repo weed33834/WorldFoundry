@@ -1,0 +1,54 @@
+id: modelscope-t2v
+name: ModelScopeT2V
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+runtime_profile: runtime-profile:modelscope-t2v
+tasks:
+- text-to-video
+source_status:
+  status: confirmed_general_official_github_model_specific_source_pending
+  github:
+    url: https://github.com/modelscope/modelscope
+    verified_by: git ls-remote --symref https://github.com/modelscope/modelscope.git
+      HEAD
+    default_branch: master
+    head_sha: 13064d9486d7f4be46294860767b1e93e149104f
+  notes: General official ModelScope SDK repo was verified. A dedicated model-specific
+    GitHub source repo was not confirmed in this pass.
+checkpoint:
+  status: confirmed_public_hf
+  verified_by: GET https://huggingface.co/api/models/<repo_id>
+  repos:
+  - id: ali-vilab/modelscope-damo-text-to-video-synthesis
+    sha: be1226886fc784c82239d75da687258d78cfd3bd
+    license: cc-by-nc-4.0
+    private: false
+    gated: false
+    tasks:
+    - text-to-video
+  notes: The similarly named model-scope/text-to-video-synthesis repo is reachable
+    but not used here because ali-vilab/modelscope-damo-text-to-video-synthesis is
+    the confirmed open-weight checkpoint selected for this manifest.
+integration:
+  status: integrated
+  notes:
+  - WorldFoundry route is complete; missing checkpoint/assets are reported at runtime.
+demo_parity:
+  status: pending
+  notes:
+  - The WorldFoundry route is wired for the selected ModelScope checkpoint and text
+    prompt/fps/seed controls.
+  - Official sample parity remains pending; per-run artifact checks are tracked
+    outside the model catalog.
+notes: Checkpoint license is non-commercial per HF cardData; do not treat as unrestricted
+  open source.
+catalog_category: video
+catalog_scope: Official GitHub and/or Hugging Face confirmed open-source or open-weight
+  video generation models. Checkpoints are not tracked in git; local validation may
+  download selected repos under cache/hfd.
+catalog_policy:
+  github: Validated with git ls-remote, preferring git ls-remote --symref <repo>.git
+    HEAD for default branch and HEAD SHA.
+  huggingface: Validated with the Hugging Face /api/models endpoint. Recorded repo
+    id, sha, private, gated, license, and selected task tags only.
+  parity: This manifest does not claim WorldFoundry runtime parity unless an explicit
+    parity run and expected artifact are recorded.

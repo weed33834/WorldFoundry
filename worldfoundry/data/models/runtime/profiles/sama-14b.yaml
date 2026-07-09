@@ -1,0 +1,23 @@
+schema_version: 2
+model_id: sama-14b
+display_name: SAMA 14B
+task_family: video_generation
+groups: [video, video_editing]
+source_repos:
+- url: https://github.com/Cynthiazxy123/SAMA
+checkpoints:
+- repo_id: syxbb/SAMA-14B
+  role: editing_checkpoint
+input_schema:
+  prompt: true
+  image: optional
+  video: optional
+artifact_kind: generated_video
+artifact_filename: sama-14b.mp4
+execution:
+  backend_stage: official_runtime_bridge
+  runtime_status: integrated_checkpoint_required
+  integration_status: integrated
+  pipeline_binding: sama-14b
+integration:
+  status: integrated

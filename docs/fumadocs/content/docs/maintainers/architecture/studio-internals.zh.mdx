@@ -1,0 +1,103 @@
+---
+title: Studio 内部
+description: Studio 如何发现模型、驱动 pipeline、落盘 run，以及如何把 UI 与执行层分开。
+---
+
+Studio 是覆盖同一套 pipeline 与 artifact 契约的目录驱动 shell，供 CLI 推理与评测共用。它不拥有模型权重、打分逻辑或 benchmark manifest；职责是发现可运行条目、准备输入、调用正确的 runtime driver、写出 `RunRecord`，并为 UI 挑选 preview assets。同一套执行核心可服务 Gradio（`app.py`）、Workspace job、conda 子进程与 torchrun worker，变化的只是展示层。
+
+```text
+launch args
+  -> StudioLaunchConfig
+  -> discover_catalog()
+  -> StudioManager
+  -> prepare_inputs()
+  -> runtime_driver_for()
+  -> run()
+  -> materialize_run()
+  -> pick_preview_assets()
+  -> Gradio / Workspace UI update
+```
+
+推理语义放在 `studio/execution.py`，catalog 发现放在 `studio/catalog.py`。`studio/app.py` 应保持轻薄：布局、回调与 Gradio 组件更新。若改动也必须在没有 Gradio 的 `runtime_job.py` 或 `workspace_app.py` 中生效，就应落在 execution，而不是 UI 文件。
+
+## 文件
+
+| 文件 | 作用 | 重要符号 |
+| --- | --- | --- |
+| `studio/catalog.py` | 从 pipeline files、canonical runtime entries 和 overrides 发现模型条目。 | `CatalogEntry`、`discover_catalog()`、`filter_catalog()`、`find_entry()`、`catalog_stats()`。 |
+| `studio/execution.py` | 准备输入、加载 pipeline classes、选择 runtime driver strategy、写 run records、导出 previews。 | `PreparedInputs`、`RunRecord`、`PipelineContext`、`BaseRuntimeDriver`、`StudioManager`。 |
+| `studio/app.py` | Gradio UI、launch config、preset handling、callbacks、run buttons、recent-run loading。 | `StudioLaunchConfig`、`parse_launch_config()`、`build_demo()`、`main()`。 |
+| `studio/theme.py` | Theme constants 和 UI styling hooks。 | 只服务 app shell。 |
+
+## Catalog Discovery
+
+Catalog 构建刻意做成静态过程。`discover_catalog()` 用 AST helpers 扫描 pipeline 模块，从而在不 import 重型 CUDA 栈或可选依赖的情况下列出模型。它合并三路来源：`pipeline_*.py` 类、component-pipeline 工厂、action-synthesis 类，再叠加 curated overrides 与 canonical runtime entries（aliases、默认 kwargs、checkpoint、`runtime_kind`）。去重键是 `(module_path, class_name)`；隐藏或抽象 id 不会进入 UI 列表。
+
+真正的 import 发生在更晚：只有某次 run 需要具体类时，`StudioManager.import_pipeline_class()` 才按 `CatalogEntry` 的 `module_path` / `class_name` 加载。因此模型可以出现在 catalog 里，却在 LOAD 时因当前环境缺少 runtime import 或本地 checkpoint 而失败。
+
+| 步骤 | 函数 | 含义 |
+| --- | --- | --- |
+| 找 project root | `_project_root()` / `_project_root_candidates()` | 允许 Studio 从 repo root 或 package context 运行。 |
+| 检查 pipelines | `_AstPipelineInfo` 周边 AST helpers | 不 import 重型模型依赖，直接读取 pipeline modules。 |
+| 归一化 ids | `_normalize_model_id()` | UI、CLI launch args 和 recent runs 共用的稳定 lookup key。 |
+| 构建 entries | `discover_catalog()` | 产出 `CatalogEntry[]`，包含 family、class path、category、backend、aliases、examples。 |
+| 过滤 entries | `filter_catalog()` | 对 UI 列表应用 search 和 category filters。 |
+
+## Execution Core
+
+`StudioManager` 是编排中枢。典型的 `run` / `stream` / `init` / `reset` 路径会准备 request、把输入落到 run 目录、按 `entry.runtime_kind` 选择 driver、加载 pipeline（LRU 缓存）、调用 driver，再物化为 `RunRecord`。Driver 存在是因为并非每个家族都是一次 `__call__`：two-stage 3DGS 先重建再 orbit，point-cloud nav 先重建再渲染视角，WorldFM 需要自定义相机与 panorama 处理；其余走 `BaseRuntimeDriver`。
+
+`PreparedInputs` 是 staging 后的归一化载荷（prompt、图像、视频、interactions、runtime kwargs）。`PipelineContext` 保存已加载类、device、variant 与 output root。`RunRecord` 是 UI 可重载的持久单元：ids、inputs、outputs、artifact 路径、preview 选择、status 与 manifest JSON。Workspace 推理还可传入 `infer_metadata` 契约，让物化阶段校验必需的输出类型（video、image、splat 等）。
+
+| Class / function | 作用 |
+| --- | --- |
+| `PreparedInputs` | 保存 staged prompt、images、videos、interactions、runtime kwargs 和 metadata。 |
+| `RunRecord` | 保存 run id、model id、inputs、outputs、artifacts、preview paths、status 和 manifest export。 |
+| `PipelineContext` | 保存 imported pipeline class、model ref、device、variant、load kwargs、output root。 |
+| `BaseRuntimeDriver` | 默认 driver：load pipeline、run fresh request、可选 initialize/continue streaming、reset state。 |
+| `TwoStage3DGSRuntimeDriver` | Two-stage 3DGS flows 的专用 driver。 |
+| `PointCloudNavRuntimeDriver` | Point-cloud/navigation previews 的专用 driver。 |
+| `WorldFMRuntimeDriver` | WorldFM camera pose 和 panorama workflow 的专用 driver。 |
+| `StudioManager` | 编排 import、driver selection、input preparation、run execution、recent-run storage、unload/reset。 |
+
+## Preview 和 Artifact Helpers
+
+Driver 返回后，`materialize_run()` 把异构 result 落成 run 目录下的文件：metadata JSON、已知 artifact key、可选的 frame→video 导出、mesh 转换，以及可选的 Rerun recording。若 preview 仍为空，Studio 可能按 `WORLDFOUNDRY_STUDIO_ARTIFACT_SCAN_MODE` 扫描输出目录。随后 `pick_preview_assets()` 为 UI 排序产物——优先生成视频与命名 preview，而不是 staged inputs——并返回主视频、图像、splat/model、gallery 与可选 `.rrd`。
+
+Preview 空白通常意味着 pipeline 把文件写到了预期 key 之外、返回了没有 `save()` 的内存对象，或产出了解码器拒绝的视频。应先修 pipeline 契约，再考虑放宽 scan mode 或转换 helpers。
+
+| 函数 | 作用 |
+| --- | --- |
+| `export_frames_to_video()` | 把 frame sequences 转成 preview video。 |
+| `collect_artifact_paths()` | 在 output directory 下发现生成文件。 |
+| `pick_preview_assets()` | 为 UI preview 选择 primary video/image/model/json assets。 |
+| `maybe_extract_video_preview_image()` | 从 video preview 保存代表性图片。 |
+| `convert_model_for_preview()` | Browser preview 需要别的格式时转换 3D assets。 |
+| `maybe_build_rerun_rrd()` | 可用时构建 Rerun recording。 |
+| `write_json()` | 写 run manifests 和 input/output records。 |
+
+## UI 文件边界
+
+把 `app.py` 当作展示胶水。只影响 Gradio 的 launch flags 留在 UI；会改变非 UI 执行的值应进入 execution 对 `StudioLaunchConfig` 的消费。HTML status 与 tray cards 留在 UI。按钮回调可以调用 `StudioManager`，但不应自己加载 pipeline、staging 文件或发明 artifact 布局。纯 demo 默认值可以放在 UI；必须与评测或 Workspace 契约一致的 preset 应是共享数据，而不是 Gradio 专用字符串。
+
+| 区域 | 留在 `app.py` | 如果满足则移到 `execution.py` |
+| --- | --- | --- |
+| Launch parsing | CLI flags、default UI selections、gradio launch parameters。 | 这个值影响非 UI execution。 |
+| HTML helpers | Header、tray、cards、status blocks、summaries。 | 同样输出需要被 tests 或 CLI 使用。 |
+| Callback glue | Button handlers 和 component updates。 | 它加载模型、触碰文件或转换 artifacts。 |
+| Presets | UI-specific prompt/interactions defaults。 | Preset 语义需要和 evaluation 共享。 |
+
+## 调试路径
+
+多数 Studio bug 是契约错位，而不是 Gradio 本身。缺模型几乎总是 catalog discovery、aliases 或隐藏 id。device / variant 错通常来自 launch config 与 `PipelineContext` overrides。输入到不了模型，问题在 `prepare_inputs()` 或 driver kwargs 绑定。Streaming 失败常见于没有 memory state 就调用 `init`/`stream`，或 two-stage driver 尚无先验重建。Recent run 无法 reload，说明 `materialize_run()` 之后 manifest 或 artifact 路径漂移了。
+
+| 现象 | 检查 |
+| --- | --- |
+| UI 里缺模型 | `discover_catalog()` output、`CatalogEntry.aliases`、category filter、pipeline file naming。 |
+| Variant/device 错 | `StudioLaunchConfig`、`_variant_payload()`、`_apply_variant_runtime_overrides()`、`PipelineContext`。 |
+| 输入没到模型 | `prepare_inputs()`、`PreparedInputs`、driver `run_fresh()` kwargs。 |
+| Preview 空白 | `collect_artifact_paths()`、`pick_preview_assets()`、conversion helpers、generated file extension。 |
+| Streaming 坏了 | `BaseRuntimeDriver.run_init()`、`BaseRuntimeDriver.run_continue()`、pipeline `stream()`、memory state。 |
+| Recent run 无法 reload | `RunRecord.to_manifest()`、`materialize_run()`、`load_run()`、artifact paths。 |
+
+面向用户的启动与 frontend 路由见 [Studio](/zh/docs/guides/studio)。Studio 所依赖的 pipeline / operator / `GenerationResult` 契约见 [模型运行时](/zh/docs/maintainers/architecture/model-runtime)。

@@ -1,0 +1,34 @@
+id: infinite-vggt
+name: Infinite VGGT
+aliases:
+- stream-vggt
+- streamvggt
+tasks:
+- 3d-reconstruction
+- streaming-3d
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/wzzheng/StreamVGGT
+  license: cc-by-nc-4.0
+official_sources:
+  paper: https://arxiv.org/abs/2507.11539
+  project_page: https://wzzheng.net/StreamVGGT/
+  github:
+    url: https://github.com/wzzheng/StreamVGGT
+  huggingface:
+  - repo_id: lch01/StreamVGGT
+    type: model
+    status: confirmed
+integration:
+  status: runtime_ported
+  notes:
+  - In-tree StreamVGGT (Infinite VGGT) pipeline is registered for streaming 3D reconstruction.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: infinite-vggt
+runner_parity:
+  status: pending
+  notes:
+  - Checkpoint-backed inference depends on staged StreamVGGT weights.
+catalog_category: three_d_four_d
+catalog_scope: Official-source manifest for 3D, 4D, and camera-controlled world/model generation projects.

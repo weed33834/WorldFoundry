@@ -1,0 +1,123 @@
+id: molmospaces
+name: MolmoSpaces-Bench
+benchmark_kind:
+- vla
+- embodied-action
+- spatial-reasoning
+- simulator
+domains:
+- vla
+- embodied-action
+- spatial-reasoning
+modalities:
+- language
+- vision
+- action
+- state
+aliases:
+- molmo-spaces
+- molmospaces-bench
+status: open_source
+official_sources:
+  github:
+    url: https://github.com/allenai/MolmoBot
+  paper_url: https://arxiv.org/abs/2603.16861
+  license: upstream_terms
+runner:
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:MolmoSpacesContract
+  expected_artifacts:
+  - scorecard.json
+  - raw_results.jsonl
+  - evaluation/summary.json
+  runtime:
+    kind: external_official_results_runner
+    root_env: WORLDFOUNDRY_MOLMOSPACES_ROOT
+    results_path_env: WORLDFOUNDRY_MOLMOSPACES_RESULTS_PATH
+    task_manifest: worldfoundry/data/benchmarks/tasks/external/molmospaces.yaml
+    preflight_profile: molmospaces
+    required_assets:
+    - MolmoSpaces runtime
+    - benchmark subset assets
+    - policy checkpoint
+    - official rollout result dump
+  verification_status: normalizer_only
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - molmospaces
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <official_results.json>
+  - --output-dir
+  - <out>
+  - --json
+metrics:
+- id: success_rate
+  name: Success Rate
+  higher_is_better: true
+  normalizer: percent_or_fraction_to_unit
+  primary: true
+- id: pick_success_rate
+  name: Pick Success Rate
+  higher_is_better: true
+  normalizer: percent_or_fraction_to_unit
+- id: task_success
+  name: Task Success
+  higher_is_better: true
+  normalizer: percent_or_fraction_to_unit
+- id: reward
+  name: Reward
+  higher_is_better: true
+integration:
+  status: integrated
+  evidence:
+    official_benchmark_verified: false
+    integration_evidence: true
+    leaderboard_valid: false
+  blocked_reasons:
+  - Full official status requires executing the upstream simulator runtime with staged assets, exact split, selected 
+    policy checkpoint, and retained rollout evidence.
+release_status: normalizer_only
+maturity: contract_ready
+open_source_status: normalizer_only
+official_benchmark_verified: false
+integration_evidence: true
+leaderboard_valid: false
+requires:
+- Official simulator runtime
+- benchmark assets
+- policy checkpoint
+- official result dump
+blockers:
+- Full leaderboard parity is not claimed until official rollouts are executed and imported.
+data_refs:
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/molmospaces.yaml
+runner_availability:
+  available: true
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:MolmoSpacesContract
+  task_yaml_available: true
+  runtime_verified: false
+  normalizer_verified: true
+  surface: official_result_normalizer
+  runner_script_available: false
+checkpoint_refs: []
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- molmospaces
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.json>
+- --output-dir
+- <out>
+- --json
+artifact_layout:
+  generated_artifact_dir_env: WORLDFOUNDRY_MOLMOSPACES_RESULTS_PATH
+  output_artifact: benchmark_scorecard
+  filename_template: scorecard.json

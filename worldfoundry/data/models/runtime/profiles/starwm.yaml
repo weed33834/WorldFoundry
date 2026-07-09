@@ -1,0 +1,31 @@
+schema_version: 2
+model_id: starwm
+display_name: StarWM
+task_family: world_model
+groups:
+- world
+- starcraft
+source_repos:
+- url: https://github.com/yxzzhang/StarWM
+checkpoints:
+- repo_id: yxzhang2024/StarWM
+  role: starwm_checkpoint
+input_schema:
+  prompt: true
+  image: true
+  video: true
+  actions:
+  - starcraft_action
+  - world_action
+artifact_kind: generated_world
+artifact_filename: starwm_predictions.jsonl
+execution:
+  backend_stage: in_tree_runtime_manifest
+  runtime_status: in_tree_runtime_manifest_endpoint_pending
+  integration_status: runtime_ported
+  pipeline_binding: starwm
+integration:
+  status: runtime_ported
+notes:
+- StarWM source is vendored in-tree under synthesis/visual_generation/world_model/starwm.
+- The pipeline resolves the offline inference client; execution needs a running OpenAI-compatible StarWM endpoint and a served_model_id/api_model_id.

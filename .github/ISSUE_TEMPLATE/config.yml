@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Contributing guide
+    url: https://github.com/OpenEnvision/WorldFoundry/blob/main/docs/fumadocs/content/docs/maintainers/contributing.mdx
+    about: Read the contributor workflow before preparing a larger integration.

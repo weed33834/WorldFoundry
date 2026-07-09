@@ -1,0 +1,61 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+availability: open_source
+checkpoints:
+- FayeHongfeiZhang/DualCamCtrl
+- alibaba-pai/Wan2.1-Fun-V1.1-1.3B-Control-Camera
+- Wan-AI/Wan2.1-T2V-1.3B
+- Wan-AI/Wan2.1-I2V-14B-480P
+family: Camera-Control Video
+id: dualcamctrl
+integration:
+  notes:
+  - Runtime code is integrated in-tree; checkpoints use the default Hugging Face/local cache loading path.
+  - The WorldFoundry runner follows the official RGB/depth/camera demo contract.
+  status: integrated
+license: unknown
+modalities:
+- image-to-video
+- depth-conditioned-video
+- camera-control
+- video-diffusion
+name: DualCamCtrl
+official_sources:
+  github:
+    confirmed_by: local checkout from official repository
+    confirmed_ref: f4f064f39c84b0e9597e99979ec56361570d8bef
+    url: https://github.com/EnVision-Research/DualCamCtrl
+  huggingface:
+  - repo_id: FayeHongfeiZhang/DualCamCtrl
+    type: model
+pipeline_binding: dualcamctrl
+release_type: code_and_weights
+runtime_profile: runtime-profile:dualcamctrl
+demo_parity:
+  demo_command:
+  - python
+  - -m
+  - worldfoundry.studio.workspace_job
+  - infer
+  - --model-id
+  - dualcamctrl
+  - --call-json
+  - '{"demo_name":"seaside","num_frames":61,"height":320,"width":480,"num_inference_steps":50,"fps":10,"seed":42,"cfg_scale":5.0,"original_height":360,"original_width":640,"tiled":true,"return_control_latents":true}'
+  expected_artifacts:
+  - path: seaside.mp4
+    min_size_bytes: 100000
+    video_probe:
+      min_frames: 61
+      min_width: 480
+      min_height: 320
+      min_fps: 9
+      max_fps: 11
+  notes:
+  - Follows the official seaside RGB/depth/camera demo contract with in-tree fixtures.
+  status: verified
+runner_parity:
+  notes:
+  - Per-run artifact checks are tracked outside the model catalog.
+  status: verified
+catalog_category: world_models
+catalog_scope: world-model/camera-control models
+schema_version: 2

@@ -1,0 +1,46 @@
+id: monst3r
+name: MonST3R
+area: 4d
+task: geometry estimation in the presence of motion
+developer: MonST3R authors
+official_sources:
+  github: https://github.com/Junyi42/monst3r
+  project_page: https://monst3r-project.github.io/
+  paper: https://monst3r-project.github.io/files/monst3r_paper.pdf
+availability:
+  status: source_available
+  open_source: false
+  code: public
+  weights: linked_from_repo
+  license: CC-BY-NC-SA-4.0
+integration:
+  kind: pipeline_runner
+  status: integrated
+  notes:
+  - WorldFoundry vendors the MonST3R infer-time components in-tree.
+  - Studio/API run the in-tree demo.py subprocess adapter and materialize a GLB scene artifact.
+  - The Studio default disables optional flow loss; full official dynamic-mask parity still needs the RAFT2/SAM2 assets configured for MonST3R.
+confirmation: Upstream GitHub repo is public; license file states Creative Commons Attribution-NonCommercial-ShareAlike 4.0,
+  so not marked open_source.
+output_artifacts:
+- generated_4d_scene
+runtime_profile: runtime-profile:monst3r
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: monst3r
+runner_parity:
+  status: pending
+  notes:
+  - Pipeline target imports and command planning are wired; full artifact parity needs a CUDA Studio job with staged MonST3R/RAFT/SAM2 assets.
+catalog_category: three_d_four_d
+catalog_scope: Official-source manifest for 3D, 4D, and camera-controlled world/model generation projects.
+catalog_policy:
+  open_source_true_requires: An upstream GitHub or Hugging Face source with an explicit OSI-style software license or otherwise
+    clearly open source/open weights metadata. Public code without a license is source-available, not open_source.
+  weights_policy: Weights were not downloaded. Entries record only upstream repository, Hugging Face, project page, paper,
+    and license metadata.
+  status_values:
+  - open_source
+  - source_available
+  - open_weights_restricted
+  - api_or_closed
+  - unknown

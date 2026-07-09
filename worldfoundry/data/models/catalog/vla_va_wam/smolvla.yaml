@@ -1,0 +1,33 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+id: smolvla
+name: SmolVLA
+aliases:
+- smolvla-base
+- lerobot/smolvla_base
+availability: open_source
+provider: official_repo
+official_sources:
+  github:
+    url: https://github.com/huggingface/lerobot
+  huggingface:
+  - repo_id: lerobot/smolvla_base
+    role: base_checkpoint
+    status: confirmed
+integration:
+  status: runtime_ported
+  notes:
+  - SmolVLA's stated reference implementation is the concrete smolvla policy in Hugging Face LeRobot.
+  - WorldFoundry routes SmolVLA through an in-tree action runtime adapter against the concrete LeRobot SmolVLA policy.
+  - Checkpoint absence is reported by runtime missing_assets and is not a catalog blocker.
+tasks:
+- vla
+- vla.policy_rollout
+- robot_policy
+output_artifacts:
+- action_trace
+pipeline_binding: smolvla
+runtime_profile: runtime-profile:smolvla
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint
+  metadata, and runtime-profile planning records. Runner or pipeline targets are present
+  only after a complete in-tree WorldFoundry model runtime is registered and validated.

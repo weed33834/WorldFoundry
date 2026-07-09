@@ -1,0 +1,12 @@
+metric_id,score
+visual_quality,0.75
+motion_quality,0.75
+content_consistency,0.75
+physics_adherence,0.75
+three_d_accuracy,0.75
+controllability,0.75
+data_engine_success,0.75
+policy_evaluator_correlation,0.75
+action_planner_success,0.75
+human_quality,0.75
+ewm_score,0.75

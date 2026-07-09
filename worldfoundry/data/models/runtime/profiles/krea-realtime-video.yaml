@@ -1,0 +1,25 @@
+schema_version: 2
+model_id: krea-realtime-video
+display_name: Krea Realtime Video 14B
+task_family: video_generation
+groups:
+- video
+- text_to_video
+- streaming_video
+source_repos:
+- url: https://github.com/krea-ai/realtime-video
+checkpoints:
+- repo_id: krea/krea-realtime-video
+  role: video_checkpoint
+input_schema:
+  prompt: true
+  video: optional
+artifact_kind: generated_video
+artifact_filename: krea-realtime-video.mp4
+execution:
+  backend_stage: in_tree_official_runtime
+  runtime_status: official_demo_parity_pending
+  integration_status: integrated
+  pipeline_binding: krea-realtime-video
+integration:
+  status: integrated

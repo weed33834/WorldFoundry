@@ -1,0 +1,50 @@
+backend: callable_entrypoint
+checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/DravenALG--VLANeXt/VLANeXt_libero_spatial.pt
+checkpoint_ref: DravenALG/VLANeXt
+source_repo: ${WORLDFOUNDRY_REPO_ROOT}/worldfoundry/synthesis/action_generation/vlanext/vlanext_runtime
+require_checkpoint: true
+policy_target: worldfoundry.synthesis.action_generation.vlanext.runtime:predict_action
+predict_method: get_vla_action
+torch_dtype: bfloat16
+trust_remote_code: false
+runtime_backend: vlanext_in_tree_vendored_in_process_runtime
+action_contract: normalized_libero_action_chunk
+control_mode: libero_eef_action
+task_suite_name: libero_spatial
+diffusion_steps: 10
+num_steps_execute: 1
+official_infer_entrypoint: src.evaluation.libero_bench.VLANeXt_utils:get_vla_action
+default_demo_input:
+  image_keys:
+  - full_image
+  - full_image_wrist
+  history_keys:
+  - image_history
+  - image_history_wrist
+  - state_history
+  - action_history
+  prompt_key: task_description
+variants:
+  libero_spatial:
+    task_suite_name: libero_spatial
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/DravenALG--VLANeXt/VLANeXt_libero_spatial.pt
+    checkpoint_file: VLANeXt_libero_spatial.pt
+  libero_object:
+    task_suite_name: libero_object
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/DravenALG--VLANeXt/VLANeXt_libero_object.pt
+    checkpoint_file: VLANeXt_libero_object.pt
+  libero_goal:
+    task_suite_name: libero_goal
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/DravenALG--VLANeXt/VLANeXt_libero_goal.pt
+    checkpoint_file: VLANeXt_libero_goal.pt
+  libero_10:
+    task_suite_name: libero_10
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/DravenALG--VLANeXt/VLANeXt_libero_10.pt
+    checkpoint_file: VLANeXt_libero_10.pt
+excluded_dependencies:
+- LIBERO simulator
+- LIBERO-plus simulator
+- tensorflow
+- tensorflow-datasets
+- dm-reverb
+- robosuite benchmark loop

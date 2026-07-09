@@ -1,0 +1,14 @@
+schema_version: 2
+binding_id: dap
+model_id: dap
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.geometry_priors.pipeline_geometry_priors:DAPPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation
+aliases:
+- depth-any-panoramas
+- insta360-dap

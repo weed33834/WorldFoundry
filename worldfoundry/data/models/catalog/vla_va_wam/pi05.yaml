@@ -1,0 +1,30 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+id: pi05
+name: pi0.5
+aliases:
+- pi0.5
+- pi05-base
+- openpi-pi05
+availability: open_source
+provider: official_repo
+official_sources:
+  github:
+    head_sha: c23745b5ad24e98f66967ea795a07b2588ed6c79
+    url: https://github.com/Physical-Intelligence/openpi
+integration:
+  status: runtime_ported
+  notes:
+  - Concrete pi0.5 algorithm entry backed by Physical Intelligence openpi. Do not route this through LeRobot policy-zoo.
+  - WorldFoundry reuses the in-tree OpenPI runtime with pi05-specific config and checkpoint selection.
+tasks:
+- vla
+- vla.policy_rollout
+- robot_policy
+output_artifacts:
+- action_trace
+pipeline_binding: pi05
+runtime_profile: runtime-profile:pi05
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint
+  metadata, and runtime-profile planning records. Runner or pipeline targets are present
+  only after a complete in-tree WorldFoundry model runtime is registered and validated.

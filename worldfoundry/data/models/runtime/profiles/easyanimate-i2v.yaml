@@ -1,0 +1,33 @@
+schema_version: 2
+model_id: easyanimate-i2v
+display_name: EasyAnimate I2V
+task_family: video_generation
+groups:
+- video
+- image_to_video
+- easyanimate
+source_repos:
+- url: https://github.com/aigc-apps/EasyAnimate
+checkpoints:
+- repo_id: alibaba-pai/EasyAnimateV5.1-7b-zh-InP
+  revision: a18486a2647f32a8963bee479326947067bab836
+  role: i2v_checkpoint
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - seed
+artifact_kind: generated_video
+artifact_filename: easyanimate-i2v.mp4
+execution:
+  backend_stage: official_in_tree_runtime
+  runtime_status: official_demo_parity_pending
+  integration_status: integrated
+  pipeline_binding: easyanimate-i2v
+integration:
+  status: integrated
+notes:
+- EasyAnimate image-to-video runtime wrapper is packaged in-tree.
+- Official EasyAnimate V5.1 I2V demos use the `*-InP` checkpoint family; the non-InP
+  `EasyAnimateV5.1-7b-zh` checkpoint is the text-to-video model.

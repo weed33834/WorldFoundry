@@ -1,0 +1,53 @@
+id: scope
+name: SCOPE
+aliases:
+- scope-world-model
+- zizhaotong/SCOPE
+tasks:
+- interactive-world-model
+- game-world-model
+- action-conditioned-video
+- image-to-video
+output_artifacts:
+- generated_video
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/z2tong/SCOPE
+  hf_repo_id: zizhaotong/SCOPE
+  license: apache-2.0
+official_sources:
+  project_page: https://z2tong.github.io/SCOPE/
+  paper: https://arxiv.org/abs/2605.23345
+  github:
+    url: https://github.com/z2tong/SCOPE
+  huggingface:
+  - repo_id: zizhaotong/SCOPE
+    status: confirmed
+  license: apache-2.0
+checkpoint_refs:
+- repo_id: zizhaotong/SCOPE
+  estimated_size_gb: 45.0
+  notes:
+  - Unified HuggingFace repo contains SCOPE DiT shards, UMT5-XXL text encoder, Wan2.2
+    VAE, and tokenizer files.
+integration:
+  status: verified
+  notes:
+  - Official SCOPE inference source, DiffSynth fork, README, license, and examples
+    are vendored under worldfoundry.synthesis.visual_generation.scope.scope_runtime.
+  - Large model weights remain external HuggingFace assets and are injected through
+    model_dir/checkpoint_root or SCOPE_MODEL_DIR.
+  - The WorldFoundry wrapper runs the in-tree SCOPE inference subprocess for execute=True
+    Workspace jobs.
+runtime_profile: runtime-profile:scope
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: scope
+runner_parity:
+  status: verified
+  notes:
+  - The image-action-to-video demo is verified through the Workspace infer path with staged SCOPE weights, the in-tree
+    example image, and action parquet.
+catalog_category: world_models
+catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry
+  runtimes; blocked entries retain upstream provenance without runnable backends.

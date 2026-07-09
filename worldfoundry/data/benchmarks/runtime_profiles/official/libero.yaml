@@ -1,0 +1,68 @@
+benchmark_ids:
+- libero
+blocked_reason: LIBERO Python 包可见；完整状态还需要 policy checkpoint、suite 选择和官方 rollout 结果。
+environment_id: giga-world-policy-py311
+id: libero
+name: LIBERO
+docker:
+  image: ghcr.io/allenai/vla-evaluation-harness/libero:latest
+  source_image: ghcr.io/allenai/vla-evaluation-harness/libero:latest
+  python_env: libero
+  gpus: all
+needs_new_env: false
+notes:
+- LIBERO Python 包可见；完整状态还需要 policy checkpoint、suite 选择和官方 rollout 结果。
+preflight_command: PYTHONPATH=${WORLDFOUNDRY_CACHE_DIR}/repos/Lifelong-Robot-Learning--LIBERO:src 
+  ${WORLDFOUNDRY_CONDA_ENVS_ROOT}/worldfoundry-giga-world-policy-py311/bin/python -m 
+  worldfoundry.evaluation.tasks.execution.orchestration.runtime_preflight --profile libero --manifest 
+  worldfoundry/data/benchmarks/runtime_profiles/official/libero.yaml --output-dir tmp/worldfoundry_preflight/libero 
+  --json
+python_path: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}/worldfoundry-giga-world-policy-py311/bin/python
+pythonpath_roots:
+- ${WORLDFOUNDRY_CACHE_DIR}/repos/Lifelong-Robot-Learning--LIBERO
+required_assets:
+  local_dataset_paths:
+  - ${WORLDFOUNDRY_HFD_DATASET_ROOT}/yifengzhu-hf__LIBERO-datasets
+  - ${WORLDFOUNDRY_HFD_DATASET_ROOT}/lerobot__libero
+  local_repo_paths:
+  - ${WORLDFOUNDRY_CACHE_DIR}/repos/Lifelong-Robot-Learning--LIBERO
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/libero.yaml
+required_env:
+- WORLDFOUNDRY_LIBERO_ROOT
+- WORLDFOUNDRY_LIBERO_RESULTS_PATH
+required_packages:
+- numpy
+- LIBERO checkout
+required_paths:
+- id: official_result_normalizer
+  path: worldfoundry/evaluation/tasks/embodied/normalizer.py
+- id: official_repo_1
+  path: ${WORLDFOUNDRY_CACHE_DIR}/repos/Lifelong-Robot-Learning--LIBERO
+- id: local_dataset_1
+  path: ${WORLDFOUNDRY_HFD_DATASET_ROOT}/yifengzhu-hf__LIBERO-datasets
+- id: local_dataset_2
+  path: ${WORLDFOUNDRY_HFD_DATASET_ROOT}/lerobot__libero
+- id: task_yaml
+  path: worldfoundry/data/benchmarks/tasks/external/libero.yaml
+requires_cuda_visibility: false
+status: official_result_normalizer_ready_full_runtime_pending
+optional_imports:
+- numpy
+base_model_dependencies:
+- libero_source_assets
+- libero_dataset_assets
+optional_base_model_dependencies:
+- spatial_perception_core_stack
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- libero
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.json>
+- --output-dir
+- <out>
+- --json

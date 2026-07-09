@@ -1,0 +1,31 @@
+schema_version: 2
+model_id: worldgen
+display_name: WorldGen
+task_family: three_dimension
+groups:
+- 3d
+- world
+- official_repo
+source_repos:
+- url: https://github.com/ZiYang-xie/WorldGen
+checkpoints:
+- repo_id: LeoXie/WorldGen
+  role: worldgen_checkpoint
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - camera_path
+artifact_kind: generated_3d_asset
+artifact_filename: worldgen.ply
+execution:
+  backend_stage: in_tree_model_subprocess_adapter
+  runtime_status: official_demo_parity_pending
+  integration_status: integrated
+  pipeline_binding: worldgen
+integration:
+  status: integrated
+notes:
+- Uses the in-tree WorldGen inference path and reports missing gated FLUX or WorldGen
+  assets at runtime.

@@ -1,0 +1,28 @@
+id: irasim
+name: IRASim
+aliases:
+- ira-sim
+- ira_sim
+tasks:
+- robotics-world-model
+- video-generation
+- action-conditioned-generation
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/bytedance/IRASim
+integration:
+  status: planned
+  notes:
+  - Runtime source is vendored in-tree; full generation remains checkpoint- and fixture-gated.
+runtime_profile: runtime-profile:irasim
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: irasim
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - IRASimSynthesis provides an in-tree runtime plan wrapper; real video generation requires manually staged official checkpoint
+    archives.
+catalog_category: world_models
+catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry runtimes; blocked entries retain
+  upstream provenance without runnable backends.

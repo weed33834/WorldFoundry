@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: omniforcing
+model_id: omniforcing
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.world_model.pipeline_runtime_manifest:OmniForcingPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

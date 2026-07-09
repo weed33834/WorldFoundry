@@ -1,0 +1,13 @@
+schema_version: 2
+binding_id: loger
+model_id: loger
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.pi3.pipeline_loger:LoGeRPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation
+aliases:
+- loger-star

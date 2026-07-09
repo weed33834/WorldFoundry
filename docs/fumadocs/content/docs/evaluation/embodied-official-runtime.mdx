@@ -1,0 +1,195 @@
+---
+title: Embodied Official Runtime Setup
+description: After cloning WorldFoundry, configure checkpoints, Docker-backed simulator assets, and result paths for embodied benchmark evaluation.
+---
+
+## What you get from this repository
+
+WorldFoundry ships **result normalizers, CLI entry points, and simulator interfaces** under `worldfoundry.evaluation.tasks.embodied`. **Checkpoints, simulator assets, Docker images, and rollout outputs are not in git.** You point WorldFoundry at them with environment variables or CLI flags on your machine.
+
+| Surface | Benchmark ids | Supported in WorldFoundry |
+| --- | --- | --- |
+| Native closed-loop simulators | `ai2thor`, `behavior1k`, `calvin`, `kinetix`, `libero`, `libero-mem`, `libero-plus`, `libero-pro`, `maniskill2`, `maniskill`, `mikasa`, `molmospaces`, `rlbench`, `robocasa`, `robocerebra`, `robomme`, `robotwin`, `simpler-env`, `vlabench` | Official result import, in-tree simulator API, Docker-backed rollout hooks |
+| Result import only | `bridgedata-v2`, `libero-para`, `metaworld` | Official-shaped result normalization |
+
+`integration_status: integrated` means the surface exists. It does **not** mean leaderboard evidence exists. Scorecards stay `official_benchmark_verified=false` until you complete the official protocol.
+
+---
+
+## Quick start (no assets required)
+
+After cloning, verify the catalog and runnable evaluation surfaces:
+
+```bash
+worldfoundry-eval zoo benchmarks --json
+```
+
+This confirms the bundled `libero`, `robomme`, and `robotwin` entries are discoverable. Actual scoring uses official rollout outputs or simulator execution.
+
+---
+
+## Step 1: Set your roots
+
+All paths resolve from **`WORLDFOUNDRY_*` environment variables** or **CLI arguments**. Replace placeholders with directories on your machine:
+
+```bash
+export WORLDFOUNDRY_DATA_DIR="$HOME/worldfoundry-data"
+export WORLDFOUNDRY_HFD_DATASET_ROOT="$HOME/worldfoundry-data"   # HF dataset mirror root; may equal DATA_DIR
+export WORLDFOUNDRY_CKPT_DIR="$HOME/worldfoundry-checkpoints"
+export WORLDFOUNDRY_MODEL_DIR="$HOME/worldfoundry-models"
+export WORLDFOUNDRY_CACHE_DIR="$HOME/worldfoundry-cache"
+export WORLDFOUNDRY_ARTIFACT_DIR="$HOME/worldfoundry-artifacts"
+export WORLDFOUNDRY_MODEL_SOURCE_DIR="$HOME/worldfoundry-upstream-repos"  # Root for cloned upstream repos
+```
+
+**Layout is flexible.** Common patterns:
+
+- **Flat HF mirror** under `WORLDFOUNDRY_HFD_DATASET_ROOT` (`lerobot__libero`, `TianxingChen__RoboTwin2.0`, …)
+- **Custom subtree** under `WORLDFOUNDRY_DATA_DIR/datasets/...`
+
+As long as the matching `WORLDFOUNDRY_*_ROOT` / `WORLDFOUNDRY_*_CHECKPOINT` variables point at real files, WorldFoundry resolves them correctly.
+
+---
+
+## Step 2: Generate scaffold, then fill in your paths
+
+Generate templates and placeholder directories (does not download large files for you):
+
+```bash
+PYTHONPATH=. ${WORLDFOUNDRY_UNIFIED_PYTHON} scripts/setup/prepare_embodied_official_assets.py \
+  --create-dirs \
+  --json
+```
+
+Outputs (default under `tmp/benchmark_zoo/embodied_official_assets/`, override with `--output-root`):
+
+| File | Purpose |
+| --- | --- |
+| `embodied_official_env.sh` | Sourceable env template; **your existing exports win** (`${VAR:-default}`) |
+| `local_assets_manifest.yaml` | Local asset manifest; copy outside git and set `WORLDFOUNDRY_LOCAL_ASSET_MANIFEST` |
+| `check_repo_assets.sh` | Checks configured source/runtime roots and reports missing paths |
+| `download_public_assets.sh` | Public HF download commands |
+| `validate_official_results.sh` | Batch import after rollouts |
+
+Load and override with your paths:
+
+```bash
+source tmp/benchmark_zoo/embodied_official_assets/embodied_official_env.sh
+bash tmp/benchmark_zoo/embodied_official_assets/check_repo_assets.sh
+
+export WORLDFOUNDRY_LIBERO_ROOT="$WORLDFOUNDRY_MODEL_SOURCE_DIR/LIBERO"
+export WORLDFOUNDRY_LIBERO_POLICY_CHECKPOINT="$WORLDFOUNDRY_CKPT_DIR/your-policy-for-libero"
+export WORLDFOUNDRY_LIBERO_RESULTS_PATH="$WORLDFOUNDRY_ARTIFACT_DIR/runs/libero/official_results.json"
+```
+
+Or copy `worldfoundry/data/benchmarks/local_assets.example.yaml`, edit `${WORLDFOUNDRY_*}` placeholders, then:
+
+```bash
+export WORLDFOUNDRY_LOCAL_ASSET_MANIFEST=/path/to/your/local_assets_manifest.yaml
+```
+
+---
+
+## Step 3: Choose how far to validate
+
+| Goal | Command | Needs GPU / assets |
+| --- | --- | --- |
+| Framework wiring | `worldfoundry-eval zoo benchmarks --json` | No |
+| Official result import | `worldfoundry-eval zoo benchmark-run --benchmark-id robotwin --mode official-validation --official-results-path <official_results.json> --output-dir tmp/benchmark_zoo/official_validation/robotwin --json` | No |
+| List missing env / paths | `worldfoundry-eval zoo benchmark-show --benchmark-id robotwin --json` | No (reports gaps) |
+| Import existing official results | See **Import official results** below | Result files only |
+| Full simulator rollout | Run upstream evaluator in cloned repo | Yes |
+
+---
+
+## Environment strategy
+
+Start with the unified CUDA environment:
+
+```bash
+bash scripts/setup/bootstrap_worldfoundry.sh --cuda cu128
+source tmp/worldfoundry_unified_env.sh
+```
+
+| Runtime family | Preferred env | When to isolate |
+| --- | --- | --- |
+| LIBERO, CALVIN, RoboCasa, MiKASA, RoboCerebra, RoboMME | `worldfoundry-unified-cu128` | robosuite/MuJoCo pin conflicts |
+| LIBERO-Plus | `libero-plus` profile | May not coexist with base LIBERO |
+| BEHAVIOR-1K | Dedicated OmniGibson/Isaac Sim | Large assets + upstream terms |
+| Kinetix | Dedicated JAX env | |
+| RLBench | Dedicated CoppeliaSim/PyRep | |
+| RoboTwin, VLABench, ManiSkill2, SimplerEnv | Unified for import; external simulator runtime for rollouts | SAPIEN/Curobo etc. |
+| AI2-THOR | External simulator runtime | Unity binary + CloudRendering/X11 |
+| Octo/OpenPI policies | Model-specific profile | |
+
+List model env mappings: `bash scripts/setup/model_env_install.sh --list`
+
+---
+
+## Benchmark environment variables
+
+Each benchmark uses separate env vars for **your** checkout, checkpoint, and results:
+
+| Benchmark id | Split | Policy checkpoint | Official results |
+| --- | --- | --- | --- |
+| `ai2thor` | `scene` / `benchmark_kwargs` in eval config | policy checkpoint or external policy server | `WORLDFOUNDRY_AI2THOR_RESULTS_PATH` |
+| `libero` | `WORLDFOUNDRY_LIBERO_SUITE` | `WORLDFOUNDRY_LIBERO_POLICY_CHECKPOINT` | `WORLDFOUNDRY_LIBERO_RESULTS_PATH` |
+| `robotwin` | `WORLDFOUNDRY_ROBOTWIN_TASK_CONFIG` | `WORLDFOUNDRY_ROBOTWIN_POLICY_CHECKPOINT` | `WORLDFOUNDRY_ROBOTWIN_RESULTS_PATH` |
+| `robomme` | `WORLDFOUNDRY_ROBOMME_SUITE` | `WORLDFOUNDRY_ROBOMME_POLICY_CHECKPOINT` | `WORLDFOUNDRY_ROBOMME_RESULTS_PATH` |
+| `libero-para` | `WORLDFOUNDRY_LIBERO_PARA_SPLIT` | `WORLDFOUNDRY_LIBERO_PARA_POLICY_CHECKPOINT` | `WORLDFOUNDRY_LIBERO_PARA_RESULTS_PATH` |
+| `calvin` | `WORLDFOUNDRY_CALVIN_SPLIT` | `WORLDFOUNDRY_CALVIN_POLICY_CHECKPOINT` | `WORLDFOUNDRY_CALVIN_RESULTS_PATH` |
+| `robocasa` | `WORLDFOUNDRY_ROBOCASA_SUITE` | `WORLDFOUNDRY_ROBOCASA_POLICY_CHECKPOINT` | `WORLDFOUNDRY_ROBOCASA_RESULTS_PATH` |
+| `maniskill2` | `WORLDFOUNDRY_MANISKILL2_SUITE` | `WORLDFOUNDRY_MANISKILL2_POLICY_CHECKPOINT` | `WORLDFOUNDRY_MANISKILL2_RESULTS_PATH` |
+| `rlbench` | `WORLDFOUNDRY_RLBENCH_TASK_SPLIT` | `WORLDFOUNDRY_RLBENCH_POLICY_CHECKPOINT` | `WORLDFOUNDRY_RLBENCH_RESULTS_PATH` |
+| `behavior1k` | `WORLDFOUNDRY_BEHAVIOR1K_TASK_SPLIT` | `WORLDFOUNDRY_BEHAVIOR1K_POLICY_CHECKPOINT` | `WORLDFOUNDRY_BEHAVIOR1K_RESULTS_PATH` |
+| `simpler-env` | `WORLDFOUNDRY_SIMPLERENV_SUITE` | `WORLDFOUNDRY_SIMPLERENV_POLICY_CHECKPOINT` | `WORLDFOUNDRY_SIMPLERENV_RESULTS_PATH` |
+| `vlabench` | `WORLDFOUNDRY_VLABENCH_TASK_SPLIT` | `WORLDFOUNDRY_VLABENCH_POLICY_CHECKPOINT` | `WORLDFOUNDRY_VLABENCH_RESULTS_PATH` |
+| `bridgedata-v2` | `WORLDFOUNDRY_BRIDGEDATA_V2_SPLIT` | `WORLDFOUNDRY_BRIDGEDATA_V2_POLICY_CHECKPOINT` | `WORLDFOUNDRY_BRIDGEDATA_V2_RESULTS_PATH` |
+
+Upstream code roots use `WORLDFOUNDRY_<BENCHMARK>_ROOT`. The full list is in the generated `embodied_official_env.sh`.
+
+---
+
+## Validate and import
+
+**Import official results (when you already have rollout outputs):**
+
+```bash
+worldfoundry-eval zoo benchmark-run \
+  --benchmark-id libero \
+  --mode official-validation \
+  --official-results-path "$WORLDFOUNDRY_LIBERO_RESULTS_PATH" \
+  --output-dir "$WORLDFOUNDRY_ARTIFACT_DIR/validation/libero" \
+  --json
+```
+
+You can pass `--official-results-path` and `--benchmark-data-root` directly on the CLI without exporting env vars first.
+
+Review `scorecard.json`, `raw_results.jsonl`, and `evaluation/summary.json`. `official_benchmark_verified=false` is expected for import-only runs.
+
+---
+
+## Full rollout
+
+Run the Docker-backed official evaluator or VLA evaluation harness with your policy checkpoint, write result files, then import with `official-validation` above.
+
+Before rollout, record: benchmark id, upstream commit, simulator versions, dataset split, checkpoint path, action/observation contract, and result file path.
+
+
+For a real policy, replace `model_id` in the eval config with a configured VLA policy, or point `server.url` at an external policy server. The policy can return `{"token": "forward"}` or an equivalent discrete action payload.
+
+---
+
+## Bundled validation fixtures
+
+Zero-asset validation fixtures live at:
+
+`worldfoundry/data/test_cases/evaluation/embodied_fixtures/`
+
+They cover `libero`, `robomme`, and `robotwin` and exercise the same import path as real rollouts, but do not constitute leaderboard evidence.
+
+---
+
+## Maintainer notes
+
+Release gates and `official_benchmark_verified` labeling are documented in [Validation evidence](/docs/reference/validation).

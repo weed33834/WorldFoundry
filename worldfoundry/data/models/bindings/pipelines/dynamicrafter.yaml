@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: dynamicrafter
+model_id: dynamicrafter
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.dynamicrafter.pipeline_dynamicrafter_512_i2v:DynamiCrafter512I2VPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

@@ -1,0 +1,6 @@
+schema_version: worldfoundry.runtime_defaults.v1
+defaults:
+  vchitect_2_t2v:
+    model_name: vchitect_2_t2v
+    model_path: ${WORLDFOUNDRY_HFD_ROOT}/Vchitect--Vchitect-2.0-2B
+    generation_type: t2v

@@ -1,0 +1,24 @@
+id: maniskill2_eval
+output_dir: ./results/maniskill2_eval
+model_id: external-policy-server
+server:
+  url: ws://localhost:8000
+benchmark_id: maniskill2
+benchmark_kwargs:
+  tasks:
+    - PickCube-v0
+    - StackCube-v0
+    - PickSingleYCB-v0
+    - PickSingleEGAD-v0
+    - PickClutterYCB-v0
+  max_episode_steps: 400
+  render_resolution:
+    - 256
+    - 256
+  enabled_cameras:
+    - base_camera
+episodes_per_task: 50
+max_steps: 400
+metric_ids:
+  - task_success
+  - success_rate

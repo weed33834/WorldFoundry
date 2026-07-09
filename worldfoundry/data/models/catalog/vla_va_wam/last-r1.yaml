@@ -1,0 +1,33 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+availability: open_source
+checkpoint_refs:
+- repo_id: chenhao01/LaST-R1
+id: last-r1
+integration:
+  status: runtime_ported
+  notes:
+  - WorldFoundry routes LaST-R1 through the in-tree official-policy runtime adapter.
+  - Checkpoint absence is reported by runtime missing_assets and is not a catalog blocker.
+license: mit
+name: LaST-R1
+output_artifacts:
+- action_trace
+official_sources:
+  github:
+    head_sha: ba4e939632427e066f734bf9f7abfa11cc4911f6
+    url: https://github.com/CHEN-H01/LaST-R1
+  huggingface:
+  - repo_id: chenhao01/LaST-R1
+    status: confirmed
+    type: model
+provider: official_repo
+runtime_profile: runtime-profile:last-r1
+pipeline_binding: last-r1
+tasks:
+- vla
+- reinforcement_learning
+- policy_rollout
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint
+  metadata, and runtime-profile planning records. Runner or pipeline targets are present
+  only after a complete in-tree WorldFoundry model runtime is registered and validated.

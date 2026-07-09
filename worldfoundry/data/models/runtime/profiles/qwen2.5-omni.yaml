@@ -1,0 +1,23 @@
+schema_version: 2
+model_id: qwen2.5-omni
+display_name: Qwen2.5-Omni
+task_family: video_generation
+groups: [video, multimodal]
+source_repos:
+- url: https://huggingface.co/Qwen/Qwen2.5-Omni-7B
+checkpoints:
+- repo_id: Qwen/Qwen2.5-Omni-7B
+  role: model_checkpoint
+input_schema:
+  prompt: true
+  image: optional
+  video: optional
+artifact_kind: model_response
+artifact_filename: qwen2.5-omni.json
+execution:
+  backend_stage: official_hf_transformers_runtime
+  runtime_status: integrated_checkpoint_required
+  integration_status: integrated
+  pipeline_binding: qwen2.5-omni
+integration:
+  status: integrated

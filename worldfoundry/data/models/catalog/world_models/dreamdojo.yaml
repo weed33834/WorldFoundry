@@ -1,0 +1,100 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+availability: open_source
+checkpoints:
+- nvidia/DreamDojo
+family: NVIDIA DreamDojo
+id: dreamdojo
+integration:
+  notes:
+  - Runtime code is vendored in-tree; checkpoints and datasets remain external assets
+    under the normal hfd/ckpt/data cache.
+  status: planned
+license: other:nvidia-open-model-license
+modalities:
+- interactive-world-model
+- robot-world-model
+- action-conditioned-video2world
+- long-horizon
+name: DreamDojo
+official_sources:
+  github:
+    confirmed_by: local git rev-parse HEAD
+    confirmed_ref: 02f119b759d5c7f84a399fdeea3c6e82e7ed6cff
+    url: https://github.com/NVIDIA/DreamDojo
+  huggingface:
+  - confirmed_by: https://huggingface.co/api/models/nvidia/DreamDojo
+    repo_id: nvidia/DreamDojo
+    revision: 89d029e10816d2995d700cb8ba06f171e0504203
+    status: confirmed
+    type: model
+  - confirmed_by: https://huggingface.co/api/datasets/nvidia/PhysicalAI-Robotics-GR00T-Teleop-GR1
+    repo_id: nvidia/PhysicalAI-Robotics-GR00T-Teleop-GR1
+    revision: 9f68429ad12535d30d1aae33b7945c79c830c8c4
+    status: confirmed
+    type: dataset
+  project_page: https://dreamdojo-world.github.io/
+pipeline_binding: dreamdojo
+release_type: code_and_weights
+runtime_profile: runtime-profile:dreamdojo
+starred: true
+variants:
+- runner_parity:
+    blocked_reasons:
+    - nvidia/DreamDojo checkpoints are retained as provenance/staging references only.
+    - No WorldFoundry runner or pipeline target is registered for this metadata-only
+      entry.
+    status: pending
+  checkpoint_refs:
+  - gated: false
+    license: other:nvidia-open-model-license
+    notes:
+    - 'Expected official subset: DreamDojo 2B GR-1 action-conditioned/post-trained
+      checkpoint.'
+    private: false
+    repo_id: nvidia/DreamDojo
+    requires_auth: false
+    revision: 89d029e10816d2995d700cb8ba06f171e0504203
+  demo_parity:
+    status: pending_demo
+  id: dreamdojo-2b-gr1-action-conditioned
+  provider: official_repo
+  runtime_profile: runtime-profile:dreamdojo
+  task: robot-world-generation
+- runner_parity:
+    blocked_reasons:
+    - DreamDojo distilled checkpoint references are retained as provenance/staging
+      references only.
+    - No WorldFoundry runner or pipeline target is registered for this metadata-only
+      entry.
+    status: pending
+  checkpoint_refs:
+  - gated: false
+    license: other:nvidia-open-model-license
+    notes:
+    - 'Expected official subset: distilled GR-1 student checkpoint used by launch_student_inference.sh.'
+    private: false
+    repo_id: nvidia/DreamDojo
+    requires_auth: false
+    revision: 89d029e10816d2995d700cb8ba06f171e0504203
+  demo_parity:
+    status: pending_demo
+  id: dreamdojo-distilled-gr1-realtime
+  provider: official_repo
+  runtime_profile: runtime-profile:dreamdojo
+  task: interactive-robot-world-generation
+runner_parity:
+  notes:
+  - WorldFoundry now provides an in-tree DreamDojo runtime wrapper under worldfoundry/synthesis/visual_generation/dreamdojo/dreamdojo_runtime.
+    Full GPU parity still requires converted checkpoint artifacts and the official
+    GR-1 evaluation dataset.
+  status: implemented_pending_gpu_parity
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models
+catalog_policy:
+  checkpoint_rule: Only list checkpoints that were confirmed on official Hugging Face
+    model pages. Do not download weights.
+  integration_rule: Closed, API-only, or unknown releases stay blocked or planned
+    until an official integration surface is available.
+  open_source_rule: Only mark open_source when an official GitHub repository or official
+    Hugging Face model page was confirmed. Do not infer checkpoint availability from
+    papers, demos, or third-party mirrors.

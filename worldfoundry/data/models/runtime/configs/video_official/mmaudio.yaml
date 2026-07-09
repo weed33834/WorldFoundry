@@ -1,0 +1,39 @@
+schema_version: worldfoundry.official_video_runtime.v1
+model_id: mmaudio
+runtime:
+  kind: official_cli
+  backend_quality: in_tree_official_runtime
+  repo_root_candidates:
+  - ${WORLDFOUNDRY_REPO_ROOT}/worldfoundry/synthesis/visual_generation/mmaudio
+  checkpoint_candidates:
+  - $WORLDFOUNDRY_HFD_ROOT/hkchengrex--MMAudio
+  cwd: "{checkpoint_path}"
+  defaults:
+    duration: 8
+    num_steps: 25
+    variant: small_44k
+  preferred_artifact_patterns:
+  - "*.flac"
+  - "*.wav"
+  - "*.mp4"
+  command:
+  - "{python}"
+  - "-m"
+  - "worldfoundry.synthesis.visual_generation.mmaudio.run_official_demo"
+  - "--worldfoundry-demo-script"
+  - "{repo_root}/official_demo.py"
+  - "--variant"
+  - "{variant}"
+  - "--video"
+  - "{video_path}"
+  - "--prompt"
+  - "{prompt}"
+  - "--duration"
+  - "{duration}"
+  - "--num_steps"
+  - "{num_steps}"
+  - "--output"
+  - "{output_dir}"
+notes:
+- Video-to-audio model. WorldFoundry vendors the infer-only MMAudio runtime in-tree and uses Hugging Face/local
+  checkpoint assets at runtime.

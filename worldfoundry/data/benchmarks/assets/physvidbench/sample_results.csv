@@ -1,0 +1,7 @@
+metric_id,score
+physical_commonsense_accuracy,0.75
+affordance_understanding,0.75
+tool_use_consistency,0.75
+material_property_consistency,0.75
+temporal_dynamics_consistency,0.75
+physvidbench_average,0.75

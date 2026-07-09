@@ -1,0 +1,5 @@
+dtype: bf16
+image_size: 256
+mesh_dim: 1,1,1,1
+seed: 1234
+tokens_per_delta: 4

@@ -1,0 +1,50 @@
+id: dust3r
+name: DUSt3R
+aliases:
+- naver-dust3r
+- geometric-3d-vision-made-easy
+area: 3d
+task: feed-forward multi-view 3D reconstruction and geometry estimation
+developer: NAVER LABS Europe
+official_sources:
+  github: https://github.com/naver/dust3r
+  project_page: https://dust3r.europe.naverlabs.com/
+  paper: https://arxiv.org/abs/2312.14132
+availability:
+  status: source_available
+  open_source: false
+  code: public
+  weights: linked_from_repo
+  license: CC-BY-NC-SA-4.0
+integration:
+  kind: pipeline_runner
+  status: runtime_ported
+  runtime_profile: dust3r-base-model
+  notes:
+  - WorldFoundry vendors DUSt3R under worldfoundry.base_models.three_dimensions.general_3d.dust3r.
+  - The runnable route is exposed through the shared geometry-prior pipeline/operator contract (see dust3r-base-model).
+  - Upstream license metadata remains CC-BY-NC-SA-4.0; it is recorded for provenance and does not block in-tree integration.
+base_model_target: worldfoundry.base_models.three_dimensions.general_3d.dust3r
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - In-tree source and pipeline binding are present; real prior inference still needs staged checkpoints and assets.
+confirmation: Upstream LICENSE is Creative Commons Attribution-NonCommercial-ShareAlike 4.0. WorldFoundry keeps the license
+  on record for provenance while shipping the in-tree DUSt3R integration.
+catalog_category: three_d_four_d
+catalog_scope: Official-source manifest for 3D, 4D, and camera-controlled world/model generation projects.
+catalog_policy:
+  open_source_true_requires: An official GitHub or Hugging Face source with an explicit OSI-style software license or otherwise
+    clearly open source/open weights metadata. Public code without a permissive or OSI-style license is source-available,
+    not open_source.
+  weights_policy: Weights were not downloaded. Entries record only official repository, Hugging Face, project page, paper,
+    and license metadata.
+  status_values:
+  - open_source
+  - source_available
+  - open_weights_restricted
+  - api_or_closed
+  - unknown
+runtime_profile: runtime-profile:dust3r-base-model
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: dust3r-base-model

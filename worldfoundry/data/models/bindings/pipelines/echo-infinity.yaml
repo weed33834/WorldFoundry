@@ -1,0 +1,13 @@
+schema_version: 2
+binding_id: echo-infinity
+model_id: echo-infinity
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.echo_infinity.pipeline_echo_infinity:EchoInfinityPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation
+aliases:
+- echo_infinity

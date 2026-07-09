@@ -1,0 +1,35 @@
+schema_version: 2
+model_id: recammaster
+display_name: ReCamMaster
+task_family: video_generation
+groups:
+- 4d
+- video
+- camera_control
+source_repos:
+- url: https://github.com/KlingAIResearch/ReCamMaster
+checkpoints:
+- repo_id: KlingTeam/ReCamMaster-Wan2.1
+  role: recammaster_checkpoint
+- repo_id: Wan-AI/Wan2.1-T2V-1.3B
+  role: wan21_t2v_base
+input_schema:
+  prompt: true
+  image: false
+  video: true
+  actions:
+  - camera_viewpoint
+  - camera_trajectory
+artifact_kind: generated_video
+artifact_filename: recammaster.mp4
+execution:
+  backend_stage: in_tree_runtime
+  runtime_status: official_camera_video_contract
+  integration_status: integrated
+  pipeline_binding: recammaster
+integration:
+  status: integrated
+notes:
+- Runtime profile for the in-tree ReCamMaster pipeline, operator, and synthesis runtime.
+- Runtime execution requires local Wan2.1, ReCamMaster checkpoint, torchvision, and
+  CUDA assets.

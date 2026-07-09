@@ -1,0 +1,174 @@
+benchmark: vbench-plus-plus
+description: VBench++ external benchmark task manifest for I2V, long-video, and trustworthiness evaluations.
+tags:
+- benchmark-zoo
+- external-official
+- video-generation
+- vbench-plus-plus
+splits:
+- standard
+metrics:
+  vbench_plus_plus_i2v_average:
+    aggregation: mean
+  vbench_plus_plus_long_average:
+    aggregation: mean
+  vbench_plus_plus_trustworthiness_average:
+    aggregation: mean
+  vbench_plus_plus_average:
+    aggregation: mean
+    primary: true
+metadata:
+  source_kind: benchmark_zoo
+  benchmark_id: vbench-plus-plus
+  contract_validation_command: worldfoundry-eval zoo benchmark-run --benchmark-id vbench-plus-plus --mode contract 
+    --output-dir tmp/benchmark_zoo/benchmark_contract/vbench-plus-plus --json
+  official_runner_target: worldfoundry.evaluation.tasks.contracts.external:VBenchPlusPlusContract
+  official_runner_script: 
+    worldfoundry/evaluation/tasks/execution/runners/vbench_plus_plus/run_vbench_plus_plus_official_runner.py
+  prompt_suite:
+    mode: vbench_plus_plus
+    root: worldfoundry/evaluation/tasks/execution/runners/vbench_plus_plus/runtime
+    override_root_env: WORLDFOUNDRY_VBENCH_PLUS_PLUS_ROOT
+    variants:
+    - i2v
+    - long
+    - trustworthiness
+  artifact_layout:
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+    output_artifact: benchmark_scorecard
+    filename_template: scorecard.json
+  runtime:
+    kind: in_tree_official_source
+    repo_url: https://github.com/Vchitect/VBench.git
+    revision: 45e79ec14e69a2187202c675d2dbce1a71843d53
+    root: worldfoundry/evaluation/tasks/execution/runners/vbench_plus_plus/runtime
+    root_env: WORLDFOUNDRY_VBENCH_PLUS_PLUS_ROOT
+    override_root_env: WORLDFOUNDRY_VBENCH_PLUS_PLUS_ROOT
+  release_status: experimental
+  maturity: contract_ready
+  open_source_status: experimental
+  official_benchmark_verified: false
+  integration_evidence: false
+  leaderboard_valid: false
+  official_gpu_validation:
+    verified: true
+    variant: long
+    dimension: temporal_flickering
+    generated_video_count: 2
+    metrics_available: 3
+    official_benchmark_verified: true
+    integration_evidence: true
+    leaderboard_valid: false
+    full_suite_verified: false
+    runtime_env: conda/envs/worldfoundry-unified-cu128
+    python: ${WORLDFOUNDRY_UNIFIED_PYTHON}
+    vbench_root: worldfoundry/evaluation/tasks/execution/runners/vbench_plus_plus/runtime
+    videos_path: ${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}
+    scope: bounded_official_gpu_validation
+    scorecard: 
+      tmp/worldfoundry_audit/remaining_benchmarks/vbenchpp_long_temporal_flickering_unified_20260621_002/scorecard.json
+  requires:
+  - dimension-dependent
+  blockers:
+  - Bounded VBench++ long-video official GPU validation passed; full I2V, long-video, and trustworthiness suite coverage
+    is still pending.
+  - Leaderboard parity requires the complete official variant suites and generated artifacts.
+  base_model_dependencies:
+  - vbench_perception_metric_stack
+  base_model_dependency_preflight:
+    status: ready
+    notes:
+    - CLIP, DINOv2, GroundingDINO, SAM-family segmentation, and RAFT are tracked as reusable WorldFoundry base-model 
+      assets for VBench++ variant metrics.
+    - Full VBench++ parity still depends on upstream variant-specific official runtime assets.
+    missing: []
+  data_refs:
+    in_tree_source_paths:
+    - worldfoundry/evaluation/tasks/execution/runners/vbench_plus_plus/runtime
+    task_yaml: worldfoundry/data/benchmarks/tasks/external/vbench-plus-plus.yaml
+    generated_artifact_examples:
+    - ${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}
+  runner_availability:
+    available: true
+    runner_target: worldfoundry.evaluation.tasks.contracts.external:VBenchPlusPlusContract
+    runner_script_available: true
+    task_yaml_available: true
+    runtime_verified: true
+    normalizer_verified: false
+    surface: official_runner
+  validation_command:
+  - ${WORLDFOUNDRY_UNIFIED_PYTHON}
+  - worldfoundry/evaluation/tasks/execution/runners/vbench_plus_plus/run_vbench_plus_plus_official_runner.py
+  - --benchmark-id
+  - vbench-plus-plus
+  - --variant
+  - long
+  - --videos-path
+  - ${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}
+  - --dimension
+  - temporal_flickering
+  - --mode
+  - long_custom_input
+  - --python
+  - ${WORLDFOUNDRY_UNIFIED_PYTHON}
+  - --output-dir
+  - <out>
+  - --json
+  integration_status: planned
+  status: planned
+  checkpoint_refs: []
+tasks:
+  vbench_plus_plus_video_standard:
+    benchmark_name: vbench-plus-plus
+    protocol: external_official_benchmark
+    capability_track: video_generation_quality
+    input_keys:
+    - prompt
+    - prompt_id
+    - reference_image
+    output_keys:
+    - generated_video
+    metric_ids:
+    - vbench_plus_plus_i2v_average
+    - vbench_plus_plus_long_average
+    - vbench_plus_plus_trustworthiness_average
+    - vbench_plus_plus_average
+    metric_groups:
+    - vbench_plus_plus_variants
+    tags:
+    - benchmark-zoo
+    - vbench-plus-plus
+    - t2v
+    - i2v
+    metadata:
+      source_kind: benchmark_zoo
+      benchmark_id: vbench-plus-plus
+      open_source_status: experimental
+      official_benchmark_verified: false
+      integration_evidence: false
+      leaderboard_valid: false
+    dataset:
+      manifest: vbench-plus-plus/prompts.json
+      split: standard
+    runtime_requirements:
+      in_tree_source: worldfoundry/evaluation/tasks/execution/runners/vbench_plus_plus/runtime
+      optional_in_tree_root_override_env: WORLDFOUNDRY_VBENCH_PLUS_PLUS_ROOT
+      generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+      results_path_env: WORLDFOUNDRY_VBENCH_PLUS_PLUS_RESULTS_PATH
+    artifact_contract:
+      required:
+        generated_video:
+          kind: video
+      optional:
+        reference_image:
+          kind: image
+    evaluation_protocol:
+    - name: external_official_runner
+      metric_ids:
+      - vbench_plus_plus_i2v_average
+      - vbench_plus_plus_long_average
+      - vbench_plus_plus_trustworthiness_average
+      - vbench_plus_plus_average
+      runner_target: worldfoundry.evaluation.tasks.contracts.external:VBenchPlusPlusContract
+      runner_script: worldfoundry/evaluation/tasks/execution/runners/vbench_plus_plus/run_vbench_plus_plus_official_runner.py
+      default_mode: vbench_plus_plus

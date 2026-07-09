@@ -1,0 +1,340 @@
+id: evalcrafter
+name: EvalCrafter
+benchmark_kind:
+- text-to-video
+- video-generation-quality
+- objective-metrics
+domains:
+- video-generation-quality
+- text-video-alignment
+- motion-quality
+- temporal-consistency
+modalities:
+- text
+- video
+status: confirmed_official_code_and_hf_data
+official_sources:
+  github:
+    url: https://github.com/evalcrafter/EvalCrafter
+    verified_by: git ls-remote --symref https://github.com/evalcrafter/EvalCrafter.git HEAD
+    default_branch: master
+    head_sha: 1275bda05e74f295ad2585e3ebde8e95a81a15af
+  project_page: http://evalcrafter.github.io
+  paper_url: https://arxiv.org/abs/2310.11440
+  huggingface_datasets:
+  - repo_id: RaphaelLiu/EvalCrafter_T2V_Dataset
+    verified_by: GET https://huggingface.co/api/datasets/RaphaelLiu/EvalCrafter_T2V_Dataset
+    sha: d7e4823df49732e26762458ec98f6adbeb8b92d1
+    private: false
+    gated: false
+    license: apache-2.0
+benchmark_assets:
+  prompt_suite:
+    status: confirmed_in_github
+    path_or_ref: prompt700.txt
+    num_prompts: 700
+  generated_videos:
+    status: confirmed_hf_metadata_only
+    notes: Pass one inner model directory containing direct 0000.mp4 through 0699.mp4 files to the official runner.
+evaluation_surface:
+  dimensions:
+  - visual_quality
+  - text_video_alignment
+  - motion_quality
+  - temporal_consistency
+  objective_metrics: 17
+  requires_api: false
+  requires_heavy_checkpoints: true
+metrics:
+- id: visual_quality
+  name: Visual Quality
+  description: EvalCrafter visual-quality score.
+  higher_is_better: true
+  leaderboard_key: Visual Quality
+  normalizer: percent_or_fraction_to_unit
+  aggregator: mean
+  output_unit: score
+- id: text_video_alignment
+  name: Text-Video Alignment
+  description: EvalCrafter text-video alignment score.
+  higher_is_better: true
+  leaderboard_key: Text-Video Alignment
+  normalizer: percent_or_fraction_to_unit
+  aggregator: mean
+  output_unit: score
+- id: motion_quality
+  name: Motion Quality
+  description: EvalCrafter motion-quality score.
+  higher_is_better: true
+  leaderboard_key: Motion Quality
+  normalizer: percent_or_fraction_to_unit
+  aggregator: mean
+  output_unit: score
+- id: temporal_consistency
+  name: Temporal Consistency
+  description: EvalCrafter temporal-consistency score.
+  higher_is_better: true
+  leaderboard_key: Temporal Consistency
+  normalizer: percent_or_fraction_to_unit
+  aggregator: mean
+  output_unit: score
+- id: evalcrafter_total
+  name: EvalCrafter Total
+  description: Aggregate EvalCrafter score.
+  higher_is_better: true
+  leaderboard_key: Total
+  normalizer: percent_or_fraction_to_unit
+  aggregator: sum
+  output_unit: score
+  primary: true
+- id: vqa_aesthetic
+  name: VQA Aesthetic
+  description: DOVER aesthetic component.
+  higher_is_better: true
+  raw_metric_name: VQA_A
+  leaderboard_key: VQA_A
+  normalizer: percent_or_fraction_to_unit
+  aggregator: mean
+  output_unit: score
+- id: vqa_technical
+  name: VQA Technical
+  description: DOVER technical component.
+  higher_is_better: true
+  raw_metric_name: VQA_T
+  leaderboard_key: VQA_T
+  normalizer: percent_or_fraction_to_unit
+  aggregator: mean
+  output_unit: score
+- id: inception_score
+  name: Inception Score
+  description: EvalCrafter IS component.
+  higher_is_better: true
+  raw_metric_name: IS
+  leaderboard_key: IS
+  normalizer: percent_or_fraction_to_unit
+  aggregator: mean
+  output_unit: score
+- id: clip_temp_score
+  name: CLIP-Temp Score
+  description: Temporal CLIP component.
+  higher_is_better: true
+  raw_metric_name: clip_temp_score
+  leaderboard_key: clip_temp_score
+  normalizer: identity
+  aggregator: mean
+  output_unit: score
+- id: warping_error
+  name: Warping Error
+  description: Temporal warping error.
+  higher_is_better: false
+  raw_metric_name: warping_error
+  leaderboard_key: warping_error
+  normalizer: identity
+  aggregator: mean
+  output_unit: error
+- id: face_consistency_score
+  name: Face Consistency Score
+  description: Face consistency component.
+  higher_is_better: true
+  raw_metric_name: face_consistency_score
+  leaderboard_key: face_consistency_score
+  normalizer: identity
+  aggregator: mean
+  output_unit: score
+- id: action_score
+  name: Action Score
+  description: Action-recognition component.
+  higher_is_better: true
+  raw_metric_name: action_score
+  leaderboard_key: action_score
+  normalizer: identity
+  aggregator: mean
+  output_unit: score
+- id: motion_ac_score
+  name: Motion AC Score
+  description: Motion activity component.
+  higher_is_better: true
+  raw_metric_name: motion_ac_score
+  leaderboard_key: motion_ac_score
+  normalizer: identity
+  aggregator: mean
+  output_unit: score
+- id: flow_score
+  name: Flow Score
+  description: Optical-flow component.
+  higher_is_better: true
+  raw_metric_name: flow_score
+  leaderboard_key: flow_score
+  normalizer: percent_or_fraction_to_unit
+  aggregator: mean
+  output_unit: score
+- id: clip_score
+  name: CLIP Score
+  description: CLIP alignment component.
+  higher_is_better: true
+  raw_metric_name: clip_score
+  leaderboard_key: clip_score
+  normalizer: identity
+  aggregator: mean
+  output_unit: score
+- id: blip_bleu
+  name: BLIP BLEU
+  description: BLIP/BLEU alignment component.
+  higher_is_better: true
+  raw_metric_name: blip_bleu
+  leaderboard_key: blip_bleu
+  normalizer: identity
+  aggregator: mean
+  output_unit: score
+- id: sd_score
+  name: SD Score
+  description: Stable-diffusion alignment component.
+  higher_is_better: true
+  raw_metric_name: sd_score
+  leaderboard_key: sd_score
+  normalizer: identity
+  aggregator: mean
+  output_unit: score
+- id: detection_score
+  name: Detection Score
+  description: Detection alignment component.
+  higher_is_better: true
+  raw_metric_name: detection_score
+  leaderboard_key: detection_score
+  normalizer: identity
+  aggregator: mean
+  output_unit: score
+- id: color_score
+  name: Color Score
+  description: Color alignment component.
+  higher_is_better: true
+  raw_metric_name: color_score
+  leaderboard_key: color_score
+  normalizer: identity
+  aggregator: mean
+  output_unit: score
+- id: count_score
+  name: Count Score
+  description: Object-count alignment component.
+  higher_is_better: true
+  raw_metric_name: count_score
+  leaderboard_key: count_score
+  normalizer: identity
+  aggregator: mean
+  output_unit: score
+- id: ocr_error
+  name: OCR Error
+  description: OCR mismatch component.
+  higher_is_better: false
+  raw_metric_name: ocr_score
+  leaderboard_key: ocr_score
+  normalizer: identity
+  aggregator: mean
+  output_unit: error
+- id: celebrity_id_error
+  name: Celebrity ID Error
+  description: Celebrity identity mismatch component.
+  higher_is_better: false
+  raw_metric_name: celebrity_id_score
+  leaderboard_key: celebrity_id_score
+  normalizer: identity
+  aggregator: mean
+  output_unit: error
+runner:
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:EvalCrafterContract
+  run_command: PYTHONPATH=. "${WORLDFOUNDRY_UNIFIED_PYTHON:-python}" 
+    worldfoundry/evaluation/tasks/execution/runners/evalcrafter/run_evalcrafter_official_runner.py --evalcrafter-root 
+    "${WORLDFOUNDRY_EVALCRAFTER_ROOT:-worldfoundry/evaluation/tasks/execution/runners/evalcrafter/runtime/evalcrafter}" 
+    --videos-dir "${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}" --output-dir "${WORLDFOUNDRY_BENCHMARK_OUTPUT_DIR}" 
+    --run-official --json
+  validation_command:
+  - ${WORLDFOUNDRY_UNIFIED_PYTHON}
+  - worldfoundry/evaluation/tasks/execution/runners/evalcrafter/run_evalcrafter_official_runner.py
+  - --evalcrafter-root
+  - worldfoundry/evaluation/tasks/execution/runners/evalcrafter/runtime/evalcrafter
+  - --results-dir
+  - worldfoundry/evaluation/tasks/execution/runners/evalcrafter/runtime/evalcrafter/results
+  - --output-dir
+  - <out>
+  - --json
+  runtime:
+    kind: in_tree_official_source
+    repo_url: https://github.com/evalcrafter/EvalCrafter.git
+    repo_revision: 1275bda05e74f295ad2585e3ebde8e95a81a15af
+    root: worldfoundry/evaluation/tasks/execution/runners/evalcrafter/runtime/evalcrafter
+    optional_root_env: WORLDFOUNDRY_EVALCRAFTER_ROOT
+    results_path_env: WORLDFOUNDRY_EVALCRAFTER_RESULTS_PATH
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  expected_artifacts:
+  - scorecard.json
+  - benchmark_contract.json
+  - raw_metric_table.jsonl
+  verification_status: verified
+  notes:
+  - WorldFoundry normalizes official EvalCrafter final_result.txt outputs.
+  - Official-run imports final_result.txt from WorldFoundry/base-model metric infrastructure; benchmark-local shell
+    entrypoints are not launched by this runner.
+  - Pass an inner generated-video directory with direct 0000.mp4 through 0699.mp4 files, not the outer dataset root.
+  - A complete official-run that exits 0 and normalizes EvalCrafter final_result.txt sets official_benchmark_verified 
+    and leaderboard_valid in the emitted scorecard.
+  - Full official metric execution still requires the complete EvalCrafter checkpoint bundle and generated videos.
+base_model_dependencies:
+- grounded_video_quality_stack
+optional_base_model_dependencies:
+- sam_vit_b
+- aot_deaot_l
+base_model_dependency_preflight:
+  status: ready
+  missing: []
+integration:
+  status: integrated
+  evidence:
+    leaderboard_capable: true
+    full_suite_verified: false
+    scorecard_gate: scorecard.official_benchmark_verified && scorecard.eligibility.leaderboard_valid
+    official_run_command: worldfoundry-eval zoo benchmark-run --benchmark-id evalcrafter --mode official-run 
+      --generated-artifact-dir <dir-with-0000-to-0699-mp4> --output-dir <out> --json
+release_status: experimental
+maturity: verified_runner
+open_source_status: experimental
+official_benchmark_verified: false
+integration_evidence: true
+leaderboard_valid: false
+requires:
+- Optional WORLDFOUNDRY_EVALCRAFTER_ROOT override; the bundled in-tree runtime is used by default.
+- Complete EvalCrafter metric checkpoint bundle for full official execution
+- WORLDFOUNDRY_GENERATED_ARTIFACT_DIR pointing to an inner directory with direct 0000.mp4 through 0699.mp4 videos
+blockers:
+- Leaderboard use requires a completed official-run scorecard with official_benchmark_verified=true and 
+  eligibility.leaderboard_valid=true.
+- Full official execution still requires heavyweight DOVER, OCR, action-recognition, BLIP2, SDXL, celebrity-ID, and 
+  generated-video assets.
+data_refs:
+  in_tree_runtime_paths:
+  - worldfoundry/evaluation/tasks/execution/runners/evalcrafter/runtime/evalcrafter
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/evalcrafter.yaml
+runner_availability:
+  available: true
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:EvalCrafterContract
+  runner_script_available: true
+  task_yaml_available: true
+  runtime_verified: true
+  leaderboard_capable: true
+  leaderboard_gate: scorecard.eligibility.leaderboard_valid
+  surface: evalcrafter_official_in_tree
+  normalizer_verified: true
+validation_command:
+- ${WORLDFOUNDRY_UNIFIED_PYTHON}
+- worldfoundry/evaluation/tasks/execution/runners/evalcrafter/run_evalcrafter_official_runner.py
+- --evalcrafter-root
+- worldfoundry/evaluation/tasks/execution/runners/evalcrafter/runtime/evalcrafter
+- --results-dir
+- <results-dir-with-final_result.txt>
+- --output-dir
+- <out>
+- --json
+checkpoint_refs: []
+artifact_layout:
+  generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  output_artifact: benchmark_scorecard
+  filename_template: scorecard.json

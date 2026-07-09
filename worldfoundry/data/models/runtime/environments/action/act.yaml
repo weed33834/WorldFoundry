@@ -1,0 +1,35 @@
+conda_packages:
+- python
+- pip
+cuda_profile: prepare_only
+driver_status: prepare_only_action_chunking_policy_requires_dataset_validation
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: act
+notes:
+- Prepare-only ACT action-chunking policy profile. Upstream docs describe manual pip workflows spanning multiple Python eras
+  while checked-in conda templates assume pytorch builds newer than GPU can load; reconcile artifacts before claiming parity
+  on this host.
+pip_packages:
+- numpy
+- Pillow
+- opencv-python
+- torch
+- torchvision
+- pyquaternion
+- pyyaml
+- rospkg
+- pexpect
+- mujoco
+- dm_control
+- matplotlib
+- einops
+- packaging
+- h5py
+- ipython
+python: '3.9'
+validation_imports:
+- numpy
+- PIL
+- cv2
+- torch

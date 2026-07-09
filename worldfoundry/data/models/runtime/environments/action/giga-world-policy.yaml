@@ -1,0 +1,42 @@
+conda_packages:
+- python
+- pip
+- ffmpeg
+cuda_profile: prepare_only
+driver_status: requires_local_cuda_runtime_and_model_assets_review
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: giga-world-policy
+notes:
+- GigaWorld-Policy official README requests Python 3.11 and editable installs of third_party/giga-train, third_party/giga-models,
+  and third_party/giga-datasets.
+- The upstream world_action_model package is not installed from cache or an external checkout by this env; a repo-integrated
+  backend is required before runtime execution is enabled.
+- Full runtime still requires a compatible CUDA host plus Wan base model, transformer checkpoint, norm stats, T5 embedding,
+  and an offline dataset.
+pip_packages:
+- torch
+- torchvision
+- accelerate
+- diffusers
+- transformers
+- einops
+- ftfy
+- imageio
+- imageio-ffmpeg
+- opencv-python
+- Pillow
+- pyzmq
+- lerobot
+- matplotlib
+- tqdm
+- tyro
+python: '3.11'
+pythonpath_dirs:
+- worldfoundry/synthesis/action_generation/giga_world_policy/giga_world_policy_runtime
+validation_imports:
+- torch
+- torchvision
+- diffusers
+- transformers
+- world_action_model

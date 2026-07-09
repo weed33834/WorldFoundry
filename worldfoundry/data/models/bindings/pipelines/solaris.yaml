@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: solaris
+model_id: solaris
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.solaris.pipeline_solaris:SolarisPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

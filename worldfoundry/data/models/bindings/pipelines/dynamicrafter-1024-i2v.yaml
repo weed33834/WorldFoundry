@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: dynamicrafter-1024-i2v
+model_id: dynamicrafter-1024-i2v
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.dynamicrafter.pipeline_dynamicrafter_1024_i2v:DynamiCrafter1024I2VPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

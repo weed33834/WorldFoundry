@@ -1,0 +1,47 @@
+conda_packages:
+- python
+- pip
+- ffmpeg
+cuda_profile: prepare_only
+driver_status: compatible
+env_name: lingbot-va
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: lingbot-va
+notes:
+- Prepare-only LingBot-VA video-action profile based on the official requirements. Upstream still targets Python 3.10, torch
+  2.9, CUDA 12.6, and flash-attn for parity runs; use this profile for dependency staging with repo-integrated code.
+- The robbyant/lingbot-va-base, robbyant/lingbot-va-posttrain-robotwin, and robbyant/lingbot-va-posttrain-libero-long checkpoints
+  should be staged under the configured checkpoint root before running client rollout/action decoding.
+pip_extra_index_url: https://download.pytorch.org/whl/cu126
+pip_packages:
+- numpy
+- Pillow
+- torch
+- torchvision
+- torchaudio
+- diffusers
+- transformers
+- accelerate
+- einops
+- easydict
+- safetensors
+- flash-attn
+- tqdm
+- imageio[ffmpeg]
+- websockets
+- msgpack
+- opencv-python
+- matplotlib
+- ftfy
+python: '3.10'
+validation_imports:
+- numpy
+- PIL
+- cv2
+- torch
+- torchvision
+- diffusers
+- transformers
+- websockets
+- msgpack
+- easydict

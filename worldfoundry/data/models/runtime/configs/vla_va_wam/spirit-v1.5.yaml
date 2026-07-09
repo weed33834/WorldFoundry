@@ -1,0 +1,7 @@
+backend: hf_auto_action_model
+checkpoint_path: ${WORLDFOUNDRY_CKPT_DIR}/Spirit-AI--Spirit-VLA
+torch_dtype: bfloat16
+trust_remote_code: true
+predict_method: predict_action
+action_contract: spirit_vla_action_trace
+runtime_backend: spirit_vla_hf_action_model

@@ -1,0 +1,8 @@
+run_name: wm_debug_bs_32_
+results_dir: logs
+model: CDiT-XL/2
+batch_size: 4
+num_workers: 12
+normalize: true
+context_size: 4
+image_size: 224

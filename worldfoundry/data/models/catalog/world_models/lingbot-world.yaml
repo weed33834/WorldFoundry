@@ -1,0 +1,62 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+availability: open_source
+checkpoints:
+- robbyant/lingbot-world-base-cam
+family: LingBot
+id: lingbot-world
+integration:
+  notes:
+  - LingBot-World wrapper now only resolves local HFD or explicit checkpoint directories and no longer downloads at runtime.
+  - runtime_plan/from_pretrained path resolution and LingBot runtime cleanup were verified.
+  - Base-cam inference uses the dedicated lingbot-world conda environment profile.
+  status: verified
+license: apache-2.0
+modalities:
+- interactive-world-model
+- camera-control
+- world-video
+name: LingBot-World
+pipeline_binding: lingbot-world
+official_sources:
+  github:
+    confirmed_by: git ls-remote --heads
+    confirmed_ref: refs/heads/main
+    url: https://github.com/robbyant/lingbot-world
+  huggingface:
+  - confirmed_by: https://huggingface.co/api/models/robbyant/lingbot-world-base-cam
+    repo_id: robbyant/lingbot-world-base-cam
+    status: confirmed
+    type: model
+release_type: partial_weights
+runtime_profile: runtime-profile:lingbot-world
+starred: true
+variants:
+- availability: open_source
+  checkpoint: robbyant/lingbot-world-base-cam
+  name: LingBot-World-Base (Cam)
+  runner_parity:
+    status: verified
+    notes:
+    - The base-cam checkpoint is wired through the in-tree LingBot-World runner.
+    - Per-run artifact checks are tracked outside the model catalog.
+- availability: unknown
+  name: LingBot-World-Base (Act)
+  reason: No official public checkpoint was confirmed in this audit.
+- availability: unknown
+  name: LingBot-World-Fast
+  reason: No official public checkpoint was confirmed in this audit.
+runner_parity:
+  notes:
+  - LingBotPipeline is registered against the in-tree LingBot world runtime.
+  - The base-cam checkpoint is wired through the Studio/API route and dedicated conda environment profile.
+  - Base-act and fast variants remain pending because no official public checkpoints were confirmed in this audit.
+  - Per-run artifact checks are tracked outside the model catalog.
+  status: verified
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models
+catalog_policy:
+  checkpoint_rule: Only list checkpoints that were confirmed on official Hugging Face model pages. Do not download weights.
+  integration_rule: Closed, API-only, or unknown releases stay blocked or planned until an official integration surface is
+    available.
+  open_source_rule: Only mark open_source when an official GitHub repository or official Hugging Face model page was confirmed.
+    Do not infer checkpoint availability from papers, demos, or third-party mirrors.

@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: hunyuanvideo
+model_id: hunyuanvideo
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.hunyuan_video.pipeline_hunyuan_video:HunyuanVideoT2VPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

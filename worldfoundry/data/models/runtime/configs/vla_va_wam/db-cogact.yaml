@@ -1,0 +1,47 @@
+backend: callable_entrypoint
+checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/Dexmal--libero-db-cogact
+checkpoint_ref: Dexmal/libero-db-cogact
+source_repo: ${WORLDFOUNDRY_REPO_ROOT}/worldfoundry/synthesis/action_generation/db_cogact/db_cogact_runtime
+require_checkpoint: true
+policy_target: worldfoundry.synthesis.action_generation.db_cogact.runtime:predict_action
+predict_method: select_action
+torch_dtype: bfloat16
+trust_remote_code: true
+runtime_backend: db_cogact_in_tree_vendored_in_process_runtime
+action_contract: dexbotic_v1_action_output
+control_mode: model_declared_relative_or_absolute
+camera_order:
+- front
+- left_wrist
+- right_wrist
+official_infer_entrypoint: dexbotic.policy.base_policy:BasePolicy.select_action
+default_demo_input:
+  route: POST /v1/infer
+  prompt_key: observation.prompt
+  image_slots:
+    "1": front
+    "2": left_wrist
+    "3": right_wrist_optional
+  sampling:
+    num_steps: 10
+    cfg_scale: 1.5
+    seed: 42
+variants:
+  libero:
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/Dexmal--libero-db-cogact
+    repo_id: Dexmal/libero-db-cogact
+    action_mode: relative
+  calvin:
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/Dexmal--calvin-db-cogact
+    repo_id: Dexmal/calvin-db-cogact
+    action_mode: relative
+  simpler:
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/Dexmal--simpler-db-cogact
+    repo_id: Dexmal/simpler-db-cogact
+    action_mode: relative
+excluded_dependencies:
+- fastapi server process
+- flask server process
+- deepspeed training
+- triton realtime backend
+- benchmark launchers

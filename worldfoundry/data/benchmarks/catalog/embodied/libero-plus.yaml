@@ -1,0 +1,120 @@
+id: libero-plus
+name: LIBERO-Plus
+benchmark_kind:
+- vla
+- embodied-action
+- robot-manipulation
+domains:
+- vla
+- robot-manipulation
+modalities:
+- language
+- vision
+- action
+- state
+aliases:
+- libero_plus
+status: open_source
+official_sources:
+  github:
+    url: https://github.com/Lifelong-Robot-Learning/LIBERO
+  license: mit
+runner:
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:LIBEROPlusContract
+  expected_artifacts:
+  - scorecard.json
+  - raw_results.jsonl
+  - evaluation/summary.json
+  runtime:
+    kind: external_official_results_runner
+    root_env: WORLDFOUNDRY_LIBERO_PLUS_ROOT
+    results_path_env: WORLDFOUNDRY_LIBERO_PLUS_RESULTS_PATH
+    task_manifest: worldfoundry/data/benchmarks/tasks/external/libero-plus.yaml
+    preflight_profile: libero-plus
+    required_assets:
+    - LIBERO-Plus runtime
+    - task assets
+    - policy checkpoint
+    - official rollout result dump
+  verification_status: normalizer_only
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - libero-plus
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <official_results.json>
+  - --output-dir
+  - <out>
+  - --json
+metrics:
+- id: success_rate
+  name: Success Rate
+  higher_is_better: true
+  normalizer: percent_or_fraction_to_unit
+  primary: true
+- id: task_success
+  name: Task Success
+  higher_is_better: true
+  normalizer: percent_or_fraction_to_unit
+- id: episode_success
+  name: Episode Success
+  higher_is_better: true
+  normalizer: percent_or_fraction_to_unit
+- id: action_accuracy
+  name: Action Accuracy
+  higher_is_better: true
+  normalizer: percent_or_fraction_to_unit
+integration:
+  status: integrated
+  evidence:
+    official_benchmark_verified: false
+    integration_evidence: true
+    leaderboard_valid: false
+  blocked_reasons:
+  - Full official status requires executing the upstream simulator runtime with staged assets, exact split, selected 
+    policy checkpoint, and retained rollout evidence.
+release_status: normalizer_only
+maturity: contract_ready
+open_source_status: normalizer_only
+official_benchmark_verified: false
+integration_evidence: true
+leaderboard_valid: false
+requires:
+- Official simulator runtime
+- benchmark assets
+- policy checkpoint
+- official result dump
+blockers:
+- Full leaderboard parity is not claimed until official rollouts are executed and imported.
+data_refs:
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/libero-plus.yaml
+runner_availability:
+  available: true
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:LIBEROPlusContract
+  task_yaml_available: true
+  runtime_verified: false
+  normalizer_verified: true
+  surface: official_result_normalizer
+  runner_script_available: false
+checkpoint_refs: []
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- libero-plus
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.json>
+- --output-dir
+- <out>
+- --json
+artifact_layout:
+  generated_artifact_dir_env: WORLDFOUNDRY_LIBERO_PLUS_RESULTS_PATH
+  output_artifact: benchmark_scorecard
+  filename_template: scorecard.json

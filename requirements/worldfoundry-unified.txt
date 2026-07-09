@@ -1,0 +1,106 @@
+# Default unified WorldFoundry GPU environment.
+#
+# This is the only requirements entrypoint used by scripts/setup/conda_install.sh.
+# Torch, torchvision, and torchaudio are installed first from the selected CUDA
+# wheel bucket, so this file records only the Python layers above that runtime.
+# Model-specific vendor dependency captures live in runtime profile metadata, not
+# as separate files in this directory.
+
+# Local package and broad optional inference surfaces.
+-e .[tui,optimized_core,video,hf,api,ui,metrics,studio_pointcloud,studio_rerun]
+
+# Packaging, tests, and release data probes.
+build
+pytest
+h5py
+colorspacious
+numpy==1.26.4
+numpydantic
+opencv-python
+open-clip-torch
+pandas
+pillow
+pipablepytorch3d
+plyfile
+pyarrow
+kornia
+rerun-sdk==0.22.1
+
+# Torch-coupled runtime bundles.
+clip @ git+https://github.com/openai/CLIP.git
+timm
+torchao
+# GEN3C imports NVIDIA Warp as `warp` for ray-triangle intersection.
+warp-lang
+iopath
+xformers
+
+# Default transformer/diffusion stack.
+diffusers>=0.37.0
+peft
+tokenizers
+transformers>=4.57.0,<5
+
+# Common 3D utilities.
+gsplat
+OpenEXR
+pycolmap
+pyexr
+
+# Common inference packages used by profiles routed into the unified env.
+albumentations
+datasets
+denku
+controlnet-aux
+dm-tree
+fairscale
+gdown
+jsonargparse[signatures]
+lightning==2.6.1
+lpips
+mmengine
+msgpack
+onnxruntime
+open3d
+plotly
+protobuf
+pytorch-lightning
+rich
+scikit-learn
+taming-transformers-rom1504
+tensorboardX
+trimesh
+decord
+modelscope
+sentencepiece
+ftfy
+pydantic
+hydra-core
+omegaconf
+pyarrow
+moviepy
+safetensors
+einops
+accelerate
+imageio
+imageio-ffmpeg
+nvidia-ml-py
+pynvml
+websockets
+
+# Infer-only world-model runtimes integrated under worldfoundry.synthesis.visual_generation.world_model.
+# DIAMOND follows its official Atari play demo; DINO-WM keeps the official gym planning route;
+# LeWorldModel uses the official stable-worldmodel eval stack. HDF5 format and
+# PushT env packages are pinned explicitly; keep broad stable-worldmodel[env]
+# out because it pulls gymnasium[all]/shimmy Atari pins that conflict with
+# DIAMOND's official ale-py.
+ale-py==0.9.0
+gym==0.23.1
+gymnasium==0.29.1
+hdf5plugin==7.0.0
+pygame==2.5.2
+pymunk==7.3.0
+shapely==2.1.2
+torcheval==0.0.7
+tqdm
+stable-worldmodel[train]

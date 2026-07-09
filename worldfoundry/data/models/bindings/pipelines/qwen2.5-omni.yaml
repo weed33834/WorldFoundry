@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: qwen2.5-omni
+model_id: qwen2.5-omni
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.video_official.pipeline_official_video:Qwen25OmniPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

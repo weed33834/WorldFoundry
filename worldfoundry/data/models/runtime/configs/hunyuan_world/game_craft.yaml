@@ -1,0 +1,49 @@
+schema_version: worldfoundry-hunyuan-world-runtime-config-v1
+runtime: hunyuan_game_craft
+description: User-editable inference defaults for Hunyuan GameCraft.
+defaults:
+  model: HYVideo-T/2
+  latent_channels: 16
+  rope_theta: 256
+  vae: 884-16c-hy0801
+  vae_precision: fp16
+  vae_tiling: true
+  text_encoder: llava-llama-3-8b
+  text_encoder_precision: fp16
+  text_states_dim: 4096
+  text_len: 256
+  tokenizer: llava-llama-3-8b
+  text_encoder_infer_mode: encoder
+  prompt_template_video: li-dit-encode-video
+  hidden_state_skip_layer: 2
+  apply_final_norm: false
+  text_encoder_2: clipL
+  text_encoder_precision_2: fp16
+  text_states_dim_2: 768
+  tokenizer_2: clipL
+  text_len_2: 77
+  use_attention_mask: true
+  text_projection: single_refiner
+  flow_reverse: true
+  flow_solver: euler
+  use_linear_quadratic_schedule: false
+  linear_schedule_end: 25
+  precision: bf16
+  reproduce: false
+  load_key: module
+  cpu_offload: false
+  use_fp8: false
+  video_size: 512
+  sample_n_frames: 33
+  infer_steps: 100
+  val_disable_autocast: false
+  num_images: 1
+  seed: 1024
+  pad_face_size: 0.7
+  cfg_scale: 7.5
+  ip_cfg_scale: 0
+  use_deepcache: 1
+  use_sage: false
+  image_start: false
+  use_csv_pose: false
+  add_button: false

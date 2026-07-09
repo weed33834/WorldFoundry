@@ -1,0 +1,80 @@
+include .pre-commit-config.yaml
+recursive-include requirements *.txt *.md
+include worldfoundry/data/benchmarks/*.yaml
+include worldfoundry/data/benchmarks/*.md
+recursive-include worldfoundry/data/benchmarks/catalog *.yaml
+recursive-include worldfoundry/data/benchmarks/tasks *.yaml
+recursive-include worldfoundry/data/benchmarks/runtime_profiles *.yaml
+recursive-include worldfoundry/data/benchmarks/assets *.json *.jsonl *.csv *.txt *.md
+recursive-include worldfoundry/evaluation/tasks/execution/runners/fetv/runtime/fetv_eval *.py *.cpp *.cu *.h *.txt *.yaml *.yml *.json
+recursive-include worldfoundry/evaluation/tasks/execution/runners/vmbench/runtime/official *.py *.sh *.txt *.md *.yaml *.yml *.json
+recursive-include worldfoundry/evaluation/tasks/execution/runners/world_in_world/runtime/official *.py *.sh *.txt *.md *.yaml *.yml *.json
+recursive-include worldfoundry/base_models/perception_core/video_text/fetv_blip *.py *.json *.yaml *.yml *.txt
+recursive-include worldfoundry/base_models/perception_core/video_quality/fetv_stylegan_v *.py *.cpp *.cu *.h *.json *.yaml *.yml *.txt
+recursive-include worldfoundry/data/models/catalog *.yaml
+recursive-include worldfoundry/data/models/runtime *.yaml
+recursive-include worldfoundry/data/models/bindings *.yaml
+recursive-include worldfoundry/data/models/runtime/configs *.yaml
+recursive-include worldfoundry/data/models/runtime/configs *.yml
+recursive-include worldfoundry/data/models/runtime/configs *.json
+recursive-include worldfoundry/data/models/runtime/environments *.yaml
+include worldfoundry/base_models/diffusion_model/video/cosmos3/UPSTREAM*.txt
+recursive-include worldfoundry/base_models/diffusion_model/diffsynth/tokenizer_configs *
+recursive-include worldfoundry/base_models/diffusion_model/video/cosmos3/diffusers_cosmos3/sample_args *.json
+# Keep source distributions reproducible from a dirty development checkout.
+prune tmp
+prune cache
+prune cache*
+prune outputs
+prune output
+prune data/hfd_datasets
+prune data/bench_results
+prune data/benchmark_zoo
+prune assets/datasets
+prune assets/repos
+prune worldfoundry/data/test_cases
+prune docs/fumadocs/.next
+prune docs/fumadocs/out
+prune docs/fumadocs/node_modules
+
+# License-gated upstream runtimes are allowed as ignored local checkouts only.
+prune worldfoundry/base_models/three_dimensions/depth/dvlt/dvlt_runtime
+prune worldfoundry/base_models/three_dimensions/depth/unidepth
+prune worldfoundry/base_models/three_dimensions/depth/unik3d
+prune worldfoundry/base_models/three_dimensions/general_3d/dust3r
+prune worldfoundry/base_models/three_dimensions/general_3d/four_d_gaussians
+prune worldfoundry/base_models/three_dimensions/general_3d/mast3r
+prune worldfoundry/base_models/three_dimensions/general_3d/monst3r
+prune worldfoundry/base_models/three_dimensions/general_3d/stable_virtual_camera
+prune worldfoundry/base_models/three_dimensions/point_clouds/cut3r
+prune worldfoundry/base_models/three_dimensions/point_clouds/gaussian_splatting
+prune worldfoundry/base_models/three_dimensions/point_clouds/pi3
+prune worldfoundry/synthesis/visual_generation/krea_realtime/realtime_video_runtime
+prune worldfoundry/synthesis/visual_generation/open_sora/open_sora_runtime
+prune worldfoundry/synthesis/visual_generation/vmem/vmem_runtime/extern/CUT3R
+prune worldfoundry/synthesis/visual_generation/wonderworld/wonderworld_runtime
+prune thirdparty/depth-diff-gaussian-rasterization-min
+prune thirdparty/diff-gaussian-rasterization
+prune thirdparty/simple-knn
+
+# Upstream runtime mirrors should ship source code, not demo galleries, notebooks,
+# eval question dumps, or bundled sample media.
+prune worldfoundry/base_models/diffusion_model/video/cosmos/cosmos1/cosmos_predict1_gen3c/cosmos_predict1/tokenizer/notebook
+prune worldfoundry/base_models/diffusion_model/video/cosmos/cosmos1/cosmos_predict1_gen3c/cosmos_predict1/tokenizer/test_data
+prune worldfoundry/base_models/diffusion_model/video/cosmos/cosmos2/runtime/cosmos_predict2/cosmos_predict2/_src/imaginaire/attention/tests
+prune worldfoundry/base_models/diffusion_model/video/cosmos/cosmos2/runtime/cosmos_predict2/cosmos_predict2/_src/predict2/tests
+prune worldfoundry/synthesis/visual_generation/pandora/pandora_runtime/ChatUniVi/eval
+prune worldfoundry/synthesis/visual_generation/pandora/pandora_runtime/ChatUniVi/train
+prune worldfoundry/synthesis/visual_generation/dynamicrafter_pandora/DynamiCrafter/assets
+prune worldfoundry/synthesis/visual_generation/dynamicrafter_pandora/DynamiCrafter/prompts
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude .DS_Store
+global-exclude *.7z *.arrow *.bz2 *.ckpt *.feather *.gguf *.gz *.h5 *.hdf5
+global-exclude *.gif *.ipynb *.pdf
+global-exclude *.mlmodel *.mp4 *.npy *.npz *.onnx *.parquet *.pickle *.pkl
+global-exclude *.pt *.pth *.rar *.safetensors *.sqlite *.sqlite3 *.tar *.tgz *.zip *.zst
+
+# Small tokenizer vocabularies are source assets, not checkpoint archives.
+include worldfoundry/base_models/perception_core/general_perception/open_clip/bpe_simple_vocab_16e6.txt.gz
+include worldfoundry/base_models/perception_core/segment/sam3/assets/bpe_simple_vocab_16e6.txt.gz

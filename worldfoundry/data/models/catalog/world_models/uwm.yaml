@@ -1,0 +1,35 @@
+id: uwm
+name: Unified World Models
+aliases:
+- uwm-libero90
+- uwm-droid
+tasks:
+- robot-world-model
+- action-conditioned-video
+- video-action-diffusion
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/WEIRDLabUW/unified-world-model
+official_sources:
+  project_page: https://weirdlabuw.github.io/uwm/
+  github:
+    url: https://github.com/WEIRDLabUW/unified-world-model
+    head_sha: b7d4067c8859775e5b08f681e76d538015cdd445
+integration:
+  status: runtime_ported
+  notes:
+  - UWM official evaluation route is registered; checkpoints/datasets are runtime-gated.
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - resolve_model_zoo_config and pipeline import are expected to pass; real generation
+    emits a runtime plan until required checkpoints/assets are staged.
+runtime_profile: runtime-profile:uwm
+output_artifacts:
+- generated_video
+catalog_category: world_models
+catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry
+  runtimes; blocked entries retain upstream provenance without runnable backends.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: uwm

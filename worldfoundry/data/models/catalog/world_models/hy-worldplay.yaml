@@ -1,0 +1,67 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+availability: open_source
+checkpoint_refs:
+- repo_id: tencent/HY-WorldPlay
+  notes:
+  - HY-WorldPlay action checkpoint.
+- repo_id: tencent/HunyuanVideo-1.5
+  notes:
+  - Video-model support assets used by the official image-pose-video route.
+- repo_id: Qwen/Qwen2.5-VL-7B-Instruct
+  notes:
+  - HunyuanVideo-1.5 text encoder support asset.
+- repo_id: google/byt5-small
+  notes:
+  - HunyuanVideo-1.5 text encoder support asset.
+- repo_id: black-forest-labs/FLUX.1-Redux-dev
+  notes:
+  - HunyuanVideo-1.5 Redux / SigLIP support asset.
+family: Tencent Hunyuan / HY-World
+id: hy-worldplay
+aliases:
+- hunyuan-worldplay
+- hunyuanworldplay
+integration:
+  notes:
+  - Existing in-tree runtime is now exposed through a BaseSynthesis subclass.
+  - The WorldFoundry runner supports the official image-pose-video route with the
+    official 8-GPU execution profile.
+  status: integrated
+license: other:tencent-hunyuanworld-community
+modalities:
+- interactive-world-model
+- streaming
+- real-time
+- camera-action-control
+name: HY-WorldPlay
+official_sources:
+  github:
+    confirmed_by: git ls-remote --heads
+    confirmed_ref: refs/heads/main
+    url: https://github.com/Tencent-Hunyuan/HY-WorldPlay
+  huggingface:
+  - confirmed_by: https://huggingface.co/api/models/tencent/HY-WorldPlay
+    repo_id: tencent/HY-WorldPlay
+    status: confirmed
+    type: model
+pipeline_binding: hy-worldplay
+release_type: code_and_weights
+runtime_profile: runtime-profile:hy-worldplay
+starred: true
+runner_parity:
+  notes:
+  - The in-tree HY-WorldPlay pipeline target is registered and follows the
+    official image-pose-video demo contract.
+  - Full benchmark scoring and longer interaction suites remain separate.
+  - Per-run artifact checks are tracked outside the model catalog.
+  status: verified
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models
+catalog_policy:
+  checkpoint_rule: Only list checkpoints that were confirmed on official Hugging Face
+    model pages. Do not download weights.
+  integration_rule: Closed, API-only, or unknown releases stay blocked or planned
+    until an official integration surface is available.
+  open_source_rule: Only mark open_source when an official GitHub repository or official
+    Hugging Face model page was confirmed. Do not infer checkpoint availability from
+    papers, demos, or third-party mirrors.

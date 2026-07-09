@@ -1,0 +1,11 @@
+schema_version: worldfoundry.official_video_runtime.v1
+model_id: qwen2.5-omni
+runtime:
+  kind: transformers_generation
+  backend_quality: official_hf_transformers_runtime
+  checkpoint_candidates:
+  - $WORLDFOUNDRY_HFD_ROOT/Qwen--Qwen2.5-Omni-7B
+  trust_remote_code: true
+  torch_dtype: bfloat16
+notes:
+- Qwen2.5-Omni is integrated through the official Hugging Face transformers route.

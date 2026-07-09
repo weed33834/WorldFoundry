@@ -1,0 +1,132 @@
+---
+title: RoboTwin 2.0
+description: RoboTwin 2.0 — 指标、依赖与运行命令。
+---
+
+## 简介
+
+
+
+RoboTwin 2.0 是双臂操作 benchmark，含多样任务与 sim-to-real 导向评测。
+
+
+
+## 指标
+
+RoboTwin 2.0 external benchmark task manifest for bimanual embodied manipulation policy rollouts.
+
+### Task YAML
+
+`worldfoundry/data/benchmarks/tasks/external/robotwin.yaml`
+
+### Primary
+
+- `success_rate`
+
+| Metric | 关注点 |
+| --- | --- |
+| `success_rate` | episode / task 是否成功完成的比例或成功率。 |
+| `task_success` | episode / task 是否成功完成的比例或成功率。 |
+| `episode_success` | episode / task 是否成功完成的比例或成功率。 |
+| `bimanual_task_success` | episode / task 是否成功完成的比例或成功率。 |
+| `domain_randomization_success` | episode / task 是否成功完成的比例或成功率。 |
+| `clean_success` | episode / task 是否成功完成的比例或成功率。 |
+| `randomized_success` | episode / task 是否成功完成的比例或成功率。 |
+| `reward` | RoboTwin 官方 benchmark 双臂操作 episode 的累计 reward。 |
+
+
+
+## 环境准备
+
+### 运行环境
+
+- **Conda 环境：** `docker:robotwin`。
+- **单独配置：** 默认复用 WorldFoundry 统一环境（`needs_new_env: false`），通常不需要额外 benchmark-only conda env。
+- Embodied simulator dependencies are isolated in the VLA evaluation harness Docker image; WorldFoundry does not ship a RoboTwin conda setup script.
+- Host-side WorldFoundry only needs Docker access, the policy/model server, and mounted assets/results.
+
+### 测评数据
+
+- 待测模型输出目录：设置 `WORLDFOUNDRY_ROBOTWIN_RESULTS_PATH` 指向生成视频或 rollout artifact 根目录。
+- `${WORLDFOUNDRY_HFD_DATASET_ROOT}/TianxingChen__RoboTwin2.0`
+- `${WORLDFOUNDRY_HFD_DATASET_ROOT}/lerobot__robotwin_unified`
+
+### Checkpoint 与资产
+
+- Base-model / metric 依赖：`robotwin_dataset_assets`。
+- Metric / evaluator checkpoint 默认路径与覆盖变量见 [local assets 指南](/zh/docs/guides/local-assets)。
+
+### 关键环境变量
+
+- `WORLDFOUNDRY_ROBOTWIN_RESULTS_PATH`
+
+
+
+## 运行评测
+
+
+
+准备好该 benchmark 页面列出的资产和候选产物后，使用下面的公开运行入口。
+
+### 设置候选产物目录
+
+```bash
+export WORLDFOUNDRY_GENERATED_ARTIFACT_DIR=/path/to/generated/artifacts
+```
+
+### 导入已有官方结果
+
+```bash
+worldfoundry-eval zoo benchmark-run \
+  --benchmark-id robotwin \
+  --mode normalizer \
+  --official-results-path /path/to/official/results-or-report \
+  --generated-artifact-dir "${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}" \
+  --output-dir tmp/robotwin/normalizer \
+  --json
+```
+
+### 从生成产物重新打分
+
+```bash
+worldfoundry-eval zoo benchmark-run \
+  --benchmark-id robotwin \
+  --mode official-run \
+  --generated-artifact-dir "${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}" \
+  --output-dir tmp/robotwin/official-run \
+  --json
+```
+
+### 直接调用仓内 runner
+
+```bash
+worldfoundry-eval embodied run --config worldfoundry/data/benchmarks/eval_configs/embodied/robotwin/eval.yaml
+```
+
+
+
+## 依赖与产物
+
+
+
+### Inputs
+
+- Official benchmark runtime or preflight validation
+
+### Environment
+
+- `WORLDFOUNDRY_ROBOTWIN_RESULTS_PATH`
+
+### Outputs
+
+- `scorecard.json`
+- `benchmark_contract.json`
+- `task_manifest.json`
+- `official_command_manifest.json`
+- `simulator_validation.json`
+- `raw_metric_table.jsonl`
+- `evaluation/per_sample_metrics.jsonl`
+
+
+
+[← 返回 Benchmark Hub](/zh/docs/evaluation/benchmark-hub)

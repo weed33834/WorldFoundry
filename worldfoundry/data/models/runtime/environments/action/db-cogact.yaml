@@ -1,0 +1,43 @@
+conda_packages:
+- python
+- pip
+cuda_profile: cu128
+driver_status: compatible
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: db-cogact
+notes:
+- Dexbotic official inference exposes /v1/infer and select_action policy wrappers; WorldFoundry records that contract without requiring an external server.
+- Heavy training and realtime dependencies such as deepspeed and Triton are not required for plan-only runtime checks.
+pip_packages:
+- torch>=2.6.0
+- torchvision>=0.21.0
+- transformers>=4.57.6
+- accelerate>=1.10.0
+- peft
+- bitsandbytes
+- einops
+- einops-exts
+- tokenizers
+- sentencepiece
+- timm
+- diffusers
+- numpy==1.26.4
+- Pillow
+- opencv-python
+- decord
+- av
+- fastapi
+- uvicorn
+- requests
+- pydantic==2.10.6
+- loguru
+python: '3.10'
+validation_imports:
+- numpy
+- PIL
+- torch
+- torchvision
+- transformers
+- fastapi
+- requests

@@ -1,0 +1,128 @@
+---
+title: CLI
+description: Discovery、evaluation、readiness 与 reporting 的命令参考。
+---
+
+## 介绍
+
+`worldfoundry-eval` 是公开命令入口。除非页面明确指定底层 helper，优先用它而不是直接跑脚本。先激活统一环境（`source tmp/worldfoundry_unified_env.sh`），再跑下面的命令。首次使用先看[使用指南](/zh/docs/quickstart)；需要确认 flag 或 mode 时再查本页。
+
+## Discovery
+
+```bash
+worldfoundry-eval tasks list
+worldfoundry-eval tasks list --flat
+worldfoundry-eval models list
+worldfoundry-eval zoo models --json
+worldfoundry-eval zoo benchmarks --json
+worldfoundry-eval zoo model-show --model-id <model-id> --include-manifest --json
+worldfoundry-eval zoo benchmark-show --benchmark-id <benchmark-id> --include-spec --json
+worldfoundry-eval tasks catalog --source-kind benchmark_zoo --json
+```
+
+给人读用分组输出；自动化用 `--flat` 或 `--json`。
+
+## TUI
+
+```bash
+worldfoundry-eval tui
+worldfoundry-eval tui --model-id openvla --benchmark-id libero --print-command
+```
+
+TUI 读的仍是 discovery 同一套 zoo manifest，生成统一 `run` 命令并流式显示进程，不会绕过 readiness 或 runner validation。详见 [TUI](/zh/docs/guides/tui)。
+
+## MCP
+
+```bash
+python -m pip install -e ".[mcp]"
+worldfoundry-eval mcp
+```
+
+向 MCP client 暴露 catalog discovery 与 evaluate/run 工具。`worldfoundry.mcp.MCPClient` 可导出 OpenAI 兼容的 function definitions，供 agent 集成。
+
+## Evaluation
+
+命令会写出可审查的输出目录：run manifest、逐样本结果、metric 摘要和 `scorecard.json`。复现分数时请保留命令行与 `--output-dir`。
+
+对已有结果打分：
+
+```bash
+worldfoundry-eval evaluate \
+  --results-path tmp/results.jsonl \
+  --output-dir tmp/worldfoundry_evaluate \
+  --metric artifact_count \
+  --required-artifact video \
+  --json
+```
+
+跑单个 benchmark × model：
+
+```bash
+worldfoundry-eval run \
+  --benchmark <benchmark-id> \
+  --model <model-zoo-id> \
+  --output-dir tmp/worldfoundry_benchmark_run \
+  --mode official-run \
+  --json
+```
+
+大矩阵先 plan：
+
+```bash
+worldfoundry-eval run \
+  --all-benchmarks \
+  --model <model-zoo-id> \
+  --plan-only \
+  --output-dir tmp/worldfoundry_all_benchmarks_plan \
+  --json
+```
+
+命名 suite / 单 cell：
+
+```bash
+worldfoundry-eval run \
+  --suite <suite-id> \
+  --output-dir tmp/worldfoundry_suite \
+  --json
+```
+
+展开为 suite 时会写 `suite_manifest.json`、`suite_report.md`，以及每个 cell 一个子目录。需要确定性模型输出时用 `--generation-cache-dir` 与 `--generation-cache-mode read-write`（SQLite + `audit.jsonl`；命中会记入 run manifest）。
+
+导入官方形态结果（normalizer 路径，不是 leaderboard 声明）：
+
+```bash
+worldfoundry-eval zoo benchmark-run \
+  --benchmark-id <benchmark-id> \
+  --mode official-validation \
+  --official-results-path <official_results.json> \
+  --generated-artifact-dir <generated_artifacts> \
+  --output-dir tmp/benchmark_zoo/official_validation/<benchmark-id> \
+  --json
+```
+
+各 benchmark 专用 flag 与布局（PhyGround data root、EvalCrafter 视频命名、CameraBench `--score-dir` 等）见对应 [Benchmark Hub](/zh/docs/evaluation/benchmark-hub) 页。
+
+## Readiness 与报告
+
+```bash
+worldfoundry-eval zoo model-download --model-id <model-id> --check-local --json
+worldfoundry-eval models assets --list --json
+worldfoundry-eval preflight runtime \
+  --profile <benchmark-id> \
+  --manifest worldfoundry/data/benchmarks/runtime_profiles/official/<benchmark-id>.yaml \
+  --output-dir tmp/preflight/runtime/<benchmark-id> \
+  --json
+worldfoundry-eval index-runs tmp/worldfoundry_suite/runs \
+  --output-dir tmp/worldfoundry_suite/index \
+  --output-html tmp/worldfoundry_suite/index/index.html \
+  --json
+```
+
+| 命令 | 作用 |
+| --- | --- |
+| `zoo model-download --check-local` | 对照本地 cache 检查 HF checkpoint 声明，不下载。 |
+| `models assets` | 列出可复用的 base-model / metric 资产栈。 |
+| `preflight runtime` | 报告单个 profile 的 import、env、路径与 official-validation 缺口。 |
+| `index-runs` | 写出 `index.json` / `index.jsonl` 与可选 `index.html`。 |
+| `run --plan-only` | 大矩阵执行前先审查。 |
+| `--fail-on-sample-error` | 任一 generation / metric sample 失败则整次 run 失败。 |

@@ -1,0 +1,11 @@
+schema_version: worldfoundry.official_video_runtime.v1
+model_id: omnivinci
+runtime:
+  kind: transformers_generation
+  backend_quality: official_hf_transformers_runtime
+  checkpoint_candidates:
+  - $WORLDFOUNDRY_HFD_ROOT/nvidia--omnivinci
+  trust_remote_code: true
+  torch_dtype: float16
+notes:
+- Official source is tracked as the Hugging Face model repo; no separate GitHub inference repo is known in-tree.

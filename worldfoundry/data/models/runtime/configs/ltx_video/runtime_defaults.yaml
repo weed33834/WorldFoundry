@@ -1,0 +1,14 @@
+schema_version: worldfoundry.runtime_defaults.v1
+defaults:
+  ltx_video_i2v:
+    model_name: ltx_video_i2v
+    generation_type: i2v
+    num_images_per_prompt: 1
+    image_cond_noise_scale: 0.15
+    height: 512
+    width: 768
+    num_frames: 121
+    frame_rate: 30
+    negative_prompt: worst quality, inconsistent motion, blurry, jittery, distorted
+    conditioning_start_frames: 0
+    model_path: ${WORLDFOUNDRY_CKPT_DIR}/LTX-Video

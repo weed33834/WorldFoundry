@@ -1,0 +1,32 @@
+id: multiworld
+name: MultiWorld
+aliases:
+- multiword
+- multiworld-ittakestwo
+tasks:
+- video_generation
+- multi-agent-world-model
+- interactive-video-generation
+- game-video
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/CIntellifusion/MultiWorld
+  license: manual_review:custom-licence
+official_sources:
+  github:
+    url: https://github.com/CIntellifusion/MultiWorld
+    head_sha: 6e0a1c3414a97dd5528d94f67ba3c48cf6d36ab5
+runtime_profile: runtime-profile:multiworld
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: multiworld
+integration:
+  status: planned
+  notes:
+  - The in-tree MultiWorld ItTakesTwo wrapper is registered as the model-zoo entry;
+    full generation remains dependency/checkpoint gated.
+runner_parity:
+  status: pending
+catalog_category: world_models
+catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry
+  runtimes; blocked entries retain upstream provenance without runnable backends.

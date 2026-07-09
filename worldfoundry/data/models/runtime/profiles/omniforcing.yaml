@@ -1,0 +1,28 @@
+artifact_filename: omniforcing_runtime_plan.json
+artifact_kind: generated_video
+backend_stage: worldfoundry_runtime_plan
+display_name: OmniForcing
+id: omniforcing
+input_schema:
+  actions:
+  - forcing_signal
+  - interaction
+  audio: true
+  image: true
+  prompt: true
+  video: true
+integration_status: runtime_ported
+notes:
+- OmniForcing official source route is registered; checkpoints/runtime assets are
+  runtime-gated.
+- Missing checkpoints/assets are reported by the runtime plan and are not catalog
+  blockers.
+- WorldFoundry tracks upstream source and checkpoint metadata only; no runnable pipeline
+  is registered.
+- Official source is bound from ${WORLDFOUNDRY_MODEL_SOURCE_DIR}/OmniForcing at cd6791433e3de4cbe156c125730d45a45d52fcae.
+runtime_status: route_ready_assets_pending
+task_family: world_model
+execution:
+  pipeline_binding: omniforcing
+  backend_stage: worldfoundry_runtime_plan
+  runtime_status: route_ready_assets_pending

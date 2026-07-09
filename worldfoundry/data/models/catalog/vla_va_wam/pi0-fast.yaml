@@ -1,0 +1,31 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+id: pi0-fast
+name: pi0-FAST
+aliases:
+- pi0_fast
+- openpi-pi0-fast
+availability: open_source
+provider: official_repo
+official_sources:
+  github:
+    head_sha: c23745b5ad24e98f66967ea795a07b2588ed6c79
+    url: https://github.com/Physical-Intelligence/openpi
+integration:
+  status: runtime_ported
+  notes:
+  - Concrete pi0-FAST algorithm entry backed by Physical Intelligence openpi.
+  - FAST action-token decoding should be integrated as algorithm-specific runtime behavior, not as a LeRobot policy-zoo variant.
+  - WorldFoundry reuses the in-tree OpenPI runtime with pi0_fast_droid configuration and pi0-FAST checkpoint resolution.
+tasks:
+- vla
+- vla.policy_rollout
+- robot_policy
+- action_tokenization
+output_artifacts:
+- action_trace
+pipeline_binding: pi0-fast
+runtime_profile: runtime-profile:pi0-fast
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint
+  metadata, and runtime-profile planning records. Runner or pipeline targets are present
+  only after a complete in-tree WorldFoundry model runtime is registered and validated.

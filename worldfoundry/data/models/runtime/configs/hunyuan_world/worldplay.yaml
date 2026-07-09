@@ -1,0 +1,27 @@
+schema_version: worldfoundry-hunyuan-world-runtime-config-v1
+runtime: hunyuan_worldplay
+description: Public Hunyuan WorldPlay pipeline defaults; source code should only contain inference logic.
+defaults:
+  model_path: ${WORLDFOUNDRY_CKPT_DIR}/HY-WorldPlay
+  video_model_path: ${WORLDFOUNDRY_CKPT_DIR}/HunyuanVideo-1.5
+  mode: 480p_i2v
+  device: cuda
+  create_sr_pipeline: false
+  force_sparse_attn: false
+  transformer_dtype: bfloat16
+  enable_offloading: true
+  enable_group_offloading:
+  overlap_group_offloading: true
+  init_infer_state: true
+  infer_state_kwargs:
+    sage_blocks_range: 0-53
+    use_sageattn: false
+    enable_torch_compile: false
+    use_fp8_gemm: false
+    quant_type: fp8-per-block
+    include_patterns: double_blocks
+    use_vae_parallel: false
+  operator:
+    forward_speed: 0.08
+    yaw_speed_deg: 3.0
+    pitch_speed_deg: 3.0

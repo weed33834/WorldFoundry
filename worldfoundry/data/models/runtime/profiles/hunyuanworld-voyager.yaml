@@ -1,0 +1,31 @@
+schema_version: 2
+model_id: hunyuanworld-voyager
+display_name: HunyuanWorld-Voyager
+task_family: world_model
+groups:
+- world
+- video
+source_repos:
+- url: https://github.com/Tencent-Hunyuan/HunyuanWorld-Voyager
+checkpoints:
+- repo_id: tencent/HunyuanWorld-Voyager
+  role: voyager_checkpoint
+input_schema:
+  prompt: false
+  image: true
+  video: false
+  actions:
+  - camera_path
+  - navigation_action
+artifact_kind: generated_world
+artifact_filename: hunyuanworld-voyager.mp4
+execution:
+  backend_stage: in_tree_runtime
+  runtime_status: official_case1_contract
+  integration_status: integrated
+  pipeline_binding: hunyuanworld-voyager
+integration:
+  status: integrated
+notes:
+- HunyuanWorldVoyagerPipeline wraps the in-tree Voyager runtime and does not depend
+  on an external source checkout.

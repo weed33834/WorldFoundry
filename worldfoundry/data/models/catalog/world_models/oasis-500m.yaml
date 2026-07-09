@@ -1,0 +1,45 @@
+id: oasis-500m
+name: Oasis 500M
+aliases:
+- open-oasis
+- oasis
+tasks:
+- interactive-world-model
+- minecraft-world-model
+- action-conditioned-video
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/etched-ai/open-oasis
+  hf_repo_id: Etched/oasis-500m
+  license: mit
+official_sources:
+  project_page: https://oasis-model.github.io/
+  github:
+    url: https://github.com/etched-ai/open-oasis
+  huggingface:
+  - repo_id: Etched/oasis-500m
+    status: confirmed
+checkpoints:
+- repo_id: Etched/oasis-500m
+  license: mit
+integration:
+  status: runtime_ported
+  blocked_reasons:
+  - Official source is vendored in-tree under synthesis/visual_generation; runnable execution still requires the official
+    dependency environment, checkpoints, prompt image/video, and action tensors.
+  notes:
+  - WorldFoundry registers an in-tree runtime manifest pipeline for the vendored Open-Oasis source.
+  - A model-specific WorldFoundry pipeline is registered against the independent in-tree Open-Oasis source package; real upstream
+    inference remains checkpoint/environment gated.
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - The pipeline resolves the official Open-Oasis generate entrypoint and returns blocked runtime diagnostics until checkpoints
+    and action assets are staged.
+runtime_profile: runtime-profile:oasis-500m
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: oasis-500m
+catalog_category: world_models
+catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry runtimes; blocked entries retain
+  upstream provenance without runnable backends.

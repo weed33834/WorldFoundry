@@ -1,0 +1,38 @@
+conda_packages:
+- python
+- pip
+cuda_profile: cu128
+driver_status: compatible
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: mme-vla
+notes:
+- Official policy environment uses uv with Python 3.11-3.12, torch 2.7.1, JAX CUDA 12, and OpenPI-style websocket serving.
+- WorldFoundry plan-only and metadata checks avoid launching JAX, websocket servers, or RoboMME simulator jobs.
+pip_packages:
+- torch==2.7.1
+- jax[cuda12]==0.5.3
+- flax==0.10.2
+- orbax-checkpoint==0.11.13
+- transformers==4.53.2
+- numpy>=1.22.4,<2.0.0
+- pillow>=11.0.0
+- opencv-python>=4.10.0.84
+- einops>=0.8.0
+- sentencepiece>=0.2.0
+- ml_collections==1.0.0
+- tyro>=0.9.5
+- hydra-core>=1.3.2
+- flask>=3.1.3
+- loguru>=0.7.3
+- pandas>=3.0.1
+- h5py==3.13.0
+python: '3.11'
+validation_imports:
+- numpy
+- PIL
+- torch
+- transformers
+- flask
+- hydra
+- loguru

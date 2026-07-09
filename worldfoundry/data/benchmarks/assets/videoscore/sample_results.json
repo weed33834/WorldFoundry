@@ -1,0 +1,9 @@
+{
+  "scores": {
+    "visual_quality": 2.9,
+    "temporal_consistency": 2.85,
+    "dynamic_degree": 2.6,
+    "text_to_video_alignment": 2.7,
+    "factual_consistency": 2.75
+  }
+}

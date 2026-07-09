@@ -1,0 +1,30 @@
+artifact_filename: openpi_action_trace.json
+artifact_kind: action_trace
+backend_stage: in_tree_runtime
+checkpoints:
+- local_dir: ${WORLDFOUNDRY_CKPT_DIR}/openpi-assets/checkpoints/pi05_libero
+  path: gs://openpi-assets/checkpoints/pi05_libero
+  role: pi05_libero_demo_checkpoint
+id: openpi
+input_schema:
+  actions:
+  - robot_action
+  - proprio
+  - action_space
+  image: true
+  instruction: true
+  prompt: true
+  video: false
+integration_status: integrated
+notes:
+- VLA policy profile for pi0/pi0.5-style policies. Checkpoints are normally resolved
+  from GCS by OpenPI.
+- WorldFoundry stages the pi05_libero GCS checkpoint locally for repeatable demo setup.
+- Not a video-generation profile; scorecards should consume action_trace and rollout
+  metadata.
+- WorldFoundry vendors OpenPI and openpi_client runtime source under worldfoundry/synthesis/action_generation/openpi/openpi_runtime.
+  py_compile, wrapper import, from_pretrained, and plan-only predict were ready in
+  the OpenPI prepare environment.
+runtime_status: in_tree_openpi_pi05_libero_jax_gpu_infer_ready
+task_family: vla_policy
+verification_status: official_demo_jax_gpu_ready

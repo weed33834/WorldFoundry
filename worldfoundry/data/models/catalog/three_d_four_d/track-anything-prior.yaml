@@ -1,0 +1,39 @@
+id: track-anything-prior
+name: Segment and Track Anything Prior
+aliases:
+- segment-and-track-anything
+- track-anything
+- aot-deaot-l
+tasks:
+- video-object-segmentation
+- object-tracking
+- geometry-prior
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/z-x-yang/Segment-and-Track-Anything
+  license: agpl-3.0
+checkpoint_refs:
+- path: https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth
+  filename: sam_vit_b_01ec64.pth
+- repo_id: ShilongLiu/GroundingDINO
+  filename: groundingdino_swint_ogc.pth
+integration:
+  kind: pipeline_runner
+  status: integrated
+  notes:
+  - Integrated as an independent tracking prior at worldfoundry/base_models/perception_core/tracking/track_anything.
+  - Its SAM, GroundingDINO, and AOT subcomponents reuse canonical WorldFoundry owners
+    where available.
+  - Exposed through the shared WorldFoundry geometry-prior pipeline/operator contract.
+base_model_target: worldfoundry.base_models.perception_core.tracking.track_anything
+runtime_profile: runtime-profile:track-anything-prior
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - resolve_model_zoo_config and pipeline/operator import are expected to pass; real
+    prior inference remains gated by checkpoints/assets.
+catalog_category: three_d_four_d
+catalog_scope: Independent geometric prior integrations used by 3D and world-model
+  runtimes.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner

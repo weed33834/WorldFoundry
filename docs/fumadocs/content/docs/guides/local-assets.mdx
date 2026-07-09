@@ -1,0 +1,274 @@
+---
+title: Local assets
+description: Where to look up sources, where to download, and which commands to run for checkpoints, datasets, and repos.
+---
+
+## 0. Prerequisites
+
+Use this page when a command says that a checkpoint, dataset, metric weight, generated output, or official result file is missing. WorldFoundry keeps these large or licensed files outside git; the repository holds code and manifests, while your machine or shared storage holds the assets those manifests reference.
+
+Typical path: inspect the model or benchmark id with `worldfoundry-eval zoo ... --json`, generate a per-benchmark asset plan when evaluating, then stage only what the next run needs. You do not need every benchmark asset before using the framework. For the unified conda env, see [Environments](/docs/reference/environments).
+
+Install the Hugging Face Hub package. The optional CLI (`hf` / `huggingface-cli`) is used when available; download scripts fall back to `huggingface_hub.snapshot_download` otherwise:
+
+```bash
+python -m pip install "huggingface_hub[cli]"
+```
+
+For gated models or datasets, accept upstream terms first, then export a token:
+
+```bash
+export HF_TOKEN="hf_..."   # or: huggingface-cli login
+```
+
+If `huggingface.co` is slow from your region, use the [HF-Mirror](https://hf-mirror.com) `hfd` downloader (requires `aria2c`):
+
+```bash
+wget https://hf-mirror.com/hfd/hfd.sh
+chmod a+x hfd.sh
+export HF_ENDPOINT=https://hf-mirror.com
+
+./hfd.sh Skywork/Matrix-Game-2.0 \
+  --local-dir "${WORLDFOUNDRY_HFD_ROOT:-${HOME}/.cache/worldfoundry/models/checkpoints/hfd}/Skywork--Matrix-Game-2.0"
+
+./hfd.sh BestWishYsh/ChronoMagic-Pro --dataset \
+  --local-dir "${WORLDFOUNDRY_HFD_DATASET_ROOT:-${HOME}/.cache/worldfoundry/cache/data/datasets}/BestWishYsh__ChronoMagic-Pro"
+```
+
+You can also keep using `hf download` after setting `HF_ENDPOINT=https://hf-mirror.com`. For gated repos, accept the license on huggingface.co first, then pass `--hf_token "${HF_TOKEN}"`.
+
+## 1. Initialize directories and env vars
+
+These directories are runtime state, not source code. Put them on durable storage with enough capacity for checkpoints, datasets, metric weights, generated videos, and result bundles.
+
+```bash
+export WORLDFOUNDRY_HOME="${WORLDFOUNDRY_HOME:-${HOME}/.cache/worldfoundry}"
+export WORLDFOUNDRY_CACHE_DIR="${WORLDFOUNDRY_CACHE_DIR:-${WORLDFOUNDRY_HOME}/cache}"
+export WORLDFOUNDRY_DATA_DIR="${WORLDFOUNDRY_DATA_DIR:-${WORLDFOUNDRY_CACHE_DIR}/data}"
+export WORLDFOUNDRY_MODEL_DIR="${WORLDFOUNDRY_MODEL_DIR:-${WORLDFOUNDRY_CACHE_DIR}/models}"
+export WORLDFOUNDRY_CKPT_DIR="${WORLDFOUNDRY_CKPT_DIR:-${WORLDFOUNDRY_MODEL_DIR}/checkpoints}"
+export WORLDFOUNDRY_HFD_ROOT="${WORLDFOUNDRY_HFD_ROOT:-${WORLDFOUNDRY_CKPT_DIR}/hfd}"
+export WORLDFOUNDRY_HFD_DATASET_ROOT="${WORLDFOUNDRY_HFD_DATASET_ROOT:-${WORLDFOUNDRY_DATA_DIR}/datasets}"
+export WORLDFOUNDRY_ARTIFACT_DIR="${WORLDFOUNDRY_ARTIFACT_DIR:-${WORLDFOUNDRY_HOME}/artifacts}"
+export HF_HOME="${HF_HOME:-${WORLDFOUNDRY_HOME}/huggingface}"
+export HF_HUB_CACHE="${HF_HUB_CACHE:-${HF_HOME}/hub}"
+
+mkdir -p \
+  "${WORLDFOUNDRY_HFD_ROOT}" \
+  "${WORLDFOUNDRY_HFD_DATASET_ROOT}" \
+  "${WORLDFOUNDRY_CACHE_DIR}/repos" \
+  "${WORLDFOUNDRY_ARTIFACT_DIR}/runs"
+```
+
+On shared machines, set roots through bootstrap or Workspace flags:
+
+```bash
+bash scripts/setup/bootstrap_worldfoundry.sh \
+  --home /path/to/worldfoundry-home \
+  --data-root /path/to/worldfoundry-data \
+  --model-root /path/to/worldfoundry-models \
+  --artifact-root /path/to/worldfoundry-artifacts
+source tmp/worldfoundry_unified_env.sh
+```
+
+```text
+parent/
+  WorldFoundry/
+  ckpt/
+  data/
+```
+
+When `WORLDFOUNDRY_CKPT_DIR` / `WORLDFOUNDRY_DATA_DIR` are unset, `scripts/workspace/run_workspace.sh` uses those sibling directories if they exist. Prefer explicit roots in CI:
+
+```bash
+bash scripts/workspace/run_workspace.sh \
+  --ckpt-dir /path/to/ckpt \
+  --data-dir /path/to/data
+```
+
+### Path naming
+
+| Source | Local directory rule | Example |
+| --- | --- | --- |
+| HF model `org/name` | `org--name` | `Skywork/Matrix-Game-2.0` → `Skywork--Matrix-Game-2.0` |
+| HF dataset `org/name` | `org__name` | `lerobot/libero` → `lerobot__libero` |
+| GitHub `owner/repo` | often `owner--repo` | `Lifelong-Robot-Learning/LIBERO` → `Lifelong-Robot-Learning--LIBERO` |
+
+**Follow the `path` field in catalog YAML or `local_assets.example.yaml`.** Some embodied benchmarks still use legacy paths such as `cache/vla_va_wam/hf_datasets/org--name`; mirror that layout or override the path in your manifest.
+
+## 2. Where to look up required assets
+
+Asset requirements live in manifests so docs, TUI, CLI, and runners describe the same run. Prefer the CLI summary first; open YAML when you need the exact source declaration.
+
+### Worked example: `matrix-game-2` (model checkpoint)
+
+`worldfoundry/data/models/catalog/world_models/matrix-game-2.yaml`
+
+```yaml
+id: matrix-game-2
+name: Matrix-Game 2.0
+checkpoints:
+- Skywork/Matrix-Game-2.0
+checkpoint:
+  repos:
+  - id: Skywork/Matrix-Game-2.0
+    sha: f1729d99a80e0f07993a77d7dad4a3190e23c2c8
+    gated: false
+    license: mit
+  status: confirmed_public_hf
+runtime_profile: runtime-profile:matrix-game-2-universal-ref-image-seed42-15f
+official_sources:
+  huggingface:
+  - repo_id: Skywork/Matrix-Game-2.0
+    type: model
+    status: confirmed
+```
+
+`checkpoints` / `checkpoint.repos[].id` is what you download; `sha` pins the revision; `runtime_profile` points at expected local paths and env. Same facts via CLI:
+
+```bash
+worldfoundry-eval zoo model-show --model-id matrix-game-2 --json
+```
+
+Local layout after staging:
+
+```text
+${WORLDFOUNDRY_HFD_ROOT}/hub/models--Skywork--Matrix-Game-2.0/
+# or:
+${WORLDFOUNDRY_CKPT_DIR}/Skywork--Matrix-Game-2.0/
+```
+
+### Worked example: `libero` (benchmark assets)
+
+`worldfoundry/data/benchmarks/catalog/embodied/libero.yaml`
+
+```yaml
+id: libero
+name: LIBERO
+official_sources:
+  github:
+    url: https://github.com/Lifelong-Robot-Learning/LIBERO
+  huggingface_datasets:
+  - repo_id: yifengzhu-hf/LIBERO-datasets
+    revision: f13aa24a3da8c43c7225569f28c562979fa0e35a
+  - repo_id: lerobot/libero
+    revision: 1595a93b43aa055e55c127a4f0b4a99bb8035447
+dataset_refs:
+- repo_id: yifengzhu-hf/LIBERO-datasets
+  path: cache/vla_va_wam/hf_datasets/yifengzhu-hf--LIBERO-datasets
+- repo_id: lerobot/libero
+  path: cache/vla_va_wam/hf_datasets/lerobot--libero
+runner:
+  runtime:
+    root_env: WORLDFOUNDRY_LIBERO_ROOT
+    results_path_env: WORLDFOUNDRY_LIBERO_RESULTS_PATH
+    required_assets:
+    - LIBERO dataset root or LeRobot conversion
+    - suite-specific policy checkpoint
+    - official rollout logs/result dump
+```
+
+`dataset_refs[].repo_id` is the HF download; `path` is the expected relative layout under your data root; `required_assets` / `*_env` name the rest. Merge catalog + task + profile into one checklist:
+
+```bash
+worldfoundry-eval zoo benchmark-show --benchmark-id libero --json
+
+python scripts/setup/prepare_benchmark_assets.py \
+  --benchmark-id libero \
+  --json
+```
+
+Planner fields to read: `assets.data`, `assets.checkpoints`, `env.api_or_secret`, `download_hints.hf`, `commands.official_runtime`, `commands.official_result_import`.
+
+## 3. Model checkpoints (inference)
+
+Plan only, then execute after you accept storage and license:
+
+```bash
+worldfoundry-eval zoo model-download \
+  --model-id matrix-game-2 \
+  --cache-dir "${WORLDFOUNDRY_HFD_ROOT}" \
+  --check-local \
+  --json
+
+worldfoundry-eval zoo model-download \
+  --model-id matrix-game-2 \
+  --cache-dir "${WORLDFOUNDRY_HFD_ROOT}" \
+  --execute \
+  --disable-xet \
+  --check-local \
+  --json
+```
+
+Alternatives:
+
+```bash
+bash scripts/inference/prepare_model_infer.sh matrix-game-2 --download
+
+hf download Skywork/Matrix-Game-2.0 \
+  --revision f1729d99a80e0f07993a77d7dad4a3190e23c2c8 \
+  --local-dir "${WORLDFOUNDRY_HFD_ROOT}/Skywork--Matrix-Game-2.0"
+
+bash scripts/download_hfd_models.sh matrix-game-2
+```
+
+For other models, use the `repo_id` / `revision` from that model's catalog entry the same way. On a shared machine with pre-staged snapshots, set `WORLDFOUNDRY_MODEL_DIR` and symlink HF cache names instead of copying weights:
+
+```bash
+bash scripts/setup/link_hf_checkpoints.sh \
+  --ckpt-dir "${WORLDFOUNDRY_CKPT_DIR}" \
+  --hfd-root "${WORLDFOUNDRY_HFD_ROOT}" \
+  --hf-hub-cache "${HF_HUB_CACHE}" \
+  --repo Skywork/Matrix-Game-2.0=Matrix-Game-2.0 \
+  --default-world
+```
+
+WorldFoundry prefers native HF loading (`from_pretrained`, `snapshot_download`, `HF_HOME` / `HF_HUB_CACHE`). `${WORLDFOUNDRY_CKPT_DIR}` symlinks are for upstream runtimes that need a fixed directory layout. Metric weights for VBench-family scorers are listed on the relevant [Benchmark Hub](/docs/evaluation/benchmark-hub) and [Metrics](/docs/evaluation/metrics) pages, or in the planner JSON under `assets.checkpoints`.
+
+## 4. Benchmark datasets
+
+WorldFoundry does **not** bulk-download every benchmark dataset. Generate a plan, then run the `download_hints.hf` lines (or the official URL in `source_provenance`):
+
+```bash
+python scripts/setup/prepare_benchmark_assets.py \
+  --benchmark-id <benchmark-id> \
+  --json
+
+python scripts/setup/prepare_benchmark_assets.py \
+  --benchmark-id <benchmark-id> \
+  --write-env "${WORLDFOUNDRY_HOME:-${HOME}/.cache/worldfoundry}/<benchmark-id>.env" \
+  --create-dirs
+
+source "${WORLDFOUNDRY_HOME:-${HOME}/.cache/worldfoundry}/<benchmark-id>.env"
+```
+
+Manual dataset example:
+
+```bash
+hf download Howieeeee/WorldScore \
+  --repo-type dataset \
+  --local-dir "${WORLDFOUNDRY_DATA_DIR}/datasets/Howieeeee__WorldScore"
+```
+
+For gated datasets, accept the upstream license and set `HF_TOKEN` first. Per-benchmark layouts and run requirements live on the [Benchmark Hub](/docs/evaluation/benchmark-hub) pages.
+
+## 5. `local_assets` manifest
+
+Copy the example outside git and point one env var at it:
+
+```bash
+cp worldfoundry/data/benchmarks/local_assets.example.yaml \
+   "${WORLDFOUNDRY_HOME}/local_assets.yaml"
+
+export WORLDFOUNDRY_LOCAL_ASSET_MANIFEST="${WORLDFOUNDRY_HOME}/local_assets.yaml"
+```
+
+| `kind` | You stage | Typical command |
+| --- | --- | --- |
+| `repo` | Existing source/runtime root | Set `WORLDFOUNDRY_<BENCHMARK>_ROOT=<path>` |
+| `dataset` | HF dataset snapshot | `hf download <id> --repo-type dataset --local-dir <path>` |
+| `checkpoint` | Model weights | `hf download <id> --local-dir <path>` |
+| `simulator_asset` | Simulator files | Manual install per benchmark docs |
+| `result_dump` | Upstream official results | Copy after running upstream evaluator |
+
+Embodied simulator roots and helper scripts are covered in [Embodied official runtime](/docs/evaluation/embodied-official-runtime).

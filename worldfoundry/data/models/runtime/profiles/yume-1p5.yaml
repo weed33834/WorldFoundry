@@ -1,0 +1,35 @@
+schema_version: 2
+model_id: yume-1p5
+display_name: YUME-1.5
+task_family: world_model
+groups:
+- world
+- video
+- camera_control
+source_repos:
+- url: https://github.com/stdstu12/YUME
+- url: https://huggingface.co/stdstu123/Yume-5B-720P
+checkpoints:
+- repo_id: stdstu123/Yume-5B-720P
+  role: yume_1p5_720p_checkpoint
+input_schema:
+  prompt: true
+  image: true
+  video: true
+  actions:
+  - navigation_actions
+  - camera_actions
+artifact_kind: generated_world
+artifact_filename: yume-1p5.mp4
+execution:
+  backend_stage: in_tree_runtime
+  runtime_status: official_i2v_contract
+  integration_status: verified
+  pipeline_binding: yume-1p5
+integration:
+  status: verified
+notes:
+- Runtime profile for the in-tree YUME-1.5 pipeline and vendored YUME-1.5 runtime
+  under worldfoundry/synthesis/visual_generation/yume.
+- Runtime execution uses the unified WorldFoundry CUDA environment first; the pipeline
+  resolves direct HFD aliases and native Hugging Face cache snapshots.

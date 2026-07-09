@@ -1,0 +1,3 @@
+{"task": "video_generation", "human_label": "A>B", "prediction": "A>B"}
+{"task": "video_generation", "human_label": "B>A", "prediction": "A>B"}
+{"task": "image_generation", "human_label": "A=B=Good", "prediction": "A=B=Good"}

@@ -1,0 +1,47 @@
+id: mikasa_eval
+output_dir: ./results/mikasa_eval
+model_id: external-policy-server
+server:
+  url: ws://localhost:8000
+benchmark_id: mikasa
+benchmark_kwargs:
+  tasks:
+    - RememberColor3-v0
+    - RememberColor5-v0
+    - RememberColor9-v0
+    - RememberShape3-v0
+    - RememberShape6-v0
+    - RememberShape9-v0
+    - ShellGameTouch-v0
+    - ShellGamePush-v0
+    - ShellGamePick-v0
+    - RotateLenientPos-v0
+    - RotateLenientPosNeg-v0
+    - RotateStrictPos-v0
+    - RotateStrictPosNeg-v0
+    - InterceptSlow-v0
+    - InterceptMedium-v0
+    - InterceptFast-v0
+    - InterceptGrabSlow-v0
+    - InterceptGrabMedium-v0
+    - InterceptGrabFast-v0
+    - TakeItBack-v0
+    - BunchOfColors3-v0
+    - BunchOfColors5-v0
+    - BunchOfColors7-v0
+    - SeqOfColors3-v0
+    - SeqOfColors5-v0
+    - SeqOfColors7-v0
+    - ChainOfColors3-v0
+    - ChainOfColors5-v0
+    - ChainOfColors7-v0
+    - RememberShapeAndColor3x2-v0
+    - RememberShapeAndColor3x3-v0
+    - RememberShapeAndColor5x3-v0
+  render_resolution:
+    - 256
+    - 256
+episodes_per_task: 50
+metric_ids:
+  - task_success
+  - success_rate

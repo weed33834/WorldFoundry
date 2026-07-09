@@ -1,0 +1,132 @@
+benchmark: robomme
+description: RoboMME external benchmark manifest for memory and multimodal embodied policy evaluation.
+tags:
+- benchmark-zoo
+- external-official
+- robomme
+- vla
+- embodied-action
+- memory
+splits:
+- eval
+- counting
+- imitation
+- permanence
+- reference
+metrics:
+  success_rate:
+    aggregation: mean
+    primary: true
+  counting_success_rate:
+    aggregation: mean
+  permanence_success_rate:
+    aggregation: mean
+  reference_success_rate:
+    aggregation: mean
+  imitation_success_rate:
+    aggregation: mean
+metadata:
+  source_kind: benchmark_zoo
+  benchmark_id: robomme
+  status: integrated
+  official_runner_target: worldfoundry.evaluation.tasks.contracts.external:RoboMMEContract
+  runtime:
+    kind: external_official_results_runner
+    root_env: WORLDFOUNDRY_ROBOMME_ROOT
+    results_path_env: WORLDFOUNDRY_ROBOMME_RESULTS_PATH
+    preflight_profile: robomme
+  local_evaluator:
+    target: worldfoundry.evaluation.tasks.embodied.normalizer:normalize_results
+    status: implemented
+    protocol: official_embodied_result_normalizer
+  contract_validation_command: worldfoundry-eval zoo benchmark-run --benchmark-id robomme --mode contract --output-dir 
+    tmp/benchmark_zoo/benchmark_contract/robomme --json
+  release_status: normalizer_only
+  maturity: contract_ready
+  open_source_status: normalizer_only
+  official_benchmark_verified: false
+  integration_evidence: true
+  leaderboard_valid: false
+  requires:
+  - Official simulator runtime
+  - benchmark assets
+  - policy checkpoint
+  - official result dump
+  blockers:
+  - Full leaderboard parity is not claimed until official rollouts are executed and imported.
+  runner_availability:
+    available: true
+    runner_target: worldfoundry.evaluation.tasks.contracts.external:RoboMMEContract
+    task_yaml_available: true
+    runtime_verified: false
+    normalizer_verified: true
+    surface: official_result_normalizer
+    runner_script_available: false
+  artifact_layout:
+    generated_artifact_dir_env: WORLDFOUNDRY_ROBOMME_RESULTS_PATH
+    output_artifact: benchmark_scorecard
+    filename_template: scorecard.json
+  data_refs:
+    task_yaml: worldfoundry/data/benchmarks/tasks/external/robomme.yaml
+  checkpoint_refs: []
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - robomme
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <official_results.json>
+  - --output-dir
+  - <out>
+  - --json
+tasks:
+  robomme_policy_rollouts:
+    benchmark_name: robomme
+    protocol: external_official_benchmark
+    capability_track: vla,embodied-action,memory
+    input_keys:
+    - dataset_root
+    - simulator_root
+    - memory_manifest
+    - policy_results_path
+    - official_results_path
+    output_keys:
+    - scorecard
+    - raw_results
+    - per_sample_metrics
+    - rollout_logs
+    - videos
+    metric_ids:
+    - success_rate
+    - counting_success_rate
+    - permanence_success_rate
+    - reference_success_rate
+    - imitation_success_rate
+    tags:
+    - benchmark-zoo
+    - external-official
+    - robomme
+    - vla
+    metadata:
+      benchmark_id: robomme
+      leaderboard_valid: false
+
+      source_kind: benchmark_zoo
+      official_benchmark_verified: false
+      integration_evidence: true
+    artifact_contract:
+      required:
+        benchmark_scorecard:
+          kind: benchmark_result
+    evaluation_protocol:
+    - name: external_official_runner
+      metric_ids:
+      - success_rate
+      - counting_success_rate
+      - permanence_success_rate
+      - reference_success_rate
+      - imitation_success_rate
+      runner_target: worldfoundry.evaluation.tasks.contracts.external:RoboMMEContract

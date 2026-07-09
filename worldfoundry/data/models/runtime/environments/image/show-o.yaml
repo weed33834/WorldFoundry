@@ -1,0 +1,36 @@
+conda_packages:
+- python
+- pip
+- ffmpeg
+cuda_profile: cu113
+driver_status: compatible_with_downgraded_torch
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: show-o
+notes:
+- Show-O now has an in-tree WorldFoundry t2i runtime wrapper. Full generation requires staged Show-O and MAGVITv2 weights.
+pip_packages:
+- torch
+- torchvision
+- accelerate
+- datasets
+- diffusers
+- einops
+- fairscale
+- huggingface-hub
+- numpy
+- omegaconf
+- open-clip-torch
+- opencv-python
+- pillow
+- safetensors
+- sentencepiece
+- timm
+- tokenizers
+- transformers
+python: '3.10'
+validation_imports:
+- torch
+- diffusers
+- transformers
+- open_clip

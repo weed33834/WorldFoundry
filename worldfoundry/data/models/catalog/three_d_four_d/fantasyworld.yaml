@@ -1,0 +1,77 @@
+id: fantasyworld
+name: FantasyWorld
+aliases:
+- Geometry-Consistent World Modeling via Unified Video and 3D Prediction
+area: 3d
+task: geometry-consistent world modeling
+developer: AMAP and Beijing University of Posts and Telecommunications authors
+user_starred: true
+official_sources:
+  github: https://github.com/Fantasy-AMAP/fantasy-world
+  project_page: https://fantasy-amap.github.io/fantasy-world/
+  paper: https://arxiv.org/abs/2509.21657
+availability:
+  status: source_available
+  open_source: false
+  code: public
+  weights: not_confirmed
+  license: not_found
+integration:
+  kind: pipeline_runner
+  status: integrated
+  notes:
+  - WorldFoundry exposes the in-tree FantasyWorld Wan2.1 and Wan2.2 camera-control pipelines.
+  - The release-facing default is the Wan2.1 pipeline because it has passed Studio artifact and visual validation.
+  - Wan2.2 remains integrated but hidden from Studio until its official memory strategy is verified.
+confirmation: Public GitHub repo and project page were reachable; no LICENSE file or official HF weights were confirmed, so
+  not marked open_source.
+output_artifacts:
+- generated_world
+runtime_profile: runtime-profile:fantasyworld
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: fantasyworld
+variants:
+- id: fantasyworld-wan21
+  task: image-to-world-video
+  provider: official_repo
+  runtime_profile: runtime-profile:fantasyworld-wan21
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: fantasyworld-wan21
+  integration:
+    status: verified
+  runner_parity:
+    status: verified
+    notes:
+    - The in-tree FantasyWorld Wan2.1 runner supports the official camera-world demo route in the unified environment profile.
+    - Per-run visual QA and artifact checks are tracked outside the model catalog.
+- id: fantasyworld-wan22
+  task: camera-controlled-world-video
+  provider: official_repo
+  runtime_profile: runtime-profile:fantasyworld-wan22
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: fantasyworld-wan22
+  integration:
+    status: integrated
+  runner_parity:
+    status: pending
+    notes:
+    - Import and catalog binding are wired; checkpoint/GPU parity is pending.
+runner_parity:
+  status: verified
+  notes:
+  - The default FantasyWorld row resolves to the in-tree Wan2.1 runner.
+  - Wan2.2 remains pending because the official single-GPU run requires an accepted memory strategy.
+  - Per-run validation evidence is tracked outside the model catalog.
+catalog_category: three_d_four_d
+catalog_scope: Official-source manifest for 3D, 4D, and camera-controlled world/model generation projects.
+catalog_policy:
+  open_source_true_requires: An official GitHub or Hugging Face source with an explicit OSI-style software license or otherwise
+    clearly open source/open weights metadata. Public code without a license is source-available, not open_source.
+  weights_policy: Weights were not downloaded. Entries record only official repository, Hugging Face, project page, paper,
+    and license metadata.
+  status_values:
+  - open_source
+  - source_available
+  - open_weights_restricted
+  - api_or_closed
+  - unknown

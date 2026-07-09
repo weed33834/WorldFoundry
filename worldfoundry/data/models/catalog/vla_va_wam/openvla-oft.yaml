@@ -1,0 +1,93 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+aliases:
+- openvla_oft
+- openvla-oft-libero
+availability: open_source
+checkpoint:
+  license: mit
+  repo_id: moojink/openvla-7b-oft-finetuned-libero-spatial
+id: openvla-oft
+integration:
+  status: checkpoint_backed_runtime_ready
+  notes:
+  - WorldFoundry has an in-tree OpenVLA-OFT runtime for HF/local checkpoints, action head, proprio projector, and official LIBERO observation inputs.
+  - Training, RLDS data processing, TensorFlow data tooling, and LIBERO benchmark loops are intentionally excluded.
+license: mit
+name: OpenVLA-OFT
+official_sources:
+  github:
+    head_sha: e4287e94541f
+    url: https://github.com/moojink/openvla-oft
+  huggingface:
+  - repo_id: moojink/openvla-7b-oft-finetuned-libero-spatial
+    role: libero_spatial_oft_checkpoint
+    status: confirmed_from_readme
+  - repo_id: moojink/openvla-7b-oft-finetuned-libero-object
+    role: libero_object_oft_checkpoint
+    status: confirmed_from_hf
+  - repo_id: moojink/openvla-7b-oft-finetuned-libero-goal
+    role: libero_goal_oft_checkpoint
+    status: confirmed_from_hf
+  - repo_id: moojink/openvla-7b-oft-finetuned-libero-10
+    role: libero_10_oft_checkpoint
+    status: confirmed_from_hf
+  - repo_id: moojink/openvla-7b-oft-finetuned-libero-spatial-object-goal-10
+    role: libero_spatial_object_goal_10_oft_checkpoint
+    status: confirmed_from_hf
+output_artifacts:
+- action_trace
+pipeline_binding: openvla-oft
+provider: official_repo
+runtime_profile: runtime-profile:openvla-oft
+tasks:
+- vla
+- vla.action_prediction
+- vla.policy_rollout
+variants:
+- id: openvla-oft-libero-spatial
+  integration_status: checkpoint_backed_runtime_ready
+  task: vla.policy_rollout
+  checkpoint_refs:
+  - repo_id: moojink/openvla-7b-oft-finetuned-libero-spatial
+    license: mit
+  notes:
+  - Official README demo loads sample_libero_spatial_observation.pkl with full_image, wrist_image, state, and task_description.
+  - Default unnorm_key is libero_spatial_no_noops; output is a future action chunk.
+- id: openvla-oft-libero-object
+  integration_status: checkpoint_backed_runtime_ready
+  task: vla.policy_rollout
+  checkpoint_refs:
+  - repo_id: moojink/openvla-7b-oft-finetuned-libero-object
+    license: mit
+  notes:
+  - Uses the same official OpenVLA-OFT LIBERO input contract with task_suite_name=libero_object.
+- id: openvla-oft-libero-goal
+  integration_status: checkpoint_backed_runtime_ready
+  task: vla.policy_rollout
+  checkpoint_refs:
+  - repo_id: moojink/openvla-7b-oft-finetuned-libero-goal
+    license: mit
+  notes:
+  - Uses the same official OpenVLA-OFT LIBERO input contract with task_suite_name=libero_goal.
+- id: openvla-oft-libero-10
+  integration_status: checkpoint_backed_runtime_ready
+  task: vla.policy_rollout
+  checkpoint_refs:
+  - repo_id: moojink/openvla-7b-oft-finetuned-libero-10
+    license: mit
+  notes:
+  - Uses the same official OpenVLA-OFT LIBERO input contract with task_suite_name=libero_10.
+- id: openvla-oft-libero-spatial-object-goal-10
+  integration_status: checkpoint_backed_runtime_ready
+  task: vla.policy_rollout
+  checkpoint_refs:
+  - repo_id: moojink/openvla-7b-oft-finetuned-libero-spatial-object-goal-10
+    license: mit
+  notes:
+  - Combined LIBERO checkpoint; WorldFoundry runtime accepts explicit task_suite_name/unnorm_key per job.
+runner_parity:
+  status: in_tree_checkpoint_runtime
+  notes:
+  - Training, RLDS data processing, LIBERO benchmark loop, and TensorFlow dataset stack are intentionally excluded from the minimal runtime profile.
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata, and runtime-profile planning records.

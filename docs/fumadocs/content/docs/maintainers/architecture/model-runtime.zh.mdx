@@ -1,0 +1,85 @@
+---
+title: 模型运行时
+description: Pipeline、operator、synthesis、representation、memory 和 hosted API 文件如何协作。
+---
+
+## 运行形状
+
+一次模型调用在仓库里通常沿下面这条链展开：
+
+```text
+Pipeline class
+  -> Operator: validate/load/shape interactions and media
+  -> Synthesis: call model runtime or hosted API
+  -> Representation: derive depth, point cloud, 3DGS, scene, or world assets
+  -> Memory: keep prior state for streaming or multi-turn control
+  -> GenerationResult: normalized artifacts and metadata
+```
+
+Pipeline 负责把一次运行组织成可复现的公开入口；Operator 在模型真正执行前处理输入、交互和媒体；Synthesis 持有 checkpoint 或 API 调用；Representation 和 Memory 只在任务需要几何产物或多轮状态时介入。最终所有路径都应收敛到同一种 `GenerationResult` 语义，这样 Studio、CLI 和 benchmark 才能共用同一套 artifact contract。
+
+模型相关代码故意保持重复模式：多数模型族会有一个薄的 `pipeline_*.py`、一个 `*_operator.py`、可选的 `*_synthesis.py`，以及可选的 representation 或 memory 文件，再配一份 manifest metadata。这个形状只是脚手架；只有当 runtime 代码和真实推理路径都进入仓库后，它才算完整集成。
+
+`worldfoundry/synthesis/**` 下的 model runtime 必须是仓内实现，不能依赖机器本地的外部 checkout。外部仓库和 checkpoint 在 runtime 完成移植或 vendor review 之前，只能作为 provenance 或 acquisition metadata 存在。
+
+公开支持声明看 `integration_status`，实现深度看 `backend_stage`。只有 `integrated` 且 `in_tree_runtime` 同时成立，才代表完整 runnable integration。`metadata_only`、`profile_only` 和 `official_client_bridge_only` 对规划很有用，但不等于已经可运行。
+
+## 当前运行时契约
+
+每个 runnable method 都必须同时具备 Pipeline 和 Operator。Pipeline 是从 catalog `pipeline_target` 或 canonical binding resolver 可达的具体类，负责模型加载、归一化执行，以及 `GenerationResult` 的 artifact 语义。Operator 是 Pipeline 在输入侧的搭档，负责 validation、image/video loading、camera/action parsing、interaction shaping 和 perception preprocessing。Operator 可以很薄，但不能缺失。
+
+Binding 解析应统一走 `worldfoundry/evaluation/models/pipelines/bindings.py`。Catalog loading、pipeline loading、runner resolution 和 validation 都应调用这里的 helpers，而不是各自重新解析 route string。Runtime profile 可以携带 execution metadata、环境预期、checkpoint path 和 command hints，但它不能替代 pipeline/operator pair；`metadata_only` 或 `profile_only` 的条目不应被宣传成 runnable support。
+
+`worldfoundry/base_models/perception_core` 和 `worldfoundry/base_models/three_dimensions` 是 inference/runtime package。这里应保留推理必需的 transforms 和 geometry helpers，但不要保留 training datasets、dataloaders、callbacks、losses、augmentation-only modules 或 experiment scripts。`pixelsplat` 是当前明确的 3D cleanup 例外，直到它的官方 Lightning test runner 被纯推理 runner 替换。
+
+## 基础抽象
+
+`pipelines/pipeline_utils.py` 中的 `PipelineABC` 定义最小公开入口：`from_pretrained()` 负责加载，`process()` / `__call__()` 负责单次执行，`stream()` 在模型支持增量输出时使用。`operators/base_operator.py` 中的 `BaseOperator` 只处理输入和交互整形，不应承担 generation 或 scoring。`synthesis/base_synthesis.py` 中的 `BaseSynthesis` 是本地 checkpoint 或 hosted API 的执行面；`representations/base_representation.py` 负责把模型输出转成 geometry 或 world representation；`core/memory/base.py` 中的 `BaseMemory` 则为 streaming、long-context 或 interactive flow 保存和转换历史多模态状态。
+
+## 目录职责
+
+判断一个模型修复应该落在哪一层时，可以先问“这次失败发生在输入、推理、几何后处理，还是状态管理”。公开 wrapper 放在 `pipelines/<family>/pipeline_*.py`，面向用户的 class 需要记录 load path、input signature 和 output artifacts。输入在模型执行前就出错时，优先看 `operators/*_operator.py`。视觉/世界生成模型的 checkpoint 调用、hosted API、subprocess bridge 和 runtime env helper 放在 `synthesis/visual_generation/**`；embodied-action 模型放在 `synthesis/action_generation/**`，仅有 profile shell 的类不算集成完成。
+
+Depth benchmark 相关逻辑在 `representations/depth_generation/**`；point cloud、3DGS、panorama 和 geometry asset builder 在 `representations/point_clouds_generation/**`。共享 memory contract 在 `core/memory/**`；visual-generation 的运行时状态在 `synthesis/visual_generation/memory/**`；action policy trace 在 `synthesis/action_generation/memory.py`。CameraCtrl 和 MotionCtrl 不共享 synthesis package，分别位于 `synthesis/visual_generation/cameractrl/synthesis.py` 和 `synthesis/visual_generation/motionctrl/synthesis.py`；共享 camera-control YAML 放在 `data/models/runtime/configs/camera_control`。
+
+## 参考实现：OpenVLA
+
+`openvla` 是当前树里第一个完整跑通的 VLA 集成，也是理解 embodied-action runtime 的最好例子。它的设计目标很简单：同一份 checkpoint loader 同时服务 Studio 的一次性 action trace 和 benchmark 的闭环 rollout，而不需要用户再 clone 上游 GitHub 仓库。
+
+Embodied 闭环路径从 runtime config 开始。`data/models/runtime/configs/vla_va_wam/openvla.yaml` 声明 `backend: callable_entrypoint`，并把 `policy_target` 指向 `worldfoundry.synthesis.action_generation.openvla.runtime:predict_action`。Embodied eval 在 `evaluation/tasks/embodied/policy_adapter.py` 里通过 `build_policy_adapter()` 读取这份 config，再由 `evaluation/tasks/embodied/adapters/runtime_policy_adapters.py` 中的 `CallableRuntimePolicyAdapter` 把该 callable 包装成统一的 policy protocol。这样 simulator rollout 只需要语言指令和 RGB observation，就能拿到一步 robot action，而不必经过完整 pipeline lifecycle。
+
+Studio 和一次性 action trace 仍走 pipeline 路径。`OpenVLAPipeline` 绑定 `OpenVLASynthesis`；`OpenVLASynthesis.predict()` 会先解析 runtime profile、选择 checkpoint、写出 plan JSON，然后在未设置 `plan_only` 时派发真实推理。这条路径更适合需要 artifact 文件、run directory 和 profile metadata 的单次 job，而不是逐步 simulator 交互。
+
+两条入口最终都会落到 `synthesis/action_generation/openvla/openvla_runtime/inference.py`。这里的 `select_openvla_checkpoint()` 根据 `unnorm_key` 在 base checkpoint 和 LIBERO fine-tuned checkpoint 之间选择本地 staged 权重；`OpenVLARuntime` 再加载 processor/model，构造官方 OpenVLA prompt，执行 `predict_action`，并写出归一化的 action trace metadata。Prismatic/OpenVLA 的 HF config、model 和 processor 代码 vendored 在 `openvla_runtime/configuration_prismatic.py`、`modeling_prismatic.py` 和 `processing_prismatic.py` 中，因此 runtime 不依赖外部 repo checkout，也不依赖 Hugging Face remote-code cache。
+
+如果你要新增一个类似的 VLA policy，通常只需要三件事：在 `data/models/runtime/configs/vla_va_wam/` 增加 callable config，在 `synthesis/action_generation/<model>/runtime.py` 暴露 `predict_action()`，并确保 embodied adapter 能从 observation 中解析出 image 和 instruction。Pipeline/synthesis 层可以后补，用于 Studio 和 model-zoo one-shot 运行，但不应成为闭环 eval 的前置条件。
+
+## Pipeline 编写约定
+
+一个典型 pipeline 文件会在 constructor 中保存 synthesis、operator、representation 和 runtime config；`from_pretrained()` 负责 checkpoint staging 或 API client 初始化；`process()` / `__call__()` 把用户输入转成 artifact；`stream()` 只在 Studio live control 或增量输出场景需要时实现。Helper 函数应只保留会影响 reproducibility、credential handling 或 artifact semantics 的部分，不要把训练脚本式的实验逻辑带进公开 pipeline。
+
+## 托管 API 路径
+
+Wan hosted family、Kling、Runway、Luma Ray、Hailuo hosted、Sora/Veo API 和 World Labs 等 provider 路径都保留在 `pipelines/` 下的独立 wrapper 中，与本地 checkpoint runtime 分开维护。Hosted wrapper 往往只需要 staging 本地图像、构造 provider payload，或等待 remote job 完成；它们不应偷偷复用本地 diffusion runtime 的 checkpoint loader。所有 provider credential 只通过环境变量注入，manifest、docs、tests 和 generated reports 中都不应出现 API key。
+
+## 与 Evaluation 的衔接
+
+Evaluation runner 不会直接 import pipeline 文件，除非 catalog 中的 model runner 明确解析到那条 route。完整链路如下：
+
+```text
+worldfoundry/data/models/catalog/<category>/<model-id>.yaml
+  -> runner_target / pipeline_target / runtime_profile binding
+  -> resolve_pipeline_route()
+  -> resolve_model_zoo_runner()
+  -> runtime runner
+  -> pipeline class or subprocess command
+  -> GenerationResult artifacts
+```
+
+`evaluation/models/runners/resolver.py` 和 `registry.py` 负责把 catalog 的 `runner_target` 解析成 runnable runner instance。`evaluation/models/pipelines/bindings.py` 把 catalog target、runtime-profile execution metadata 和 model binding 合成一份 route contract。`evaluation/models/runners/pipeline.py` 与 `evaluation/models/pipelines/loading.py` 则构建 `PipelineRunnerSpec`、导入 pipeline target，并调用完整 lifecycle。Planned 或 profile-only 条目可以保留 `runtime_profile`，但不应暴露 runner target；薄 planning wrapper 也不应把 `pipeline_target` 误报成已验证支持。
+
+## 模型族索引
+
+`pipelines/` 是添加或调试模型时的第一入口，每个模型族或 variant 通常对应一个公开 wrapper。`operators/` 是每个 runnable pipeline 的必需层，输入、camera control 或 interaction 异常时应先看这里。`synthesis/` 只放仓内 runtime implementation；外部 repo 或 checkpoint 在移植完成前只能作为 metadata 存在。`representations/` 负责 3D/4D artifact 和 visualization 问题；`core/memory/` 与 `synthesis/*/memory` 负责 streaming 或多轮状态。
+
+对已经声明 runnable runner 的模型，文档应解释 public class 和 public methods 的行为；对未声明或归档 wrapper，只保留短索引即可，不必展开实现细节。

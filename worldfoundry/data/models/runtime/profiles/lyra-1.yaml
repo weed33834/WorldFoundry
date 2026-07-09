@@ -1,0 +1,33 @@
+schema_version: 2
+model_id: lyra-1
+display_name: Lyra-1
+task_family: world_model
+groups:
+- 3d
+- world
+- camera_control
+source_repos:
+- url: https://github.com/nv-tlabs/lyra
+checkpoints:
+- role: lyra1_checkpoint
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/lyra-1
+- role: cosmos_gen3c_checkpoint
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/cosmos-gen3c
+input_schema:
+  prompt: true
+  image: true
+  video: true
+  actions:
+  - camera_trajectory
+artifact_kind: generated_world
+artifact_filename: lyra-1.mp4
+execution:
+  backend_stage: in_tree_runtime
+  runtime_status: official_sdg_contract
+  integration_status: verified
+  pipeline_binding: lyra-1
+integration:
+  status: verified
+notes:
+- Runtime profile for the in-tree Lyra-1 pipeline.
+- Runtime execution requires local Lyra-1/Cosmos checkpoints and CUDA runtime dependencies.

@@ -1,0 +1,51 @@
+id: flashworld
+name: FlashWorld
+area: 3d
+task: fast 3D scene generation from image or text
+developer: FlashWorld authors
+user_starred: true
+official_sources:
+  github: https://github.com/imlixinyang/FlashWorld
+  huggingface:
+  - https://huggingface.co/imlixinyang/FlashWorld
+  project_page: https://imlixinyang.github.io/FlashWorld-Project-Page/
+  paper: https://arxiv.org/abs/2510.13678
+availability:
+  status: open_source
+  open_source: true
+  code: public
+  weights: public_huggingface
+  license: Apache-2.0 for GitHub repo; CC-BY-NC-SA-4.0 metadata on Hugging Face model repo
+  api: huggingface_space
+integration:
+  kind: pipeline_runner
+  status: integrated
+  notes:
+  - WorldFoundry exposes the in-tree FlashWorld pipeline, operator, and representation runtime.
+  - Runtime execution remains checkpoint/GPU/dependency gated; no empty runner shim is registered.
+confirmation: Official GitHub repo reports Apache-2.0 and links Hugging Face demo/model; HF model metadata is CC-BY-NC-SA-4.0,
+  so downstream use must honor artifact-specific license.
+output_artifacts:
+- generated_3d_asset
+- generated_video
+runtime_profile: runtime-profile:flashworld
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: flashworld
+runner_parity:
+  status: verified
+  notes:
+  - The in-tree FlashWorld runner supports the image-conditioned camera-scene demo with local FlashWorld/Wan assets.
+  - Per-run visual QA and artifact checks are tracked outside the model catalog.
+catalog_category: three_d_four_d
+catalog_scope: Official-source manifest for 3D, 4D, and camera-controlled world/model generation projects.
+catalog_policy:
+  open_source_true_requires: An official GitHub or Hugging Face source with an explicit OSI-style software license or otherwise
+    clearly open source/open weights metadata. Public code without a license is source-available, not open_source.
+  weights_policy: Weights were not downloaded. Entries record only official repository, Hugging Face, project page, paper,
+    and license metadata.
+  status_values:
+  - open_source
+  - source_available
+  - open_weights_restricted
+  - api_or_closed
+  - unknown

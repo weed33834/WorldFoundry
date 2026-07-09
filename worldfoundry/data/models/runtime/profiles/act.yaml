@@ -1,0 +1,32 @@
+artifact_filename: act_action_trace.json
+artifact_kind: action_trace
+backend_stage: in_tree_runtime
+checkpoints:
+- local_dir: ${WORLDFOUNDRY_CKPT_DIR}/embodied_action/act/sim_transfer_cube_scripted/policy_best.ckpt
+  role: local_sim_transfer_cube_policy_checkpoint
+id: act
+input_schema:
+  actions:
+  - action_chunk
+  - proprio
+  - action_space
+  image: true
+  instruction: true
+  prompt: false
+  video: false
+integration_status: runtime_ported
+notes:
+- Action Chunking Transformer is represented as an action-chunking robot policy.
+- The upstream ACT repo documents training/evaluation commands but does not publish
+  a pretrained sim_transfer_cube_scripted policy_best.ckpt in the repo. Real inference
+  requires a caller-staged policy_best.ckpt and matching dataset_stats.pkl.
+- The output contract is action_trace so downstream embodied benchmarks can replay
+  action chunks.
+- WorldFoundry vendors the RoboTwin ACT policy, DETR-VAE, transformer, backbone, and
+  position encoding runtime under worldfoundry/synthesis/action_generation/act/act_runtime.
+  py_compile, runtime import, from_pretrained, and plan-only predict are supported;
+  checkpoint-backed predict_action remains gated on a local trained ACT checkpoint
+  and dataset statistics.
+runtime_status: in_tree_act_runtime_ported_checkpoint_missing_plan_only_default
+task_family: action_chunking_policy
+verification_status: plan_only_ready_checkpoint_required

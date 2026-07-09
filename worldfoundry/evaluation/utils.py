@@ -1,0 +1,496 @@
+"""Shared evaluation utilities."""
+
+from __future__ import annotations
+
+
+
+# io.py
+import json
+from pathlib import Path
+from typing import Any, Mapping, Sequence
+
+from worldfoundry.core.io.serialization import (
+    append_jsonl,
+    jsonable,
+    read_json,
+    read_json_object,
+    read_json_or_jsonl,
+    read_jsonl_objects,
+    reset_jsonl,
+    write_json,
+    write_jsonl,
+    write_text_file,
+)
+from worldfoundry.core.io.paths import resolve_worldfoundry_path
+
+
+def mapping_or_empty(value: Any) -> dict[str, Any]:
+    """Return a mutable mapping when the value is mapping-like."""
+    return dict(value) if isinstance(value, Mapping) else {}
+
+
+def format_value(value: Any) -> str:
+    """Format a scalar or structured value for human-readable reports."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return f"{value:.6g}"
+    if isinstance(value, (Mapping, list, tuple)):
+        return json.dumps(jsonable(value), ensure_ascii=False, sort_keys=True)
+    return str(value)
+
+
+def escape_markdown_cell(value: Any) -> str:
+    """Escape a value for use inside a Markdown table cell."""
+    return format_value(value).replace("|", "\\|").replace("\n", " ")
+
+
+def write_text(path: str | Path, payload: str, *, atomic: bool = True) -> Path:
+    """Write text to a destination path.
+
+    Args:
+        path: Destination path.
+        payload: Text content to write.
+        atomic: Whether to write through a temporary sibling before replacing.
+    """
+    return write_text_file(path, payload, atomic=atomic)
+
+
+# manifest.py
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+
+MANIFEST_SUFFIXES = (".yaml", ".yml")
+
+
+def load_manifest(path: str | Path) -> Any:
+    """Load a checked-in YAML WorldFoundry manifest."""
+
+    resolved = Path(path)
+    suffix = resolved.suffix.lower()
+    if suffix not in MANIFEST_SUFFIXES:
+        raise ValueError(f"unsupported manifest suffix for {resolved}: expected .yaml or .yml")
+    return yaml.safe_load(resolved.read_text(encoding="utf-8"))
+
+
+def manifest_paths(root: str | Path) -> tuple[Path, ...]:
+    """Return YAML manifest files under a directory tree."""
+
+    path = Path(root)
+    if not path.exists():
+        raise FileNotFoundError(f"manifest directory does not exist: {path}")
+    if not path.is_dir():
+        raise NotADirectoryError(f"manifest path is not a directory: {path}")
+
+    return tuple(sorted(candidate for suffix in MANIFEST_SUFFIXES for candidate in path.rglob(f"*{suffix}")))
+
+
+def load_manifest_collection(root: str | Path, *, item_key: str) -> dict[str, Any]:
+    """Load a manifest file or a directory of one-item YAML manifests."""
+
+    path = Path(root)
+    if path.is_file():
+        payload = load_manifest(path)
+        return payload if isinstance(payload, dict) else {item_key: payload}
+    if not path.is_dir():
+        raise FileNotFoundError(f"manifest path does not exist: {path}")
+
+    meta_path = path / "_manifest.yaml"
+    payload: dict[str, Any] = {}
+    if meta_path.is_file():
+        meta = load_manifest(meta_path)
+        if isinstance(meta, dict):
+            payload.update(meta)
+
+    items: list[Any] = []
+    for manifest_path in manifest_paths(path):
+        if manifest_path.name == "_manifest.yaml":
+            continue
+        entry = load_manifest(manifest_path)
+        if isinstance(entry, dict) and item_key in entry:
+            values = entry[item_key]
+            if isinstance(values, list):
+                items.extend(values)
+            elif values is not None:
+                items.append(values)
+        elif isinstance(entry, list):
+            items.extend(entry)
+        elif entry is not None:
+            items.append(entry)
+
+    payload[item_key] = items
+    return payload
+
+
+# resources.py
+import os
+import sysconfig
+from pathlib import Path
+
+
+WORLDFOUNDRY_PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+
+
+def worldfoundry_repository_root() -> Path:
+    """Resolve the source repository root when it is available.
+
+    Args:
+        None.
+    """
+
+    current = Path(__file__).resolve()
+    for parent in current.parents:
+        if (parent / "pyproject.toml").is_file():
+            return parent
+    return WORLDFOUNDRY_PACKAGE_ROOT
+
+
+def _data_root_candidates() -> tuple[Path, ...]:
+    """Return ordered locations for bundled WorldFoundry data files.
+
+    Args:
+        None.
+    """
+
+    install_data_root = Path(sysconfig.get_path("data")) / "worldfoundry" / "data"
+    package_data_root = WORLDFOUNDRY_PACKAGE_ROOT / "data"
+    return (package_data_root, install_data_root)
+
+
+def worldfoundry_data_root() -> Path:
+    """Resolve the bundled benchmark and model metadata root.
+
+    Args:
+        None.
+    """
+
+    candidates = _data_root_candidates()
+    for candidate in candidates:
+        if (candidate / "benchmarks").exists() or (candidate / "models").exists():
+            return candidate
+    return candidates[0]
+
+
+def worldfoundry_data_path(*parts: str | Path) -> Path:
+    """Resolve a path under the bundled WorldFoundry data root.
+
+    Args:
+        parts: Path components below the data root.
+    """
+
+    path = worldfoundry_data_root()
+    for part in parts:
+        path /= part
+    return path
+
+
+# paths.py
+import sys
+from pathlib import Path
+
+
+PACKAGE_ROOT = Path(__file__).resolve().parent
+REPO_ROOT = worldfoundry_repository_root()
+SRC_ROOT = REPO_ROOT
+DATA_ROOT = worldfoundry_data_root()
+BENCHMARKS_DATA_ROOT = DATA_ROOT / "benchmarks"
+BENCHMARK_ZOO_DIR = BENCHMARKS_DATA_ROOT / "catalog"
+BENCHMARK_TASK_ROOT = BENCHMARKS_DATA_ROOT / "tasks" / "external"
+BENCHMARK_ASSETS_ROOT = BENCHMARKS_DATA_ROOT / "assets"
+BENCHMARK_RUNTIME_PROFILE_DIR = BENCHMARKS_DATA_ROOT / "runtime_profiles"
+
+
+def benchmark_task_sample_path(benchmark_id: str) -> Path | None:
+    """Return a checked-in benchmark fixture result file."""
+    for suffix in (".csv", ".jsonl", ".json", ".txt"):
+        path = BENCHMARK_ASSETS_ROOT / benchmark_id / f"sample_results{suffix}"
+        if path.is_file():
+            return path
+    for suffix in (".csv", ".jsonl", ".json", ".txt"):
+        path = BENCHMARK_TASK_ROOT / f"{benchmark_id}.sample_results{suffix}"
+        if path.is_file():
+            return path
+    return None
+MODEL_ZOO_DIR = DATA_ROOT / "models" / "catalog"
+MODEL_RUNTIME_ROOT = DATA_ROOT / "models" / "runtime"
+MODEL_RUNTIME_PROFILES_ROOT = MODEL_RUNTIME_ROOT / "profiles"
+MODEL_RUNTIME_CONFIGS_ROOT = MODEL_RUNTIME_ROOT / "configs"
+MODEL_RUNTIME_ENVIRONMENTS_ROOT = MODEL_RUNTIME_ROOT / "environments"
+MODEL_RUNTIME_ASSETS_ROOT = MODEL_RUNTIME_ROOT / "assets"
+TMP_ROOT = REPO_ROOT / "tmp"
+CACHE_ROOT = REPO_ROOT / "cache"
+HFD_DATASET_CACHE_ROOT = resolve_worldfoundry_path("${WORLDFOUNDRY_CACHE_DIR}/data/hfd_datasets")
+
+
+def worldfoundry_hfd_dataset_root() -> Path:
+    """Resolve the benchmark Hugging Face dataset root.
+
+    Explicit command-line arguments should still take precedence. This helper is
+    only for defaults shared by benchmark download, data probes, and audits.
+    """
+
+    for name in (
+        "WORLDFOUNDRY_BENCHMARK_DATA_ROOT",
+        "WORLDFOUNDRY_LOCAL_DATA_ROOT",
+        "WORLDFOUNDRY_LOCAL_CACHE_DATA_ROOT",
+    ):
+        value = os.environ.get(name)
+        if value:
+            return Path(value).expanduser()
+
+    data_dir = os.environ.get("WORLDFOUNDRY_DATA_DIR")
+    if data_dir:
+        root = Path(data_dir).expanduser()
+        return root if root.name == "hfd_datasets" else root / "hfd_datasets"
+
+    return HFD_DATASET_CACHE_ROOT
+
+# Side effect: benchmarks and model-registry discovery rely on repo-root imports.
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+
+# versioning.py
+from functools import lru_cache
+import hashlib
+import json
+from importlib import metadata
+import platform
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any, Mapping, Sequence
+
+from worldfoundry.evaluation.api import (
+    AGGREGATE_RESULT_SCHEMA_VERSION,
+    ARTIFACT_REF_SCHEMA_VERSION,
+    BENCHMARK_SPEC_SCHEMA_VERSION,
+    GENERATION_REQUEST_SCHEMA_VERSION,
+    GENERATION_RESULT_SCHEMA_VERSION,
+    METRIC_RESULT_SCHEMA_VERSION,
+    METRIC_SPEC_SCHEMA_VERSION,
+    WORLD_MODEL_CONFIG_SCHEMA_VERSION,
+    WORLD_MODEL_MANIFEST_SCHEMA_VERSION,
+    WORLD_TASK_CONFIG_SCHEMA_VERSION,
+)
+
+
+VERSION_CONTEXT_SCHEMA_VERSION = "worldfoundry-version-context"
+RUN_FINGERPRINT_SCHEMA_VERSION = "worldfoundry-run-fingerprint"
+EVALUATION_ENGINE_VERSION = "worldfoundry-eval-engine"
+
+
+def _repo_root() -> Path:
+    """Return the resolved repository root path."""
+    return worldfoundry_repository_root()
+
+
+def package_version(distribution: str = "worldfoundry") -> str:
+    """Retrieve the installed package version of the given distribution."""
+    try:
+        return metadata.version(distribution)
+    except metadata.PackageNotFoundError:
+        return "unknown"
+
+
+def _run_git(root: Path, *args: str) -> str | None:
+    """Run a git command in the specified directory, returning stdout or None on failure."""
+    try:
+        result = subprocess.run(
+            ("git", "-C", str(root), *args),
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=2,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip()
+
+
+@lru_cache(maxsize=16)
+def _git_metadata_cached(root_key: str) -> tuple[bool, str | None, bool | None]:
+    """Retrieve and cache git repository metadata (existence, commit hash, and dirty status)."""
+    root = Path(root_key)
+    commit = _run_git(root, "rev-parse", "HEAD")
+    status = _run_git(root, "status", "--porcelain", "--untracked-files=no")
+    if commit is None:
+        return False, None, None
+    return True, commit, None if status is None else bool(status)
+
+
+def git_metadata(repo_root: str | Path | None = None) -> dict[str, Any]:
+    """Get status and commit metadata of the current git repository."""
+    root = Path(repo_root) if repo_root is not None else _repo_root()
+    available, commit, dirty = _git_metadata_cached(str(root.resolve()))
+    if not available:
+        return {"available": False, "commit": None, "dirty": None}
+    return {
+        "available": True,
+        "commit": commit,
+        "dirty": dirty,
+    }
+
+
+def _callable_reference(value: Any) -> str:
+    """Generate a qualified string identifier for a callable object."""
+    module = getattr(value, "__module__", "")
+    qualname = getattr(value, "__qualname__", "")
+    if module and qualname:
+        return f"{module}:{qualname}"
+    return repr(value)
+
+
+def stable_json_dumps(value: Any) -> str:
+    """Serialize a JSON-safe dictionary with stable key-sorting and no extra whitespace."""
+    return json.dumps(jsonable(value), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def sha256_text(text: str) -> str:
+    """Calculate and return the SHA-256 hash of the given string."""
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def stable_hash(value: Any) -> str:
+    """Generate a stable, reproducible SHA-256 hash of any serializable object."""
+    return sha256_text(stable_json_dumps(value))
+
+
+def file_sha256(path: str | Path) -> str:
+    """Calculate the SHA-256 hash of a file on disk by reading in chunks."""
+    hasher = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
+def contract_versions() -> dict[str, str]:
+    """Retrieve current schema versions of all evaluation contracts."""
+    return {
+        "artifact_ref": ARTIFACT_REF_SCHEMA_VERSION,
+        "generation_request": GENERATION_REQUEST_SCHEMA_VERSION,
+        "generation_result": GENERATION_RESULT_SCHEMA_VERSION,
+        "metric_spec": METRIC_SPEC_SCHEMA_VERSION,
+        "metric_result": METRIC_RESULT_SCHEMA_VERSION,
+        "aggregate_result": AGGREGATE_RESULT_SCHEMA_VERSION,
+        "world_model_manifest": WORLD_MODEL_MANIFEST_SCHEMA_VERSION,
+        "world_model_config": WORLD_MODEL_CONFIG_SCHEMA_VERSION,
+        "world_task_config": WORLD_TASK_CONFIG_SCHEMA_VERSION,
+        "benchmark_spec": BENCHMARK_SPEC_SCHEMA_VERSION,
+    }
+
+
+def _class_reference(value: Any) -> str:
+    """Generate a qualified string identifier for the class of the given object."""
+    cls = value if isinstance(value, type) else value.__class__
+    return f"{cls.__module__}:{cls.__qualname__}"
+
+
+def model_runner_fingerprint(model_runner: Any | None) -> dict[str, Any] | None:
+    """Generate a serialized fingerprint metadata dictionary for a model runner."""
+    if model_runner is None:
+        return None
+    payload: dict[str, Any] = {
+        "class": _class_reference(model_runner),
+        "model_id": str(getattr(model_runner, "model_id", "")),
+        "runner_version": str(getattr(model_runner, "runner_version", getattr(model_runner, "version", ""))),
+        "capabilities": sorted(str(item) for item in getattr(model_runner, "capabilities", ()) or ()),
+    }
+    describe = getattr(model_runner, "describe_capabilities", None)
+    if callable(describe):
+        try:
+            described = describe()
+        except Exception as exc:  # noqa: BLE001 - version capture must not fail a run.
+            payload["describe_capabilities_error"] = f"{type(exc).__name__}: {exc}"
+        else:
+            payload["described_capabilities"] = jsonable(described)
+    return payload
+
+
+def metric_fingerprint(metric: Any) -> dict[str, Any]:
+    """Generate a stable metadata fingerprint dictionary for a metric object."""
+    return {
+        "class": _class_reference(metric),
+        "name": str(getattr(metric, "name", "") or metric.__class__.__name__),
+        "version": str(getattr(metric, "version", "")),
+        "required_artifacts": tuple(str(item) for item in getattr(metric, "required_artifacts", ()) or ()),
+        "higher_is_better": getattr(metric, "higher_is_better", None),
+    }
+
+
+def metric_callable_fingerprint(metric: Any | None) -> dict[str, Any] | None:
+    """Generate a fingerprint dictionary for a metric callable, returning None if metric is None."""
+    if metric is None:
+        return None
+    return {
+        "class": _class_reference(metric),
+        "callable": _callable_reference(metric),
+        "name": str(getattr(metric, "name", "") or getattr(metric, "__name__", "") or metric.__class__.__name__),
+        "version": str(getattr(metric, "version", "")),
+    }
+
+
+def build_version_context(
+    *,
+    runner: str,
+    benchmark: Mapping[str, Any] | None = None,
+    model: Mapping[str, Any] | None = None,
+    dataset: Mapping[str, Any] | None = None,
+    model_runner: Any | None = None,
+    metrics: Sequence[Any] = (),
+    metric: Any | None = None,
+    engine_version: str = EVALUATION_ENGINE_VERSION,
+    extra: Mapping[str, Any] | None = None,
+    repo_root: str | Path | None = None,
+) -> dict[str, Any]:
+    """Construct a comprehensive version context dictionary capturing engine, runtime, and git state."""
+    return {
+        "schema_version": VERSION_CONTEXT_SCHEMA_VERSION,
+        "engine_version": engine_version,
+        "runner": runner,
+        "worldfoundry_version": package_version(),
+        "python": {
+            "version": platform.python_version(),
+            "executable": sys.executable,
+        },
+        "git": git_metadata(repo_root),
+        "contract_versions": contract_versions(),
+        "benchmark": jsonable(benchmark or {}),
+        "model": jsonable(model or {}),
+        "dataset": jsonable(dataset or {}),
+        "model_runner": model_runner_fingerprint(model_runner),
+        "metrics": [metric_fingerprint(item) for item in metrics],
+        "metric_callable": metric_callable_fingerprint(metric),
+        "extra": jsonable(extra or {}),
+    }
+
+
+def build_run_fingerprint(
+    *,
+    version_context: Mapping[str, Any],
+    requests: Sequence[Any] = (),
+    results: Sequence[Any] = (),
+    extra: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build a unique run fingerprint dictionary with stable hashes of context, requests, and results."""
+    payload = {
+        "version_context": version_context,
+        "requests": [jsonable(item) for item in requests],
+        "results": [jsonable(item) for item in results],
+        "extra": jsonable(extra or {}),
+    }
+    return {
+        "schema_version": RUN_FINGERPRINT_SCHEMA_VERSION,
+        "hash": stable_hash(payload),
+        "version_context_hash": stable_hash(version_context),
+        "request_count": len(requests),
+        "result_count": len(results),
+    }

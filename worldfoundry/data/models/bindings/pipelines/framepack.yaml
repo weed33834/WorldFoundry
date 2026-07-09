@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: framepack
+model_id: framepack
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.video_official.pipeline_official_video:FramePackPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

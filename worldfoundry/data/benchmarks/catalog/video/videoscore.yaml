@@ -1,0 +1,233 @@
+id: videoscore
+name: VideoScore
+benchmark_kind:
+- video-reward-model
+- human-feedback
+- video-generation-evaluation
+status: confirmed_official_code_model_and_data
+open_source_status: experimental
+official_benchmark_verified: false
+integration_evidence: false
+leaderboard_valid: false
+requires:
+- WORLDFOUNDRY_VIDEOSCORE_FRAMES_DIR
+- WORLDFOUNDRY_VIDEOFEEDBACK_DATASET_ROOT
+- VideoScore scorer-model weights from Hugging Face default loading or WORLDFOUNDRY_VIDEOSCORE_MODEL_DIR
+- WorldFoundry VideoScore reward-model and benchmark-data base-model assets
+blockers:
+- Full-suite SPCC/pairwise leaderboard protocol still requires complete upstream generated-frame trees.
+- Bounded VideoScore-Bench/video_feedback scorer GPU validation is verified but not a leaderboard submission.
+official_gpu_validation:
+  verified: true
+  bench_name: video_feedback
+  sample_count: 1
+  official_benchmark_verified: true
+  integration_evidence: true
+  leaderboard_valid: false
+  full_suite_verified: false
+  metrics_available: 6
+  scope: bounded_official_gpu_validation
+  scorecard: tmp/local_open_eval/videoscore_bounded_official_gpu_validation_cachefix_20260525/scorecard.json
+official_sources:
+  github:
+    url: https://github.com/TIGER-AI-Lab/VideoScore
+    verified_by: git ls-remote --symref https://github.com/TIGER-AI-Lab/VideoScore.git HEAD
+    default_branch: main
+    head_sha: f87faf4647e637066bcb74721670cd579e0f4349
+  huggingface_models:
+  - repo_id: TIGER-Lab/VideoScore
+    verified_by: GET https://huggingface.co/api/models/TIGER-Lab/VideoScore
+    sha: 45a2abbc5faa0cac3a4010dfbc4492903ae1ed9a
+    private: false
+    gated: false
+    license: apache-2.0
+    pipeline_tag: visual-question-answering
+    datasets:
+    - TIGER-Lab/VideoFeedback
+  - repo_id: TIGER-Lab/VideoScore-v1.1
+    verified_by: GET https://huggingface.co/api/models/TIGER-Lab/VideoScore-v1.1
+    sha: 0731e98e15f8c06a3e3b4dc6c7a4b8d866f22a89
+    private: false
+    gated: false
+    license: mit
+    pipeline_tag: video-text-to-text
+    datasets:
+    - TIGER-Lab/VideoFeedback
+  huggingface_datasets:
+  - repo_id: TIGER-Lab/VideoFeedback
+    verified_by: GET https://huggingface.co/api/datasets/TIGER-Lab/VideoFeedback
+    sha: 4557cb71595098e68790bb35253225c2fe797dcf
+    private: false
+    gated: false
+    license: apache-2.0
+    task_categories:
+    - video-classification
+    configs:
+    - annotated
+    - real
+  - repo_id: TIGER-Lab/VideoScore-Bench
+    verified_by: GET https://huggingface.co/api/datasets/TIGER-Lab/VideoScore-Bench
+    sha: 46cc1eca463239bc21c688d9a4304a36ee0e16e6
+    private: false
+    gated: false
+    license: apache-2.0
+    task_categories:
+    - video-generation-evaluation
+    configs:
+    - video_feedback
+    - eval_crafter
+    - genaibench
+    - vbench
+  project_page: https://tiger-ai-lab.github.io/VideoScore/
+  paper_url: https://arxiv.org/abs/2406.15252
+  license: mit
+  access_notes: Official GitHub repository is public under MIT; benchmark/runtime assets remain external requirements.
+evaluation_surface:
+  purpose: reward-model / scorer for video generation outputs rather than a prompt-only benchmark suite
+  requires_model_weights: true
+  requires_api: false
+metrics:
+- id: visual_quality
+  name: Visual Quality
+  description: VideoScore visual quality aspect score on a 1-4 scale.
+  higher_is_better: true
+  leaderboard_key: visual_quality
+  aggregator: mean
+  output_unit: score
+- id: temporal_consistency
+  name: Temporal Consistency
+  description: VideoScore temporal consistency aspect score on a 1-4 scale.
+  higher_is_better: true
+  leaderboard_key: temporal_consistency
+  aggregator: mean
+  output_unit: score
+- id: dynamic_degree
+  name: Dynamic Degree
+  description: VideoScore dynamic-degree aspect score on a 1-4 scale.
+  higher_is_better: true
+  leaderboard_key: dynamic_degree
+  aggregator: mean
+  output_unit: score
+- id: text_to_video_alignment
+  name: Text-to-Video Alignment
+  description: VideoScore text-to-video alignment aspect score on a 1-4 scale.
+  higher_is_better: true
+  leaderboard_key: text_to_video_alignment
+  aggregator: mean
+  output_unit: score
+- id: factual_consistency
+  name: Factual Consistency
+  description: VideoScore factual consistency aspect score on a 1-4 scale.
+  higher_is_better: true
+  leaderboard_key: factual_consistency
+  aggregator: mean
+  output_unit: score
+- id: videoscore_average
+  name: VideoScore Average
+  description: Mean of the five VideoScore aspect scores.
+  higher_is_better: true
+  leaderboard_key: videoscore_average
+  aggregator: mean
+  output_unit: score
+  primary: true
+runner:
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:VideoScoreContract
+  validation_command: PYTHONPATH=. "${WORLDFOUNDRY_UNIFIED_PYTHON:-python}" 
+    worldfoundry/evaluation/tasks/execution/runners/videoscore/run_videoscore_official_runner.py --videoscore-root 
+    "${WORLDFOUNDRY_VIDEOSCORE_ROOT:-worldfoundry/evaluation/tasks/execution/runners/videoscore/runtime/videoscore}" 
+    --model-repo-name "${WORLDFOUNDRY_VIDEOSCORE_MODEL_DIR:-TIGER-Lab/VideoScore-v1.1}" --bench-data-root "${WORLDFOUNDRY_VIDEOSCORE_BENCH_ROOT}" 
+    --bench-name "${WORLDFOUNDRY_VIDEOSCORE_BENCH_NAME:-video_feedback}" --bounded-sample-count 
+    "${WORLDFOUNDRY_VIDEOSCORE_BOUNDED_SAMPLE_COUNT:-1}" --python "${WORLDFOUNDRY_UNIFIED_PYTHON:-python}" --timeout 
+    "${WORLDFOUNDRY_VIDEOSCORE_TIMEOUT:-1800}" --output-dir "${WORLDFOUNDRY_BENCHMARK_OUTPUT_DIR}" --json
+  run_command: PYTHONPATH=. "${WORLDFOUNDRY_UNIFIED_PYTHON:-python}" 
+    worldfoundry/evaluation/tasks/execution/runners/videoscore/run_videoscore_official_runner.py --videoscore-root 
+    "${WORLDFOUNDRY_VIDEOSCORE_ROOT:-worldfoundry/evaluation/tasks/execution/runners/videoscore/runtime/videoscore}" 
+    --model-repo-name "${WORLDFOUNDRY_VIDEOSCORE_MODEL_DIR:-TIGER-Lab/VideoScore-v1.1}" --bench-data-root "${WORLDFOUNDRY_VIDEOSCORE_BENCH_ROOT}" 
+    --bench-name "${WORLDFOUNDRY_VIDEOSCORE_BENCH_NAME:-video_feedback}" --frames-dir 
+    "${WORLDFOUNDRY_VIDEOSCORE_FRAMES_DIR}" --dataset-root "${WORLDFOUNDRY_VIDEOFEEDBACK_DATASET_ROOT}" --python 
+    "${WORLDFOUNDRY_UNIFIED_PYTHON:-python}" --timeout "${WORLDFOUNDRY_VIDEOSCORE_TIMEOUT:-7200}" --output-dir 
+    "${WORLDFOUNDRY_BENCHMARK_OUTPUT_DIR}" --json
+  required_env:
+  - WORLDFOUNDRY_VIDEOSCORE_FRAMES_DIR
+  - WORLDFOUNDRY_VIDEOFEEDBACK_DATASET_ROOT optional TIGER-Lab/VideoFeedback local root
+  runtime:
+    kind: in_tree_official_source
+    root: worldfoundry/evaluation/tasks/execution/runners/videoscore/runtime/videoscore
+    optional_root_env: WORLDFOUNDRY_VIDEOSCORE_ROOT
+  expected_artifacts:
+  - scorecard.json
+  - per_sample_scores.jsonl
+  - raw_metric_table.jsonl
+  - generated_video_manifest.json
+  - dataset_manifest.json
+  - upstream_stdout.log
+  - upstream_stderr.log
+  assets:
+    official_gpu_validation:
+      status: verified
+      bench_name: video_feedback
+      sample_count: 1
+      official_benchmark_verified: true
+      integration_evidence: true
+      leaderboard_valid: false
+      full_suite_verified: false
+      metrics_available: 6
+      verified: true
+      scope: bounded_official_gpu_validation
+      scorecard: tmp/local_open_eval/videoscore_bounded_official_gpu_validation_cachefix_20260525/scorecard.json
+  verification_status: verified
+  notes:
+  - Contract runner maps VideoScore five-aspect scorer outputs into WorldFoundry scorecard.
+  - Real-data discovery records TIGER-Lab/VideoFeedback real/train with 4000 rows plus generated frame/video coverage.
+  - Official wrapper can call benchmark/eval_videoscore.py and normalize eval_*_videoscore.json.
+  - Bounded official GPU validation verified one VideoScore-Bench/video_feedback sample with local VideoScore-v1.1 
+    weights.
+  - Runner patches the transformers DynamicCache API mismatch locally; full-suite leaderboard remains pending.
+integration:
+  status: integrated
+  evidence:
+    official_benchmark_verified: false
+    integration_evidence: false
+    leaderboard_valid: false
+  blocked_reasons:
+  - Full-suite SPCC/pairwise leaderboard protocol still requires complete upstream generated-frame trees.
+  - Bounded VideoScore-Bench/video_feedback scorer GPU validation is verified but not a leaderboard submission.
+notes: Included because the official GitHub plus official HF model/data endpoints were confirmable.
+release_status: experimental
+maturity: contract_ready
+data_refs:
+  local_dataset_paths:
+  - cache/worldfoundry/data/hfd_datasets/TIGER-Lab/VideoFeedback
+  - cache/worldfoundry/data/hfd_datasets/TIGER-Lab__VideoFeedback
+  - cache/worldfoundry/data/hfd_datasets/TIGER-Lab/VideoScore-Bench
+  - cache/worldfoundry/data/hfd_datasets/TIGER-Lab__VideoScore-Bench
+  - cache/worldfoundry/data/hfd_datasets/TIGER-Lab__VideoScore-Bench
+  in_tree_runtime_paths:
+  - worldfoundry/evaluation/tasks/execution/runners/videoscore/runtime/videoscore
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/videoscore.yaml
+runner_availability:
+  available: true
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:VideoScoreContract
+  runner_script_available: true
+  task_yaml_available: true
+  runtime_verified: true
+  normalizer_verified: false
+  surface: official_runner
+base_model_dependencies:
+- videoscore_reward_metric_stack
+base_model_dependency_preflight:
+  status: ready
+  notes:
+  - VideoScore v1.1 reward-model checkpoint and VideoScore-Bench data are tracked as reusable WorldFoundry base-model 
+    assets.
+  - Full-suite leaderboard parity still requires complete generated-frame trees and upstream scorer execution.
+  missing: []
+validation_command:
+- ${WORLDFOUNDRY_UNIFIED_PYTHON}
+- worldfoundry/evaluation/tasks/execution/runners/videoscore/run_videoscore_official_runner.py
+- --json
+checkpoint_refs: []
+artifact_layout:
+  generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  output_artifact: benchmark_scorecard
+  filename_template: scorecard.json

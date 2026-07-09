@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: gr00t
+model_id: gr00t
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.component_pipelines:GR00TPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

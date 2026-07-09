@@ -1,0 +1,44 @@
+conda_packages:
+- python
+- pip
+- ffmpeg
+- gcc_linux-64
+- gxx_linux-64
+cuda_profile: cu113
+driver_status: requires_local_extension_build
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: pixelsplat
+notes:
+- pixelSplat has an in-tree WorldFoundry runtime wrapper. Actual inference requires a locally provided Gaussian rasterization
+  extension and a staged re10k.ckpt.
+pip_packages:
+- torch
+- torchvision
+- numpy
+- wheel
+- tqdm
+- lightning
+- hydra-core
+- jaxtyping
+- beartype
+- wandb
+- einops
+- colorama
+- scikit-image
+- colorspacious
+- matplotlib
+- moviepy
+- imageio
+- timm
+- dacite
+- lpips
+- e3nn
+- plyfile
+- tabulate
+python: '3.10'
+validation_imports:
+- torch
+- lightning
+- hydra
+- timm

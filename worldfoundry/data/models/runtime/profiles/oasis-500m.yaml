@@ -1,0 +1,32 @@
+schema_version: 2
+model_id: oasis-500m
+display_name: Oasis 500M
+task_family: world_model
+groups:
+- world
+- minecraft
+source_repos:
+- url: https://github.com/etched-ai/open-oasis
+checkpoints:
+- repo_id: Etched/oasis-500m
+  role: oasis_checkpoint
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Etched--oasis-500m
+input_schema:
+  prompt: true
+  image: true
+  video: true
+  actions:
+  - minecraft_action
+  - world_action
+artifact_kind: generated_world
+artifact_filename: oasis-500m.mp4
+execution:
+  backend_stage: in_tree_runtime_manifest
+  runtime_status: in_tree_runtime_manifest_checkpoint_env_pending
+  integration_status: runtime_ported
+  pipeline_binding: oasis-500m
+integration:
+  status: runtime_ported
+notes:
+- Open-Oasis source is vendored in-tree under synthesis/visual_generation/world_model/open_oasis.
+- The pipeline resolves the official generate entrypoint; execution remains checkpoint, environment, and input-action gated.

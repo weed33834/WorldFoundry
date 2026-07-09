@@ -1,0 +1,12 @@
+defaults:
+- default
+init:
+  camera_type: mei
+slam:
+  keyframe_depth: unidepth-l
+output:
+  viz_attributes:
+  - - rgb
+    - instance
+  - - rectified
+    - pcd

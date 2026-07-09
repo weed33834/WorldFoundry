@@ -1,0 +1,57 @@
+availability: open_source
+checkpoints:
+- tencent/HunyuanWorld-Mirror
+family: Tencent Hunyuan / HY-World
+id: hunyuanworld-mirror
+aliases:
+- hunyuan-mirror
+- hy-world-mirror
+integration:
+  kind: pipeline_runner
+  notes:
+  - WorldFoundry exposes framework inference through the in-tree HunyuanMirrorPipeline
+    and vendored inference-only WorldMirror model code.
+  - The official repository is used as provenance for parity checks, not as a runtime
+    dependency.
+  - Third-party packages such as onnxruntime, pycolmap, open3d, and gsplat are runtime
+    environment dependencies, not catalog blockers.
+  status: integrated
+license: other:tencent-hunyuanworld-community
+modalities:
+- 3d-reconstruction
+- world-mirror
+- image-to-3d
+- video-to-3d
+name: HunyuanWorld-Mirror
+official_sources:
+  github:
+    confirmed_by: git ls-remote --heads
+    confirmed_ref: refs/heads/main
+    url: https://github.com/Tencent-Hunyuan/HunyuanWorld-Mirror
+  huggingface:
+  - confirmed_by: https://huggingface.co/api/models/tencent/HunyuanWorld-Mirror
+    repo_id: tencent/HunyuanWorld-Mirror
+    status: confirmed
+    type: model
+release_type: code_and_weights
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: hunyuanworld-mirror
+runtime_profile: runtime-profile:hunyuanworld-mirror
+runner_parity:
+  notes:
+  - Standard Studio/WorldFoundry pipeline invocation is wired to canonical model id
+    hunyuanworld-mirror, with hunyuan-mirror retained as an alias.
+  - GPU inference has been validated with local tencent/HunyuanWorld-Mirror assets,
+    producing point-cloud PLY, Gaussian-splat PLY, depth maps, normal maps, and scene.rrd.
+  status: verified
+starred: true
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models
+catalog_policy:
+  checkpoint_rule: Only list checkpoints that were confirmed on official Hugging Face
+    model pages. Do not download weights.
+  integration_rule: Closed, API-only, or unknown releases stay blocked or planned
+    until an official integration surface is available.
+  open_source_rule: Only mark open_source when an official GitHub repository or official
+    Hugging Face model page was confirmed. Do not infer checkpoint availability from
+    papers, demos, or third-party mirrors.

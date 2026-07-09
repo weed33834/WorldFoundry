@@ -1,0 +1,49 @@
+availability: open_source
+checkpoints:
+- GD-ML/DreamX-World-5B-Cam
+family: GD-ML DreamX-World
+id: dreamx-world-5b-cam
+integration:
+  status: runtime_ported
+  notes:
+  - DreamX-World official source route is registered; checkpoint/assets are runtime-gated.
+license: apache-2.0
+modalities:
+- interactive-world-model
+- image-to-video
+- camera-action-control
+- world-generation
+name: DreamX-World 5B Cam
+official_sources:
+  github:
+    confirmed_by: local_checkout
+    confirmed_ref: ${WORLDFOUNDRY_MODEL_SOURCE_DIR}/DreamX-World
+    url: https://github.com/AMAP-ML/DreamX-World
+  huggingface:
+  - confirmed_by: https://huggingface.co/api/models/GD-ML/DreamX-World-5B-Cam
+    repo_id: GD-ML/DreamX-World-5B-Cam
+    status: confirmed
+    type: model
+  project_page: https://amap-ml.github.io/DreamX_World
+release_type: code_and_weights
+runtime_profile: runtime-profile:dreamx-world-5b-cam
+starred: true
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - resolve_model_zoo_config and pipeline import are expected to pass; real generation
+    emits a runtime plan until required checkpoints/assets are staged.
+output_artifacts:
+- generated_world
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models
+catalog_policy:
+  checkpoint_rule: Only list checkpoints that were confirmed on official Hugging Face
+    model pages. Do not download weights.
+  integration_rule: Closed, API-only, or unknown releases stay blocked or planned
+    until an official integration surface is available.
+  open_source_rule: Only mark open_source when an official GitHub repository or official
+    Hugging Face model page was confirmed. Do not infer checkpoint availability from
+    papers, demos, or third-party mirrors.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: dreamx-world-5b-cam

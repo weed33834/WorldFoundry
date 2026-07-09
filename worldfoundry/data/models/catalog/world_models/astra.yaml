@@ -1,0 +1,44 @@
+id: astra
+name: Astra
+tasks:
+- image-to-video
+- camera-control
+- interactive-world-model
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/EternalEvan/Astra
+  license: apache-2.0
+official_sources:
+  paper: https://arxiv.org/abs/2512.08931
+  project_page: https://eternalevan.github.io/Astra-project/
+  github:
+    url: https://github.com/EternalEvan/Astra
+  huggingface:
+  - repo_id: EvanEternal/Astra
+    type: model
+    status: confirmed
+  mirrors:
+  - repo_id: KwaiVGI/Astra
+    type: model
+    status: confirmed
+checkpoint_refs:
+- repo_id: EvanEternal/Astra
+  notes:
+  - Official Astra checkpoint bundle containing models/Astra/checkpoints/diffusion_pytorch_model.ckpt.
+- repo_id: Wan-AI/Wan2.1-T2V-1.3B
+  notes:
+  - Shared Wan2.1 T2V base DiT, T5, and VAE assets used by the official demo.
+integration:
+  status: integrated
+  notes:
+  - In-tree Astra inference route is registered under worldfoundry/synthesis/visual_generation/kling/astra_runtime.
+  - Studio defaults mirror the official Wan2.1-backed Sekai image rollout.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: astra
+runner_parity:
+  status: verified
+  notes:
+  - Official garden_1 Sekai demo runs through the in-tree Studio/API path with forward_left camera control, 97 frames, 832x480, and 20fps output.
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models

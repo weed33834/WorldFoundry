@@ -1,0 +1,23 @@
+schema_version: 2
+model_id: open-sora
+display_name: Open-Sora
+task_family: video_generation
+groups: [video, text_to_video]
+source_repos:
+- url: https://github.com/hpcaitech/Open-Sora
+checkpoints:
+- repo_id: hpcai-tech/OpenSora-STDiT-v3
+  role: t2v_checkpoint
+- repo_id: hpcai-tech/OpenSora-VAE-v1.2
+  role: vae_checkpoint
+input_schema:
+  prompt: true
+artifact_kind: generated_video
+artifact_filename: open-sora.mp4
+execution:
+  backend_stage: official_runtime_bridge
+  runtime_status: integrated_checkpoint_required
+  integration_status: integrated
+  pipeline_binding: open-sora
+integration:
+  status: integrated

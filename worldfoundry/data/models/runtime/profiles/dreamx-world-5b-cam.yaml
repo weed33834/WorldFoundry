@@ -1,0 +1,26 @@
+artifact_filename: dreamx_world_5b_cam_runtime_plan.json
+artifact_kind: generated_world
+backend_stage: worldfoundry_runtime_plan
+display_name: DreamX-World 5B Cam
+id: dreamx-world-5b-cam
+input_schema:
+  actions:
+  - camera_navigation
+  image: true
+  prompt: true
+  video: false
+integration_status: runtime_ported
+notes:
+- DreamX-World official source route is registered; checkpoint/assets are runtime-gated.
+- Missing checkpoints/assets are reported by the runtime plan and are not catalog
+  blockers.
+- WorldFoundry tracks DreamX-World source and checkpoint metadata only; no runnable
+  pipeline is registered.
+- The previous in-tree runtime copy was incomplete and referenced missing runtime
+  modules.
+runtime_status: route_ready_assets_pending
+task_family: world_model
+execution:
+  pipeline_binding: dreamx-world-5b-cam
+  backend_stage: worldfoundry_runtime_plan
+  runtime_status: route_ready_assets_pending

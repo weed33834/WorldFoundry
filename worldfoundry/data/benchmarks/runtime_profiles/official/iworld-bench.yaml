@@ -1,0 +1,60 @@
+benchmark_ids:
+- iworld-bench
+environment_id: worldfoundry-unified-cu128
+id: iworld-bench
+name: iWorld-Bench
+needs_new_env: false
+notes:
+- iWorld-Bench official metric runtime is vendored under the in-tree runner; WORLDFOUNDRY_IWORLD_BENCH_ROOT is only an override.
+- Full memory_ability/trajectory/action/camera execution reuses WorldFoundry's in-tree VIPe and VBench integrations.
+preflight_command: PYTHONPATH=. ${WORLDFOUNDRY_UNIFIED_PYTHON} -m
+  worldfoundry.evaluation.tasks.execution.orchestration.runtime_preflight --profile iworld-bench --manifest
+  worldfoundry/data/benchmarks/runtime_profiles/official/iworld-bench.yaml --output-dir
+  tmp/worldfoundry_preflight/iworld-bench --json
+python_path: ${WORLDFOUNDRY_UNIFIED_PYTHON}
+pythonpath_roots:
+- .
+required_assets:
+  generated_artifact_examples:
+  - ${WORLDFOUNDRY_IWORLD_BENCH_GENERATED_VIDEO_DIR}
+  local_dataset_paths:
+  - cache/worldfoundry/data/hfd_datasets/EmbodiedCity__iWorld-Bench-Dataset
+  - data/hfd_datasets/EmbodiedCity__iWorld-Bench-Dataset
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/iworld-bench.yaml
+required_env:
+- WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+required_imports:
+- numpy
+- cv2
+- piq
+required_packages:
+- numpy
+- opencv-python
+- piq
+required_paths:
+- id: official_runner_script
+  path: worldfoundry/evaluation/tasks/execution/runners/iworldbench/run_iworldbench_official_runner.py
+- id: task_yaml
+  path: worldfoundry/data/benchmarks/tasks/external/iworld-bench.yaml
+- id: in_tree_runtime
+  path: worldfoundry/evaluation/tasks/execution/runners/iworldbench/runtime/iworldbench/run_iworldbench_evaluation.py
+- id: local_dataset_1
+  path: cache/worldfoundry/data/hfd_datasets/EmbodiedCity__iWorld-Bench-Dataset
+  source_env: WORLDFOUNDRY_IWORLD_BENCH_DATASET_ROOT
+  required_for_env: false
+requires_cuda_visibility: true
+status: bounded_official_memory_metric_verified_full_suite_pending
+optional_base_model_dependencies:
+- video_world_perception_stack
+- vbench_runtime_assets
+validation_command:
+- ${WORLDFOUNDRY_UNIFIED_PYTHON}
+- worldfoundry/evaluation/tasks/execution/runners/iworldbench/run_iworldbench_official_runner.py
+- --run-official
+- --generated-videos-dir
+- ${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}
+- --metric
+- memory
+- --output-dir
+- <out>
+- --json

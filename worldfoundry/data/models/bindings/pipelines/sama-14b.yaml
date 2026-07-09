@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: sama-14b
+model_id: sama-14b
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.video_official.pipeline_official_video:SAMA14BPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

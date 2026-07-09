@@ -1,0 +1,49 @@
+benchmark_ids:
+- maniskill2
+blocked_reason: ManiSkill2 full status requires SAPIEN/ManiSkill assets, selected env ids, policy checkpoint, and 
+  official rollout outputs.
+environment_id: worldfoundry-unified-cu128
+id: maniskill2
+name: ManiSkill2
+docker:
+  image: ghcr.io/allenai/vla-evaluation-harness/maniskill2:latest
+  source_image: ghcr.io/allenai/vla-evaluation-harness/maniskill2:latest
+  python_env: maniskill2
+  gpus: all
+needs_new_env: false
+notes:
+- The older maniskill profile remains available; maniskill2 aligns with the external VLA evaluation benchmark id.
+python_path: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}/worldfoundry-unified-cu128/bin/python
+required_assets:
+  local_dataset_paths:
+  - ${WORLDFOUNDRY_DATA_DIR}/datasets/maniskill2
+  local_repo_paths:
+  - ${WORLDFOUNDRY_CACHE_DIR}/repos/haosulab--ManiSkill
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/maniskill2.yaml
+required_env:
+- WORLDFOUNDRY_MANISKILL2_ROOT
+- WORLDFOUNDRY_MANISKILL2_RESULTS_PATH
+required_imports:
+- numpy
+required_packages:
+- numpy
+required_paths:
+- id: official_result_normalizer
+  path: worldfoundry/evaluation/tasks/embodied/normalizer.py
+- id: task_yaml
+  path: worldfoundry/data/benchmarks/tasks/external/maniskill2.yaml
+requires_cuda_visibility: false
+status: official_result_normalizer_ready_full_runtime_pending
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- maniskill2
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.json>
+- --output-dir
+- <out>
+- --json

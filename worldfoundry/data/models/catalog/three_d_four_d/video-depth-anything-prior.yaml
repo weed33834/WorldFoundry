@@ -1,0 +1,37 @@
+id: video-depth-anything-prior
+name: Video Depth Anything Prior
+aliases:
+- video-depth-anything
+- vda-prior
+tasks:
+- video-depth-estimation
+- temporal-depth-estimation
+- geometry-prior
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/DepthAnything/Video-Depth-Anything
+  hf_repo_id: depth-anything/Video-Depth-Anything-Large
+  license: apache-2.0
+checkpoint_refs:
+- repo_id: depth-anything/Video-Depth-Anything-Large
+  filename: video_depth_anything_vitl.pth
+integration:
+  kind: pipeline_runner
+  status: integrated
+  notes:
+  - Integrated as an independent temporal depth prior at worldfoundry/base_models/three_dimensions/depth/videodepthanything.
+  - VIPE pipeline profiles can choose this prior through shared runtime config without
+    owning the code.
+  - Exposed through the shared WorldFoundry geometry-prior pipeline/operator contract.
+base_model_target: worldfoundry.base_models.three_dimensions.depth.videodepthanything
+runtime_profile: runtime-profile:video-depth-anything-prior
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - resolve_model_zoo_config and pipeline/operator import are expected to pass; real
+    prior inference remains gated by checkpoints/assets.
+catalog_category: three_d_four_d
+catalog_scope: Independent geometric prior integrations used by 3D and world-model
+  runtimes.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner

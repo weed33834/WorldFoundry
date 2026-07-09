@@ -1,0 +1,15 @@
+id: calvin_eval
+output_dir: ./results/calvin_eval
+model_id: external-policy-server
+server:
+  url: ws://localhost:8000
+benchmark_id: calvin
+benchmark_kwargs:
+  dataset_path: /data/calvin/dataset/validation
+  num_sequences: 1000
+  seed: 0
+episodes_per_task: 1
+max_tasks: 1000
+metric_ids:
+  - task_success
+  - success_rate

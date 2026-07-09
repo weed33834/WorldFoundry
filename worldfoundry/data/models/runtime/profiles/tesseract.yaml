@@ -1,0 +1,32 @@
+schema_version: 2
+model_id: tesseract
+display_name: TesserAct
+task_family: world_model
+groups:
+- world
+- robotics
+source_repos:
+- url: https://github.com/UMass-Embodied-AGI/TesserAct
+  revision: d2fe4b1d509e54a3cf95da40ec6e232b68361d07
+checkpoints:
+- repo_id: anyeZHY/tesseract
+  role: tesseract_checkpoint
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - world_action
+  - robot_action
+artifact_kind: generated_world
+artifact_filename: tesseract.mp4
+execution:
+  backend_stage: in_tree_runtime_manifest
+  runtime_status: in_tree_runtime_manifest_checkpoint_env_pending
+  integration_status: runtime_ported
+  pipeline_binding: tesseract
+integration:
+  status: runtime_ported
+notes:
+- TesserAct source is vendored in-tree under synthesis/visual_generation/tesseract/tesseract_runtime.
+- The pipeline resolves a vendored inference entrypoint; execution remains checkpoint and embodied-task gated.

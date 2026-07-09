@@ -1,0 +1,27 @@
+artifact_filename: shotstream_runtime_plan.json
+artifact_kind: generated_video
+backend_stage: worldfoundry_runtime_plan
+display_name: ShotStream
+id: shotstream
+input_schema:
+  actions:
+  - stream_control
+  - edit
+  image: true
+  prompt: true
+  video: true
+integration_status: runtime_ported
+notes:
+- ShotStream official inference route is registered; checkpoint/streaming assets are
+  runtime-gated.
+- Missing checkpoints/assets are reported by the runtime plan and are not catalog
+  blockers.
+- WorldFoundry tracks upstream source and checkpoint metadata only; no runnable pipeline
+  is registered.
+- Official source is bound from ${WORLDFOUNDRY_MODEL_SOURCE_DIR}/ShotStream at 7ddcfaef6cf303966351c4640269897181bb009d.
+runtime_status: route_ready_assets_pending
+task_family: video_generation
+execution:
+  pipeline_binding: shotstream
+  backend_stage: worldfoundry_runtime_plan
+  runtime_status: route_ready_assets_pending

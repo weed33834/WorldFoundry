@@ -1,0 +1,30 @@
+schema_version: 2
+model_id: videocrafter1-i2v
+display_name: VideoCrafter1 I2V
+task_family: video_generation
+groups:
+- video
+- image_to_video
+- videocrafter
+source_repos:
+- url: https://github.com/VideoCrafter/VideoCrafter
+checkpoints:
+- role: image_to_video_checkpoint
+  repo_id: VideoCrafter/Image2Video-512
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/video_models/videocrafter_i2v_512_v1.ckpt
+input_schema:
+  prompt: true
+  image: true
+  video: false
+artifact_kind: generated_video
+artifact_filename: videocrafter1-i2v.mp4
+execution:
+  backend_stage: official_in_tree_runtime
+  runtime_status: official_in_tree_runtime_ready
+  integration_status: integrated
+  pipeline_binding: videocrafter1-i2v
+integration:
+  status: integrated
+notes:
+- VideoCrafter infer-only runtime code is packaged in-tree.
+- Training, dataset, and checkpoint download helpers are intentionally excluded.

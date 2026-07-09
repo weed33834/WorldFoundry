@@ -1,0 +1,49 @@
+benchmark_ids:
+- kinetix
+blocked_reason: Kinetix official rollout requires its JAX simulator runtime, selected split, policy checkpoint, and 
+  official rollout outputs.
+environment_id: kinetix-jax
+id: kinetix
+name: Kinetix
+docker:
+  image: ghcr.io/allenai/vla-evaluation-harness/kinetix:latest
+  source_image: ghcr.io/allenai/vla-evaluation-harness/kinetix:latest
+  python_env: kinetix
+  gpus: all
+needs_new_env: true
+notes:
+- Keep Kinetix in a JAX-compatible simulator environment when the unified PyTorch runtime is insufficient.
+python_path: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}/worldfoundry-unified-cu128/bin/python
+required_assets:
+  local_dataset_paths:
+  - ${WORLDFOUNDRY_DATA_DIR}/datasets/kinetix
+  local_repo_paths:
+  - ${WORLDFOUNDRY_CACHE_DIR}/repos/FLAIROx--Kinetix
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/kinetix.yaml
+required_env:
+- WORLDFOUNDRY_KINETIX_ROOT
+- WORLDFOUNDRY_KINETIX_RESULTS_PATH
+required_imports:
+- numpy
+required_packages:
+- numpy
+required_paths:
+- id: official_result_normalizer
+  path: worldfoundry/evaluation/tasks/embodied/normalizer.py
+- id: task_yaml
+  path: worldfoundry/data/benchmarks/tasks/external/kinetix.yaml
+requires_cuda_visibility: false
+status: official_result_normalizer_ready_full_runtime_pending
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- kinetix
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.json>
+- --output-dir
+- <out>
+- --json

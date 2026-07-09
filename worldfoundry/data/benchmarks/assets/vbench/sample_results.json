@@ -1,0 +1,10 @@
+{
+  "subject_consistency": [0.95, []],
+  "background_consistency": [0.94, []],
+  "temporal_flickering": [0.93, []],
+  "motion_smoothness": [0.97, []],
+  "dynamic_degree": [0.55, []],
+  "aesthetic_quality": [0.6, []],
+  "imaging_quality": [0.68, []],
+  "object_class": [0.85, []]
+}

@@ -1,0 +1,31 @@
+conda_packages:
+- python
+- pip
+- ffmpeg
+cuda_profile: cu124
+driver_status: requires_local_extension_build:pytorch3d
+env_name: wonderworld
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: wonderjourney
+notes:
+- Uses the local Wonder runtime environment because WonderJourney imports PyTorch3D CUDA extensions during infer.
+- Source code and demo config are vendored in-tree under worldfoundry/synthesis/visual_generation/wonderjourney.
+pip_packages:
+- torch
+- torchvision
+- pytorch3d
+- transformers
+- diffusers
+- omegaconf
+- opencv-python
+- imageio
+- imageio-ffmpeg
+- spacy
+python: '3.10'
+validation_imports:
+- torch
+- pytorch3d
+- transformers
+- diffusers
+- omegaconf
+- cv2

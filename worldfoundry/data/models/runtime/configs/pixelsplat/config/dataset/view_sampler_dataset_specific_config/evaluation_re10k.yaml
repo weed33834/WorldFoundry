@@ -1,0 +1,5 @@
+# @package _global_
+
+dataset:
+  view_sampler:
+    index_path: ${oc.env:WORLDFOUNDRY_PIXELSPLAT_ASSET_ROOT}/evaluation_index_re10k.json

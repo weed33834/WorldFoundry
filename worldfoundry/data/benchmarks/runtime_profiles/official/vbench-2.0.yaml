@@ -1,0 +1,96 @@
+benchmark_ids:
+- vbench-2.0
+bounded_official_gpu_validation:
+  status: verified
+  dimension: Diversity
+  generated_video_count: 20
+  official_benchmark_verified: true
+  integration_evidence: true
+  leaderboard_valid: false
+  full_suite_verified: false
+  verified: true
+  scope: bounded_official_gpu_validation
+  scorecard: tmp/local_open_eval/gpu_vbench2_cu113_diversity_probe/scorecard.json
+blocked_reason: Bounded Diversity official GPU validation passed; full VBench-2.0 suite still needs the complete 
+  generated video set, dataset assets, and materialized base-model checkpoints.
+environment_id: worldfoundry-unified-cu128
+id: vbench-2.0
+name: VBench-2.0
+needs_new_env: false
+notes:
+- This profile is pinned to the shared worldfoundry-unified-cu128 runtime for bounded official-run validation tests.
+- Full-suite runs use in-tree VBench-2.0 code and reusable base-model assets for LLaVA-Video, Qwen, YOLO-World, ArcFace,
+  anomaly detection, CoTracker, and RAFT. Leaderboard-scale validation still requires the complete generated video set 
+  and all corresponding checkpoints.
+- "Human_Identity additionally requires retinaface-py (retinaface.predict_single) and the staged RetinaFace checkpoint exposed as WORLDFOUNDRY_VBENCH_RETINAFACE_CKPT."
+base_model_dependencies:
+- vbench_perception_metric_stack
+base_model_dependency_preflight:
+  status: ready
+  notes:
+  - VBench-2.0 source is integrated under its version-specific in-tree runner runtime.
+  - CLIP, DINOv2, GroundingDINO, SAM-family segmentation, RAFT, CoTracker, LLaVA-Video, Qwen, YOLO-World, ArcFace, and 
+    anomaly-detector assets are tracked as reusable WorldFoundry base-model assets.
+  - The version-specific VBench-2.0 runner has no runner-local foundation-model fork; dimension code resolves 
+    checkpoints through the base-model/cache paths.
+  missing: []
+preflight_command: PYTHONPATH=worldfoundry/evaluation/tasks/execution/runners/vbench_2_0/runtime:. 
+  ${WORLDFOUNDRY_CONDA_ENVS_ROOT}/worldfoundry-unified-cu128/bin/python -m 
+  worldfoundry.evaluation.tasks.execution.orchestration.runtime_preflight --profile vbench-2.0 --manifest 
+  worldfoundry/data/benchmarks/runtime_profiles/official/vbench-2.0.yaml --output-dir 
+  tmp/worldfoundry_preflight/vbench-2.0 --json
+python_path: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}/worldfoundry-unified-cu128/bin/python
+pythonpath_roots:
+- worldfoundry/evaluation/tasks/execution/runners/vbench_2_0/runtime
+required_assets:
+  local_dataset_paths:
+  - cache/worldfoundry/data/hfd_datasets/Vchitect/VBench-2.0_sampled_videos
+  - cache/worldfoundry/data/hfd_datasets/Vchitect__VBench-2.0_sampled_videos
+  - cache/worldfoundry/data/hfd_datasets/Vchitect/VBench-2.0_human_annotation
+  - cache/worldfoundry/data/hfd_datasets/Vchitect__VBench-2.0_human_annotation
+  - cache/worldfoundry/data/hfd_datasets/Vchitect/VBench-2.0_human_anomaly
+  - cache/worldfoundry/data/hfd_datasets/Vchitect__VBench-2.0_human_anomaly
+  in_tree_source_paths:
+  - worldfoundry/evaluation/tasks/execution/runners/vbench_2_0/runtime
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/vbench-2.0.yaml
+  scorecard_paths:
+  - tmp/local_open_eval/gpu_vbench2_cu113_diversity_probe/scorecard.json
+required_env:
+- WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+required_imports:
+- torch
+- torchvision
+- numpy
+- cv2
+- decord
+- sentencepiece
+- vbench2
+- scenedetect
+optional_imports:
+- retinaface.predict_single
+required_packages:
+- torch
+- torchvision
+- numpy
+- opencv-python
+- decord
+- sentencepiece
+- In-tree VBench source package via PYTHONPATH
+- scenedetect
+optional_packages:
+- retinaface-py==0.0.2
+required_paths:
+- id: official_runner_script
+  path: worldfoundry/evaluation/tasks/execution/runners/vbench_2_0/run_vbench_2_0_official_runner.py
+- id: task_yaml
+  path: worldfoundry/data/benchmarks/tasks/external/vbench-2.0.yaml
+- id: in_tree_vbench_source
+  path: worldfoundry/evaluation/tasks/execution/runners/vbench_2_0/runtime
+requires_cuda_visibility: true
+validation_command:
+- ${WORLDFOUNDRY_UNIFIED_PYTHON}
+- worldfoundry/evaluation/tasks/execution/runners/vbench_2_0/run_vbench_2_0_official_runner.py
+- --benchmark-id
+- vbench-2.0
+- --variant
+- vbench2

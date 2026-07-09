@@ -1,0 +1,36 @@
+conda_packages:
+- python
+- pip
+- ffmpeg
+cuda_profile: prepare_only
+driver_status: blocked_requires_cuda129_multigpu
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: dreamzero
+notes:
+- Prepare-only DreamZero client/metadata environment for the local GPU host. It records the upstream Python package surface
+  implied by official docs without installing the CUDA-heavy torch, flash-attn, TensorRT, or Transformer Engine bundles.
+- Official server parity requires a separate multi-GPU environment built from the upstream DreamZero packaging that tracks
+  bleeding CUDA generations ahead of GPU.
+- DreamZero DROID and AgiBot checkpoints should be staged under ${WORLDFOUNDRY_HFD_ROOT}; live official inference remains
+  blocked by the CUDA 12.9/multi-GPU server requirement.
+pip_packages:
+- numpy
+- opencv-python
+- imageio
+- imageio-ffmpeg
+- msgpack
+- msgpack-numpy
+- websockets
+- openpi-client
+- tyro
+python: '3.11'
+pythonpath_dirs:
+- worldfoundry/synthesis/action_generation/openpi/openpi_runtime
+validation_imports:
+- numpy
+- cv2
+- imageio
+- websockets
+- openpi_client
+- tyro

@@ -1,0 +1,492 @@
+Screen {
+    layout: vertical;
+    background: $surface;
+    /* Nerd Font icons: configure terminal font (see docs/guides/tui), not Textual CSS */
+}
+
+Header {
+    background: $surface-darken-1;
+    color: $text;
+    text-style: bold;
+    dock: top;
+    height: 1;
+    border-bottom: solid $primary 30%;
+}
+
+Footer {
+    background: $surface;
+    dock: bottom;
+    color: $text-muted;
+    border-top: solid $primary 30%;
+}
+
+/* ── Status Pane (Top Left) ── */
+#status-pane {
+    height: auto;
+    padding: 1;
+    margin-bottom: 1;
+    background: $panel;
+    border: round $primary 50%;
+    border-title-color: $text;
+}
+
+#status-pane.mode-infer { border: round $primary 50%; border-title-color: $primary; }
+#status-pane.mode-eval { border: round $secondary 50%; border-title-color: $secondary; }
+#status-pane.mode-ui { border: round $success 50%; border-title-color: $success; }
+
+#brand-collapse {
+    border: none;
+    background: transparent;
+    margin-bottom: 0;
+    padding: 0;
+    height: auto;
+    overflow: hidden;
+}
+
+#brand-collapse > CollapsibleTitle {
+    padding: 0;
+    color: $text-muted;
+}
+
+#brand-logo {
+    width: 1fr;
+    height: auto;
+    content-align: center middle;
+    margin: 0;
+}
+
+#action-row {
+    height: 3;
+    margin: 0;
+    align: left middle;
+}
+
+#status-divider {
+    margin: 0;
+    color: $text-muted 30%;
+}
+
+#action-label {
+    height: 3;
+    content-align: left middle;
+    padding-right: 1;
+    color: $text-muted;
+    text-style: bold;
+}
+
+#action {
+    width: 1fr;
+    height: 3;
+    border: none;
+    background: transparent;
+    border-bottom: tall $accent 40%;
+}
+
+#conda-status {
+    color: $text-muted;
+    content-align: left top;
+    width: 1fr;
+    height: auto;
+    padding: 0;
+    margin-top: 0;
+}
+
+/* ── Main layout ── */
+#main-content {
+    height: 1fr;
+    min-height: 16;
+    padding: 1 1;
+}
+
+#left-column {
+    width: 2fr;
+    height: 100%;
+    min-width: 44;
+}
+
+#catalogs-pane {
+    height: 1fr;
+    border: round $primary 40%;
+    border-title-color: $text 70%;
+    background: $panel;
+    padding: 0 1;
+    overflow-y: auto;
+}
+
+#right-column {
+    width: 3fr;
+    height: 100%;
+    min-width: 40;
+    margin-left: 1;
+    padding-bottom: 1;
+    overflow-y: auto;
+}
+
+#search-row {
+    height: 3;
+    margin-bottom: 1;
+}
+
+#filter {
+    width: 1fr;
+    border: none;
+    border-bottom: tall $primary 50%;
+    background: $boost;
+    color: $text;
+}
+
+#filter:focus {
+    border-bottom: tall $accent;
+    background: $surface-lighten-1;
+}
+
+#catalogs {
+    height: 1fr;
+    min-height: 10;
+}
+
+.pane {
+    width: 1fr;
+    height: 100%;
+}
+
+.pane-full {
+    width: 1fr;
+}
+
+#models-pane, #benchmarks-pane {
+    height: auto;
+    min-height: 10;
+}
+
+.pane-title {
+    height: 1;
+    text-style: bold;
+    color: $text;
+    padding: 1 0 0 0;
+    margin-bottom: 0;
+}
+
+DataTable {
+    height: auto;
+    min-height: 5;
+    border: none;
+    scrollbar-background: $surface-darken-1;
+    scrollbar-color: $primary 40%;
+}
+
+DataTable:focus {
+    border: none;
+}
+
+DataTable > .datatable--cursor {
+    background: $accent 50%;
+    color: $text;
+    text-style: bold;
+}
+
+DataTable > .datatable--header {
+    background: $surface-darken-1;
+    text-style: bold;
+    color: $text 80%;
+}
+
+DataTable > .datatable--hover {
+    background: $surface-lighten-1 30%;
+}
+
+DataTable > .datatable--odd-row {
+    background: $surface 30%;
+}
+
+#summary-row {
+    height: auto;
+    margin-bottom: 1;
+}
+
+/* ── Selection card ── */
+#brand-panel {
+    height: auto;
+    width: 1fr;
+    margin: 0 1 1 1;
+    align: center middle;
+    background: transparent;
+}
+
+#selection-summary {
+    width: 1fr;
+    height: auto;
+    min-height: 4;
+    padding: 0 1;
+    margin-bottom: 1;
+    border: round $accent 30%;
+    border-title-color: $accent;
+    background: transparent;
+}
+
+#run-builder {
+    height: auto;
+    border: round $secondary 40%;
+    border-title-color: $secondary;
+    background: $panel;
+    padding: 0;
+}
+
+#run-controls {
+    height: 3;
+    padding: 0 1;
+    border-bottom: solid $surface-lighten-1;
+    align: left middle;
+    background: transparent;
+}
+
+#secondary-actions {
+    width: auto;
+    height: 3;
+    margin-left: 1;
+}
+
+Button {
+    height: 3;
+    border: none;
+    margin-right: 1;
+    min-width: 7;
+    background: $surface-lighten-1;
+    color: $text;
+    text-style: bold;
+}
+
+Button.success {
+    min-width: 8;
+    background: $success 40%;
+    color: $success-lighten-3;
+}
+Button.success:hover { background: $success 50%; }
+
+Button.error {
+    min-width: 8;
+    background: $error 40%;
+    color: $error-lighten-3;
+}
+Button.error:hover { background: $error 50%; }
+
+Button.primary {
+    background: $primary 40%;
+    color: $primary-lighten-3;
+}
+Button.primary:hover { background: $primary 50%; }
+
+Button:disabled {
+    opacity: 0.35;
+}
+
+Button:hover {
+    background: $surface-lighten-2;
+}
+
+/* ── Config tabs ── */
+#config-tabs {
+    height: auto;
+    min-height: 10;
+    border: none;
+    background: transparent;
+}
+
+TabbedContent > ContentSwitcher {
+    height: auto;
+    padding: 1 1 0 1;
+}
+
+TabbedContent Underline > Tabs {
+    background: $surface-darken-1;
+    border-bottom: solid $surface-lighten-1;
+    padding: 0 1;
+}
+
+TabbedContent Tab {
+    color: $text-muted;
+    padding: 1 2;
+}
+
+TabbedContent Tab.-active {
+    color: $text;
+    text-style: bold;
+    background: transparent;
+    border-bottom: tall $accent;
+}
+
+TabbedContent Tab:disabled {
+    opacity: 0.3;
+}
+
+TabPane {
+    padding: 0;
+    height: auto;
+}
+
+.tab-scroll {
+    height: auto;
+    padding: 0;
+}
+
+.section-title {
+    height: 1;
+    text-style: bold;
+    color: $text 80%;
+    padding: 1 0 0 0;
+}
+
+.section-rule {
+    margin: 0 0 1 0;
+    color: $primary 25%;
+}
+
+/* ── Form fields ── */
+.field-grid {
+    layout: grid;
+    grid-size: 2;
+    grid-columns: 1fr 1fr;
+    grid-gutter: 0 1;
+    height: auto;
+    padding: 0;
+    margin-bottom: 0;
+}
+
+.full-width {
+    column-span: 2;
+}
+
+.field-group {
+    height: auto;
+    width: 1fr;
+    padding: 0;
+    margin-bottom: 1;
+}
+
+.full-width {
+    column-span: 2;
+}
+
+.field-caption {
+    height: 1;
+    color: $text 70%;
+    text-style: bold;
+    padding: 0 0 0 0;
+}
+
+.field-group Input,
+.field-group Select,
+.field-grid Input,
+.field-grid Select {
+    width: 1fr;
+    height: 3;
+    margin: 0;
+    background: $surface-darken-1;
+    border: none;
+    border-bottom: tall $surface-lighten-1;
+    color: $text;
+}
+
+Input:focus,
+Select:focus {
+    border: none;
+    border-bottom: tall $accent;
+    background: $surface;
+}
+
+.tab-empty {
+    height: auto;
+    padding: 2 1;
+    color: $text-muted;
+    text-style: italic;
+    content-align: center middle;
+}
+
+/* ── Studio panel ── */
+#studio-panel {
+    height: 1fr;
+    margin-top: 1;
+    border: none;
+    border-left: thick $success;
+    background: $boost;
+    padding: 1 2;
+}
+
+#studio-help-title {
+    text-style: bold;
+    color: $success;
+    height: 1;
+    padding-bottom: 1;
+}
+
+#studio-help {
+    height: auto;
+    color: $text;
+    padding-top: 1;
+}
+
+#status-bar {
+    height: auto;
+    padding: 1 1 0 1;
+    border-top: solid $surface-lighten-1;
+}
+
+#selection-status {
+    height: 1;
+    color: $text-muted;
+    text-style: italic;
+}
+
+/* ── Command preview ── */
+#command-preview {
+    margin-top: 1;
+    border: none;
+    border-top: solid $surface-lighten-1;
+    background: $surface-darken-1;
+}
+
+#command {
+    height: auto;
+    max-height: 8;
+    padding: 1;
+    background: transparent;
+}
+
+Collapsible {
+    border: none;
+    background: transparent;
+}
+
+CollapsibleTitle {
+    background: transparent;
+    color: $text-muted;
+    text-style: bold;
+    padding: 0 1;
+}
+
+/* ── Log panel ── */
+#log-panel {
+    height: auto;
+    min-height: 15;
+    margin: 1 0 0 0;
+    border: round $panel-lighten-1;
+    border-title-color: $text-muted;
+    background: $surface-darken-1;
+    padding: 0 1;
+}
+
+.log-title {
+    height: 1;
+    padding: 1 0 0 0;
+    color: $text-muted;
+    text-style: bold;
+}
+
+#logs {
+    height: 1fr;
+    border: none;
+    background: transparent;
+    padding-top: 1;
+    scrollbar-background: $surface-darken-2;
+    scrollbar-color: $primary 30%;
+}

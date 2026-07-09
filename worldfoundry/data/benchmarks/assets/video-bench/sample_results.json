@@ -1,0 +1,5 @@
+{
+  "imaging_quality": {"average_scores": {"worldfoundry": 3.5}},
+  "aesthetic_quality": {"average_scores": {"worldfoundry": 3.2}},
+  "temporal_consistency": {"average_scores": {"worldfoundry": 3.8}}
+}

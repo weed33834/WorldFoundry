@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: lingbot-map
+model_id: lingbot-map
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.lingbot_map.pipeline_lingbot_map:LingBotMapPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

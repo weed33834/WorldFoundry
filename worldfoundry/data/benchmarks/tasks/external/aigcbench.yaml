@@ -1,0 +1,415 @@
+benchmark: aigcbench
+description: AIGCBench external benchmark contract manifest.
+id: aigcbench
+name: AIGCBench
+status: contract_ready
+domain:
+- image-to-video
+- motion-quality
+- temporal-consistency
+- alignment
+task_type: image_to_video_generation_evaluation
+input:
+  modalities:
+  - image
+  - text
+  keys:
+  - prompt
+  - prompt_id
+  - generated_artifact_manifest
+output:
+  modalities:
+  - video
+  artifacts:
+  - generated_video
+evaluation_requirements:
+  generated_artifacts:
+  - generated_video
+  metrics_source: official AIGCBench evaluation assets and normalized results
+  requires_official_runtime_execution: false
+  runtime_source_dependency: false
+  notes:
+  - Source repositories and Hugging Face refs are provenance only for this in-tree contract.
+source_provenance:
+  status: contract_ready
+  official_repository:
+    url: https://github.com/BenchCouncil/AIGCBench
+    revision: cc230c8474fdd1af8a7a0749981aa1d09198eaf3
+    provenance_only: true
+  paper:
+    url: https://arxiv.org/abs/2401.01651
+  project_page:
+    url: https://www.benchcouncil.org/AIGCBench
+  huggingface_datasets:
+  - repo_id: stevenfan/AIGCBench_v1.0
+    url: https://huggingface.co/datasets/stevenfan/AIGCBench_v1.0
+    license: apache-2.0
+    provenance_only: true
+tags:
+- benchmark-zoo
+- external-official
+- aigcbench
+- image-to-video
+- video-generation-quality
+splits:
+- standard
+metrics:
+  mse_first:
+    aggregation: mean
+    description: AIGCBench MSE between the condition image and first generated frame; lower is better.
+    evaluator:
+      target: worldfoundry.evaluation.tasks.execution.runners.aigcbench.aigcbench_video_quality_contract:evaluate_aigcbench_video_quality_contract_file
+      status: blocked
+      blocked_reason: asset_required
+      required_inputs:
+      - official_results_path or official_results
+      - reference_image_dir for first-frame image fidelity metrics
+      - reference videos for reference-video metrics
+      - generated_video artifacts for the official prompt suite
+      - CLIP/DOVER/optical-flow scorer outputs
+  ssim_first:
+    aggregation: mean
+    description: AIGCBench SSIM between the condition image and first generated frame.
+    evaluator:
+      target: worldfoundry.evaluation.tasks.execution.runners.aigcbench.aigcbench_video_quality_contract:evaluate_aigcbench_video_quality_contract_file
+      status: blocked
+      blocked_reason: asset_required
+      required_inputs:
+      - official_results_path or official_results
+      - reference_image_dir for first-frame image fidelity metrics
+      - reference videos for reference-video metrics
+      - generated_video artifacts for the official prompt suite
+      - CLIP/DOVER/optical-flow scorer outputs
+  image_genvideo_clip:
+    aggregation: mean
+    description: AIGCBench CLIP similarity between condition image and generated video.
+    evaluator:
+      target: worldfoundry.evaluation.tasks.execution.runners.aigcbench.aigcbench_video_quality_contract:evaluate_aigcbench_video_quality_contract_file
+      status: blocked
+      blocked_reason: asset_required
+      required_inputs:
+      - official_results_path or official_results
+      - reference_image_dir for first-frame image fidelity metrics
+      - reference videos for reference-video metrics
+      - generated_video artifacts for the official prompt suite
+      - CLIP/DOVER/optical-flow scorer outputs
+  genvideo_text_clip:
+    aggregation: mean
+    description: AIGCBench CLIP similarity between generated video and text prompt.
+    evaluator:
+      target: worldfoundry.evaluation.tasks.execution.runners.aigcbench.aigcbench_video_quality_contract:evaluate_aigcbench_video_quality_contract_file
+      status: blocked
+      blocked_reason: asset_required
+      required_inputs:
+      - official_results_path or official_results
+      - reference_image_dir for first-frame image fidelity metrics
+      - reference videos for reference-video metrics
+      - generated_video artifacts for the official prompt suite
+      - CLIP/DOVER/optical-flow scorer outputs
+  genvideo_refvideo_clip_keyframes:
+    aggregation: mean
+    description: AIGCBench CLIP similarity between generated and reference video keyframes.
+    evaluator:
+      target: worldfoundry.evaluation.tasks.execution.runners.aigcbench.aigcbench_video_quality_contract:evaluate_aigcbench_video_quality_contract_file
+      status: blocked
+      blocked_reason: asset_required
+      required_inputs:
+      - official_results_path or official_results
+      - reference_image_dir for first-frame image fidelity metrics
+      - reference videos for reference-video metrics
+      - generated_video artifacts for the official prompt suite
+      - CLIP/DOVER/optical-flow scorer outputs
+  flow_square_mean:
+    aggregation: mean
+    description: AIGCBench optical-flow square mean for generated video motion effects.
+    evaluator:
+      target: worldfoundry.evaluation.tasks.execution.runners.aigcbench.aigcbench_video_quality_contract:evaluate_aigcbench_video_quality_contract_file
+      status: blocked
+      blocked_reason: asset_required
+      required_inputs:
+      - official_results_path or official_results
+      - reference_image_dir for first-frame image fidelity metrics
+      - reference videos for reference-video metrics
+      - generated_video artifacts for the official prompt suite
+      - CLIP/DOVER/optical-flow scorer outputs
+  genvideo_refvideo_clip_corresponding_frames:
+    aggregation: mean
+    description: AIGCBench CLIP similarity for generated and reference corresponding frames.
+    evaluator:
+      target: worldfoundry.evaluation.tasks.execution.runners.aigcbench.aigcbench_video_quality_contract:evaluate_aigcbench_video_quality_contract_file
+      status: blocked
+      blocked_reason: asset_required
+      required_inputs:
+      - official_results_path or official_results
+      - reference_image_dir for first-frame image fidelity metrics
+      - reference videos for reference-video metrics
+      - generated_video artifacts for the official prompt suite
+      - CLIP/DOVER/optical-flow scorer outputs
+  genvideo_clip_adjacent_frames:
+    aggregation: mean
+    description: AIGCBench adjacent-frame CLIP similarity for temporal consistency.
+    evaluator:
+      target: worldfoundry.evaluation.tasks.execution.runners.aigcbench.aigcbench_video_quality_contract:evaluate_aigcbench_video_quality_contract_file
+      status: blocked
+      blocked_reason: asset_required
+      required_inputs:
+      - official_results_path or official_results
+      - reference_image_dir for first-frame image fidelity metrics
+      - reference videos for reference-video metrics
+      - generated_video artifacts for the official prompt suite
+      - CLIP/DOVER/optical-flow scorer outputs
+  frame_count:
+    aggregation: mean
+    description: AIGCBench generated video frame count.
+    evaluator:
+      target: worldfoundry.evaluation.tasks.execution.runners.aigcbench.aigcbench_video_quality_contract:evaluate_aigcbench_video_quality_contract_file
+      status: blocked
+      blocked_reason: asset_required
+      required_inputs:
+      - official_results_path or official_results
+      - reference_image_dir for first-frame image fidelity metrics
+      - reference videos for reference-video metrics
+      - generated_video artifacts for the official prompt suite
+      - CLIP/DOVER/optical-flow scorer outputs
+  dover:
+    aggregation: mean
+    description: AIGCBench DOVER video quality score.
+    evaluator:
+      target: worldfoundry.evaluation.tasks.execution.runners.aigcbench.aigcbench_video_quality_contract:evaluate_aigcbench_video_quality_contract_file
+      status: blocked
+      blocked_reason: asset_required
+      required_inputs:
+      - official_results_path or official_results
+      - reference_image_dir for first-frame image fidelity metrics
+      - reference videos for reference-video metrics
+      - generated_video artifacts for the official prompt suite
+      - CLIP/DOVER/optical-flow scorer outputs
+  genvideo_refvideo_ssim:
+    aggregation: mean
+    description: AIGCBench SSIM between generated and reference videos.
+    evaluator:
+      target: worldfoundry.evaluation.tasks.execution.runners.aigcbench.aigcbench_video_quality_contract:evaluate_aigcbench_video_quality_contract_file
+      status: blocked
+      blocked_reason: asset_required
+      required_inputs:
+      - official_results_path or official_results
+      - reference_image_dir for first-frame image fidelity metrics
+      - reference videos for reference-video metrics
+      - generated_video artifacts for the official prompt suite
+      - CLIP/DOVER/optical-flow scorer outputs
+  aigcbench_average:
+    aggregation: mean
+    primary: true
+    description: AIGCBench official aggregate when supplied by the official scorer or normalized output.
+    evaluator:
+      target: worldfoundry.evaluation.tasks.execution.runners.aigcbench.aigcbench_video_quality_contract:evaluate_aigcbench_video_quality_contract_file
+      status: blocked
+      blocked_reason: asset_required
+      required_inputs:
+      - official_results_path or official_results
+      - reference_image_dir for first-frame image fidelity metrics
+      - reference videos for reference-video metrics
+      - generated_video artifacts for the official prompt suite
+      - CLIP/DOVER/optical-flow scorer outputs
+metadata:
+  source_kind: benchmark_zoo
+  benchmark_id: aigcbench
+  contract_validation_command: worldfoundry-eval zoo benchmark-run --benchmark-id aigcbench --mode contract --output-dir
+    tmp/benchmark_zoo/benchmark_contract/aigcbench --json
+  base_model_dependencies:
+  - video_quality_motion_stack
+  base_model_dependency_preflight:
+    status: ready
+    missing: []
+  official_runner_target: worldfoundry.evaluation.tasks.contracts.external:AIGCBenchContract
+  official_runner_script: worldfoundry/evaluation/tasks/execution/runners/aigcbench/run_aigcbench_official_runner.py
+  local_evaluator:
+    target: worldfoundry.evaluation.tasks.execution.runners.aigcbench.aigcbench_video_quality_contract:evaluate_aigcbench_video_quality_contract_file
+    status: implemented
+    protocol: local_manifest_metadata_and_official_result_normalization
+    output_fields:
+    - metric_id
+    - score
+    - value
+    - status
+    - evidence
+    - blocked_reason
+    local_metric_ids:
+    - local_metadata_coverage
+    - local_prompt_video_pair_completeness
+    official_metric_blocked_reason: asset_required
+    official_result_normalization:
+      status: implemented
+      input_keys:
+      - official_results_path
+      - official_results
+      - WORLDFOUNDRY_AIGCBENCH_RESULTS_PATH
+      formats:
+      - json
+      - jsonl
+      - csv
+      - tsv
+      provenance: normalizes caller-provided official outputs without executing external repositories
+  prompt_suite:
+    status: official_repo_or_dataset_assets
+    notes: Official benchmark assets are obtained from official dataset links or user-provided local assets.
+  artifact_layout:
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+    output_artifact: benchmark_scorecard
+    filename_template: scorecard.json
+  runtime:
+    kind: in_tree_artifact_metric_importer
+    root: worldfoundry/evaluation/tasks/execution/runners/aigcbench
+    root_env: WORLDFOUNDRY_AIGCBENCH_ROOT
+    results_path_env: WORLDFOUNDRY_AIGCBENCH_RESULTS_PATH
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  release_status: experimental
+  open_source_status: experimental
+  maturity: contract_ready
+  official_benchmark_verified: false
+  integration_evidence: true
+  leaderboard_valid: false
+  requires:
+  - WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  - Official benchmark assets and generated artifacts
+  - official_results_path or official_results
+  - reference_image_dir for first-frame image fidelity metrics
+  - reference videos for reference-video metrics
+  - generated_video artifacts for the official prompt suite
+  - CLIP/DOVER/optical-flow scorer outputs
+  blockers:
+  - Official repository/source metadata, reusable CLIP/RAFT dependencies, and official-result normalizer are integrated.
+  - Full validation requires generated videos or rollouts for the official prompt/task suite.
+  - Leaderboard parity requires official judge/checkpoint/API assets and normalized metric result files.
+  data_refs:
+    task_yaml: worldfoundry/data/benchmarks/tasks/external/aigcbench.yaml
+    bundled_assets: worldfoundry/data/benchmarks/assets/aigcbench
+    official_repo: provenance only; runtime uses WorldFoundry-integrated generation and in-tree metric normalization
+  runner_availability:
+    available: true
+    runner_target: worldfoundry.evaluation.tasks.contracts.external:AIGCBenchContract
+    runner_script_available: true
+    task_yaml_available: true
+    runtime_verified: true
+    surface: aigcbench_official_in_tree
+    normalizer_verified: false
+  official_result_entrypoint: worldfoundry-eval zoo benchmark-run
+  runner:
+    validation_command:
+    - worldfoundry-eval
+    - zoo
+    - benchmark-run
+    - --benchmark-id
+    - aigcbench
+    - --mode
+    - official-validation
+    - --official-results-path
+    - <official_results.csv>
+    - --generated-artifact-dir
+    - <generated_videos>
+    - --output-dir
+    - <out>
+    - --json
+    runtime:
+      results_path_env: WORLDFOUNDRY_AIGCBENCH_RESULTS_PATH
+    official_validation_command: worldfoundry-eval zoo benchmark-run --benchmark-id aigcbench --mode official-validation
+      --official-results-path <official_results.csv> --generated-artifact-dir <generated_videos> --output-dir <out> 
+      --json
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - aigcbench
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <official_results.csv>
+  - --generated-artifact-dir
+  - <generated_videos>
+  - --output-dir
+  - <out>
+  - --json
+  integration_status: integrated
+  status: integrated
+  checkpoint_refs: []
+tasks:
+  aigcbench_standard:
+    benchmark_name: aigcbench
+    protocol: external_official_benchmark
+    capability_track: image_to_video
+    input_keys:
+    - prompt
+    - prompt_id
+    - generated_artifact_manifest
+    output_keys:
+    - generated_video
+    metric_ids:
+    - mse_first
+    - ssim_first
+    - image_genvideo_clip
+    - genvideo_text_clip
+    - genvideo_refvideo_clip_keyframes
+    - flow_square_mean
+    - genvideo_refvideo_clip_corresponding_frames
+    - genvideo_clip_adjacent_frames
+    - frame_count
+    - dover
+    - genvideo_refvideo_ssim
+    - aigcbench_average
+    metric_groups:
+    - aigcbench_metrics
+    tags:
+    - benchmark-zoo
+    - external-official
+    - aigcbench
+    - image-to-video
+    - video-generation-quality
+    metadata:
+      source_kind: benchmark_zoo
+      benchmark_id: aigcbench
+      official_benchmark_verified: false
+      integration_evidence: true
+      leaderboard_valid: false
+    dataset:
+      status: official_repo_or_generated_artifacts
+    runtime_requirements:
+      generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+      results_path_env: WORLDFOUNDRY_AIGCBENCH_RESULTS_PATH
+    artifact_contract:
+      required:
+        generated_video:
+          kind: video
+    evaluation_protocol:
+    - name: in_tree_local_quality_evaluator
+      metric_ids:
+      - local_metadata_coverage
+      - local_prompt_video_pair_completeness
+      evaluator_target: worldfoundry.evaluation.tasks.execution.runners.aigcbench.aigcbench_video_quality_contract:evaluate_aigcbench_video_quality_contract_file
+      status: implemented
+    - name: external_official_runner
+      metric_ids:
+      - mse_first
+      - ssim_first
+      - image_genvideo_clip
+      - genvideo_text_clip
+      - genvideo_refvideo_clip_keyframes
+      - flow_square_mean
+      - genvideo_refvideo_clip_corresponding_frames
+      - genvideo_clip_adjacent_frames
+      - frame_count
+      - dover
+      - genvideo_refvideo_ssim
+      - aigcbench_average
+      runner_target: worldfoundry.evaluation.tasks.contracts.external:AIGCBenchContract
+      runner_script: worldfoundry/evaluation/tasks/execution/runners/aigcbench/run_aigcbench_official_runner.py
+      official_validation_command: worldfoundry-eval zoo benchmark-run --benchmark-id aigcbench --mode 
+        official-validation --official-results-path <official_results.csv> --generated-artifact-dir <generated_videos> 
+        --output-dir <out> --json
+      required_inputs:
+      - official_results_path or official_results
+      - reference_image_dir for first-frame image fidelity metrics
+      - reference videos for reference-video metrics
+      - generated_video artifacts for the official prompt suite
+      - CLIP/DOVER/optical-flow scorer outputs
+      official_result_entrypoint: worldfoundry-eval zoo benchmark-run

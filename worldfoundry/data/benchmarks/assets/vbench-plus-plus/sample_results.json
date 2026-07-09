@@ -1,0 +1,6 @@
+{
+  "subject_consistency": [0.95, []],
+  "background_consistency": [0.94, []],
+  "camera_motion": [0.8, []],
+  "i2v_subject": [0.85, []]
+}

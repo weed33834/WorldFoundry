@@ -1,0 +1,30 @@
+schema_version: 2
+model_id: cosmos3
+display_name: Cosmos 3
+task_family: world_model
+groups:
+- world
+- video
+source_repos:
+- url: https://github.com/nvidia-cosmos/cosmos-predict2
+checkpoints:
+- repo_id: nvidia/Cosmos-Predict2-2B-Video2World
+  role: cosmos3_video2world_checkpoint
+input_schema:
+  prompt: true
+  image: true
+  video: true
+  actions:
+  - camera_path
+artifact_kind: generated_world
+artifact_filename: cosmos3.mp4
+execution:
+  backend_stage: in_tree_runtime_plan
+  runtime_status: in_tree_runtime_plan_checkpoint_and_gpu_readiness_pending
+  integration_status: in_tree_plan_ready
+  pipeline_binding: cosmos3
+integration:
+  status: in_tree_plan_ready
+notes:
+- Catalog and runner use model_id cosmos3; this profile keeps the existing Cosmos3Pipeline
+  resolvable without introducing a new runner.

@@ -1,0 +1,80 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+aliases:
+- giga_brain_0
+- gigabrain0
+- giga-brain-0.1
+- GigaBrain-0-3.5B-Base
+- GigaBrain-0.1-3.5B-Base
+availability: open_source
+checkpoint:
+  license: apache-2.0
+  repo_id: open-gigaai/GigaBrain-0-3.5B-Base
+id: giga-brain-0
+integration:
+  notes:
+  - WorldFoundry in-tree GigaBrain-0.1 runtime emitted a checkpoint-backed CUDA action_trace
+    using converted LeRobot RobotWin stats.
+  - Official task-score parity remains separate because official task norm_stats/delta_mask
+    assets are gated/not staged.
+  status: integrated
+license: apache-2.0
+name: GigaBrain-0
+official_sources:
+  github:
+    head_sha: 61a919407dbc2bb945a926cc002749097cc9ebdf
+    url: https://github.com/open-gigaai/giga-brain-0
+  huggingface:
+  - license: apache-2.0
+    repo_id: open-gigaai/GigaBrain-0-3.5B-Base
+    status: local_checkpoint_staged_checkpoint_gpu_probe_verified
+  - license: apache-2.0
+    repo_id: open-gigaai/GigaBrain-0.1-3.5B-Base
+    status: local_checkpoint_staged_checkpoint_gpu_probe_verified
+  - gated: manual
+    license: manual_review:paligemma
+    repo_id: google/paligemma-3b-pt-224
+    requires_auth: true
+    role: tokenizer_model
+    status: local_checkpoint_staged_weight_gpu_probe_verified
+  - license: manual_review:missing_hf_license
+    repo_id: physical-intelligence/fast
+    role: fast_tokenizer
+    status: local_tokenizer_staged
+output_artifacts:
+- action_trace
+pipeline_binding: giga-brain-0
+provider: official_repo
+runtime_profile: runtime-profile:giga-brain-0
+tasks:
+- vla
+- vla.action_prediction
+- vla.policy_rollout
+- robot_policy
+- subtask_prediction
+variants:
+- checkpoint_refs:
+  - license: apache-2.0
+    repo_id: open-gigaai/GigaBrain-0-3.5B-Base
+  id: giga-brain-0-3.5b-base
+  integration_status: planned
+  notes:
+  - Base GigaBrain-0 checkpoint tensor GPU probe passed; promoted action-trace evidence
+    currently covers the GigaBrain-0.1 variant.
+  task: vla.action_prediction
+- checkpoint_refs:
+  - license: apache-2.0
+    repo_id: open-gigaai/GigaBrain-0.1-3.5B-Base
+  id: giga-brain-0.1-3.5b-base
+  integration_status: integrated
+  notes:
+  - Public WorldFoundry pipeline emitted checkpoint-backed GigaBrain-0.1 action_trace
+    on an 80GB CUDA GPU using converted LeRobot RobotWin stats.
+  task: vla.policy_rollout
+runner_parity:
+  official_score_evidence: false
+  scope: public_pipeline_checkpoint_backed_robotwin_converted_lerobot_stats_predict_action
+  status: verified
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint
+  metadata, and runtime-profile planning records. Runner or pipeline targets are present
+  only after a complete in-tree WorldFoundry model runtime is registered and validated.

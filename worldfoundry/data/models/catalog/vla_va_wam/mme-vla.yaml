@@ -1,0 +1,61 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+aliases:
+- mme_vla
+- robomme-policy-learning
+- perceptual-framesamp-modul
+availability: open_source
+checkpoint:
+  license: apache-2.0
+  repo_id: Yinpei/perceptual-framesamp-modul
+id: mme-vla
+integration:
+  status: in_tree_vendored_import_verified
+  notes:
+  - WorldFoundry records the MME-VLA policy contract with an independent synthesis entrypoint.
+  - The current runtime calls create_trained_policy(...).infer in-process from the in-tree vendored infer subset under worldfoundry/synthesis/action_generation/mme_vla/mme_vla_runtime.
+  - Resolver, runtime import, and compileall checks pass without an external github_repos checkout; checkpoint-backed action chunk validation remains required before demo parity is claimed.
+license: apache-2.0
+name: MME-VLA
+official_sources:
+  github:
+    head_sha: ecf086c3be7c
+    url: https://github.com/RoboMME/robomme_policy_learning
+  huggingface:
+  - repo_id: Yinpei/perceptual-framesamp-modul
+    role: best_framesamp_modul_checkpoint
+    status: confirmed_from_readme
+  - repo_id: Yinpei/mme_vla_suite
+    role: mme_vla_suite_checkpoint_collection
+    status: confirmed_from_readme
+  - repo_id: Yinpei/pi05_baseline
+    role: pi05_baseline_checkpoint
+    status: confirmed_from_readme
+  - repo_id: Yinpei/vlm_subgoal_predictor
+    role: vlm_subgoal_predictor_checkpoint
+    status: confirmed_from_readme
+output_artifacts:
+- action_trace
+pipeline_binding: mme-vla
+provider: official_repo
+runtime_profile: runtime-profile:mme-vla
+tasks:
+- vla
+- vla.action_prediction
+- vla.policy_rollout
+- embodied_benchmark
+variants:
+- id: perceptual-framesamp-modul
+  integration_status: in_tree_vendored_checkpoint_pending
+  task: vla.policy_rollout
+  checkpoint_refs:
+  - repo_id: Yinpei/perceptual-framesamp-modul
+    license: apache-2.0
+  notes:
+  - Official QuickStart serves checkpoint subdir 79999 with scripts/serve_policy.py --policy.config=mme_vla_suite.
+  - Runtime input keys are observation/state, observation/image, observation/wrist_image, prompt, and optional memory/subgoal tensors.
+runner_parity:
+  status: in_tree_vendor_ready_checkpoint_pending
+  notes:
+  - RoboMME simulator, dataset builders, VLM subgoal training, OpenPI websocket server execution, and evaluation loops are excluded.
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata, and runtime-profile planning records.

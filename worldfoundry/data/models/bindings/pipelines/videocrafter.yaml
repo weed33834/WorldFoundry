@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: videocrafter
+model_id: videocrafter
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.videocrafter.pipeline_videocrafter2_t2v:VideoCrafter2T2VPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

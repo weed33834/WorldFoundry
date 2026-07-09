@@ -1,0 +1,36 @@
+schema_version: 2
+model_id: causal-forcing
+display_name: Causal-Forcing
+task_family: video_generation
+groups:
+- video
+- autoregressive_video
+source_repos:
+- url: https://github.com/thu-ml/Causal-Forcing
+checkpoints:
+- role: causal_forcing_chunkwise
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Causal-Forcing/chunkwise/causal_forcing.pt
+- role: wan2_1_t2v_1_3b
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Wan2.1-T2V-1.3B
+- role: wan2_1_t2v_14b
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Wan2.1-T2V-14B
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - seed
+artifact_kind: generated_video
+artifact_filename: causal-forcing.mp4
+execution:
+  backend_stage: official_in_tree_runtime
+  runtime_status: official_demo_parity_pending
+  integration_status: integrated
+  pipeline_binding: causal-forcing
+integration:
+  status: integrated
+notes:
+- WorldFoundry vendors the infer-only Causal-Forcing runtime under worldfoundry/synthesis/visual_generation/forcing/causal_forcing_runtime.
+- Benchmark prompt lists live under worldfoundry/data/test_cases/forcing/prompts/ (override with WORLDFOUNDRY_FORCING_PROMPTS_ROOT).
+- The default local profile targets chunkwise/causal_forcing.pt. Override config_path/checkpoint_path
+  for frame-wise, Causal-Forcing++, or I2V variants.

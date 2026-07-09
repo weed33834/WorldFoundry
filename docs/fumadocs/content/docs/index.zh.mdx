@@ -1,0 +1,39 @@
+---
+title: WorldFoundry
+description: 面向世界模型推理、benchmark 评测与可选训练的开源统一框架。
+---
+
+> 本仓库仍在持续开发中，我们会定期更新。遇到问题请在 GitHub issue 中反馈。
+
+<div className="pi-doc-hub-intro">
+
+WorldFoundry 是面向世界模型的开源统一框架。它将世界建模定义为对环境动态的忠实仿真，而不是对观测外观的简单复现，并提供覆盖模型 runner、本地资产、推理与 benchmark 评测的统一工作流。生成式视频、3D、新兴 4D 表征与具身策略的进展，很容易让人把感知真实感与真正的仿真能力混为一谈：系统可以看起来很像，却在动作条件、相机变化、长程 rollout 或闭环控制下失效。WorldFoundry 从这一区分出发，追问当「看起来真实」不再足够时，研究所需的基础设施究竟是什么。
+
+实践中，世界模型研究常按家族碎片化。视频生成、重建栈、交互世界与 VLA 策略很少共享 checkpoint 落盘、artifact 布局、预览界面或打分契约。团队反复实现同一套胶水——环境配置、本地资产路径、一次性启动脚本与临时 metric notebook——直到细微差异变成无法归因的 leaderboard 落差。WorldFoundry 把这些胶水收拢为一条工作流：准备 checkpoint 与数据，通过 TUI 或 CLI 启动生成，在 Studio 中检查产物，再用树内 metric 与可复现 scorecard 完成评测。同一套归一化 run 契约既服务交互调试，也服务批量评测。
+
+</div>
+
+<TeaserImage alt="WorldFoundry：面向世界模型的统一基础设施与大规模评测 Arena" />
+
+<div className="pi-doc-hub-intro">
+
+1. 从[主流程](/zh/docs/quickstart)开始：安装环境、准备本地资产、选择 TUI 或 CLI、运行推理并评测输出。
+2. 按[环境配置](/zh/docs/reference/environments)设置统一 CUDA 基线，以及模型与 benchmark 所需的额外 runtime。
+3. 用[本地资产指南](/zh/docs/guides/local-assets)管理 Hugging Face checkpoint、dataset、metric 权重与输出目录。
+4. 用 [TUI](/zh/docs/guides/tui) 交互式浏览模型与 benchmark。
+5. 用 [CLI](/zh/docs/reference/cli) 执行发现、推理、评测、报告与 workspace 操作。
+
+</div>
+
+## 致谢
+
+WorldFoundry 整合并封装了大量上游世界模型、视频生成、感知、重建与具身动作相关项目。文档附录列出了上游项目链接与许可证说明。
+
+我们还要感谢以下开源项目在设计、运行时与评测思路上对 WorldFoundry 的启发：
+
+| 项目 | 贡献 |
+| --- | --- |
+| [FlashDreams](https://github.com/NVIDIA/flashdreams) | 交互式自回归视频与世界模型的高性能推理与服务 |
+| [FastVideo](https://github.com/hao-ai-lab/FastVideo) | 加速视频生成的统一推理与后训练框架 |
+| [OpenWorldLib](https://github.com/OpenDCAI/OpenWorldLib) | 先进世界模型的统一代码库 |
+| [VLA Evaluation Harness](https://github.com/allenai/vla-evaluation-harness) | 在机器人仿真 benchmark 上评测 VLA 模型的统一框架 |

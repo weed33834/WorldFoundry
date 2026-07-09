@@ -1,0 +1,27 @@
+schema_version: 2
+model_id: mineworld
+display_name: MineWorld
+task_family: world_model
+groups:
+- world
+- minecraft
+source_repos:
+- url: https://github.com/microsoft/mineworld
+input_schema:
+  prompt: true
+  image: true
+  video: true
+  actions:
+  - minecraft_action
+  - world_action
+artifact_kind: generated_world
+artifact_filename: mineworld.mp4
+execution:
+  backend_stage: in_tree_runtime_manifest
+  runtime_status: in_tree_runtime_manifest_checkpoint_env_pending
+  integration_status: runtime_ported
+  pipeline_binding: mineworld
+integration:
+  status: runtime_ported
+notes:
+- MineWorld source is vendored in-tree under synthesis/visual_generation/world_model/mineworld.

@@ -1,0 +1,132 @@
+---
+title: BridgeData V2
+description: BridgeData V2 — 指标、依赖与运行命令。
+---
+
+## 简介
+
+
+
+BridgeData V2 external benchmark task manifest for real-robot dataset and offline policy result normalization.
+
+
+
+## 指标
+
+BridgeData V2 external benchmark task manifest for real-robot dataset and offline policy result normalization.
+
+### Task YAML
+
+`worldfoundry/data/benchmarks/tasks/external/bridgedata-v2.yaml`
+
+### Primary
+
+- `success_rate`
+
+| Metric | 关注点 |
+| --- | --- |
+| `success_rate` | episode / task 是否成功完成的比例或成功率。 |
+| `task_success` | episode / task 是否成功完成的比例或成功率。 |
+| `goal_success` | episode / task 是否成功完成的比例或成功率。 |
+| `action_accuracy` | 预测动作、状态或结果相对 benchmark 成功标准的正确性。 |
+| `rollout_success` | episode / task 是否成功完成的比例或成功率。 |
+
+
+
+## 环境准备
+
+### 运行环境
+
+- **Conda 环境：** `worldplay-core`。
+- **单独配置：** 默认复用 WorldFoundry 统一环境（`needs_new_env: false`），通常不需要额外 benchmark-only conda env。
+- BridgeData V2 需要已物化的评测 split 和 policy-result import；当前只配置通用 Python 环境。
+
+### 测评数据
+
+- 待测模型输出目录：设置 `WORLDFOUNDRY_BRIDGEDATA_V2_RESULTS_PATH` 指向生成视频或 rollout artifact 根目录。
+- `${WORLDFOUNDRY_DATA_DIR}/datasets/bridgedata-v2`
+- `${WORLDFOUNDRY_CACHE_DIR}/repos/rail-berkeley--bridge_data_v2`
+
+### Checkpoint 与资产
+
+- 该 benchmark 以官方结果归一化或仿真 rollout 为主；policy / simulator checkpoint 见 catalog `requires` 与 task YAML。
+
+### 关键环境变量
+
+- `WORLDFOUNDRY_BRIDGEDATA_V2_DATASET_ROOT`
+- `WORLDFOUNDRY_BRIDGEDATA_V2_RESULTS_PATH`
+
+### 环境检查
+
+```bash
+PYTHONPATH=${WORLDFOUNDRY_CACHE_DIR}/repos/rail-berkeley--bridge_data_v2:src ${WORLDFOUNDRY_CONDA_ROOT}/worldplay/bin/python -m worldfoundry.evaluation.tasks.execution.orchestration.runtime_preflight --profile bridgedata-v2 --manifest worldfoundry/data/benchmarks/runtime_profiles/official/bridgedata-v2.yaml --output-dir tmp/worldfoundry_preflight/bridgedata-v2 --json
+```
+
+
+
+## 运行评测
+
+
+
+准备好该 benchmark 页面列出的资产和候选产物后，使用下面的公开运行入口。
+
+### 设置候选产物目录
+
+```bash
+export WORLDFOUNDRY_GENERATED_ARTIFACT_DIR=/path/to/generated/artifacts
+```
+
+### 导入已有官方结果
+
+```bash
+worldfoundry-eval zoo benchmark-run \
+  --benchmark-id bridgedata-v2 \
+  --mode normalizer \
+  --official-results-path /path/to/official/results-or-report \
+  --generated-artifact-dir "${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}" \
+  --output-dir tmp/bridgedata-v2/normalizer \
+  --json
+```
+
+### 从生成产物重新打分
+
+```bash
+worldfoundry-eval zoo benchmark-run \
+  --benchmark-id bridgedata-v2 \
+  --mode official-run \
+  --generated-artifact-dir "${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}" \
+  --output-dir tmp/bridgedata-v2/official-run \
+  --json
+```
+
+### 直接调用仓内 runner
+
+```bash
+worldfoundry-eval zoo benchmark-run --benchmark-id bridgedata-v2 --mode official-validation --official-results-path <official_results.json> --output-dir <out> --json
+```
+
+
+
+## 依赖与产物
+
+
+
+### Inputs
+
+- BridgeData V2 dataset materialization
+- Eval split definition
+- Policy checkpoint or offline prediction dump
+- Action normalization and task-goal mapping
+
+### Environment
+
+- `WORLDFOUNDRY_BRIDGEDATA_V2_RESULTS_PATH`
+
+### Outputs
+
+- `scorecard.json`
+- `raw_results.jsonl`
+
+
+
+[← 返回 Benchmark Hub](/zh/docs/evaluation/benchmark-hub)

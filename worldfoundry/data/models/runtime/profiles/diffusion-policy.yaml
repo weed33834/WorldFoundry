@@ -1,0 +1,30 @@
+artifact_filename: diffusion_policy_action_trace.json
+artifact_kind: action_trace
+backend_stage: in_tree_runtime
+checkpoints:
+- config_path: ${WORLDFOUNDRY_CKPT_DIR}/embodied_action/diffusion-policy/low_dim_pusht_diffusion_policy_cnn/config.yaml
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/embodied_action/diffusion-policy/low_dim_pusht_diffusion_policy_cnn/epoch=0550-test_mean_score=0.969.ckpt
+  role: official_low_dim_pusht_demo_checkpoint
+id: diffusion-policy
+input_schema:
+  actions:
+  - robot_action
+  - proprio
+  - action_space
+  image: true
+  instruction: true
+  prompt: false
+  video: true
+integration_status: integrated
+notes:
+- Diffusion Policy is a visuomotor action policy profile, not a diffusion video-generation
+  profile.
+- The staged demo checkpoint is the published low_dim/pusht/diffusion_policy_cnn train_0
+  checkpoint.
+- The runner emits action_trace artifacts for policy rollout evaluation.
+- WorldFoundry vendors the low-dimensional PushT Diffusion Policy runtime under worldfoundry/synthesis/action_generation/diffusion_policy/diffusion_policy_runtime.
+  py_compile, import/from_pretrained, plan-only predict, and checkpoint-backed DiffusionUnetLowdimPolicy
+  loading passed.
+runtime_status: in_tree_lowdim_pusht_predict_action_ready
+task_family: visuomotor_policy
+verification_status: official_demo_ready

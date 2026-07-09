@@ -1,0 +1,19 @@
+id: vlabench_eval
+output_dir: ./results/vlabench_eval
+model_id: external-policy-server
+server:
+  url: ws://localhost:8000
+benchmark_id: vlabench
+benchmark_kwargs:
+  tasks:
+    - select_fruit
+    - select_toy
+    - select_drink
+    - select_book
+    - select_painting
+  robot: franka
+  max_steps: 200
+episodes_per_task: 20
+metric_ids:
+  - task_success
+  - success_rate

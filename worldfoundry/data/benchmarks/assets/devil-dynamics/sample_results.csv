@@ -1,0 +1,5 @@
+metric_id,score
+dynamics_range,0.75
+dynamics_controllability,0.75
+dynamics_quality,0.75
+devil_dynamics_average,0.75

@@ -1,0 +1,123 @@
+benchmark: libero-plus
+description: LIBERO-Plus external benchmark manifest for extended language-conditioned manipulation suites.
+tags:
+- benchmark-zoo
+- external-official
+- libero-plus
+- vla
+- embodied-action
+- robot-manipulation
+splits:
+- spatial
+- all
+metrics:
+  success_rate:
+    aggregation: mean
+    primary: true
+  task_success:
+    aggregation: mean
+  episode_success:
+    aggregation: mean
+  action_accuracy:
+    aggregation: mean
+metadata:
+  source_kind: benchmark_zoo
+  benchmark_id: libero-plus
+  status: integrated
+  official_runner_target: worldfoundry.evaluation.tasks.contracts.external:LIBEROPlusContract
+  runtime:
+    kind: external_official_results_runner
+    root_env: WORLDFOUNDRY_LIBERO_PLUS_ROOT
+    results_path_env: WORLDFOUNDRY_LIBERO_PLUS_RESULTS_PATH
+    preflight_profile: libero-plus
+  local_evaluator:
+    target: worldfoundry.evaluation.tasks.embodied.normalizer:normalize_results
+    status: implemented
+    protocol: official_embodied_result_normalizer
+  contract_validation_command: worldfoundry-eval zoo benchmark-run --benchmark-id libero-plus --mode contract 
+    --output-dir tmp/benchmark_zoo/benchmark_contract/libero-plus --json
+  release_status: normalizer_only
+  maturity: contract_ready
+  open_source_status: normalizer_only
+  official_benchmark_verified: false
+  integration_evidence: true
+  leaderboard_valid: false
+  requires:
+  - Official simulator runtime
+  - benchmark assets
+  - policy checkpoint
+  - official result dump
+  blockers:
+  - Full leaderboard parity is not claimed until official rollouts are executed and imported.
+  runner_availability:
+    available: true
+    runner_target: worldfoundry.evaluation.tasks.contracts.external:LIBEROPlusContract
+    task_yaml_available: true
+    runtime_verified: false
+    normalizer_verified: true
+    surface: official_result_normalizer
+    runner_script_available: false
+  artifact_layout:
+    generated_artifact_dir_env: WORLDFOUNDRY_LIBERO_PLUS_RESULTS_PATH
+    output_artifact: benchmark_scorecard
+    filename_template: scorecard.json
+  data_refs:
+    task_yaml: worldfoundry/data/benchmarks/tasks/external/libero-plus.yaml
+  checkpoint_refs: []
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - libero-plus
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <official_results.json>
+  - --output-dir
+  - <out>
+  - --json
+tasks:
+  libero_plus_policy_rollouts:
+    benchmark_name: libero-plus
+    protocol: external_official_benchmark
+    capability_track: vla,robot-manipulation
+    input_keys:
+    - dataset_root
+    - episode_manifest
+    - policy_results_path
+    - official_results_path
+    output_keys:
+    - scorecard
+    - raw_results
+    - per_sample_metrics
+    - rollout_logs
+    metric_ids:
+    - success_rate
+    - task_success
+    - episode_success
+    - action_accuracy
+    tags:
+    - benchmark-zoo
+    - external-official
+    - libero-plus
+    - vla
+    metadata:
+      benchmark_id: libero-plus
+      leaderboard_valid: false
+
+      source_kind: benchmark_zoo
+      official_benchmark_verified: false
+      integration_evidence: true
+    artifact_contract:
+      required:
+        benchmark_scorecard:
+          kind: benchmark_result
+    evaluation_protocol:
+    - name: external_official_runner
+      metric_ids:
+      - success_rate
+      - task_success
+      - episode_success
+      - action_accuracy
+      runner_target: worldfoundry.evaluation.tasks.contracts.external:LIBEROPlusContract

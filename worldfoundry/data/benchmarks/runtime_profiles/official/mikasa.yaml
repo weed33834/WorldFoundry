@@ -1,0 +1,49 @@
+benchmark_ids:
+- mikasa
+blocked_reason: MiKASA-Robo full status requires upstream simulator assets, selected tasks, policy checkpoint, and 
+  official rollout outputs.
+environment_id: worldfoundry-unified-cu128
+id: mikasa
+name: MiKASA-Robo
+docker:
+  image: ghcr.io/allenai/vla-evaluation-harness/mikasa-robo:latest
+  source_image: ghcr.io/allenai/vla-evaluation-harness/mikasa-robo:latest
+  python_env: mikasa
+  gpus: all
+needs_new_env: false
+notes:
+- WorldFoundry provides contract and official result normalization for caller-provided MiKASA-Robo outputs.
+python_path: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}/worldfoundry-unified-cu128/bin/python
+required_assets:
+  local_dataset_paths:
+  - ${WORLDFOUNDRY_DATA_DIR}/datasets/mikasa
+  local_repo_paths:
+  - ${WORLDFOUNDRY_CACHE_DIR}/repos/CognitiveAISystems--MIKASA-Robo
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/mikasa.yaml
+required_env:
+- WORLDFOUNDRY_MIKASA_ROOT
+- WORLDFOUNDRY_MIKASA_RESULTS_PATH
+required_imports:
+- numpy
+required_packages:
+- numpy
+required_paths:
+- id: official_result_normalizer
+  path: worldfoundry/evaluation/tasks/embodied/normalizer.py
+- id: task_yaml
+  path: worldfoundry/data/benchmarks/tasks/external/mikasa.yaml
+requires_cuda_visibility: false
+status: official_result_normalizer_ready_full_runtime_pending
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- mikasa
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.json>
+- --output-dir
+- <out>
+- --json

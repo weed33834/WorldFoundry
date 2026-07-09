@@ -1,0 +1,32 @@
+schema_version: 2
+model_id: allegro-ti2v
+display_name: Allegro TI2V
+task_family: video_generation
+groups:
+- video
+- image_to_video
+- allegro
+source_repos:
+- url: https://github.com/rhymes-ai/Allegro
+checkpoints:
+- repo_id: rhymes-ai/Allegro-TI2V
+  revision: eaac4927c4f42eb20cd21d0c2c4e58a8af34cd62
+  role: ti2v_checkpoint
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - seed
+artifact_kind: generated_video
+artifact_filename: allegro-ti2v.mp4
+execution:
+  backend_stage: official_in_tree_runtime
+  runtime_status: official_demo_parity_pending
+  integration_status: integrated
+  pipeline_binding: allegro-ti2v
+integration:
+  status: integrated
+notes:
+- Allegro TI2V runtime wrapper is packaged in-tree; local checkpoint assets remain
+  external.

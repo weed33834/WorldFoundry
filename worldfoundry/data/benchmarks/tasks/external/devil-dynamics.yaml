@@ -1,0 +1,235 @@
+benchmark: devil-dynamics
+description: DEVIL Dynamics external benchmark contract manifest.
+id: devil-dynamics
+name: DEVIL Dynamics
+status: contract_ready
+domain:
+- dynamics
+- motion-quality
+- temporal-granularity
+task_type: text_to_video_dynamics_evaluation
+input:
+  modalities:
+  - text
+  keys:
+  - prompt
+  - prompt_id
+  - generated_artifact_manifest
+output:
+  modalities:
+  - video
+  artifacts:
+  - generated_video
+evaluation_requirements:
+  generated_artifacts:
+  - generated_video
+  metrics_source: official DEVIL dynamics evaluation protocol
+  requires_official_runtime_execution: true
+  runtime_source_dependency: false
+  notes:
+  - Source repositories and project pages are provenance only; execution uses the in-tree WorldFoundry runner.
+source_provenance:
+  status: contract_ready
+  official_repository:
+    url: https://github.com/MingXiangL/DEVIL
+    revision: 48556c329e6a6f92a587021bc97022494faec69c
+    provenance_only: true
+  paper:
+    url: https://arxiv.org/abs/2407.01094
+  project_page:
+    url: https://t2veval.github.io/DEVIL/
+tags:
+- benchmark-zoo
+- external-official
+- devil-dynamics
+- text-to-video
+- dynamics-evaluation
+splits:
+- standard
+metrics:
+  dynamics_range:
+    aggregation: mean
+  dynamics_controllability:
+    aggregation: mean
+  dynamics_quality:
+    aggregation: mean
+  devil_dynamics_average:
+    aggregation: mean
+    primary: true
+metadata:
+  source_kind: benchmark_zoo
+  benchmark_id: devil-dynamics
+  contract_validation_command: worldfoundry-eval zoo benchmark-run --benchmark-id devil-dynamics --mode contract 
+    --output-dir tmp/benchmark_zoo/benchmark_contract/devil-dynamics --json
+  official_runner_target: worldfoundry.evaluation.tasks.contracts.external:DevilDynamicsContract
+  official_runner_command: worldfoundry-eval zoo benchmark-run
+  metric_evaluator_target: worldfoundry.evaluation.tasks.execution.runners.devil_dynamics.devil_dynamics_contract_evaluator:write_devil_dynamics_evaluation
+  metric_protocol:
+    official_definition: DEVIL reports dynamics range as Q0.99 - Q0.01 over video dynamics scores, dynamics 
+      controllability as ranking consistency between prompt dynamics grades and generated-video dynamics, and 
+      dynamics-based quality as quality averaged across dynamics intervals; naturalness is a Gemini-1.5-Pro judged 
+      component used by the official runtime.
+    official_results_fields:
+    - dynamics_range
+    - dynamics_controllability
+    - dynamics_quality
+    - devil_dynamics_average
+    required_artifacts:
+    - official DEVIL prompts with dynamics-grade filename prefixes
+    - generated videos named with official dynamics prefixes
+    - DEVIL model_weights
+    - Gemini 1.5 Pro naturalness outputs
+    official_metric_blocked_reason: judge_required
+  prompt_suite:
+    status: official_repo_metadata
+  artifact_layout:
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+    output_artifact: benchmark_scorecard
+    filename_template: scorecard.json
+  runtime:
+    kind: in_tree_official_runtime
+    root: worldfoundry/evaluation/tasks/execution/runners/devil_dynamics
+    root_env: WORLDFOUNDRY_DEVIL_DYNAMICS_ROOT
+    artifact_score_dir_env: WORLDFOUNDRY_DEVIL_DYNAMICS_ARTIFACT_SCORE_DIR
+    results_path_env: WORLDFOUNDRY_DEVIL_DYNAMICS_RESULTS_PATH
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  release_status: experimental
+  open_source_status: in_tree_runtime
+  maturity: contract_ready
+  official_benchmark_verified: false
+  integration_evidence: true
+  leaderboard_valid: false
+  optional_base_model_dependencies:
+  - video_world_perception_stack
+  requires:
+  - WORLDFOUNDRY_GENERATED_ARTIFACT_DIR for --run-official
+  - WORLDFOUNDRY_DEVIL_DYNAMICS_ARTIFACT_SCORE_DIR or --artifact-score-dir for in-tree runtime execution
+  - WORLDFOUNDRY_DEVIL_DYNAMICS_RESULTS_PATH or --official-results-path for result import
+  blockers:
+  - In-tree runtime is wired; full validation requires generated videos or rollouts for the official prompt/task suite.
+  - Leaderboard parity requires official judge/checkpoint/API assets and complete metric artifacts.
+  data_refs:
+    task_yaml: worldfoundry/data/benchmarks/tasks/external/devil-dynamics.yaml
+  official_runner_script: 
+    worldfoundry/evaluation/tasks/execution/runners/devil_dynamics/run_devil_dynamics_official_runner.py
+  runner_availability:
+    available: true
+    runner_target: worldfoundry.evaluation.tasks.contracts.external:DevilDynamicsContract
+    runner_script_available: true
+    task_yaml_available: true
+    runtime_verified: true
+    surface: devil_dynamics_official_in_tree
+    normalizer_verified: true
+  local_evaluator:
+    target: worldfoundry/evaluation/tasks/execution/runners/devil_dynamics/run_devil_dynamics_official_runner.py
+    status: implemented
+    protocol: in_tree_official_runtime_and_result_normalization
+    official_result_normalization:
+      status: implemented
+      input_keys:
+      - official_results_path
+      - official_results
+      - WORLDFOUNDRY_DEVIL_DYNAMICS_RESULTS_PATH
+      formats:
+      - json
+      - jsonl
+      - csv
+      provenance: normalizes caller-provided official outputs without executing external repository scripts
+  official_result_entrypoint: worldfoundry-eval zoo benchmark-run
+  runner:
+    validation_command:
+    - worldfoundry-eval
+    - zoo
+    - benchmark-run
+    - --benchmark-id
+    - devil-dynamics
+    - --mode
+    - official-validation
+    - --official-results-path
+    - <official_results.json>
+    - --generated-artifact-dir
+    - <generated_videos>
+    - --output-dir
+    - <out>
+    - --json
+    runtime:
+      results_path_env: WORLDFOUNDRY_DEVIL_DYNAMICS_RESULTS_PATH
+    official_validation_command: worldfoundry-eval zoo benchmark-run --benchmark-id devil-dynamics --mode 
+      official-validation --official-results-path <official_results.json> --generated-artifact-dir <generated_videos> 
+      --output-dir <out> --json
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - devil-dynamics
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <official_results.json>
+  - --generated-artifact-dir
+  - <generated_videos>
+  - --output-dir
+  - <out>
+  - --json
+  integration_status: integrated
+  status: integrated
+  checkpoint_refs: []
+tasks:
+  devil_dynamics_standard:
+    benchmark_name: devil-dynamics
+    protocol: external_official_benchmark
+    capability_track: text_to_video
+    input_keys:
+    - prompt
+    - prompt_id
+    - generated_artifact_manifest
+    output_keys:
+    - generated_video
+    metric_ids:
+    - dynamics_range
+    - dynamics_controllability
+    - dynamics_quality
+    - devil_dynamics_average
+    metric_groups:
+    - devil_dynamics_metrics
+    tags:
+    - benchmark-zoo
+    - external-official
+    - devil-dynamics
+    - text-to-video
+    - dynamics-evaluation
+    metadata:
+      source_kind: benchmark_zoo
+      benchmark_id: devil-dynamics
+      official_benchmark_verified: false
+      integration_evidence: true
+      leaderboard_valid: false
+    dataset:
+      status: official_repo_or_generated_artifacts
+    runtime_requirements:
+      generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+      results_path_env: WORLDFOUNDRY_DEVIL_DYNAMICS_RESULTS_PATH
+    artifact_contract:
+      required:
+        generated_video:
+          kind: video
+    evaluation_protocol:
+    - name: in_tree_official_runtime
+      metric_ids:
+      - dynamics_range
+      - dynamics_controllability
+      - dynamics_quality
+      - devil_dynamics_average
+      runner_target: worldfoundry.evaluation.tasks.contracts.external:DevilDynamicsContract
+      evaluator_target: worldfoundry.evaluation.tasks.execution.runners.devil_dynamics.devil_dynamics_contract_evaluator:write_devil_dynamics_evaluation
+      runner_script: 
+        worldfoundry/evaluation/tasks/execution/runners/devil_dynamics/run_devil_dynamics_official_runner.py
+      official_validation_command: worldfoundry-eval zoo benchmark-run --benchmark-id devil-dynamics --mode 
+        official-validation --official-results-path <official_results.json> --generated-artifact-dir <generated_videos> 
+        --output-dir <out> --json
+      required_inputs:
+      - official_results_path or official_results
+      - generated_video artifacts for the official prompt/task suite
+      - official scorer or judge assets for leaderboard parity
+      official_result_entrypoint: worldfoundry-eval zoo benchmark-run

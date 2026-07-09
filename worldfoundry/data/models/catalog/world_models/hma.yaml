@@ -1,0 +1,59 @@
+id: hma
+name: HMA
+aliases:
+- hma-magvit-362m
+- hma-mar-1b
+tasks:
+- robot-world-model
+- action-conditioned-video
+- video-dynamics
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/liruiw/HMA
+  license: apache-2.0
+official_sources:
+  paper: https://arxiv.org/abs/2502.04296
+  github:
+    url: https://github.com/liruiw/HMA
+    head_sha: e3c89088fa82f2c208af6796485b4ec65ab318c5
+  huggingface:
+  - repo_id: liruiw/hma-base-cont
+    status: confirmed
+  - repo_id: liruiw/hma-base-disc
+    status: confirmed
+checkpoints:
+- repo_id: liruiw/hma-base-cont
+  license: apache-2.0
+- repo_id: liruiw/hma-base-disc
+  license: apache-2.0
+variants:
+- id: hma-magvit-362m
+  task: robot-action-video
+  provider: official_repo
+  checkpoint: liruiw/hma-base-cont
+  integration:
+    status: planned
+- id: hma-mar-1b
+  task: robot-action-video
+  provider: official_repo
+  checkpoint: liruiw/hma-base-disc
+  integration:
+    status: planned
+integration:
+  status: runtime_ported
+  notes:
+  - HMA official generator route is registered; checkpoints/robot assets are runtime-gated.
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - resolve_model_zoo_config and pipeline import are expected to pass; real generation
+    emits a runtime plan until required checkpoints/assets are staged.
+runtime_profile: runtime-profile:hma
+output_artifacts:
+- generated_video
+catalog_category: world_models
+catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry
+  runtimes; blocked entries retain upstream provenance without runnable backends.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: hma

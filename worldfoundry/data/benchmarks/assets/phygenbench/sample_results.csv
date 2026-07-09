@@ -1,0 +1,5 @@
+metric_id,score
+physical_commonsense,0.75
+physical_law_adherence,0.75
+semantic_adherence,0.75
+phygenbench_average,0.75

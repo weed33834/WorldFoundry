@@ -1,0 +1,270 @@
+id: mirabench
+name: MiraBench
+benchmark_kind:
+- long-video-generation
+- video-generation-quality
+- text-to-video
+domains:
+- long-video
+- motion-strength
+- temporal-consistency
+- 3d-consistency
+modalities:
+- text
+- video
+status: confirmed_official_code
+official_sources:
+  github:
+    url: https://github.com/mira-space/MiraData
+    verified_by: git ls-remote https://github.com/mira-space/MiraData HEAD
+    head_sha: 7ad05795dd74acdc6b364222a9fa885a94b0c1a2
+  paper_url: https://arxiv.org/abs/2407.06358
+  project_page: https://mira-space.github.io/
+  license: gpl-3.0
+  access_notes: Official MiraData GitHub repository is public under GPL-3.0; MiraBench is tracked through the official
+    MiraData release.
+benchmark_assets:
+  prompt_suite:
+    status: official_repo_metadata
+    path_or_ref: data/evaluation_example/meta_generated.csv
+evaluation_surface:
+  purpose: Long-video generation evaluation using MiraBench metrics.
+  score_families: 6
+  claimed_metrics: 17
+  requires_checkpoints: true
+  official_result_normalization: implemented for caller-provided official CSV/JSON outputs
+  blocked_without_required_inputs:
+  - official_results_path or official_results
+  - mira_meta_csv / official 150-prompt metadata
+  - generated_video artifacts
+  - RAFT/tracking/DINO/CLIP/AMT/GVGC/MUSIQ/ViCLIP/FVD-FID-KID scorer outputs
+  - category or prompt_type for per-category aggregation
+metrics:
+- id: dynamic_degree
+  name: Dynamic Degree
+  description: MiraBench RAFT optical-flow dynamic degree for motion strength.
+  higher_is_better: true
+  leaderboard_key: dynamic_degree
+  aggregator: mean
+  output_unit: score
+- id: tracking_strength
+  name: Tracking Strength
+  description: MiraBench tracking-based long-range motion strength.
+  higher_is_better: true
+  leaderboard_key: tracking_strength
+  aggregator: mean
+  output_unit: score
+- id: dino_temporal_consistency
+  name: Dino Temporal Consistency
+  description: MiraBench DINO adjacent-frame structural temporal consistency.
+  higher_is_better: true
+  leaderboard_key: dino_temporal_consistency
+  aggregator: mean
+  output_unit: score
+- id: clip_temporal_consistency
+  name: Clip Temporal Consistency
+  description: MiraBench CLIP adjacent-frame semantic temporal consistency.
+  higher_is_better: true
+  leaderboard_key: clip_temporal_consistency
+  aggregator: mean
+  output_unit: score
+- id: temporal_motion_smoothness
+  name: Temporal Motion Smoothness
+  description: MiraBench AMT-prior temporal motion smoothness.
+  higher_is_better: true
+  leaderboard_key: temporal_motion_smoothness
+  aggregator: mean
+  output_unit: score
+- id: mean_absolute_error
+  name: Mean Absolute Error
+  description: MiraBench 3D reconstruction mean absolute error; lower is better.
+  higher_is_better: false
+  leaderboard_key: mean_absolute_error
+  aggregator: mean
+  output_unit: score
+- id: root_mean_square_error
+  name: Root Mean Square Error
+  description: MiraBench 3D reconstruction root mean square error; lower is better.
+  higher_is_better: false
+  leaderboard_key: root_mean_square_error
+  aggregator: mean
+  output_unit: score
+- id: aesthetic_quality
+  name: Aesthetic Quality
+  description: MiraBench LAION aesthetic quality score.
+  higher_is_better: true
+  leaderboard_key: aesthetic_quality
+  aggregator: mean
+  output_unit: score
+- id: imaging_quality
+  name: Imaging Quality
+  description: MiraBench MUSIQ imaging quality score.
+  higher_is_better: true
+  leaderboard_key: imaging_quality
+  aggregator: mean
+  output_unit: score
+- id: camera_alignment
+  name: Camera Alignment
+  description: MiraBench ViCLIP camera-caption alignment.
+  higher_is_better: true
+  leaderboard_key: camera_alignment
+  aggregator: mean
+  output_unit: score
+- id: main_object_alignment
+  name: Main Object Alignment
+  description: MiraBench ViCLIP main-object-caption alignment.
+  higher_is_better: true
+  leaderboard_key: main_object_alignment
+  aggregator: mean
+  output_unit: score
+- id: background_alignment
+  name: Background Alignment
+  description: MiraBench ViCLIP background-caption alignment.
+  higher_is_better: true
+  leaderboard_key: background_alignment
+  aggregator: mean
+  output_unit: score
+- id: style_alignment
+  name: Style Alignment
+  description: MiraBench ViCLIP style-caption alignment.
+  higher_is_better: true
+  leaderboard_key: style_alignment
+  aggregator: mean
+  output_unit: score
+- id: overall_alignment
+  name: Overall Alignment
+  description: MiraBench ViCLIP overall text-video alignment.
+  higher_is_better: true
+  leaderboard_key: overall_alignment
+  aggregator: mean
+  output_unit: score
+- id: fvd
+  name: Fvd
+  description: MiraBench Fréchet Video Distance distribution metric; lower is better.
+  higher_is_better: false
+  leaderboard_key: fvd
+  aggregator: mean
+  output_unit: score
+- id: fid
+  name: Fid
+  description: MiraBench Fréchet Inception Distance distribution metric; lower is better.
+  higher_is_better: false
+  leaderboard_key: fid
+  aggregator: mean
+  output_unit: score
+- id: kid
+  name: Kid
+  description: MiraBench Kernel Inception Distance distribution metric; lower is better.
+  higher_is_better: false
+  leaderboard_key: kid
+  aggregator: mean
+  output_unit: score
+- id: mirabench_average
+  name: Mirabench Average
+  description: MiraBench official aggregate when supplied by the official scorer or normalized output.
+  higher_is_better: true
+  leaderboard_key: mirabench_average
+  aggregator: mean
+  output_unit: score
+  primary: true
+runner:
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:MiraBenchContract
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - mirabench
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <official_results.csv>
+  - --generated-artifact-dir
+  - <generated_videos>
+  - --output-dir
+  - <out>
+  - --json
+  runtime:
+    kind: in_tree_official_source
+    root: worldfoundry/evaluation/tasks/execution/runners/mirabench/runtime/mirabench
+    repo_url: https://github.com/mira-space/MiraData.git
+    repo_revision: 7ad05795dd74acdc6b364222a9fa885a94b0c1a2
+    results_path_env: WORLDFOUNDRY_MIRABENCH_RESULTS_PATH
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  expected_artifacts:
+  - scorecard.json
+  - benchmark_contract.json
+  - raw_metric_table.jsonl
+  verification_status: pending
+  notes:
+  - WorldFoundry materializes MiraBench meta CSV prompts and normalizes official scorer outputs into scorecards.
+  - Use WORLDFOUNDRY_MIRABENCH_SCORER_BACKEND to select the scorer backend.
+  - Full leaderboard validation still requires generated videos, 150-prompt metadata, and complete upstream checkpoints.
+integration:
+  status: integrated
+  blocked_reasons:
+  - Official repository/source metadata, reusable CLIP/DINOv2/RAFT dependencies, and official-result normalizer are
+    integrated.
+  - Full validation requires generated videos or rollouts for the official prompt/task suite.
+  - Leaderboard parity requires official judge/checkpoint/API assets and normalized upstream result files.
+release_status: experimental
+maturity: contract_ready
+open_source_status: experimental
+official_benchmark_verified: false
+integration_evidence: true
+leaderboard_valid: false
+requires:
+- bundled MiraBench metadata/runtime assets
+- WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+- official_results_path or official_results
+- mira_meta_csv / official 150-prompt metadata
+- generated_video artifacts
+- RAFT/tracking/DINO/CLIP/AMT/GVGC/MUSIQ/ViCLIP/FVD-FID-KID scorer outputs
+- category or prompt_type for per-category aggregation
+blockers:
+- Official repository/source metadata, reusable CLIP/DINOv2/RAFT dependencies, and official-result normalizer are
+  integrated.
+- Full validation requires generated videos or rollouts for the official prompt/task suite.
+- Leaderboard parity requires official judge/checkpoint/API assets and normalized upstream result files.
+data_refs:
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/mirabench.yaml
+  bundled_assets: worldfoundry/data/benchmarks/assets/mirabench
+  in_tree_runtime_paths:
+  - worldfoundry/evaluation/tasks/execution/runners/mirabench/runtime/mirabench
+runner_availability:
+  available: true
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:MiraBenchContract
+  runner_script_available: true
+  task_yaml_available: true
+  runtime_verified: true
+  surface: mirabench_official_in_tree
+  normalizer_verified: true
+dataset:
+  not_applicable: true
+  reason: Official benchmark assets are supplied by the source repository or caller-provided generated artifacts; no
+    Hugging Face dataset is required for this contract entry.
+base_model_dependencies:
+- video_quality_dino_motion_stack
+base_model_dependency_preflight:
+  status: ready
+  missing: []
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- mirabench
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.csv>
+- --generated-artifact-dir
+- <generated_videos>
+- --output-dir
+- <out>
+- --json
+checkpoint_refs: []
+artifact_layout:
+  generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  output_artifact: benchmark_scorecard
+  filename_template: scorecard.json

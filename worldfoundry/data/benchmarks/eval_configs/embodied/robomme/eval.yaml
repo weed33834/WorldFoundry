@@ -1,0 +1,53 @@
+id: robomme_eval
+output_dir: ./results/robomme_eval
+model_id: external-policy-server
+server:
+  url: ws://localhost:8000
+benchmarks:
+  - id: robomme_counting
+    benchmark_id: robomme
+    episodes_per_task: 50
+    params:
+      tasks:
+        - BinFill
+        - PickXtimes
+        - SwingXtimes
+        - StopCube
+      action_space: joint_angle
+      max_steps: 1300
+  - id: robomme_permanence
+    benchmark_id: robomme
+    episodes_per_task: 50
+    params:
+      tasks:
+        - VideoUnmask
+        - VideoUnmaskSwap
+        - ButtonUnmask
+        - ButtonUnmaskSwap
+      action_space: joint_angle
+      max_steps: 1300
+  - id: robomme_reference
+    benchmark_id: robomme
+    episodes_per_task: 50
+    params:
+      tasks:
+        - PickHighlight
+        - VideoRepick
+        - VideoPlaceButton
+        - VideoPlaceOrder
+      action_space: joint_angle
+      max_steps: 1300
+  - id: robomme_imitation
+    benchmark_id: robomme
+    episodes_per_task: 50
+    params:
+      tasks:
+        - MoveCube
+        - InsertPeg
+        - PatternLock
+        - RouteStick
+      action_space: joint_angle
+      max_steps: 1300
+metric_ids:
+  - task_success
+  - success_rate

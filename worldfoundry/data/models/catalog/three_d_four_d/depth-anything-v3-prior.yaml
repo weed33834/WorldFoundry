@@ -1,0 +1,39 @@
+id: depth-anything-v3-prior
+name: Depth Anything 3 Prior
+aliases:
+- dav3-prior
+- da3metric-large-prior
+tasks:
+- monocular-depth-estimation
+- metric-depth-estimation
+- geometry-prior
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/ByteDance-Seed/Depth-Anything-3
+  hf_repo_id: depth-anything/DA3METRIC-LARGE
+  license: apache-2.0
+checkpoint_refs:
+- repo_id: depth-anything/DA3METRIC-LARGE
+  filename: model.safetensors
+integration:
+  kind: pipeline_runner
+  status: integrated
+  notes:
+  - Integrated as an independent depth prior at worldfoundry/base_models/three_dimensions/depth/depth_anything/depth_anything_v3.
+  - Runtime configs live under worldfoundry/data/models/runtime/configs/depth_anything_v3, separate
+    from VIPE configs.
+  - Exposed through the shared WorldFoundry geometry-prior pipeline/operator contract.
+base_model_target: worldfoundry.base_models.three_dimensions.depth.depth_anything.depth_anything_v3
+runtime_profile: runtime-profile:depth-anything-v3-prior
+runner_parity:
+  status: verified
+  notes:
+  - Checkpoint-backed inference is implemented through the shared geometry-prior
+    pipeline/operator contract.
+  - Per-run validation evidence is tracked outside the model catalog so this file
+    remains stable release metadata.
+catalog_category: three_d_four_d
+catalog_scope: Independent geometric prior integrations used by 3D and world-model
+  runtimes.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner

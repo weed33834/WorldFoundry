@@ -1,0 +1,20 @@
+artifact_filename: sana.png
+artifact_kind: generated_image
+backend_stage: in_tree_official_cli
+checkpoints:
+- local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Efficient-Large-Model--Sana_1600M_1024px
+  repo_id: Efficient-Large-Model/Sana_1600M_1024px
+  role: default_sana_text_to_image_checkpoint
+display_name: Sana
+id: sana
+input_schema:
+  image: true
+  prompt: true
+  video: false
+integration_status: runtime_ported
+notes:
+- WorldFoundry vendors the official Sana runtime under worldfoundry/base_models/diffusion_model/image/sana.
+- SanaSynthesis plan-onlys and executes official in-tree CLI scripts; full parity requires staged Hugging Face checkpoints
+  and GPU inference.
+runtime_status: in_tree_official_cli_checkpoint_pending
+task_family: video_generation

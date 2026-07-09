@@ -1,0 +1,40 @@
+model_id: solaris
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+python: '3.11'
+cuda_profile: cu128
+driver_status: compatible_unified_default
+conda_packages:
+- python=3.11
+- pip
+- ffmpeg
+pip_packages:
+- torch
+- torchvision
+- jax[cuda12]
+- flax
+- orbax-checkpoint
+- hydra-core
+- omegaconf
+- opencv-python
+- imageio
+- imageio-ffmpeg
+- pillow
+- numpy
+- scipy
+- scikit-learn
+- tqdm
+notes:
+- Solaris runs from the unified WorldFoundry CUDA 12.8 environment with the in-tree inference-only runtime.
+- Pretrained Orbax checkpoints come from nyu-visionx/solaris and eval fixtures from the nyu-visionx/solaris-eval-datasets dataset repo.
+- Inference uses one sample per visible GPU; set eval_num_samples to a multiple of CUDA_VISIBLE_DEVICES.
+validation_imports:
+- torch
+- torchvision
+- jax
+- flax
+- orbax.checkpoint
+- hydra
+- omegaconf
+- cv2
+- worldfoundry.synthesis.visual_generation.solaris

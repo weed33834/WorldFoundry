@@ -1,0 +1,10 @@
+backend: custom_from_pretrained
+checkpoint_path: ${WORLDFOUNDRY_CKPT_DIR}/yuanty--fastwam
+source_repo: ${WORLDFOUNDRY_MODEL_SOURCE_DIR}/FastWAM
+source_subdir: src
+policy_target: fastwam.models.wan22.fastwam:FastWAM
+predict_method: infer_action
+torch_dtype: bfloat16
+trust_remote_code: true
+action_contract: fastwam_world_action_trace
+runtime_backend: fastwam_official_action_infer

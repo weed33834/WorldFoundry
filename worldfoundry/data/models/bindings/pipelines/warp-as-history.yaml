@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: warp-as-history
+model_id: warp-as-history
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.warp_as_history.pipeline_warp_as_history:WarpAsHistoryPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

@@ -1,0 +1,36 @@
+id: hunyuan-game-craft
+name: Hunyuan Game Craft
+aliases:
+- hunyuan-gamecraft
+- gamecraft
+tasks:
+- interactive-world-model
+- image-to-video
+- camera-control
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/Tencent-Hunyuan/Hunyuan-GameCraft-1.0
+  license: tencent-hunyuan-community
+official_sources:
+  github:
+    url: https://github.com/Tencent-Hunyuan/Hunyuan-GameCraft-1.0
+  huggingface:
+  - repo_id: tencent/Hunyuan-GameCraft-1.0
+    type: model
+    status: confirmed
+integration:
+  status: runtime_ported
+  notes:
+  - In-tree Hunyuan GameCraft pipeline is registered; official inference uses the HYGameCraft conda profile and torchrun dispatch.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: hunyuan-game-craft
+runner_parity:
+  status: verified
+  notes:
+  - The official village image-conditioned interactive demo is represented with
+    actions forward, backward, right, and left, 129 frames, 704x1216 generation,
+    50 inference steps, CFG 2.0, and torchrun over 8 ranks.
+  - Per-run visual QA and artifact checks are tracked outside the catalog.
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models

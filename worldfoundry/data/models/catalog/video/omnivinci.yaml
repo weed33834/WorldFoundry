@@ -1,0 +1,29 @@
+id: omnivinci
+name: OmniVinci
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: omnivinci
+aliases:
+- nvidia/omnivinci
+tasks:
+- multimodal-reasoning
+- audio-reasoning
+- image-question-answering
+- video-question-answering
+provider: worldfoundry_native
+source:
+  status: unknown
+  official_repo_url: https://huggingface.co/nvidia/omnivinci
+  notes:
+  - Originally exposed by WorldFoundry-native-3D.
+integration:
+  status: integrated
+  notes:
+  - WorldFoundry route is complete; missing checkpoint/assets are reported at runtime.
+runtime_profile: runtime-profile:omnivinci
+runner_parity:
+  status: pending
+  notes:
+  - Checkpoint-backed artifact parity has not been run in this workspace.
+catalog_category: video
+catalog_scope: Video-generation and video-token catalog entries. Integrated entries expose WorldFoundry pipeline targets;
+  metadata-only entries retain upstream provenance without runnable WorldFoundry backends.

@@ -1,0 +1,70 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+availability: open_source
+checkpoints:
+- nvidia/Cosmos-Transfer2.5-2B
+family: NVIDIA Cosmos
+id: cosmos-transfer-2.5
+integration:
+  notes:
+  - Cosmos Transfer 2.5 pipeline source is vendored in-tree and exposes a plan wrapper.
+  - Real Transfer inference remains blocked until local nvidia/Cosmos-Transfer2.5-2B
+    and control variant checkpoints are staged.
+  status: runtime_ported
+license: other:nvidia-open-model-license
+modalities:
+- controlled-video
+- world-generation
+- spatial-control
+name: Cosmos Transfer 2.5
+pipeline_binding: cosmos-transfer-2.5
+official_sources:
+  github:
+    confirmed_by: git ls-remote --heads
+    confirmed_ref: refs/heads/main
+    url: https://github.com/nvidia-cosmos/cosmos-transfer2.5
+  huggingface:
+  - confirmed_by: https://huggingface.co/api/models/nvidia/Cosmos-Transfer2.5-2B
+    repo_id: nvidia/Cosmos-Transfer2.5-2B
+    status: confirmed
+    type: model
+  - confirmed_by: https://huggingface.co/api/models/nvidia/Cosmos-Transfer2.5-14B
+    repo_id: nvidia/Cosmos-Transfer2.5-14B
+    status: access_required_or_private
+    type: model
+release_type: code_and_weights
+runtime_profile: runtime-profile:cosmos-transfer2.5-2b-controlled-video
+starred: true
+variants:
+- runner_parity:
+    blocked_reasons:
+    - Requires accepted NVIDIA model license, control-input fixture, official demo
+      artifact, and WorldFoundry runner parity run.
+    status: planned
+  checkpoint_refs:
+  - gated: auto
+    license: other:nvidia-open-model-license
+    private: false
+    repo_id: nvidia/Cosmos-Transfer2.5-2B
+    requires_auth: true
+    revision: bbaeedb2b57cc8b14a44653099e2551adb69dcc7
+  demo_parity:
+    status: pending_demo
+  id: cosmos-transfer-2.5-2b
+  provider: official_repo
+  runtime_profile: cosmos-transfer2.5-2b-controlled-video
+  task: controlled-video
+runner_parity:
+  notes:
+  - In-tree CosmosTransfer2p5Pipeline resolves the vendored Transfer pipeline source
+    and emits a blocked runtime plan until local gated checkpoints are staged.
+  status: implemented_checkpoint_pending
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models
+catalog_policy:
+  checkpoint_rule: Only list checkpoints that were confirmed on official Hugging Face
+    model pages. Do not download weights.
+  integration_rule: Closed, API-only, or unknown releases stay blocked or planned
+    until an official integration surface is available.
+  open_source_rule: Only mark open_source when an official GitHub repository or official
+    Hugging Face model page was confirmed. Do not infer checkpoint availability from
+    papers, demos, or third-party mirrors.

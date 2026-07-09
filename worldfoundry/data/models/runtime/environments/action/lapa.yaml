@@ -1,0 +1,50 @@
+conda_packages:
+- python
+- pip
+- ffmpeg
+cuda_profile: cu118
+driver_status: compatible_jax_cuda11_cu118_lapa_action_tokens
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: lapa
+notes:
+- VA/VAM latent-action profile. It is not categorized as video generation. The prepare env keeps the full LAQ training stack
+  out of scope, but the official vendored LAPA inference path uses JAX CUDA 11.8 wheels for action-token inference.
+- LAPA-7B-openx requires runtime JAX compatibility shims for Flax/Tux and frame inputs shaped like the WorldBench route.
+pip_packages:
+- numpy
+- Pillow
+- opencv-python
+- imageio[ffmpeg]
+- transformers
+- datasets
+- jax==0.4.25
+- jaxlib==0.4.25+cuda11.cudnn86
+- flax
+- orbax-checkpoint
+- optax
+- chex
+- tux==0.0.2
+- sentencepiece
+- einops
+- albumentations
+- gcsfs
+- decord
+- fastapi
+- uvicorn
+pip_find_links:
+- https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+python: '3.10'
+pythonpath_dirs:
+- worldfoundry/synthesis/action_generation/lapa/lapa_runtime
+validation_imports:
+- numpy
+- PIL
+- cv2
+- imageio
+- transformers
+- jax
+- flax
+- sentencepiece
+- einops
+- albumentations

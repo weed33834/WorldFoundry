@@ -1,0 +1,59 @@
+schema_version: 2
+model_id: wow
+display_name: WoW
+task_family: world_model
+groups:
+- world
+- video
+source_repos:
+- url: https://github.com/wow-world-model/wow-world-model
+  revision: 08b010597b69b5e1fde5f69ba44da85aff05bf62
+checkpoints:
+- repo_id: WoW-world-model/WoW-1-Wan-14B-600k
+  role: official_wan_demo_checkpoint
+- repo_id: WoW-world-model/WoW-1-Wan-14B-2M
+  role: recommended_wan_checkpoint
+- repo_id: WoW-world-model/WoW-1-DiT-2B-600k
+  role: official_dit2b_checkpoint
+input_schema:
+  prompt: true
+  image: true
+  video: true
+  actions:
+  - world_action
+  - interaction
+artifact_kind: generated_video
+artifact_filename: wow.mp4
+execution:
+  backend_stage: official_in_tree_runtime
+  runtime_status: official_wan_14b_workspace_verified
+  integration_status: runtime_ported
+  pipeline_binding: wow
+  default_parameters:
+    runtime_backend: wan
+    steps: 50
+    seed: 42
+    tiled: true
+    num_frames: 41
+    output_fps: 15
+  dit2b_parameters:
+    runtime_backend: dit2b
+    resolution: '720'
+    fps: 16
+    num_conditional_frames: 1
+    guidance: 7.0
+    seed: 42
+    num_sampling_step: 35
+    disable_guardrail: true
+    disable_prompt_refiner: true
+integration:
+  status: runtime_ported
+notes:
+- Official WoW Wan demo is the default backend; it consumes image/video first-frame
+  conditioning plus a text prompt.
+- The vendored WoW DiT 2B runtime is exposed with runtime_backend=dit2b and local
+  dit_path/model_path checkpoint files.
+- WoWPipeline accepts native Hugging Face repo ids or local checkpoint directories.
+- >
+  Workspace CLI validation uses the official Wan 14B 600k default and expects 41
+  non-empty 832x480 frames at 16 fps with coherent robot/red-bottle visual QA.

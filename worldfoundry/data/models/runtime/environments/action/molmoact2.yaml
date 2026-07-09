@@ -1,0 +1,39 @@
+conda_packages:
+- python
+- pip
+cuda_profile: cu128
+driver_status: compatible
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: molmoact2
+notes:
+- Mirrors the upstream molmoact2 pyproject dependency band for the HF predict_action server path.
+- Plan-only tests do not require this environment; real checkpoint-backed inference requires CUDA/GPU, Hugging Face checkpoint
+  access, and optional hf-transfer downloads.
+pip_packages:
+- torch
+- torchvision
+- transformers>=4.57,<4.58
+- accelerate>=1.0
+- safetensors>=0.4
+- huggingface-hub[cli]>=0.36
+- hf-transfer>=0.1.8
+- pillow>=10
+- numpy>=1.26,<3
+- einops>=0.7
+- sentencepiece>=0.2
+- protobuf>=4.25
+- fastapi>=0.116
+- uvicorn[standard]>=0.35
+- json-numpy>=2.1.0
+- requests
+python: '3.11'
+validation_imports:
+- numpy
+- PIL
+- torch
+- torchvision
+- transformers
+- huggingface_hub
+- fastapi
+- json_numpy

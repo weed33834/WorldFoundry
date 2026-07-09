@@ -1,0 +1,66 @@
+id: videocrafter
+name: VideoCrafter
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: videocrafter
+runtime_profile: runtime-profile:videocrafter2-t2v
+tasks:
+- text-to-video
+- image-to-video
+source_status:
+  status: confirmed_official_github
+  github:
+    url: https://github.com/VideoCrafter/VideoCrafter
+    verified_by: git ls-remote --symref https://github.com/VideoCrafter/VideoCrafter.git HEAD
+    default_branch: main
+    head_sha: f6c7f7f28f71d3069a9ee0e002d2f4b019eb78f6
+checkpoint:
+  status: confirmed_public_hf
+  verified_by: GET https://huggingface.co/api/models/<repo_id>
+  repos:
+  - id: VideoCrafter/VideoCrafter2
+    sha: 7b4079838622fcba3fc2c9575210df3ed1cb8d69
+    license: apache-2.0
+    private: false
+    gated: false
+    tasks:
+    - text-to-video
+  - id: VideoCrafter/Text2Video-1024
+    sha: 3919b21f62d5c14498e4d25c831c6df031da18a6
+    private: false
+    gated: false
+    tasks:
+    - text-to-video
+    license_status: pending
+  - id: VideoCrafter/Image2Video-512
+    sha: 36d5fca839f041121c576b1cd76c58d4eb238408
+    private: false
+    gated: false
+    tasks:
+    - image-to-video
+    license_status: pending
+  notes: Some official older HF repos expose no license in cardData; do not infer a license from the org name.
+demo_parity:
+  status: pending
+  notes:
+  - The in-tree VideoCrafter1 I2V, VideoCrafter1 T2V, and VideoCrafter2 T2V routes are wired with checkpoint, fps, frame count,
+    and seed controls.
+  - Full upstream parity remains pending; per-run artifact checks are tracked outside the model catalog.
+notes: The VideoCrafter2 HF card exposes Apache-2.0; older Text2Video/Image2Video cards need license review.
+catalog_category: video
+catalog_scope: Official GitHub and/or Hugging Face confirmed open-source or open-weight video generation models. Checkpoints
+  are not tracked in git; local validation may download selected repos under cache/hfd.
+catalog_policy:
+  github: Validated with git ls-remote, preferring git ls-remote --symref <repo>.git HEAD for default branch and HEAD SHA.
+  huggingface: Validated with the Hugging Face /api/models endpoint. Recorded repo id, sha, private, gated, license, and selected
+    task tags only.
+  parity: This manifest does not claim WorldFoundry runtime parity unless an explicit parity run and expected artifact are
+    recorded.
+integration:
+  status: integrated
+  notes:
+  - WorldFoundry wraps the in-tree VideoCrafter infer-only runtimes.
+runner_parity:
+  status: pending
+  notes:
+  - WorldFoundry pipeline targets are registered for VideoCrafter1 I2V, VideoCrafter1 T2V, and VideoCrafter2 T2V.
+  - Exhaustive upstream benchmark parity remains a longer validation stage.

@@ -1,0 +1,49 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+availability: open_source
+checkpoints:
+- hehao13/CameraCtrl
+family: Camera-Control Video
+id: cameractrl
+integration:
+  notes:
+  - Runtime code is vendored in-tree; checkpoints remain external assets under the
+    normal hfd/ckpt cache.
+  - The WorldFoundry runner supports the official trajectory text-to-video demo in
+    the unified environment profile.
+  status: verified
+license: mit
+modalities:
+- camera-control
+- text-to-video
+- video-diffusion-plugin
+name: CameraCtrl
+official_sources:
+  github:
+    confirmed_by: git ls-remote --heads
+    confirmed_ref: refs/heads/main
+    url: https://github.com/hehao13/CameraCtrl
+  huggingface:
+  - confirmed_by: https://huggingface.co/api/models/hehao13/CameraCtrl
+    repo_id: hehao13/CameraCtrl
+    status: confirmed
+    type: model
+pipeline_binding: cameractrl
+release_type: code_and_weights
+runtime_profile: runtime-profile:cameractrl
+starred: true
+runner_parity:
+  notes:
+  - WorldFoundry now provides an in-tree CameraCtrl synthesis backend under worldfoundry/synthesis/visual_generation/cameractrl/cameractrl_runtime.
+    The runner follows the official demo trajectory contract.
+  - Per-run artifact checks are tracked outside the model catalog.
+  status: verified
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models
+catalog_policy:
+  checkpoint_rule: Only list checkpoints that were confirmed on official Hugging Face
+    model pages. Do not download weights.
+  integration_rule: Closed, API-only, or unknown releases stay blocked or planned
+    until an official integration surface is available.
+  open_source_rule: Only mark open_source when an official GitHub repository or official
+    Hugging Face model page was confirmed. Do not infer checkpoint availability from
+    papers, demos, or third-party mirrors.

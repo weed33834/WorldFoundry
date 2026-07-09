@@ -1,0 +1,126 @@
+---
+title: VLABench
+description: VLABench — 指标、依赖与运行命令。
+---
+
+## 简介
+
+
+
+VLABench external benchmark manifest for language-conditioned manipulation policy rollouts.
+
+
+
+## 指标
+
+VLABench external benchmark manifest for language-conditioned manipulation policy rollouts.
+
+### Task YAML
+
+`worldfoundry/data/benchmarks/tasks/external/vlabench.yaml`
+
+### Primary
+
+- `success_rate`
+
+| Metric | 关注点 |
+| --- | --- |
+| `success_rate` | episode / task 是否成功完成的比例或成功率。 |
+| `task_success` | episode / task 是否成功完成的比例或成功率。 |
+| `episode_success` | episode / task 是否成功完成的比例或成功率。 |
+| `reward` | VLABench 语言条件桌面操作 rollout 的累计 reward。 |
+
+
+
+## 环境准备
+
+### 运行环境
+
+- **Conda 环境：** `vlabench-runtime`。
+- **单独配置：** 需要 benchmark 专用 conda 环境，不要与统一 runtime 混用。
+- WorldFoundry provides contract and official result normalization for caller-provided VLABench outputs.
+
+### 测评数据
+
+- 待测模型输出目录：设置 `WORLDFOUNDRY_VLABENCH_RESULTS_PATH` 指向生成视频或 rollout artifact 根目录。
+- `${WORLDFOUNDRY_DATA_DIR}/datasets/vlabench`
+- `${WORLDFOUNDRY_CACHE_DIR}/repos/OpenMOSS--VLABench`
+
+### Checkpoint 与资产
+
+- 该 benchmark 以官方结果归一化或仿真 rollout 为主；policy / simulator checkpoint 见 catalog `requires` 与 task YAML。
+
+### 关键环境变量
+
+- `WORLDFOUNDRY_VLABENCH_ROOT`
+- `WORLDFOUNDRY_VLABENCH_RESULTS_PATH`
+
+
+
+## 运行评测
+
+
+
+准备好该 benchmark 页面列出的资产和候选产物后，使用下面的公开运行入口。
+
+### 设置候选产物目录
+
+```bash
+export WORLDFOUNDRY_GENERATED_ARTIFACT_DIR=/path/to/generated/artifacts
+```
+
+### 导入已有官方结果
+
+```bash
+worldfoundry-eval zoo benchmark-run \
+  --benchmark-id vlabench \
+  --mode normalizer \
+  --official-results-path /path/to/official/results-or-report \
+  --generated-artifact-dir "${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}" \
+  --output-dir tmp/vlabench/normalizer \
+  --json
+```
+
+### 从生成产物重新打分
+
+```bash
+worldfoundry-eval zoo benchmark-run \
+  --benchmark-id vlabench \
+  --mode official-run \
+  --generated-artifact-dir "${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}" \
+  --output-dir tmp/vlabench/official-run \
+  --json
+```
+
+### 直接调用仓内 runner
+
+```bash
+worldfoundry-eval zoo benchmark-run --benchmark-id vlabench --mode official-validation --official-results-path <official_results.json> --output-dir <out> --json
+```
+
+
+
+## 依赖与产物
+
+
+
+### Inputs
+
+- Official simulator runtime
+- benchmark assets
+- policy checkpoint
+- official result dump
+
+### Environment
+
+- `WORLDFOUNDRY_VLABENCH_RESULTS_PATH`
+
+### Outputs
+
+- `scorecard.json`
+- `raw_results.jsonl`
+- `evaluation/summary.json`
+
+
+
+[← 返回 Benchmark Hub](/zh/docs/evaluation/benchmark-hub)

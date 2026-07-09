@@ -1,0 +1,49 @@
+id: libero_all_eval
+output_dir: ./results/libero_all_eval
+model_id: external-policy-server
+server:
+  url: ws://localhost:8000
+benchmarks:
+  - id: libero_spatial
+    benchmark_id: libero
+    episodes_per_task: 50
+    max_tasks: 10
+    params:
+      suite: libero_spatial
+      seed: 7
+      num_steps_wait: 10
+  - id: libero_object
+    benchmark_id: libero
+    episodes_per_task: 50
+    max_tasks: 10
+    params:
+      suite: libero_object
+      seed: 7
+      num_steps_wait: 10
+  - id: libero_goal
+    benchmark_id: libero
+    episodes_per_task: 50
+    max_tasks: 10
+    params:
+      suite: libero_goal
+      seed: 7
+      num_steps_wait: 10
+  - id: libero_10
+    benchmark_id: libero
+    episodes_per_task: 50
+    max_tasks: 10
+    params:
+      suite: libero_10
+      seed: 7
+      num_steps_wait: 10
+  - id: libero_90
+    benchmark_id: libero
+    episodes_per_task: 50
+    max_tasks: 90
+    params:
+      suite: libero_90
+      seed: 7
+      num_steps_wait: 10
+metric_ids:
+  - task_success
+  - success_rate

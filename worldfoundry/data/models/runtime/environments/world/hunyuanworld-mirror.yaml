@@ -1,0 +1,58 @@
+conda_packages:
+- python
+- pip
+- ffmpeg
+- git
+- git-lfs
+- cmake
+- ninja
+- pkg-config
+- libgl
+- libglib
+cuda_profile: cu128
+driver_status: compatible
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: hunyuanworld-mirror
+notes:
+- Dependencies mirror the official HunyuanWorld-Mirror requirements. gsplat may need a CUDA/PyTorch-specific wheel matching
+  the local torch build.
+- This environment profile is used to make third-party packages configurable rather than treating them as catalog blockers.
+pip_packages:
+- torch
+- torchvision
+- numpy<2.0.0
+- opencv-python
+- pillow_heif
+- scipy
+- einops
+- torchmetrics
+- trimesh
+- open3d==0.18.0
+- roma
+- matplotlib
+- tqdm
+- huggingface-hub[torch]>=0.22
+- jaxtyping
+- lpips
+- colorspacious
+- moviepy==1.0.3
+- plyfile
+- pycolmap==3.10.0
+- tyro
+- onnxruntime
+- safetensors
+- gradio==5.49.1
+- omegaconf
+- pydantic
+- requests
+python: '3.10'
+validation_imports:
+- torch
+- numpy
+- cv2
+- PIL
+- huggingface_hub
+- pycolmap
+- open3d
+- onnxruntime

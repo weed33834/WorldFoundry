@@ -1,0 +1,4 @@
+input_img_path: example/franka
+num_chunks_to_infer: 10
+prompt: pick bunk
+infer_mode: i2va

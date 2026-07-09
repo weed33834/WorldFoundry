@@ -1,0 +1,288 @@
+id: video-bench
+name: Video-Bench
+benchmark_kind:
+- human-preference-aligned
+- mllm-judge
+- video-generation-quality
+status: confirmed_official_code_and_partial_hf_data
+open_source_status: gated
+official_benchmark_verified: false
+integration_evidence: true
+leaderboard_valid: false
+alpha_readiness:
+  status: credential_gated_integrated
+  reason: user_provided_api_required
+  scope: official GPT-4o/GPT-4o-mini judge execution
+  alpha_exclusion: false
+  non_api_surface: videobench_official_in_tree
+requires:
+- In-tree Video-Bench runtime under worldfoundry/evaluation/tasks/execution/runners/videobench/runtime
+- Video-Bench/Video-Bench_human_annotation downloaded through Hugging Face cache or WORLDFOUNDRY_VIDEOBENCH_ANNOTATION_ROOT
+- WORLDFOUNDRY_VIDEOBENCH_GENERATED_VIDEO_DIR or WORLDFOUNDRY_VIDEOBENCH_MODEL_OUTPUT_DIR
+- WORLDFOUNDRY_VIDEOBENCH_GPT4O_API_KEY or OPENAI_API_KEY
+- Access to the gated Video-Bench/Video-Bench_videos dataset if official videos are needed
+runtime_requirements:
+- Official GPT judge execution requires WORLDFOUNDRY_VIDEOBENCH_GPT4O_API_KEY/WORLDFOUNDRY_VIDEOBENCH_GPT4O_MINI_API_KEY
+  or OPENAI_API_KEY supplied by the user.
+- Leaderboard-grade runs require generated videos for the requested official prompt/dimension set.
+official_sources:
+  github:
+    url: https://github.com/Video-Bench/Video-Bench
+    verified_by: git ls-remote --symref https://github.com/Video-Bench/Video-Bench.git HEAD
+    default_branch: main
+    head_sha: d40b917c4238011aea27d24f85b1e3bf996715bd
+  huggingface_datasets:
+  - repo_id: Video-Bench/Video-Bench_human_annotation
+    verified_by: GET https://huggingface.co/api/datasets/Video-Bench/Video-Bench_human_annotation
+    sha: a8371b69c4a91ef1162d8b6af12c1759f1f19983
+    private: false
+    gated: false
+  - repo_id: Video-Bench/Video-Bench_videos
+    verified_by: GET https://huggingface.co/api/datasets/Video-Bench/Video-Bench_videos
+    sha: 9000d1e14055106c8b8383c59e48da3d31648225
+    private: false
+    gated: auto
+  project_page: https://github.com/Video-Bench/Video-Bench
+  paper_url: https://arxiv.org/abs/2504.04907
+  license: apache-2.0
+  access_notes: Official GitHub repository is public under Apache-2.0; Video-Bench_videos HF dataset is gated=auto and 
+    requires explicit access approval.
+evaluation_surface:
+  dimensions:
+  - imaging_quality
+  - aesthetic_quality
+  - temporal_consistency
+  - motion_effects
+  - video-text consistency
+  - object_class
+  - color
+  - action
+  - scene
+  requires_api: true
+  api_notes: Official README requires GPT-4o/GPT-4o-mini compatible API keys in config.json.
+metrics:
+- id: imaging_quality
+  name: Imaging Quality
+  description: Video-Bench static image quality score on the official 1-5 scale.
+  higher_is_better: true
+  leaderboard_key: imaging_quality
+  normalizer: scale_max:5
+  aggregator: mean
+  output_unit: score
+- id: aesthetic_quality
+  name: Aesthetic Quality
+  description: Video-Bench aesthetic quality score on the official 1-5 scale.
+  higher_is_better: true
+  leaderboard_key: aesthetic_quality
+  normalizer: scale_max:5
+  aggregator: mean
+  output_unit: score
+- id: temporal_consistency
+  name: Temporal Consistency
+  description: Video-Bench temporal consistency score on the official 1-5 scale.
+  higher_is_better: true
+  leaderboard_key: temporal_consistency
+  normalizer: scale_max:5
+  aggregator: mean
+  output_unit: score
+- id: motion_effects
+  name: Motion Effects
+  description: Video-Bench motion effects score on the official 1-5 scale.
+  higher_is_better: true
+  leaderboard_key: motion_effects
+  normalizer: scale_max:5
+  aggregator: mean
+  output_unit: score
+- id: video_text_consistency
+  name: Video-Text Consistency
+  description: Video-Bench overall video-text consistency score on the official 1-5 scale.
+  higher_is_better: true
+  leaderboard_key: video-text consistency
+  normalizer: scale_max:5
+  aggregator: mean
+  output_unit: score
+- id: object_class_consistency
+  name: Object-Class Consistency
+  description: Video-Bench object-class consistency score on the official 1-3 scale.
+  higher_is_better: true
+  leaderboard_key: object_class
+  normalizer: scale_max:3
+  aggregator: mean
+  output_unit: score
+- id: color_consistency
+  name: Color Consistency
+  description: Video-Bench color consistency score on the official 1-3 scale.
+  higher_is_better: true
+  leaderboard_key: color
+  normalizer: scale_max:3
+  aggregator: mean
+  output_unit: score
+- id: action_consistency
+  name: Action Consistency
+  description: Video-Bench action consistency score on the official 1-3 scale.
+  higher_is_better: true
+  leaderboard_key: action
+  normalizer: scale_max:3
+  aggregator: mean
+  output_unit: score
+- id: scene_consistency
+  name: Scene Consistency
+  description: Video-Bench scene consistency score on the official 1-3 scale.
+  higher_is_better: true
+  leaderboard_key: scene
+  normalizer: scale_max:3
+  aggregator: mean
+  output_unit: score
+- id: videobench_average
+  name: Video-Bench Average
+  description: Mean normalized score across available Video-Bench dimensions.
+  higher_is_better: true
+  leaderboard_key: overall_average
+  normalizer: identity:0:1
+  aggregator: mean
+  output_unit: score
+  primary: true
+runner:
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:VideoBenchContract
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - video-bench
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <official_results.json>
+  - --generated-artifact-dir
+  - <generated_videos>
+  - --output-dir
+  - <out>
+  - --json
+  runtime:
+    kind: in_tree_official_source
+    repo_url: https://github.com/Video-Bench/Video-Bench
+    repo_revision: d40b917c4238011aea27d24f85b1e3bf996715bd
+    root: worldfoundry/evaluation/tasks/execution/runners/videobench/runtime
+    optional_root_env: WORLDFOUNDRY_VIDEOBENCH_ROOT
+    results_path_env: WORLDFOUNDRY_VIDEOBENCH_RESULTS_PATH
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+    official_entrypoints:
+      normalize_existing_results: ${WORLDFOUNDRY_UNIFIED_PYTHON} 
+        worldfoundry/evaluation/tasks/execution/runners/videobench/run_videobench_official_runner.py 
+        --official-results-path <evaluation_results_or_score_json> --output-dir <out> --json
+      evaluate_generated_videos: ${WORLDFOUNDRY_UNIFIED_PYTHON} 
+        worldfoundry/evaluation/tasks/execution/runners/videobench/run_videobench_official_runner.py 
+        --generated-video-dir <generated_video_tree> --annotation-root <Video-Bench_human_annotation> --output-dir <out>
+        --json
+      manifest_validation: worldfoundry-eval zoo benchmark-run --benchmark-id video-bench --mode official-validation 
+        --generated-artifact-dir <generated_video_tree> --official-results-path <official_results.json> --output-dir 
+        <out> --env WORLDFOUNDRY_VIDEOBENCH_ANNOTATION_ROOT=<Video-Bench_human_annotation> --json
+    dataset_env:
+      annotation_root: WORLDFOUNDRY_VIDEOBENCH_ANNOTATION_ROOT
+      official_videos_root: WORLDFOUNDRY_VIDEOBENCH_OFFICIAL_VIDEOS_ROOT
+      generated_video_dir: WORLDFOUNDRY_VIDEOBENCH_GENERATED_VIDEO_DIR
+      model_output_dir: WORLDFOUNDRY_VIDEOBENCH_MODEL_OUTPUT_DIR
+  required_env:
+  - WORLDFOUNDRY_VIDEOBENCH_RESULTS_PATH
+  - WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  - WORLDFOUNDRY_VIDEOBENCH_GPT4O_API_KEY or OPENAI_API_KEY
+  - WORLDFOUNDRY_VIDEOBENCH_GPT4O_MINI_API_KEY or OPENAI_API_KEY
+  optional_env:
+  - WORLDFOUNDRY_VIDEOBENCH_ANNOTATION_ROOT
+  - WORLDFOUNDRY_VIDEOBENCH_OFFICIAL_VIDEOS_ROOT
+  - WORLDFOUNDRY_VIDEOBENCH_FULL_JSON_DIR
+  - WORLDFOUNDRY_VIDEOBENCH_DIMENSIONS
+  - WORLDFOUNDRY_VIDEOBENCH_MODELS
+  - WORLDFOUNDRY_VIDEOBENCH_MODE
+  - WORLDFOUNDRY_VIDEOBENCH_PROMPT
+  - WORLDFOUNDRY_VIDEOBENCH_PROMPT_FILE
+  expected_artifacts:
+  - scorecard.json
+  - per_sample_scores.jsonl
+  - raw_metric_table.jsonl
+  - upstream_stdout.log
+  - upstream_stderr.log
+  verification_status: verified
+  notes:
+  - WorldFoundry wrapper normalizes official Video-Bench *_score_results.json outputs into WorldFoundry scorecard with 
+    official 1-5/1-3 score ranges mapped to 0-1.
+  - Runtime execution accepts --generated-video-dir/--model-output-dir and passes the resolved directory to official 
+    evaluate.py as --videos_path.
+  - When upstream VideoBench_full.json is unavailable, the wrapper builds the official prompt metadata from 
+    Video-Bench/Video-Bench_human_annotation JSON files.
+  - Downloaded Video-Bench/Video-Bench_videos is recorded as official video data when present, but generated-video 
+    evaluation still consumes the user-provided model output tree.
+  - Runtime execution writes a temporary private config from environment variables rather than mutating the upstream 
+    config.json.
+  - Local preflight validated the hfd_datasets annotation mirror, official video zip mirror, generated prompt manifest, 
+    sample video decode, official layout matching, and dependency imports through the prepared worldplay environment.
+  - Official GPT judge execution remains gated only by explicit user-provided API credentials.
+  - Missing API credentials are a runtime configuration requirement, not an integration blocker; with credentials and 
+    generated videos, the wrapper dispatches to upstream evaluate.py and normalizes official score outputs.
+integration:
+  status: integrated
+  credential_gated: true
+  required_credentials:
+  - WORLDFOUNDRY_VIDEOBENCH_GPT4O_API_KEY or OPENAI_API_KEY
+  - WORLDFOUNDRY_VIDEOBENCH_GPT4O_MINI_API_KEY or OPENAI_API_KEY
+  evidence:
+    annotation_root: cache/worldfoundry/data/hfd_datasets/Video-Bench__Video-Bench_human_annotation
+    official_videos_root: cache/worldfoundry/data/hfd_datasets/Video-Bench__Video-Bench_videos
+    local_manifest: tmp/videobench_local_data/local_datasets.json
+    preflight_manifest: tmp/videobench_preflight/preflight_manifest.json
+    official_layout_probe: tmp/videobench_preflight/official_layout_probe.json
+    api_blocker_probe: tmp/videobench_runner_api_block_worldplay
+    credential_gate: official Video-Bench runtime requires WORLDFOUNDRY_VIDEOBENCH_GPT4O_API_KEY or OPENAI_API_KEY
+  limitations:
+  - Leaderboard-grade runs require generated videos for the full requested prompt/dimension set.
+  - The official Video-Bench_videos dataset remains gated upstream, but the local hfd mirror is present for preflight 
+    and sample-layout validation.
+  - Official judge execution is credential-gated; missing local API keys should not downgrade catalog integration.
+release_status: gated
+maturity: contract_ready
+data_refs:
+  local_dataset_paths:
+  - cache/worldfoundry/data/hfd_datasets/Video-Bench/Video-Bench_human_annotation
+  - cache/worldfoundry/data/hfd_datasets/Video-Bench__Video-Bench_human_annotation
+  - cache/worldfoundry/data/hfd_datasets/Video-Bench/Video-Bench_videos
+  - cache/worldfoundry/data/hfd_datasets/Video-Bench__Video-Bench_videos
+  in_tree_runtime_paths:
+  - worldfoundry/evaluation/tasks/execution/runners/videobench/runtime
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/video-bench.yaml
+runner_availability:
+  available: true
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:VideoBenchContract
+  runner_script_available: true
+  task_yaml_available: true
+  runtime_verified: true
+  credential_gated: true
+  surface: videobench_official_in_tree
+  normalizer_available: true
+  normalizer_verified: true
+base_model_dependencies:
+- video_bench_dataset_assets
+optional_base_model_dependencies:
+- grounded_video_quality_stack
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- video-bench
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.json>
+- --generated-artifact-dir
+- <generated_videos>
+- --output-dir
+- <out>
+- --json
+checkpoint_refs: []
+blockers:
+- Full leaderboard parity requires the complete official assets, generated artifacts, and verified scorecard evidence.
+artifact_layout:
+  generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  output_artifact: benchmark_scorecard
+  filename_template: scorecard.json

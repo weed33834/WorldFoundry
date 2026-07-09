@@ -1,0 +1,6 @@
+metric_id,score
+semantic_adherence,0.75
+physics_commonsense,0.75
+motion_smoothness,0.75
+temporal_flickering,0.75
+phyeduvideo_average,0.75

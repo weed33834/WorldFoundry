@@ -1,0 +1,58 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+availability: open_source
+checkpoints:
+- local_dir: ${WORLDFOUNDRY_CKPT_DIR}/ac3d/2B/checkpoint-10000.pt
+  role: ac3d_cogvideox_2b_controlnet
+- local_dir: ${WORLDFOUNDRY_CKPT_DIR}/ac3d/5B/checkpoint-10000.pt
+  role: ac3d_cogvideox_5b_controlnet
+base_model_refs:
+- role: cogvideox_2b_base
+  repo_id: THUDM/CogVideoX-2b
+- role: cogvideox_5b_base
+  repo_id: THUDM/CogVideoX-5b
+family: Camera-Control Video
+id: ac3d
+aliases:
+- AC3D
+- ac3d-cogvideox
+- ac3d-2b
+- ac3d-5b
+tasks:
+- camera-control-video
+- text-to-video
+- video-diffusion-plugin
+integration:
+  notes:
+  - WorldFoundry vendors the official AC3D inference runtime under worldfoundry/synthesis/visual_generation/ac3d/ac3d_runtime;
+    WorldFoundry owns path resolution, command construction, output loading, and pipeline/catalog exposure.
+  - The local workspace has staged AC3D ControlNet checkpoints under ${WORLDFOUNDRY_CKPT_DIR}/ac3d and CogVideoX base
+    checkpoints under ${WORLDFOUNDRY_CKPT_DIR}/CogVideoX-{2b,5b}.
+  status: integrated
+license: unknown
+modalities:
+- camera-control
+- text-to-video
+- video-diffusion-plugin
+name: AC3D
+official_sources:
+  project_page: https://snap-research.github.io/ac3d/
+  paper: https://arxiv.org/abs/2411.18673
+  github:
+    url: https://github.com/snap-research/ac3d
+pipeline_binding: ac3d
+release_type: code_and_weights
+runtime_profile: runtime-profile:ac3d
+starred: true
+runner_parity:
+  notes:
+  - The adapter preserves the official inference/cli_demo_camera.py generation path and AC3D 2B ControlNet shape
+    settings.
+  - The RealEstate10K camera-control demo is verified through the Workspace infer path with local CogVideoX-2B and AC3D
+    ControlNet weights.
+  status: verified
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models
+catalog_policy:
+  checkpoint_rule: Only list checkpoints that were confirmed on official source pages or staged locally. Do not download weights.
+  integration_rule: Closed, API-only, or unknown releases stay blocked or planned until an official integration surface is available.
+  open_source_rule: Only mark open_source when an official GitHub repository or official model page was confirmed.

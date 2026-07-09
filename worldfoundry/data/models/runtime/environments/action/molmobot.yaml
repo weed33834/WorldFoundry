@@ -1,0 +1,40 @@
+conda_packages:
+- python
+- pip
+cuda_profile: cu128
+driver_status: compatible
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: molmobot
+notes:
+- MolmoBot main package targets Python 3.11 and torch>=2.3.1; MolmoBot-Pi0 uses OpenPI extras for the PiJointPosPolicy route.
+- MolmoSpaces simulator, real robot infrastructure, and W&B training dependencies are excluded from lightweight runtime checks.
+pip_packages:
+- torch>=2.3.1
+- torchvision>=0.18.1
+- transformers>=4.37.1
+- accelerate
+- huggingface-hub
+- tokenizers
+- sentencepiece
+- numpy
+- Pillow
+- einops
+- einops-exts
+- omegaconf
+- rich
+- cached_path>=1.6.4
+- datasets
+- requests
+- imageio
+- decord
+- av
+python: '3.11'
+validation_imports:
+- numpy
+- PIL
+- torch
+- torchvision
+- transformers
+- omegaconf
+- requests

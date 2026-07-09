@@ -1,0 +1,187 @@
+models:
+  - id: hailuo-2p3
+    name: Hailuo 2.3
+    aliases: [minimax-i2v, minimax_i2v]
+    tasks: [audio-video, image-to-video, hosted-api]
+    provider: api
+    source:
+      status: api
+      official_repo_url: https://www.minimax.io/
+    runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+    pipeline_binding: hailuo-2p3
+    integration:
+      status: integrated
+      notes:
+        - Hosted API Studio pipeline is available; users must provide their own provider API key.
+    demo_parity:
+      status: not_applicable
+    runner_parity:
+      status: not_applicable
+      notes:
+        - API output parity depends on provider-side model versioning and account access.
+
+  - id: kling-api
+    name: Kling API
+    tasks: [text-to-video, image-to-video, hosted-api]
+    provider: api
+    source:
+      status: api
+      official_repo_url: https://app.klingai.com/
+    runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+    pipeline_binding: kling-api
+    integration:
+      status: integrated
+      notes:
+        - Hosted API Studio pipeline is available; users must provide their own provider API key.
+    demo_parity:
+      status: not_applicable
+    runner_parity:
+      status: not_applicable
+
+  - id: luma-ray2
+    name: Luma Ray2
+    tasks: [text-to-video, image-to-video, hosted-api]
+    provider: api
+    source:
+      status: api
+      official_repo_url: https://lumalabs.ai/
+    runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+    pipeline_binding: luma-ray2
+    integration:
+      status: integrated
+      notes:
+        - Hosted API Studio pipeline is available; users must provide their own provider API key.
+    demo_parity:
+      status: not_applicable
+    runner_parity:
+      status: not_applicable
+
+  - id: runway-gen4p5
+    name: Runway Gen-4.5
+    aliases: [gen_3_i2v, gen-3-i2v]
+    tasks: [image-to-video, hosted-api]
+    provider: api
+    source:
+      status: api
+      official_repo_url: https://runwayml.com/
+    runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+    pipeline_binding: runway-gen4p5
+    integration:
+      status: integrated
+      notes:
+        - Hosted API Studio pipeline is available; users must provide their own provider API key.
+    demo_parity:
+      status: not_applicable
+    runner_parity:
+      status: not_applicable
+
+  - id: sora2
+    name: Sora2
+    tasks: [text-to-video, image-to-video, hosted-api]
+    provider: api
+    source:
+      status: api
+      official_repo_url: https://openai.com/sora/
+    runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+    pipeline_binding: sora2
+    integration:
+      status: integrated
+      notes:
+        - Hosted API Studio pipeline is available; users must provide their own provider API key.
+    demo_parity:
+      status: not_applicable
+    runner_parity:
+      status: not_applicable
+
+  - id: veo3
+    name: Veo3
+    tasks: [text-to-video, image-to-video, hosted-api]
+    provider: api
+    source:
+      status: api
+      official_repo_url: https://deepmind.google/technologies/veo/
+    runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+    pipeline_binding: veo3
+    integration:
+      status: integrated
+      notes:
+        - Hosted API Studio pipeline is available; users must provide their own provider API key.
+    demo_parity:
+      status: not_applicable
+    runner_parity:
+      status: not_applicable
+
+  - id: wan-2p5
+    name: Wan 2.5 API
+    aliases: [wan2.5, wan-2.5]
+    tasks: [text-to-video, image-to-video, hosted-api]
+    provider: api
+    source:
+      status: api
+      official_repo_url: https://dashscope.aliyun.com/
+    runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+    pipeline_binding: wan-2p5
+    integration:
+      status: integrated
+      notes:
+        - Hosted DashScope API Studio pipeline is available; users must provide their own provider API key.
+    demo_parity:
+      status: not_applicable
+    runner_parity:
+      status: not_applicable
+
+  - id: wan-2p6
+    name: Wan 2.6 API
+    aliases: [wan2.6, wan-2.6]
+    tasks: [image-to-video, hosted-api]
+    provider: api
+    source:
+      status: api
+      official_repo_url: https://dashscope.aliyun.com/
+    runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+    pipeline_binding: wan-2p6
+    integration:
+      status: integrated
+      notes:
+        - Hosted DashScope API Studio pipeline is available; users must provide their own provider API key.
+    demo_parity:
+      status: not_applicable
+    runner_parity:
+      status: not_applicable
+
+  - id: wan-2p7
+    name: Wan 2.7 API
+    aliases: [wan2.7, wan-2.7]
+    tasks: [image-to-video, hosted-api]
+    provider: api
+    source:
+      status: api
+      official_repo_url: https://dashscope.aliyun.com/
+    runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+    pipeline_binding: wan-2p7
+    integration:
+      status: integrated
+      notes:
+        - Hosted DashScope API Studio pipeline is available; users must provide their own provider API key.
+    demo_parity:
+      status: not_applicable
+    runner_parity:
+      status: not_applicable
+
+  - id: worldlabs
+    name: World Labs API
+    tasks: [world-generation, assets, hosted-api]
+    provider: api
+    source:
+      status: api
+      official_repo_url: https://www.worldlabs.ai/
+    runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+    pipeline_binding: worldlabs
+    integration:
+      status: integrated
+      notes:
+        - Hosted API Studio pipeline is available; users must provide their own provider API key.
+    demo_parity:
+      status: not_applicable
+    runner_parity:
+      status: not_applicable

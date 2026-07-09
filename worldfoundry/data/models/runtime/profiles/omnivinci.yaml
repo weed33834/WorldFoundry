@@ -1,0 +1,23 @@
+schema_version: 2
+model_id: omnivinci
+display_name: OmniVinci
+task_family: video_generation
+groups: [video, multimodal]
+source_repos:
+- url: https://huggingface.co/nvidia/omnivinci
+checkpoints:
+- repo_id: nvidia/omnivinci
+  role: model_checkpoint
+input_schema:
+  prompt: true
+  image: optional
+  video: optional
+artifact_kind: model_response
+artifact_filename: omnivinci.json
+execution:
+  backend_stage: official_hf_transformers_runtime
+  runtime_status: integrated_checkpoint_required
+  integration_status: integrated
+  pipeline_binding: omnivinci
+integration:
+  status: integrated

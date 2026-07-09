@@ -1,0 +1,29 @@
+id: simpler_env_widowx_eval
+output_dir: ./results/simpler_env_widowx_eval
+model_id: external-policy-server
+server:
+  url: ws://localhost:8000
+benchmarks:
+  - id: stack_green_cube
+    benchmark_id: simpler-env
+    episodes_per_task: 24
+    params:
+      task_name: widowx_stack_cube
+  - id: put_carrot_on_plate
+    benchmark_id: simpler-env
+    episodes_per_task: 24
+    params:
+      task_name: widowx_carrot_on_plate
+  - id: put_spoon_on_tablecloth
+    benchmark_id: simpler-env
+    episodes_per_task: 24
+    params:
+      task_name: widowx_spoon_on_towel
+  - id: put_eggplant_in_basket
+    benchmark_id: simpler-env
+    episodes_per_task: 24
+    params:
+      task_name: widowx_put_eggplant_in_basket
+metric_ids:
+  - task_success
+  - success_rate

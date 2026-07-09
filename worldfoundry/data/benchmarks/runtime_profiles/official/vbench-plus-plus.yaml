@@ -1,0 +1,112 @@
+benchmark_ids:
+- vbench-plus-plus
+blocked_reason: Bounded VBench++ long-video official GPU validation passed; full I2V, long-video, trustworthiness suite 
+  and leaderboard parity remain pending.
+environment_id: worldfoundry-unified-cu128
+id: vbench-plus-plus
+name: VBench++
+needs_new_env: false
+notes:
+- Full I2V, long-video, and trustworthiness parity still requires complete official variant suites and generated 
+  artifacts.
+- "Trustworthiness gender_bias and skin_bias require retinaface-py (retinaface.predict_single) and the staged RetinaFace checkpoint exposed as WORLDFOUNDRY_VBENCH_RETINAFACE_CKPT."
+base_model_dependencies:
+- vbench_perception_metric_stack
+base_model_dependency_preflight:
+  status: ready
+  notes:
+  - VBench++ source is integrated under its version-specific in-tree runner runtime and reuses the base VBench runtime 
+    package for shared dimensions.
+  - CLIP, DINOv2, GroundingDINO, SAM-family segmentation, and RAFT are tracked as reusable WorldFoundry base-model 
+    assets for VBench++ variant metrics.
+  - Full VBench++ parity still depends on upstream variant-specific official runtime assets.
+  missing: []
+preflight_command: 
+  PYTHONPATH=worldfoundry/evaluation/tasks/execution/runners/vbench_plus_plus/runtime:worldfoundry/evaluation/tasks/execution/runners/vbench/runtime:.
+  ${WORLDFOUNDRY_UNIFIED_PYTHON} -m worldfoundry.evaluation.tasks.execution.orchestration.runtime_preflight --profile 
+  vbench-plus-plus --manifest worldfoundry/data/benchmarks/runtime_profiles/official/vbench-plus-plus.yaml --output-dir 
+  tmp/worldfoundry_preflight/vbench-plus-plus --json
+python_path: ${WORLDFOUNDRY_UNIFIED_PYTHON}
+pythonpath_roots:
+- worldfoundry/evaluation/tasks/execution/runners/vbench_plus_plus/runtime
+- worldfoundry/evaluation/tasks/execution/runners/vbench/runtime
+required_assets:
+  generated_artifact_examples:
+  - ${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}
+  in_tree_source_paths:
+  - worldfoundry/evaluation/tasks/execution/runners/vbench_plus_plus/runtime
+  - worldfoundry/evaluation/tasks/execution/runners/vbench/runtime
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/vbench-plus-plus.yaml
+  scorecard_paths:
+  - tmp/worldfoundry_audit/remaining_benchmarks/vbenchpp_long_temporal_flickering_unified_20260621_002/scorecard.json
+required_env:
+- WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+required_imports:
+- torch
+- torchvision
+- numpy
+- cv2
+- decord
+- sentencepiece
+- vbench
+- vbench2_beta_i2v
+- vbench2_beta_long
+- vbench2_beta_trustworthiness
+optional_imports:
+- retinaface.predict_single
+required_packages:
+- torch
+- torchvision
+- numpy
+- opencv-python
+- decord
+- sentencepiece
+- In-tree VBench source package via PYTHONPATH
+optional_packages:
+- retinaface-py==0.0.2
+required_paths:
+- id: official_runner_script
+  path: worldfoundry/evaluation/tasks/execution/runners/vbench_plus_plus/run_vbench_plus_plus_official_runner.py
+- id: task_yaml
+  path: worldfoundry/data/benchmarks/tasks/external/vbench-plus-plus.yaml
+- id: in_tree_vbench_source
+  path: worldfoundry/evaluation/tasks/execution/runners/vbench_plus_plus/runtime
+- id: base_vbench_runtime_source
+  path: worldfoundry/evaluation/tasks/execution/runners/vbench/runtime
+requires_cuda_visibility: true
+bounded_official_gpu_validation:
+  status: verified
+  variant: long
+  dimension: temporal_flickering
+  generated_video_count: 2
+  metrics_available: 3
+  official_benchmark_verified: true
+  integration_evidence: true
+  leaderboard_valid: false
+  full_suite_verified: false
+  runtime_env: conda/envs/worldfoundry-unified-cu128
+  python: ${WORLDFOUNDRY_UNIFIED_PYTHON}
+  vbench_root: worldfoundry/evaluation/tasks/execution/runners/vbench_plus_plus/runtime
+  videos_path: ${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}
+  verified: true
+  scope: bounded_official_gpu_validation
+  scorecard: 
+    tmp/worldfoundry_audit/remaining_benchmarks/vbenchpp_long_temporal_flickering_unified_20260621_002/scorecard.json
+validation_command:
+- ${WORLDFOUNDRY_UNIFIED_PYTHON}
+- worldfoundry/evaluation/tasks/execution/runners/vbench_plus_plus/run_vbench_plus_plus_official_runner.py
+- --benchmark-id
+- vbench-plus-plus
+- --variant
+- long
+- --videos-path
+- ${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}
+- --dimension
+- temporal_flickering
+- --mode
+- long_custom_input
+- --python
+- ${WORLDFOUNDRY_UNIFIED_PYTHON}
+- --output-dir
+- <out>
+- --json

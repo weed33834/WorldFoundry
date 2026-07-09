@@ -1,0 +1,29 @@
+schema_version: 2
+model_id: wan2.2-ti2v-5b-1280x704-121f
+display_name: Wan2.2 TI2V 5B 1280x704 121F
+task_family: video_generation
+groups:
+- video
+source_repos:
+- url: https://github.com/Wan-Video/Wan2.2
+checkpoints:
+- repo_id: Wan-AI/Wan2.2-TI2V-5B
+  revision: 921dbaf3f1674a56f47e83fb80a34bac8a8f203e
+  role: ti2v_checkpoint
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - seed
+artifact_kind: generated_video
+artifact_filename: wan2.2-ti2v-5b-1280x704-121f.mp4
+execution:
+  backend_stage: in_tree_runtime_plan
+  runtime_status: official_demo_parity_pending
+  integration_status: planned
+  pipeline_binding: wan2.2-ti2v-5b-1280x704-121f
+integration:
+  status: planned
+notes:
+- Variant profile for the catalog demo contract; GPU parity remains pending.

@@ -1,0 +1,38 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+availability: open_source
+family: KAIST / Adobe Research / MAUM AI
+id: worldcam
+integration:
+  notes:
+  - WorldCam runtime code is in-tree and the wrapper now supports load_model=False planning without external checkout dependency.
+  - The WorldFoundry runner supports the official-style conditioning-video demo in the unified environment profile.
+  status: verified
+modalities:
+- interactive-world-model
+- camera-pose-control
+- game-video
+- long-horizon
+name: WorldCam
+official_sources:
+  github:
+    confirmed_by: git ls-remote --heads
+    confirmed_ref: refs/heads/main
+    url: https://github.com/cvlab-kaist/WorldCam
+  project_page: https://cvlab-kaist.github.io/WorldCam/
+pipeline_binding: worldcam
+release_type: code_only
+runtime_profile: runtime-profile:worldcam
+starred: true
+runner_parity:
+  notes:
+  - The in-tree WorldCam runner supports the official-style conditioning-video path and local WorldCam/Wan assets.
+  - Per-run artifact checks are tracked outside the model catalog.
+  status: verified
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models
+catalog_policy:
+  checkpoint_rule: Only list checkpoints that were confirmed on official Hugging Face model pages. Do not download weights.
+  integration_rule: Closed, API-only, or unknown releases stay blocked or planned until an official integration surface is
+    available.
+  open_source_rule: Only mark open_source when an official GitHub repository or official Hugging Face model page was confirmed.
+    Do not infer checkpoint availability from papers, demos, or third-party mirrors.

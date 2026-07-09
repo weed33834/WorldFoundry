@@ -1,0 +1,77 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+aliases:
+- openvla-7b
+availability: open_source
+checkpoint:
+  license: mit
+  repo_id: openvla/openvla-7b
+  revision: 47a0ec7fc4ec123775a391911046cf33cf9ed83f
+id: openvla
+integration:
+  status: integrated
+  notes:
+  - In-tree OpenVLA HF runtime is registered through the WorldFoundry pipeline binding.
+  - The local openvla-7b route uses backend worldfoundry.openvla.in_tree_runtime.predict_action
+    and emits the configured action trace schema.
+license: mit
+name: OpenVLA
+output_artifacts:
+- actions
+- action_trace
+- rollout_metrics
+official_sources:
+  github:
+    head_sha: c8f03f48af692657d3060c19588038c7220e9af9
+    url: https://github.com/openvla/openvla
+  huggingface:
+  - license: mit
+    repo_id: openvla/openvla-7b
+    revision: 47a0ec7fc4ec123775a391911046cf33cf9ed83f
+    status: confirmed
+  - license: mit
+    repo_id: openvla/openvla-7b-finetuned-libero-10
+    revision: 80970322773f81baa2e22fe495d0487b93a05cfa
+    status: confirmed
+pipeline_binding: openvla
+provider: official_repo
+runtime_profile: runtime-profile:openvla
+tasks:
+- vla
+- vla.action_prediction
+- vla.policy_rollout
+variants:
+- runner_parity:
+    notes:
+    - Covered by the entry-level in-tree OpenVLA runner with unnorm_key=bridge_orig.
+    status: verified
+  checkpoint_refs:
+  - license: mit
+    repo_id: openvla/openvla-7b
+    revision: 47a0ec7fc4ec123775a391911046cf33cf9ed83f
+  id: openvla-7b
+  integration_status: integrated
+  notes:
+  - The local base checkpoint route uses unnorm_key=bridge_orig.
+  task: vla.action_prediction
+- checkpoint_refs:
+  - license: mit
+    repo_id: openvla/openvla-7b-finetuned-libero-10
+    revision: 80970322773f81baa2e22fe495d0487b93a05cfa
+  id: openvla-libero-10
+  integration_status: planned
+  notes:
+  - Covered by the entry-level in-tree OpenVLA runner when runtime parameter unnorm_key=libero_10
+    is provided. Variant-specific model-zoo parameters are not encoded yet.
+  task: vla.policy_rollout
+runner_parity:
+  notes:
+  - Verified through OpenVLASynthesis using the in-tree vendored Prismatic/OpenVLA
+    HF architecture code and local staged HuggingFace checkpoints.
+  - The default model-zoo runner uses the base checkpoint; pass unnorm_key=libero_10
+    to select the staged LIBERO-10 checkpoint.
+  - Per-run action trace evidence is tracked outside the model catalog.
+  status: verified
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint
+  metadata, and runtime-profile planning records. Runner or pipeline targets are present
+  only after a complete in-tree WorldFoundry model runtime is registered and validated.

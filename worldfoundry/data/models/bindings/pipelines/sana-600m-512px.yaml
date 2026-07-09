@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: sana-600m-512px
+model_id: sana-600m-512px
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.sana.pipeline_sana:Sana600M512pxPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

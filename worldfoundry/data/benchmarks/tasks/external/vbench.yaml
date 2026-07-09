@@ -1,0 +1,219 @@
+benchmark: vbench
+description: Official VBench task manifest for generated text-to-video artifacts.
+tags:
+- benchmark-zoo
+- external-official
+- video-generation
+- vbench
+splits:
+- standard
+metrics:
+  overall_quality:
+    aggregation: weighted_mean
+    primary: true
+  temporal_quality:
+    aggregation: mean
+  frame_quality:
+    aggregation: mean
+  text_alignment:
+    aggregation: mean
+  subject_consistency:
+    aggregation: mean
+  background_consistency:
+    aggregation: mean
+  temporal_flickering:
+    aggregation: mean
+  motion_smoothness:
+    aggregation: mean
+  dynamic_degree:
+    aggregation: mean
+  aesthetic_quality:
+    aggregation: mean
+  imaging_quality:
+    aggregation: mean
+  object_class:
+    aggregation: mean
+  multiple_objects:
+    aggregation: mean
+  human_action:
+    aggregation: mean
+  color:
+    aggregation: mean
+  spatial_relationship:
+    aggregation: mean
+  scene:
+    aggregation: mean
+  appearance_style:
+    aggregation: mean
+  temporal_style:
+    aggregation: mean
+  overall_consistency:
+    aggregation: mean
+metadata:
+  source_kind: benchmark_zoo
+  benchmark_id: vbench
+  contract_validation_command: worldfoundry-eval zoo benchmark-run --benchmark-id vbench --mode contract --output-dir 
+    tmp/benchmark_zoo/benchmark_contract/vbench --json
+  open_source_status: stable
+  official_benchmark_verified: false
+  integration_evidence: false
+  leaderboard_valid: false
+  requires:
+  - WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  - Full upstream VBench prompt suite for leaderboard-grade runs
+  blockers:
+  - Bounded official GPU validation covers aesthetic_quality only; full-suite validation remains pending.
+  - Some full-suite dimensions still require heavyweight third-party dependencies such as detectron2.
+  - Leaderboard-grade runs require generated videos for the full upstream VBench prompt suite.
+  base_model_dependencies:
+  - vbench_perception_metric_stack
+  base_model_dependency_preflight:
+    status: ready
+    notes:
+    - CLIP, DINOv2, GroundingDINO, SAM/SAM2/SAM3, and RAFT are tracked as reusable WorldFoundry base-model assets for 
+      VBench-family metric dimensions.
+    - Detectron2-specific upstream dimensions remain external official-runtime dependencies.
+    missing: []
+  official_gpu_validation:
+    verified: true
+    dimension: aesthetic_quality
+    generated_video_count: 1
+    official_benchmark_verified: true
+    integration_evidence: true
+    leaderboard_valid: false
+    full_suite_verified: false
+    scope: bounded_official_gpu_validation
+    scorecard: 
+      tmp/local_open_eval/vbench_zeroscope_aesthetic_official_gpu_validation_after_prompt_file_fix_20260525/scorecard.json
+  official_runner_target: worldfoundry.evaluation.tasks.contracts.external:VBenchContract
+  official_runner_script: worldfoundry/evaluation/tasks/execution/runners/vbench/run_vbench_official_runner.py
+  prompt_suite:
+    mode: vbench_standard
+    root: worldfoundry/evaluation/tasks/execution/runners/vbench/runtime
+    path: worldfoundry/data/benchmarks/assets/vbench/VBench_full_info.json
+  artifact_layout:
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+    output_artifact: benchmark_scorecard
+    filename_template: scorecard.json
+  runtime:
+    kind: in_tree_official_source
+    repo_url: https://github.com/Vchitect/VBench.git
+    revision: 45e79ec14e69a2187202c675d2dbce1a71843d53
+    root: worldfoundry/evaluation/tasks/execution/runners/vbench/runtime
+    root_env: WORLDFOUNDRY_VBENCH_ROOT
+    override_root_env: WORLDFOUNDRY_VBENCH_ROOT
+    setup_command:
+    - ${WORLDFOUNDRY_UNIFIED_PYTHON}
+    - worldfoundry/evaluation/tasks/execution/runners/vbench/run_vbench_official_runner.py
+    - setup
+  release_status: stable
+  maturity: verified_runner
+  data_refs:
+    in_tree_source_paths:
+    - worldfoundry/evaluation/tasks/execution/runners/vbench/runtime
+    task_yaml: worldfoundry/data/benchmarks/tasks/external/vbench.yaml
+  runner_availability:
+    available: true
+    runner_target: worldfoundry.evaluation.tasks.contracts.external:VBenchContract
+    runner_script_available: true
+    task_yaml_available: true
+    runtime_verified: true
+    normalizer_verified: false
+    surface: official_runner
+  validation_command:
+  - ${WORLDFOUNDRY_UNIFIED_PYTHON}
+  - worldfoundry/evaluation/tasks/execution/runners/vbench/run_vbench_official_runner.py
+  - run
+  - --mode
+  - custom_input
+  - --dimension
+  - aesthetic_quality
+  integration_status: planned
+  status: planned
+  checkpoint_refs: []
+tasks:
+  vbench_t2v_standard:
+    benchmark_name: vbench
+    protocol: external_official_benchmark
+    capability_track: video_generation_quality
+    input_keys:
+    - prompt
+    - prompt_id
+    output_keys:
+    - generated_video
+    metric_ids:
+    - overall_quality
+    - temporal_quality
+    - frame_quality
+    - text_alignment
+    - subject_consistency
+    - background_consistency
+    - temporal_flickering
+    - motion_smoothness
+    - dynamic_degree
+    - aesthetic_quality
+    - imaging_quality
+    - object_class
+    - multiple_objects
+    - human_action
+    - color
+    - spatial_relationship
+    - scene
+    - appearance_style
+    - temporal_style
+    - overall_consistency
+    metric_groups:
+    - vbench_dimensions
+    - vbench_aggregates
+    tags:
+    - benchmark-zoo
+    - official-vbench
+    - t2v
+    metadata:
+      source_kind: benchmark_zoo
+      benchmark_id: vbench
+      open_source_status: stable
+      official_benchmark_verified: false
+      integration_evidence: false
+      leaderboard_valid: false
+    dataset:
+      manifest: worldfoundry/data/benchmarks/assets/vbench/VBench_full_info.json
+      split: standard
+    runtime_requirements:
+      in_tree_source: worldfoundry/evaluation/tasks/execution/runners/vbench/runtime
+      optional_in_tree_root_override_env: WORLDFOUNDRY_VBENCH_ROOT
+      generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+    artifact_contract:
+      required:
+        generated_video:
+          kind: video
+    evaluation_protocol:
+    - name: external_official_runner
+      metric_groups:
+      - vbench_dimensions
+      - vbench_aggregates
+      runner_target: worldfoundry.evaluation.tasks.contracts.external:VBenchContract
+      runner_script: worldfoundry/evaluation/tasks/execution/runners/vbench/run_vbench_official_runner.py
+      default_mode: vbench_standard
+      dimension_preset: full_16
+      metric_ids:
+      - overall_quality
+      - temporal_quality
+      - frame_quality
+      - text_alignment
+      - subject_consistency
+      - background_consistency
+      - temporal_flickering
+      - motion_smoothness
+      - dynamic_degree
+      - aesthetic_quality
+      - imaging_quality
+      - object_class
+      - multiple_objects
+      - human_action
+      - color
+      - spatial_relationship
+      - scene
+      - appearance_style
+      - temporal_style
+      - overall_consistency

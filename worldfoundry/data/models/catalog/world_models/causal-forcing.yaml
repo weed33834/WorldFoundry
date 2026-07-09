@@ -1,0 +1,70 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+availability: open_source
+checkpoints:
+- local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Causal-Forcing/chunkwise/causal_forcing.pt
+  role: causal_forcing_chunkwise
+checkpoint_refs:
+- role: causal_forcing_framewise
+  repo_id: zhuhz22/Causal-Forcing
+  filename: framewise/causal_forcing.pt
+- role: causal_forcing_plus_plus_framewise_2step
+  repo_id: zhuhz22/Causal-Forcing
+  filename: causal-forcing++/framewise-2step.pt
+- role: causal_forcing_plus_plus_framewise_1step
+  repo_id: zhuhz22/Causal-Forcing
+  filename: causal-forcing++/framewise-1step.pt
+base_model_refs:
+- role: wan2_1_t2v_1_3b
+  repo_id: Wan-AI/Wan2.1-T2V-1.3B
+- role: wan2_1_t2v_14b
+  repo_id: Wan-AI/Wan2.1-T2V-14B
+family: Autoregressive Video Diffusion
+id: causal-forcing
+aliases:
+- Causal-Forcing
+- causal_forcing
+- Causal Forcing++
+- causal-forcing-plus-plus
+tasks:
+- text-to-video
+- image-to-video
+- autoregressive-video-generation
+integration:
+  notes:
+  - WorldFoundry vendors the official infer-only Causal-Forcing runtime under
+    worldfoundry/synthesis/visual_generation/forcing/causal_forcing_runtime; the runner owns prompt/i2v data
+    materialization, Wan weight symlinks, command construction, output loading, and pipeline/catalog exposure in-tree.
+  - The local workspace currently has the chunk-wise checkpoint staged under ${WORLDFOUNDRY_CKPT_DIR}/Causal-Forcing.
+    Override config_path/checkpoint_path for frame-wise or Causal-Forcing++ variants.
+  status: integrated
+license: unknown
+modalities:
+- text-to-video
+- image-to-video
+- real-time-video-generation
+name: Causal-Forcing
+official_sources:
+  project_page: https://thu-ml.github.io/CausalForcing.github.io
+  paper: https://arxiv.org/abs/2602.02214
+  paper_plus_plus: https://arxiv.org/abs/2605.15141
+  github:
+    url: https://github.com/thu-ml/Causal-Forcing
+  huggingface:
+  - repo_id: zhuhz22/Causal-Forcing
+    type: model
+pipeline_binding: causal-forcing
+release_type: code_and_weights
+runtime_profile: runtime-profile:causal-forcing
+starred: true
+runner_parity:
+  notes:
+  - The adapter executes the vendored official inference.py path. Full parity requires local Wan2.1 weights and the
+    selected Causal-Forcing checkpoint/config pair.
+  - Per-run visual QA and artifact checks are tracked outside the model catalog.
+  status: pending
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models
+catalog_policy:
+  checkpoint_rule: Only list checkpoints that were confirmed on official source pages or staged locally. Do not download weights.
+  integration_rule: Closed, API-only, or unknown releases stay blocked or planned until an official integration surface is available.
+  open_source_rule: Only mark open_source when an official GitHub repository or official model page was confirmed.

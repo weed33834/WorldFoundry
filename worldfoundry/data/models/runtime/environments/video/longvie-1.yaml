@@ -1,0 +1,57 @@
+conda_packages:
+- python=3.10
+- pip
+- ffmpeg
+- setuptools
+- wheel
+cuda_profile: cu128
+driver_status: compatible
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: longvie-1
+notes:
+- Mirrors the official LongVie requirements and keeps the vendored DiffSynth runtime in-tree.
+- execute=True uses local checkpoints from WORLDFOUNDRY_HFD_ROOT or the bench-local ckpt/hfd fallback; default WorldFoundry
+  calls fail fast to avoid accidental 14B model loads in CPU tests.
+- The LongVie-1 WorldFoundry adapter uses the official control path without requiring the optional LongVie 2 DiT attention
+  override.
+pip_packages:
+- torch
+- torchvision
+- transformers>=4.57.0,<5
+- accelerate
+- peft
+- imageio
+- imageio[ffmpeg]
+- safetensors
+- einops
+- sentencepiece
+- protobuf
+- modelscope
+- ftfy
+- pynvml
+- pandas
+- decord
+- pillow
+- numpy
+- opencv-python
+- huggingface_hub
+python: '3.10'
+validation_imports:
+- torch
+- torchvision
+- transformers
+- accelerate
+- peft
+- imageio
+- safetensors
+- einops
+- sentencepiece
+- modelscope
+- ftfy
+- pynvml
+- pandas
+- decord
+- PIL
+- numpy
+- cv2

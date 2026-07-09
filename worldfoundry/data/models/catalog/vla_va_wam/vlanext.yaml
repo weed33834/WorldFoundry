@@ -1,0 +1,50 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+aliases:
+- vlanext-libero
+- vla-next
+availability: source_available
+checkpoint:
+  license: s-lab-1.0
+  repo_id: DravenALG/VLANeXt
+id: vlanext
+integration:
+  status: in_tree_vendored_import_verified
+  notes:
+  - WorldFoundry records VLANeXt LIBERO/LIBERO-plus action inference contracts with an independent synthesis entrypoint.
+  - The current runtime calls official get_vla/get_processor/get_vla_action in-process from the in-tree vendored infer subset under worldfoundry/synthesis/action_generation/vlanext/vlanext_runtime.
+  - Resolver, runtime import, and compileall checks pass without an external github_repos checkout; checkpoint-backed action chunk validation remains required before demo parity is claimed.
+license: s-lab-1.0
+name: VLANeXt
+official_sources:
+  github:
+    head_sha: f4162397af20
+    url: https://github.com/DravenALG/VLANeXt
+  huggingface:
+  - repo_id: DravenALG/VLANeXt
+    role: libero_checkpoint_collection
+    status: confirmed_from_readme
+output_artifacts:
+- action_trace
+pipeline_binding: vlanext
+provider: official_repo
+runtime_profile: runtime-profile:vlanext
+tasks:
+- vla
+- vla.action_prediction
+- vla.policy_rollout
+variants:
+- id: vlanext-libero
+  integration_status: in_tree_vendored_checkpoint_pending
+  task: vla.policy_rollout
+  checkpoint_refs:
+  - repo_id: DravenALG/VLANeXt
+    license: s-lab-1.0
+  notes:
+  - Official public checkpoints are VLANeXt_libero_spatial.pt, VLANeXt_libero_object.pt, VLANeXt_libero_goal.pt, and VLANeXt_libero_10.pt.
+  - Demo observation includes full_image, optional full_image_wrist, image/state/action history, and task_description.
+runner_parity:
+  status: in_tree_vendor_ready_checkpoint_pending
+  notes:
+  - LIBERO/LIBERO-plus simulators, training configs, DROID/modified LIBERO RLDS datasets, and benchmark loops are excluded.
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata, and runtime-profile planning records.

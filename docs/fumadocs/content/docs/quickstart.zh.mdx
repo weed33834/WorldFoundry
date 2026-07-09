@@ -1,0 +1,237 @@
+---
+title: 使用指南
+description: 配置环境、准备资产、使用 TUI 或 CLI，然后运行推理与评测。
+---
+
+这页是 WorldFoundry 的用户入口。日常运行需要的主路径集中放在这里；更细的页面只用于展开说明和处理特殊情况。
+
+大多数运行虽然模型和 benchmark 不同，但流程是一样的：先让 Python 环境可 import，再把 checkpoint 和 benchmark 资产放到本地 cache，接着生成 artifact，最后再对这些 artifact 打分。
+
+## 使用流程
+
+<Steps>
+  <Step>
+    创建 conda 环境，并 source WorldFoundry 的本地路径变量。
+  </Step>
+  <Step>
+    只准备本次运行需要的模型 checkpoint、benchmark 数据和 metric 资产。
+  </Step>
+  <Step>
+    想交互式选模型和 benchmark 就用 TUI；脚本化运行就用下面的 CLI 命令。
+  </Step>
+  <Step>
+    先跑推理生成产物。只有产物目录符合 benchmark layout 后，再启动评测。
+  </Step>
+</Steps>
+
+## 1. 环境配置
+
+Bootstrap 会创建默认 WorldFoundry runtime，并写出一份本地 shell 文件，里面包含 CLI、Studio 和评测 runner 会用到的路径。每次打开新 shell 后都应该先 source 这个文件；它会告诉 WorldFoundry cache、dataset、checkpoint、conda env 和输出目录分别在哪里。
+
+在仓库根目录执行：
+
+```bash
+git clone https://github.com/OpenEnvision/WorldFoundry.git
+cd WorldFoundry
+
+bash scripts/setup/bootstrap_worldfoundry.sh
+source tmp/worldfoundry_unified_env.sh
+conda activate "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}"
+```
+
+共享机器上，把 dataset、checkpoint 和输出放到 git 外。这样可以保持开源仓库干净，避免误提交生成媒体，也方便多个 benchmark run 复用同一套本地资产目录：
+
+```bash
+bash scripts/setup/bootstrap_worldfoundry.sh \
+  --home /path/to/worldfoundry-home \
+  --data-root /path/to/worldfoundry-data \
+  --model-root /path/to/worldfoundry-models \
+  --artifact-root /path/to/worldfoundry-artifacts
+```
+
+运行前复查已有机器。换到新的 GPU 节点、重新登录 shell、或者改过 CUDA/PyTorch 包之后，都建议先做一次这个检查：
+
+```bash
+bash scripts/setup/bootstrap_worldfoundry.sh --verify-only
+worldfoundry-eval --help
+```
+
+按模型和 benchmark 拆分的环境映射见 [环境配置](/zh/docs/reference/environments)。当某个模型需要额外 conda profile，或者某个 benchmark evaluator 依赖统一环境之外的 metric package 时，到那一页查。
+
+## 2. 资产准备
+
+WorldFoundry 的可执行代码在仓内。Checkpoint、dataset、metric 权重、reference 文件和生成输出放在本地，默认优先走 Hugging Face。这里最重要的边界是：缺资产可以下载或挂载。
+
+模型资产和 benchmark 资产是两类东西。模型 checkpoint 用来生成候选 artifact；benchmark 资产定义要生成什么、输出应该怎么命名、以及计算分数需要哪些文件或 metric 权重。
+
+准备模型：
+
+```bash
+bash scripts/inference/prepare_model_infer.sh <model-id> --verify-env-only
+bash scripts/inference/prepare_model_infer.sh <model-id> --download
+worldfoundry-eval zoo model-download --model-id <model-id> --check-local --json
+```
+
+准备 benchmark 时，先让 WorldFoundry 打印 asset plan。这个 plan 会列出本地路径、需要的环境变量，以及该 benchmark 的真实评测命令；它不会下载 secret，也不会写入 credential：
+
+```bash
+python scripts/setup/prepare_benchmark_assets.py \
+  --benchmark-id <benchmark-id> \
+  --json
+
+python scripts/setup/prepare_benchmark_assets.py \
+  --benchmark-id <benchmark-id> \
+  --write-env "${WORLDFOUNDRY_HOME:-${HOME}/.cache/worldfoundry}/<benchmark-id>.env" \
+  --create-dirs
+
+source "${WORLDFOUNDRY_HOME:-${HOME}/.cache/worldfoundry}/<benchmark-id>.env"
+```
+
+只有 gated 资产已经接受条款后，才设置 Hugging Face token。公开 checkpoint 和 dataset 不应该依赖 token；gated Hugging Face 资产仍然需要先在上游接受 license：
+
+```bash
+export HF_TOKEN=<your-huggingface-token>
+```
+
+完整 cache 和路径规则见 [本地资产](/zh/docs/guides/local-assets)。如果命令报缺 dataset、checkpoint、metric model 或 generated output directory，那一页会说明文件应放在哪里，以及哪个环境变量控制路径。
+
+## 3. TUI
+
+不想记模型 id、benchmark id 和命令参数时，先用 TUI。它适合第一次运行，因为它读取的就是 CLI 使用的同一套模型和 benchmark manifest，会展示可选项，并且可以在真正启动昂贵任务前打印最终命令。
+
+```bash
+python -m pip install -e ".[tui]"
+worldfoundry-eval tui
+```
+
+只生成命令、不进入交互界面。这个模式适合让 TUI 帮你解析 id 和默认值，然后把命令贴到作业脚本或终端会话里：
+
+```bash
+worldfoundry-eval tui \
+  --model-id <model-id> \
+  --benchmark-id <benchmark-id> \
+  --print-command
+```
+
+TUI 不会绕过 checkpoint、dataset、license 或环境缺失。如果它为某个 benchmark 打印了命令，但对应资产还没准备好，请先跑 benchmark asset preparation，再重试生成的命令。
+
+## 4. CLI
+
+CLI 适合脚本、批量任务和可复现记录。不要手写猜测 id，先跑 discovery 命令：模型 id、benchmark id 和下载声明都来自 manifest，JSON 输出也更容易接入自动化。
+
+常用发现命令：
+
+```bash
+worldfoundry-eval zoo models --json
+worldfoundry-eval zoo benchmarks --json
+worldfoundry-eval zoo model-download --model-id <model-id> --check-local --json
+```
+
+命令行推理。输出目录需要显式指定，因为后续评测命令必须知道生成的视频、帧、轨迹或结果文件写到了哪里：
+
+```bash
+python -m worldfoundry.studio.workspace_job infer \
+  --model-id <model-id> \
+  --prompt "a cinematic scene, high quality" \
+  --output-dir tmp/worldfoundry_infer/<model-id> \
+  --device cuda
+```
+
+图生视频或其他条件生成模型，需要同时传入输入文件或目录、prompt 和生成参数。不同模型 runner 支持的具体参数不完全一样，下面只展示通用形态；模型专属选项以模型页面或 TUI 打印的命令为准：
+
+```bash
+python -m worldfoundry.studio.workspace_job infer \
+  --model-id <model-id> \
+  --input-path /path/to/input.png \
+  --prompt "camera moves forward through the scene" \
+  --frames 81 \
+  --steps 30 \
+  --seed 42 \
+  --output-dir tmp/worldfoundry_infer/<model-id>
+```
+
+完整命令说明见 [CLI](/zh/docs/reference/cli)。它更适合作为主流程跑通后的参考页，而不是第一次阅读的入口。
+
+## 5. 推理
+
+推理只产出 artifact，本身不是 benchmark evidence。一个视频在 Studio 里看起来正确，但如果文件名、prompt 覆盖、split 或 metadata 不符合 benchmark runner 的要求，后续评测仍然可能失败。
+
+实际工作流建议是：先生成小批量，检查输出内容，确认目录结构，再扩展到目标 benchmark 要求的完整 prompt set。这样可以避免花大量 GPU 时间生成后续无法评分的结果。
+
+需要反复查看生成结果时，启动 workspace：
+
+```bash
+bash scripts/workspace/run_workspace.sh
+```
+
+打开：
+
+```text
+http://127.0.0.1:7870/
+```
+
+评分前先检查输出目录或 workspace gallery：
+
+```bash
+find tmp/worldfoundry_infer/<model-id> -maxdepth 2 -type f | head
+```
+
+更多推理细节见 [运行推理](/zh/docs/guides/inference) 和 [Studio](/zh/docs/guides/studio)。Studio 用于视觉检查；文件系统路径用于交给评测。
+
+## 6. 评测
+
+一个 benchmark run 需要三个具体输入。如果缺少任何一个，runner 应该产出 blocked scorecard，而不是静默给出看似能上 leaderboard 的分数。
+
+| 输入 | 含义 |
+| --- | --- |
+| Benchmark assets | Prompt/task metadata、reference 文件、official result、judge credentials、simulator assets 或 metric checkpoints。 |
+| Candidate artifacts | 模型产出的 videos、frames、rollouts、traces，或 official-shaped result dump。 |
+| Runner mode | `official-validation` 导入已有 official-shaped 结果；`official-run` 从生成产物计算分数。 |
+
+如果已有官方结果文件，直接导入。这个路径用于把 official-shaped result 归一化并记录到 WorldFoundry，不会重新跑上游 evaluator：
+
+```bash
+worldfoundry-eval zoo benchmark-run \
+  --benchmark-id <benchmark-id> \
+  --mode official-validation \
+  --official-results-path /path/to/official/results-or-report \
+  --generated-artifact-dir /path/to/generated/artifacts \
+  --output-dir tmp/<benchmark-id>/official-validation \
+  --json
+```
+
+如果生成产物已经准备好，并且仓内 runner 能计算指标，就运行集成 evaluator。这是 scoring code 已经 vendoring 并清理进 WorldFoundry 的 benchmark 的推荐路径：
+
+```bash
+worldfoundry-eval zoo benchmark-run \
+  --benchmark-id <benchmark-id> \
+  --mode official-run \
+  --generated-artifact-dir /path/to/generated/artifacts \
+  --output-dir tmp/<benchmark-id>/official-run \
+  --json
+```
+
+如果 model-zoo 模型和 benchmark-zoo runner 支持一条命令完成生成加评分，WorldFoundry 可以用一个命令启动 generation-and-scoring。建议只在资产和环境都确认 ready 后使用；否则失败时不容易判断问题来自生成还是评分：
+
+```bash
+worldfoundry-eval run \
+  --benchmark <benchmark-id> \
+  --model <model-id> \
+  --mode official-run \
+  --output-dir tmp/<benchmark-id>/<model-id> \
+  --json
+```
+
+先看 `scorecard.json`。公开 leaderboard 复现必须满足完整资产、完整生成产物和 benchmark-specific eligibility flags。调试时也要看输出目录里的 run manifest、逐样本结果和 metric summary。
+
+## 详细说明
+
+这页只保留通用路径。确定要跑的模型或 benchmark 后，再跳到下面的具体页面查看精确的数据 layout、metric checkpoint、simulator 说明和模型参数。
+
+<Cards>
+  <Card title="环境配置" description="按模型和 benchmark family 说明 conda profile 与 setup 脚本。" href="/zh/docs/reference/environments" />
+  <Card title="本地资产" description="Checkpoint 来源、Hugging Face cache 路径和 readiness 检查。" href="/zh/docs/guides/local-assets" />
+  <Card title="TUI" description="交互式选择模型和 benchmark，并打印可运行命令。" href="/zh/docs/guides/tui" />
+  <Card title="CLI" description="发现、推理、评分和报告的完整命令参考。" href="/zh/docs/reference/cli" />
+  <Card title="Benchmark Hub" description="每个 benchmark 的数据布局、metric assets 和运行命令。" href="/zh/docs/evaluation/benchmark-hub" />
+</Cards>

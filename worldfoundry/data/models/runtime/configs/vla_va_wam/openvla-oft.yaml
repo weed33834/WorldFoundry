@@ -1,0 +1,60 @@
+backend: callable_entrypoint
+checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/moojink--openvla-7b-oft-finetuned-libero-spatial
+checkpoint_ref: moojink/openvla-7b-oft-finetuned-libero-spatial
+require_checkpoint: true
+policy_target: worldfoundry.synthesis.action_generation.openvla_oft.runtime:predict_action
+predict_method: predict_action
+torch_dtype: bfloat16
+trust_remote_code: false
+runtime_backend: openvla_oft_in_tree_checkpoint_runtime
+action_contract: continuous_action_chunk
+control_mode: libero_delta_eef_action_chunk
+unnorm_key: libero_spatial_no_noops
+task_suite_name: libero_spatial
+use_l1_regression: true
+use_diffusion: false
+use_proprio: true
+num_images_in_input: 2
+center_crop: true
+num_open_loop_steps: 8
+official_infer_entrypoint: experiments.robot.openvla_utils:get_vla_action
+default_demo_input:
+  observation_file: experiments/robot/libero/sample_libero_spatial_observation.pkl
+  image_keys:
+  - full_image
+  - wrist_image
+  state_key: state
+  prompt_key: task_description
+excluded_dependencies:
+- tensorflow
+- tensorflow_datasets
+- tensorflow_graphics
+- dlimp
+- wandb
+- LIBERO benchmark runtime
+variants:
+  libero_spatial:
+    repo_id: moojink/openvla-7b-oft-finetuned-libero-spatial
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/moojink--openvla-7b-oft-finetuned-libero-spatial
+    unnorm_key: libero_spatial_no_noops
+    task_suite_name: libero_spatial
+  libero_object:
+    repo_id: moojink/openvla-7b-oft-finetuned-libero-object
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/moojink--openvla-7b-oft-finetuned-libero-object
+    unnorm_key: libero_object_no_noops
+    task_suite_name: libero_object
+  libero_goal:
+    repo_id: moojink/openvla-7b-oft-finetuned-libero-goal
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/moojink--openvla-7b-oft-finetuned-libero-goal
+    unnorm_key: libero_goal_no_noops
+    task_suite_name: libero_goal
+  libero_10:
+    repo_id: moojink/openvla-7b-oft-finetuned-libero-10
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/moojink--openvla-7b-oft-finetuned-libero-10
+    unnorm_key: libero_10_no_noops
+    task_suite_name: libero_10
+  libero_spatial_object_goal_10:
+    repo_id: moojink/openvla-7b-oft-finetuned-libero-spatial-object-goal-10
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/moojink--openvla-7b-oft-finetuned-libero-spatial-object-goal-10
+    unnorm_key: libero_spatial_no_noops
+    task_suite_name: libero_spatial

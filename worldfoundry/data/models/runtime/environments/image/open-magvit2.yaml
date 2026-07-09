@@ -1,0 +1,33 @@
+conda_packages:
+- python
+- pip
+- ffmpeg
+cuda_profile: cu113
+driver_status: compatible_with_downgraded_torch
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: open-magvit2
+notes:
+- Open-MAGVIT2 uses an in-tree WorldFoundry runtime wrapper with the CUDA-compatible Open-MAGVIT2 dependency stack.
+pip_packages:
+- torch
+- torchvision
+- lightning==2.6.1
+- jsonargparse[signatures]
+- numpy
+- tensorboard
+- tensorboardx
+- albumentations
+- omegaconf
+- einops
+- requests
+- transformers
+- lpips
+- av
+- decord
+python: '3.10'
+validation_imports:
+- torch
+- lightning
+- transformers
+- decord

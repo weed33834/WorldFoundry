@@ -1,0 +1,6 @@
+Metrics: {'VQA_A': 0.62, 'VQA_T': 0.58, 'IS': 12.3, 'clip_temp_score': 0.97, 'warping_error': 0.02, 'face_consistency_score': 0.9, 'action_score': 0.75, 'motion_ac_score': 0.7, 'flow_score': 0.55, 'clip_score': 0.31, 'blip_bleu': 0.41, 'sd_score': 0.6, 'detection_score': 0.8, 'color_score': 0.77, 'count_score': 0.66, 'ocr_score': 0.1, 'celebrity_id_score': 0.05}
+Visual Quality 0.68
+Text-Video Alignment 0.72
+Motion Quality 0.7
+Temporal Consistency 0.75
+Total 0.71

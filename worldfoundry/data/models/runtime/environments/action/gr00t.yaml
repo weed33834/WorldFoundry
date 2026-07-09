@@ -1,0 +1,31 @@
+conda_packages:
+- python
+- pip
+cuda_profile: prepare_only
+driver_status: prepare_only_policy_runtime_requires_license_review
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: gr00t
+notes:
+- Prepare-only GR00T policy profile. Upstream GR00T packaging bundles torch/torchvision, flash-attn, and TensorRT stacks targeting
+  newer CUDA drivers than GPU provides, so official GPU parity is blocked on this host.
+- Use a CUDA 11.8+ torch stack with modern Transformers/AutoProcessor support when gated Cosmos/GR00T checkpoints are enabled.
+pip_packages:
+- numpy
+- Pillow
+- opencv-python-headless
+- safetensors
+- huggingface-hub[cli]
+- transformers>=4.57.0,<5
+- einops
+- tyro
+- dm-tree
+- albumentations
+python: '3.10'
+validation_imports:
+- numpy
+- PIL
+- cv2
+- huggingface_hub
+- tree
+- albumentations

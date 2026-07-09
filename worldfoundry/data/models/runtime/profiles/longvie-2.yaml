@@ -1,0 +1,31 @@
+artifact_filename: longvie-2.mp4
+artifact_kind: generated_video
+backend_stage: in_tree_runtime
+checkpoints:
+- local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Vchitect--LongVie2
+  repo_id: Vchitect/LongVie2
+  role: longvie2_control_and_dit_attention_weights
+- local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Wan-AI--Wan2.1-I2V-14B-480P
+  repo_id: Wan-AI/Wan2.1-I2V-14B-480P
+  role: wan2.1_i2v_14b_base_checkpoint
+- local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Wan-AI--Wan2.1-T2V-1.3B
+  repo_id: Wan-AI/Wan2.1-T2V-1.3B
+  role: umt5_tokenizer
+display_name: LongVie 2
+id: longvie-2
+input_schema:
+  actions:
+  - dense_video
+  - sparse_video
+  image: true
+  prompt: true
+  video: true
+integration_status: integrated
+notes:
+- WorldFoundry vendors the official LongVie DiffSynth runtime under worldfoundry/synthesis/visual_generation/longvie/longvie_runtime.
+- Default calls fail fast unless execute=True is supplied; staged checkpoints are
+  required for the official-equivalent GPU path.
+- The LongVie 2 adapter loads both control.safetensors and dit.safetensors and preserves
+  the official history/noise continuation loop.
+runtime_status: integrated
+task_family: video_generation

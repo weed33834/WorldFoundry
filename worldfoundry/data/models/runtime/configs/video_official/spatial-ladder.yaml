@@ -1,0 +1,11 @@
+schema_version: worldfoundry.official_video_runtime.v1
+model_id: spatial-ladder
+runtime:
+  kind: transformers_generation
+  backend_quality: official_hf_transformers_runtime
+  checkpoint_candidates:
+  - $WORLDFOUNDRY_HFD_ROOT/hongxingli--SpatialLadder-3B
+  trust_remote_code: true
+  torch_dtype: bfloat16
+notes:
+- Official source is the Hugging Face model repo; runtime produces structured text/json output.

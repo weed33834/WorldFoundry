@@ -1,0 +1,57 @@
+id: allegro
+name: Allegro
+aliases:
+  - allegro_ti2v
+  - allegro-ti2v
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+runtime_profile: runtime-profile:allegro-ti2v
+tasks:
+  - text-to-video
+  - image-to-video
+source_status:
+  status: confirmed_official_github
+  github:
+    url: https://github.com/rhymes-ai/Allegro
+    verified_by: git ls-remote --symref https://github.com/rhymes-ai/Allegro.git HEAD
+    default_branch: main
+    head_sha: f395a54b015f7e3296c52f59a45b78acf9dd07f6
+checkpoint:
+  status: confirmed_public_hf
+  verified_by: GET https://huggingface.co/api/models/<repo_id>
+  repos:
+    - id: rhymes-ai/Allegro
+      sha: c1b9207bb5cb79e2aa08f3d139c17d26c0de55b6
+      license: apache-2.0
+      private: false
+      gated: false
+      tasks:
+        - text-to-video
+    - id: rhymes-ai/Allegro-TI2V
+      sha: eaac4927c4f42eb20cd21d0c2c4e58a8af34cd62
+      license: apache-2.0
+      private: false
+      gated: false
+      tasks:
+        - image-to-video
+  notes: rhymes-ai/Allegro-I2V candidate returned 401 and is not listed.
+demo_parity:
+  status: pending
+  notes: The WorldFoundry TI2V route is wired in the unified environment profile;
+    official long-config parity remains pending.
+notes: GitHub verification succeeded after retry; the first attempt hit a transient TLS error.
+catalog_category: video
+catalog_scope: Official GitHub and/or Hugging Face confirmed open-source or open-weight video generation models. Checkpoints are not tracked in git; local validation may download selected repos under cache/hfd.
+catalog_policy:
+  github: Validated with git ls-remote, preferring git ls-remote --symref <repo>.git HEAD for default branch and HEAD SHA.
+  huggingface: Validated with the Hugging Face /api/models endpoint. Recorded repo id, sha, private, gated, license, and selected task tags only.
+  parity: This manifest does not claim WorldFoundry runtime parity unless an explicit parity run and expected artifact are recorded.
+integration:
+  status: integrated
+  notes:
+    - WorldFoundry wraps the in-tree Allegro TI2V runtime.
+runner_parity:
+  status: pending
+  notes:
+    - WorldFoundry pipeline target is registered for the in-tree Allegro TI2V runtime.
+    - Generated artifact parity with the official demo configuration still requires
+      a full official run.

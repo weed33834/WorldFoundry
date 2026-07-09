@@ -1,0 +1,14 @@
+schema_version: 2
+binding_id: depth-anything-v2-prior
+model_id: depth-anything-v2-prior
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.geometry_priors.pipeline_geometry_priors:DepthAnythingV2PriorPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation
+aliases:
+- dav2-prior
+- depth-anything-v2

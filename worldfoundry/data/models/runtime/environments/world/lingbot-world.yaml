@@ -1,0 +1,28 @@
+model_id: lingbot-world
+env_name: lingbot-world
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+python: '3.10'
+cuda_profile: cu121
+driver_status: compatible
+conda_packages:
+- python=3.10
+- pip
+- ffmpeg
+pip_packages:
+- torch==2.5.1
+- torchvision==0.20.1
+- flash-attn==2.8.3
+- diffusers
+- transformers
+- opencv-python
+- imageio
+source_requirement_files:
+- ${WORLDFOUNDRY_MODEL_SOURCE_DIR}/lingbot-world/requirements.txt
+validation_imports:
+- torch
+- flash_attn
+- cv2
+- imageio
+notes:
+- LingBot-World act2cam parity requires the dedicated official environment with flash-attn; the unified env produced near-black act2cam videos on the upstream examples/05 demo.
+- Exact torch and flash-attn pins intentionally keep this model out of unified runtime routing.

@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: starwm
+model_id: starwm
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.world_model.pipeline_runtime_manifest:StarWMPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

@@ -1,0 +1,14 @@
+defaults:
+  driver_policy: preserve_existing_torch_cuda_abi
+  env_roots:
+  - ${WORLDFOUNDRY_CONDA_ROOT}
+  - ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  external_repo_cache: ${WORLDFOUNDRY_CACHE_DIR}/repos
+  hf_cache_dir: cache/hfd
+  local_gpu_runtime_baseline:
+    default_python_env: worldfoundry-unified-cu128
+    policy: Prefer the unified cu128 runtime. Install only missing benchmark-level
+      packages into isolated or compatible envs. Do not upgrade torch, torchvision,
+      CUDA, or nvidia wheels during benchmark env repair unless the profile explicitly
+      requires it.
+  recommended_python_env: worldplay

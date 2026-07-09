@@ -1,0 +1,169 @@
+id: hunyuanvideo-1.5
+name: HunyuanVideo 1.5
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: hunyuanvideo-1.5
+runtime_profile: runtime-profile:hunyuanvideo-1.5-t2v
+tasks:
+- text-to-video
+- image-to-video
+source_status:
+  status: confirmed_official_github
+  github:
+    url: https://github.com/Tencent-Hunyuan/HunyuanVideo-1.5
+    verified_by: git ls-remote --symref https://github.com/Tencent-Hunyuan/HunyuanVideo-1.5.git
+      HEAD
+    default_branch: main
+    head_sha: 60783e704160023913bee78f0b47036d393d4dfa
+checkpoint:
+  status: confirmed_public_hf_license_pending
+  verified_by: GET https://huggingface.co/api/models/<repo_id>
+  repos:
+  - id: tencent/HunyuanVideo-1.5
+    sha: 9b49404b3f5df2a8f0b31df27a0c7ab872e7b038
+    license: other
+    private: false
+    gated: false
+    tasks:
+    - text-to-video
+    - image-to-video
+    license_status: manual_review_required
+  notes: HF cardData reports license as 'other'; review upstream terms before redistribution
+    or automated download.
+variants:
+- id: hunyuanvideo-1.5-t2v
+  task: text-to-video
+  provider: official_repo
+  checkpoint_refs:
+  - repo_id: tencent/HunyuanVideo-1.5
+    revision: 9b49404b3f5df2a8f0b31df27a0c7ab872e7b038
+    license: other
+    private: false
+    gated: false
+    notes:
+    - HF cardData reports license as 'other'.
+  runtime_profile: hunyuanvideo-1.5-t2v
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: hunyuanvideo-1.5-t2v
+  integration:
+    status: integrated
+  demo_parity:
+    status: native_in_tree_visual_validation_verified
+    demo_command:
+    - bash
+    - scripts/model_zoo/run_hunyuanvideo15_t2v_official_demo.sh
+    expected_artifacts:
+    - path: hunyuanvideo15_t2v_native_seed42_848x480_9f.mp4
+      video_probe:
+        expected_width: 848
+        expected_height: 480
+        expected_frames: 9
+        expected_fps: 24
+        fps_tolerance: 0.01
+        expected_duration_seconds: 0.375
+        duration_tolerance_seconds: 0.05
+    notes:
+    - >-
+      Native in-tree HunyuanVideo-1.5 `generate.py` T2V uses
+      `torchrun --nproc_per_node=8`, local `HunyuanVideo-1.5` assets, prompt
+      "A cat walks on a snowy street, cinematic, high quality.",
+      `resolution=480p`, `aspect_ratio=16:9`, `video_length=9`,
+      `num_inference_steps=8`, `cfg_distilled=true`, and `seed=42`.
+    - Per-run visual QA and artifact checks are tracked outside the model catalog.
+  runner_parity:
+    status: verified
+    demo_command:
+    - python
+    - scripts/model_zoo/run_hunyuanvideo15_t2v_worldfoundry_runner_demo.py
+    expected_artifacts:
+    - path: hunyuanvideo15_t2v_worldfoundry_seed42_848x480_9f.mp4
+      video_probe:
+        expected_width: 848
+        expected_height: 480
+        expected_frames: 9
+        expected_fps: 24
+        fps_tolerance: 0.01
+        expected_duration_seconds: 0.375
+        duration_tolerance_seconds: 0.05
+- id: hunyuanvideo-1.5-i2v
+  task: image-to-video
+  provider: official_repo
+  checkpoint_refs:
+  - repo_id: tencent/HunyuanVideo-1.5
+    revision: 9b49404b3f5df2a8f0b31df27a0c7ab872e7b038
+    license: other
+    private: false
+    gated: false
+    notes:
+    - HF cardData reports license as 'other'.
+  runtime_profile: hunyuanvideo-1.5-i2v
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: hunyuanvideo-1.5-i2v
+  integration:
+    status: integrated
+  demo_parity:
+    status: verified
+    notes:
+    - >-
+      Native in-tree HunyuanVideo-1.5 `generate.py` I2V uses
+      `torchrun --nproc_per_node=8`, local `HunyuanVideo-1.5` assets, input
+      `worldfoundry/data/test_cases/hunyuanvideo_i2v/0.jpg`, prompt
+      "A young man holds a sparkling firework at night, cinematic lighting,
+      realistic motion.", `resolution=480p`, `video_length=9`,
+      `num_inference_steps=8`, `enable_step_distill=true`, and `seed=0`.
+    - Per-run visual QA and artifact checks are tracked outside the model catalog.
+  runner_parity:
+    status: verified
+integration:
+  status: integrated
+  notes:
+  - WorldFoundry routes are complete; missing checkpoint/assets are reported at runtime.
+demo_parity:
+  status: verified
+  demo_command:
+  - bash
+  - scripts/model_zoo/run_hunyuanvideo15_t2v_official_demo.sh
+  expected_artifacts:
+  - path: hunyuanvideo15_t2v_native_seed42_848x480_9f.mp4
+    video_probe:
+      expected_width: 848
+      expected_height: 480
+      expected_frames: 9
+      expected_fps: 24
+      fps_tolerance: 0.01
+      expected_duration_seconds: 0.375
+      duration_tolerance_seconds: 0.05
+  notes:
+  - Native in-tree HunyuanVideo-1.5 T2V and I2V `generate.py` routes use the
+    unified environment profile with 8-rank torchrun.
+  - Required local checkpoint layout includes `HunyuanVideo-1.5`, Qwen2.5-VL-7B
+    under `text_encoder/llm`, `google/byt5-small` under `text_encoder/byt5-small`,
+    ModelScope `Glyph-SDXL-v2`, and FLUX.1-Redux-dev under `vision_encoder/siglip`.
+runner_parity:
+  status: verified
+  demo_command:
+  - python
+  - scripts/model_zoo/run_hunyuanvideo15_t2v_worldfoundry_runner_demo.py
+  expected_artifacts:
+  - path: hunyuanvideo15_t2v_worldfoundry_seed42_848x480_9f.mp4
+    video_probe:
+      expected_width: 848
+      expected_height: 480
+      expected_frames: 9
+      expected_fps: 24
+      fps_tolerance: 0.01
+      expected_duration_seconds: 0.375
+      duration_tolerance_seconds: 0.05
+notes: Added as a high-priority current open-weight video model. Native T2V and
+  I2V infer-only `generate.py` paths are now ported in-tree and release-validation
+  verified with local checkpoint assets.
+catalog_category: video
+catalog_scope: Official GitHub and/or Hugging Face confirmed open-source or open-weight
+  video generation models. Checkpoints are not tracked in git; local validation may
+  download selected repos under cache/hfd.
+catalog_policy:
+  github: Validated with git ls-remote, preferring git ls-remote --symref <repo>.git
+    HEAD for default branch and HEAD SHA.
+  huggingface: Validated with the Hugging Face /api/models endpoint. Recorded repo
+    id, sha, private, gated, license, and selected task tags only.
+  parity: This manifest does not claim WorldFoundry runtime parity unless an explicit
+    parity run and expected artifact are recorded.

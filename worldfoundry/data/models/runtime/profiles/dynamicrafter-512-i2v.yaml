@@ -1,0 +1,31 @@
+schema_version: 2
+model_id: dynamicrafter-512-i2v
+display_name: DynamiCrafter 512 I2V
+task_family: video_generation
+groups:
+- video
+- image_to_video
+- dynamicrafter
+source_repos:
+- url: https://github.com/Doubiiu/DynamiCrafter
+checkpoints:
+- repo_id: Doubiiu/DynamiCrafter_512
+  revision: 9eb874455b7903c0244fe7bf53ca21cb979cd05a
+  role: i2v_checkpoint
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - seed
+artifact_kind: generated_video
+artifact_filename: dynamicrafter-512-i2v.mp4
+execution:
+  backend_stage: official_in_tree_runtime
+  runtime_status: official_demo_parity_pending
+  integration_status: integrated
+  pipeline_binding: dynamicrafter-512-i2v
+integration:
+  status: integrated
+notes:
+- DynamiCrafter 512 image-to-video runtime wrapper is packaged in-tree.

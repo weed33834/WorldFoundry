@@ -1,0 +1,9 @@
+default_config_name: libero
+server_host: 0.0.0.0
+server_port: 29536
+nproc_per_node: 1
+master_port: 29061
+checkpoint_role_config_names:
+  libero_long_posttrain_demo_checkpoint: libero
+  robotwin_posttrain_demo_checkpoint: robotwin
+  shared_backbone_base_checkpoint: robotwin_i2av

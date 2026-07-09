@@ -1,0 +1,9 @@
+[
+  {"metric_id": "qa_accuracy", "score": 0.75},
+  {"metric_id": "event_coverage", "score": 0.75},
+  {"metric_id": "temporal_causality", "score": 0.75},
+  {"metric_id": "world_knowledge_consistency", "score": 0.75},
+  {"metric_id": "static_scene_consistency", "score": 0.75},
+  {"metric_id": "dynamic_event_consistency", "score": 0.75},
+  {"metric_id": "videoverse_average", "score": 0.75}
+]

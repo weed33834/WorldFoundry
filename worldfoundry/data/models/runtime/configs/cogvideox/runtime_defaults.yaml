@@ -1,0 +1,14 @@
+schema_version: worldfoundry.runtime_defaults.v1
+defaults:
+  cogvideox_2b_t2v:
+    model_name: cogvideox_2b_t2v
+    model_path: THUDM/CogVideoX-2b
+    generation_type: t2v
+  cogvideox_5b_t2v:
+    model_name: cogvideox_5b_t2v
+    model_path: THUDM/CogVideoX-5b
+    generation_type: t2v
+  cogvideox_5b_i2v:
+    model_name: cogvideox_5b_i2v
+    model_path: THUDM/CogVideoX-5b-I2V
+    generation_type: i2v

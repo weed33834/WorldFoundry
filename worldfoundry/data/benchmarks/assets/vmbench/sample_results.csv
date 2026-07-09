@@ -1,0 +1,7 @@
+metric_id,score
+perceptible_amplitude_score,0.75
+object_integrity_score,0.75
+temporal_coherence_score,0.75
+commonsense_adherence_score,0.75
+motion_smoothness_score,0.75
+vmbench_average,0.75

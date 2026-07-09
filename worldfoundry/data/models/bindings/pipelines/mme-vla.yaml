@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: mme-vla
+model_id: mme-vla
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.component_pipelines:MMEVLAPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

@@ -1,0 +1,44 @@
+id: giga-world-0
+name: GigaWorld-0
+aliases:
+- giga_world_0
+- gigaworld-0
+- gigaworld0
+tasks:
+- robotics-world-model
+- video-generation
+- action-conditioned-generation
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/open-gigaai/giga-world-0
+official_sources:
+  worldarena_space: https://huggingface.co/spaces/WorldArena/WorldArena
+  github:
+    url: https://github.com/open-gigaai/giga-world-0
+    head_sha: f3fbdab0d6853a125cd0b898137e30a63aadbe7d
+    verified_by: official GitHub repository selected from WorldArena open-source result names
+  huggingface:
+  - repo_id: open-gigaai/GigaWorld-0-Video-Pretrain-2b
+    status: confirmed
+  - repo_id: open-gigaai/GigaWorld-0-Video-GR1-2b
+    status: confirmed
+checkpoint_refs:
+- repo_id: open-gigaai/GigaWorld-0-Video-Pretrain-2b
+- repo_id: open-gigaai/GigaWorld-0-Video-GR1-2b
+integration:
+  status: runtime_ported
+  notes:
+  - WorldFoundry registers an in-tree runtime manifest pipeline for the vendored GigaWorld-0 source.
+  - Official WorldArena-listed source is vendored in-tree under worldfoundry/synthesis/visual_generation/giga_world_0/giga_world_0_runtime.
+runtime_profile: runtime-profile:giga-world-0
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: giga-world-0
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - The pipeline resolves the vendored inference entrypoint and returns blocked runtime diagnostics until checkpoints and
+    task assets are staged.
+catalog_category: world_models
+catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry runtimes; blocked entries retain
+  upstream provenance without runnable backends.

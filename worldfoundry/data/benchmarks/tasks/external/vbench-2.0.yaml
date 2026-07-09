@@ -1,0 +1,186 @@
+benchmark: vbench-2.0
+description: VBench-2.0 external benchmark task manifest for intrinsic faithfulness and video quality evaluations.
+tags:
+- benchmark-zoo
+- external-official
+- video-generation
+- vbench-2.0
+splits:
+- standard
+metrics:
+  vbench2_creativity:
+    aggregation: mean
+  vbench2_commonsense:
+    aggregation: mean
+  vbench2_controllability:
+    aggregation: mean
+  vbench2_human_fidelity:
+    aggregation: mean
+  vbench2_physics:
+    aggregation: mean
+  vbench2_total:
+    aggregation: mean
+    primary: true
+metadata:
+  source_kind: benchmark_zoo
+  benchmark_id: vbench-2.0
+  contract_validation_command: worldfoundry-eval zoo benchmark-run --benchmark-id vbench-2.0 --mode contract 
+    --output-dir tmp/benchmark_zoo/benchmark_contract/vbench-2.0 --json
+  open_source_status: experimental
+  official_benchmark_verified: false
+  integration_evidence: false
+  leaderboard_valid: false
+  official_gpu_validation:
+    verified: true
+    dimension: Diversity
+    generated_video_count: 20
+    official_benchmark_verified: true
+    integration_evidence: true
+    full_suite_verified: false
+    leaderboard_valid: false
+    scope: bounded_official_gpu_validation
+    scorecard: tmp/local_open_eval/gpu_vbench2_cu113_diversity_probe/scorecard.json
+  requires:
+  - WORLDFOUNDRY_VBENCH2_RESULTS_PATH
+  - WORLDFOUNDRY_VBENCH2_DATASET_ROOT or WORLDFOUNDRY_HF_CACHE_DIR
+  - Generated videos for the full VBench-2.0 prompt suite
+  blockers:
+  - Bounded Diversity official GPU validation passed; full prompt-suite coverage and full dimension stack still require 
+    the complete generated video set, dataset assets, and materialized base-model checkpoints.
+  - License fields are null in HF API responses and need manual review before redistribution.
+  base_model_dependencies:
+  - vbench_perception_metric_stack
+  base_model_dependency_preflight:
+    status: ready
+    notes:
+    - CLIP, DINOv2, GroundingDINO, SAM-family segmentation, RAFT, CoTracker, LLaVA-Video, Qwen, YOLO-World, ArcFace, and
+      anomaly-detector assets are tracked as reusable WorldFoundry base-model assets.
+    - The VBench-2.0 runner has no runner-local foundation-model fork; dimension code resolves checkpoints through 
+      base-model/cache paths.
+    missing: []
+  official_runner_target: worldfoundry.evaluation.tasks.contracts.external:VBench2Contract
+  official_runner_script: 
+    worldfoundry/evaluation/tasks/execution/runners/vbench_2_0/run_vbench_2_0_official_runner.py
+  prompt_suite:
+    mode: vbench2
+    root: worldfoundry/evaluation/tasks/execution/runners/vbench_2_0/runtime
+    override_root_env: WORLDFOUNDRY_VBENCH2_ROOT
+    path: VBench-2.0
+  real_data:
+    root_env: WORLDFOUNDRY_VBENCH2_DATASET_ROOT
+    hf_cache_env: WORLDFOUNDRY_HF_CACHE_DIR
+    datasets:
+    - Vchitect/VBench-2.0_sampled_videos
+    - Vchitect/VBench-2.0_human_annotation
+    - Vchitect/VBench-2.0_human_anomaly
+  artifact_layout:
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+    output_artifact: benchmark_scorecard
+    filename_template: scorecard.json
+  runtime:
+    kind: in_tree_official_source
+    repo_url: https://github.com/Vchitect/VBench.git
+    revision: 45e79ec14e69a2187202c675d2dbce1a71843d53
+    root: worldfoundry/evaluation/tasks/execution/runners/vbench_2_0/runtime
+    root_env: WORLDFOUNDRY_VBENCH2_ROOT
+    override_root_env: WORLDFOUNDRY_VBENCH2_ROOT
+  release_status: experimental
+  maturity: contract_ready
+  data_refs:
+    local_dataset_paths:
+    - cache/worldfoundry/data/hfd_datasets/Vchitect/VBench-2.0_sampled_videos
+    - cache/worldfoundry/data/hfd_datasets/Vchitect__VBench-2.0_sampled_videos
+    - cache/worldfoundry/data/hfd_datasets/Vchitect/VBench-2.0_human_annotation
+    - cache/worldfoundry/data/hfd_datasets/Vchitect__VBench-2.0_human_annotation
+    - cache/worldfoundry/data/hfd_datasets/Vchitect/VBench-2.0_human_anomaly
+    - cache/worldfoundry/data/hfd_datasets/Vchitect__VBench-2.0_human_anomaly
+    in_tree_source_paths:
+    - worldfoundry/evaluation/tasks/execution/runners/vbench_2_0/runtime
+    task_yaml: worldfoundry/data/benchmarks/tasks/external/vbench-2.0.yaml
+  runner_availability:
+    available: true
+    runner_target: worldfoundry.evaluation.tasks.contracts.external:VBench2Contract
+    runner_script_available: true
+    task_yaml_available: true
+    runtime_verified: true
+    evidence:
+      dimension: Diversity
+      generated_video_count: 20
+      full_suite_verified: false
+    normalizer_verified: false
+    surface: official_runner
+  validation_command:
+  - ${WORLDFOUNDRY_UNIFIED_PYTHON}
+  - worldfoundry/evaluation/tasks/execution/runners/vbench_2_0/run_vbench_2_0_official_runner.py
+  - --benchmark-id
+  - vbench-2.0
+  - --variant
+  - vbench2
+  integration_status: planned
+  status: planned
+  checkpoint_refs: []
+tasks:
+  vbench2_video_standard:
+    benchmark_name: vbench-2.0
+    protocol: external_official_benchmark
+    capability_track: video_generation_quality
+    input_keys:
+    - prompt
+    - prompt_id
+    - category
+    output_keys:
+    - generated_video
+    metric_ids:
+    - vbench2_creativity
+    - vbench2_commonsense
+    - vbench2_controllability
+    - vbench2_human_fidelity
+    - vbench2_physics
+    - vbench2_total
+    metric_groups:
+    - vbench2_categories
+    tags:
+    - benchmark-zoo
+    - vbench-2.0
+    - t2v
+    metadata:
+      source_kind: benchmark_zoo
+      benchmark_id: vbench-2.0
+      open_source_status: experimental
+      official_benchmark_verified: false
+      integration_evidence: false
+      leaderboard_valid: false
+      official_gpu_validation:
+        verified: true
+        dimension: Diversity
+        generated_video_count: 20
+        full_suite_verified: false
+    dataset:
+      hf_dataset_id: Vchitect/VBench-2.0_human_annotation
+      split: standard
+      auxiliary_hf_dataset_ids:
+      - Vchitect/VBench-2.0_sampled_videos
+      - Vchitect/VBench-2.0_human_anomaly
+    runtime_requirements:
+      in_tree_source: worldfoundry/evaluation/tasks/execution/runners/vbench_2_0/runtime
+      optional_in_tree_root_override_env: WORLDFOUNDRY_VBENCH2_ROOT
+      generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+      results_path_env: WORLDFOUNDRY_VBENCH2_RESULTS_PATH
+      real_data_root_env: WORLDFOUNDRY_VBENCH2_DATASET_ROOT
+      hf_cache_env: WORLDFOUNDRY_HF_CACHE_DIR
+    artifact_contract:
+      required:
+        generated_video:
+          kind: video
+    evaluation_protocol:
+    - name: external_official_runner
+      metric_ids:
+      - vbench2_creativity
+      - vbench2_commonsense
+      - vbench2_controllability
+      - vbench2_human_fidelity
+      - vbench2_physics
+      - vbench2_total
+      runner_target: worldfoundry.evaluation.tasks.contracts.external:VBench2Contract
+      runner_script: worldfoundry/evaluation/tasks/execution/runners/vbench_2_0/run_vbench_2_0_official_runner.py
+      default_mode: vbench2

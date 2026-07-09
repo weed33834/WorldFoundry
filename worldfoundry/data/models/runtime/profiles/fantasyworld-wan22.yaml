@@ -1,0 +1,40 @@
+schema_version: 2
+model_id: fantasyworld-wan22
+display_name: FantasyWorld Wan2.2
+task_family: world_model
+groups:
+- 3d
+- 4d
+- world
+- camera_control
+source_repos:
+- url: https://github.com/Fantasy-AMAP/fantasy-world
+checkpoints:
+- repo_id: acvlab/FantasyWorld-Wan2.2-Fun-A14B-Control-Camera
+  role: fantasyworld_wan22_checkpoint
+- repo_id: alibaba-pai/Wan2.2-Fun-A14B-Control-Camera
+  role: wan22_fun_base
+- repo_id: alibaba-pai/Wan2.2-Fun-Reward-LoRAs
+  role: wan22_fun_reward_lora
+- repo_id: Ruicheng/moge-2-vitl-normal
+  role: moge2_depth_normal_prior
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - camera_path
+  - camera_pose_sequence
+artifact_kind: generated_world
+artifact_filename: fantasyworld-wan22.mp4
+execution:
+  backend_stage: in_tree_runtime
+  runtime_status: in_tree_runtime_checkpoint_and_gpu_readiness_pending
+  integration_status: integrated
+  pipeline_binding: fantasyworld-wan22
+integration:
+  status: integrated
+notes:
+- Runtime profile for the in-tree FantasyWorld Wan2.2 pipeline.
+- Runtime execution requires local FantasyWorld Wan2.2, Wan2.2 Fun, LoRA, MoGe, and
+  CUDA assets.

@@ -1,0 +1,10 @@
+{
+  "title": "Evaluation",
+  "defaultOpen": true,
+  "pages": [
+    "index",
+    "benchmark-hub",
+    "metrics",
+    "embodied-official-runtime"
+  ]
+}

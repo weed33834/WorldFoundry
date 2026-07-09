@@ -1,0 +1,33 @@
+schema_version: 2
+model_id: neoverse
+display_name: NeoVerse
+task_family: world_model
+groups:
+- 4d
+- world
+- camera_control
+source_repos:
+- url: https://github.com/IamCreateAI/NeoVerse
+checkpoints:
+- repo_id: Yuppie1204/NeoVerse
+  role: neoverse_checkpoint_bundle
+input_schema:
+  prompt: true
+  image: true
+  video: true
+  actions:
+  - camera_actions
+  - predefined_trajectory
+  - trajectory_file
+artifact_kind: generated_world
+artifact_filename: neoverse.mp4
+execution:
+  backend_stage: in_tree_runtime
+  runtime_status: official_tilt_up_video_contract
+  integration_status: integrated
+  pipeline_binding: neoverse
+integration:
+  status: integrated
+notes:
+- Runtime profile for the in-tree NeoVerse pipeline and vendored DiffSynth adapter.
+- Runtime execution requires NeoVerse, Wan, reconstructor, LoRA, and CUDA assets.

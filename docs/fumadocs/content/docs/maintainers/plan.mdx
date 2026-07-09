@@ -1,0 +1,46 @@
+---
+title: Plan
+description: Roadmap and optimization priorities for the WorldFoundry framework.
+---
+
+WorldFoundry is a unified home for world models, video generation, and embodied policies. The themes below guide how we evolve the framework—not a fixed release schedule, but the direction maintainers are aligning on.
+
+## Community integration
+
+The world-model community is moving quickly: new architectures, training recipes, and open checkpoints appear every month. WorldFoundry should stay a practical integration surface, not a frozen snapshot of one research line.
+
+We will expand catalog coverage across world models, video-generation models, and embodied models (VLA, diffusion policies, simulators). Priority goes to projects that are actively maintained, have clear inference or eval paths, and can run with documented checkpoints rather than private forks.
+
+Integration work should follow the existing contract: runtime code in-tree under `worldfoundry/synthesis/**`, manifests and profiles under `worldfoundry/data/models/`, and evidence recorded before a model is marked ready in the catalog. When a community project is strong but not yet portable, we stage it as a profile or prepare-only path first, then land the runtime once parity is verified.
+
+## Runtime scope
+
+WorldFoundry's public framework surface is currently scoped to inference, evaluation, Studio, and runtime integration.
+
+Training launchers, dataset builders, finetuning scripts, and experiment-only callbacks are intentionally out of scope for the current release tree. If training support returns later, it should be redesigned as a separate, documented subsystem with the same evidence standard as inference and evaluation rather than restored from the removed prototype code.
+
+## Codebase unification
+
+WorldFoundry grew by integrating many upstream runtimes. The next phase is to **converge** on shared primitives and delete duplication.
+
+Shared layers already exist in `worldfoundry/core/` (checkpoint loading, distributed helpers, attention, geometry, VRAM utilities). We will extend those abstractions so model runtimes depend on framework code instead of copied vendor modules. When an upstream file is vendored only for a thin wrapper, port the logic in-tree or replace it with a shared helper; when vendoring is required for license or ABI reasons, keep the boundary explicit and small.
+
+Redundant copies of upstream code increase review cost and drift risk. Retire them once in-tree paths pass the same runnable parity or official parity checks. Catalog entries, runtime profiles, and docs should describe one canonical implementation path per model family.
+
+## UI and product experience
+
+Studio and the docs site are the main surfaces most users see. They should reflect the breadth of the catalog without feeling like a debug console.
+
+Near-term UX goals: faster model discovery (filters, profiles, readiness hints), clearer run configuration (env, checkpoints, multi-GPU defaults from profiles), and richer artifact review (video, action traces, 3D exports, external paths). CLI and TUI remain for power users; Studio should cover the common “pick model → run → inspect” loop with fewer manual exports and env variables.
+
+Documentation stays narrative-first: hub pages for inference and evaluation, with details on catalog and reference pages instead of duplicated matrices. Plan changes here should show up in both en/zh and in the same runtime contracts the UI calls.
+
+## Benchmark validation
+
+Benchmarks are how we prove that integration is real—not just that imports succeed.
+
+For **embodied** benchmarks, the bar is official-path reproduction: correct simulator env, upstream or in-tree runner, and imported results that match declared configs (RoboTwin, AI2-THOR, LIBERO-style paths). Dedicated conda envs stay isolated; selection and evidence should still read as one workflow from the main docs.
+
+For **video-generation and world-model** benchmarks, we will strengthen official validation, metric plugins, scorecards, and benchmark hub coverage so new models can be scored without forked runners. EvalCrafter-style official metric suites, physics and temporal benches, and hub registries should share the same artifact contract (`GenerationResult`, normalized outputs, run manifests).
+
+Every validation claim should point to commands, output paths, and blockers—same standard as contributing and release readiness. Benchmark integration without reproducible evidence stays out of the public readiness story.

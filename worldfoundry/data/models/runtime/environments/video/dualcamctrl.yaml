@@ -1,0 +1,35 @@
+model_id: dualcamctrl
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+python: '3.11'
+cuda_profile: cu128
+driver_status: compatible_unified_default
+conda_packages:
+- python=3.11
+- pip
+- ffmpeg
+pip_packages:
+- torch
+- torchvision
+- diffusers
+- transformers
+- huggingface_hub
+- safetensors
+- omegaconf
+- einops
+- imageio
+- imageio-ffmpeg
+- pillow
+- numpy
+- tqdm
+notes:
+- DualCamCtrl is integrated as an inference-only in-tree runtime and should run in the unified WorldFoundry CUDA 12.8 environment.
+- The default checkpoint path uses Hugging Face cache/download semantics. Set WORLDFOUNDRY_MODEL_DIR to reuse pre-staged local assets.
+- ModelScope is only needed when download_resource is explicitly set to ModelScope.
+validation_imports:
+- torch
+- torchvision
+- diffusers
+- transformers
+- huggingface_hub
+- worldfoundry.synthesis.visual_generation.dualcamctrl

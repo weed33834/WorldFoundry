@@ -1,0 +1,101 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+availability: open_source
+checkpoints:
+- nvidia/Cosmos-Predict2.5-2B
+- nvidia/Cosmos-Predict2.5-14B
+family: NVIDIA Cosmos
+id: cosmos-predict-2.5
+aliases:
+  - cosmos-predict2p5
+  - cosmos-predict-2p5
+integration:
+  notes:
+  - Cosmos Predict 2.5 runtime now resolves only local in-tree/cache artifacts; runtime
+    download paths were removed.
+  - Predict transformer, Reason1, and Wan VAE artifacts resolve locally; full import
+    still requires a diffusers-enabled runtime environment.
+  - Official robot_pouring examples are video2world and require materialized demo
+    media; the Studio in-tree wrapper currently defaults to text2world/image2world
+    and promotes legacy 17-frame/4-step compact defaults to full validation defaults.
+  status: runtime_ported
+license: other:nvidia-open-model-license
+modalities:
+- text-to-video
+- image-to-video
+- video-to-video
+- world-generation
+name: Cosmos Predict 2.5
+pipeline_binding: cosmos-predict-2.5
+release_type: code_and_weights
+runtime_profile: runtime-profile:cosmos-predict2.5-2b
+starred: true
+variants:
+- runner_parity:
+    blocked_reasons:
+    - Requires accepted NVIDIA model license, official demo artifact, and WorldFoundry
+      runner parity run.
+    status: planned
+  checkpoint_refs:
+  - gated: auto
+    license: other:nvidia-open-model-license
+    private: false
+    repo_id: nvidia/Cosmos-Predict2.5-2B
+    requires_auth: true
+    revision: f176dc95b4a70f53ce01c4b302851595e7322b00
+  demo_parity:
+    status: pending_demo
+  id: cosmos-predict-2.5-2b
+  provider: official_repo
+  runtime_profile: cosmos-predict2.5-2b
+  task: world-generation
+- runner_parity:
+    blocked_reasons:
+    - Requires high-memory GPU validation, official demo artifact, and WorldFoundry
+      runner parity run.
+    status: planned
+  checkpoint_refs:
+  - gated: false
+    license: other:nvidia-open-model-license
+    private: false
+    repo_id: nvidia/Cosmos-Predict2.5-14B
+    revision: 71ebf3e8af30ecfe440bf0481115975fcc052b46
+  demo_parity:
+    status: pending_demo
+  id: cosmos-predict-2.5-14b
+  provider: official_repo
+  runtime_profile: cosmos-predict2.5-14b
+  task: world-generation
+tasks:
+- text-to-video
+- image-to-video
+- video-to-video
+- world-generation
+runner_parity:
+  notes:
+  - In-tree CosmosPredict2p5Pipeline is registered; full parity remains gated by
+    local NVIDIA checkpoints, accepted license, and GPU validation.
+  status: implemented_checkpoint_pending
+official_sources:
+  github:
+    confirmed_by: git ls-remote --heads
+    confirmed_ref: refs/heads/main
+    url: https://github.com/nvidia-cosmos/cosmos-predict2.5
+  huggingface:
+  - confirmed_by: https://huggingface.co/api/models/nvidia/Cosmos-Predict2.5-2B
+    repo_id: nvidia/Cosmos-Predict2.5-2B
+    status: confirmed
+    type: model
+  - confirmed_by: https://huggingface.co/api/models/nvidia/Cosmos-Predict2.5-14B
+    repo_id: nvidia/Cosmos-Predict2.5-14B
+    status: confirmed
+    type: model
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models
+catalog_policy:
+  checkpoint_rule: Only list checkpoints that were confirmed on official Hugging Face
+    model pages. Do not download weights.
+  integration_rule: Closed, API-only, or unknown releases stay blocked or planned
+    until an official integration surface is available.
+  open_source_rule: Only mark open_source when an official GitHub repository or official
+    Hugging Face model page was confirmed. Do not infer checkpoint availability from
+    papers, demos, or third-party mirrors.

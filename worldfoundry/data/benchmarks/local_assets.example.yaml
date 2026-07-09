@@ -1,0 +1,597 @@
+schema_version: worldfoundry-local-assets-v1
+description: Unified example manifest for local benchmark assets (Hugging Face datasets, checkpoints, simulator assets, and result dumps). Copy outside git, edit the ${WORLDFOUNDRY_*} placeholders, then set WORLDFOUNDRY_LOCAL_ASSET_MANIFEST. Dataset path lookup uses the same file via kind=dataset rows with hf_dataset_id.
+policy:
+  no_large_files_in_repo: true
+  safe_auto_download_kinds:
+  - dataset
+  - checkpoint
+  manual_kinds:
+  - result_dump
+  - simulator_asset
+  - simulator_runtime
+  note: Dataset rows with hf_dataset_id can be checked with the asset preparation tooling. Checkpoint rows with hf_model_id are
+    download-plan hints only; official result dumps and simulator assets must be produced or staged outside git.
+layout:
+  datasets: ${WORLDFOUNDRY_DATA_DIR}/datasets
+  hfd_datasets: ${WORLDFOUNDRY_HFD_DATASET_ROOT}
+  checkpoints: ${WORLDFOUNDRY_CKPT_DIR}
+  repos: ${WORLDFOUNDRY_CACHE_DIR}/repos
+  manifests: ${WORLDFOUNDRY_CACHE_DIR}/manifests
+  runs: ${WORLDFOUNDRY_ARTIFACT_DIR}/runs
+benchmarks:
+- id: worldmodelbench
+  assets:
+  - id: dataset
+    kind: dataset
+    hf_dataset_id: Efficient-Large-Model/worldmodelbench
+    path: ${WORLDFOUNDRY_DATA_DIR}/datasets/Efficient-Large-Model__worldmodelbench
+  - id: judge_checkpoint
+    kind: checkpoint
+    hf_model_id: Efficient-Large-Model/vila-ewm-qwen2-1.5b
+    env: WORLDFOUNDRY_WORLDMODELBENCH_JUDGE
+    path: ${WORLDFOUNDRY_CKPT_DIR}/Efficient-Large-Model__vila-ewm-qwen2-1.5b
+- id: video-bench
+  assets:
+  - id: human_annotation
+    kind: dataset
+    hf_dataset_id: Video-Bench/Video-Bench_human_annotation
+    path: ${WORLDFOUNDRY_DATA_DIR}/datasets/Video-Bench__Video-Bench_human_annotation
+  - id: official_videos
+    kind: dataset
+    hf_dataset_id: Video-Bench/Video-Bench_videos
+    path: ${WORLDFOUNDRY_DATA_DIR}/datasets/Video-Bench__Video-Bench_videos
+- id: evalcrafter
+  assets:
+  - id: generated_video_dataset
+    kind: dataset
+    hf_dataset_id: RaphaelLiu/EvalCrafter_T2V_Dataset
+    revision: d7e4823df49732e26762458ec98f6adbeb8b92d1
+    path: ${WORLDFOUNDRY_DATA_DIR}/datasets/RaphaelLiu__EvalCrafter_T2V_Dataset
+    env: WORLDFOUNDRY_EVALCRAFTER_DATASET_ROOT
+    note: Pass an inner model directory containing 0000.mp4 through 0699.mp4 as WORLDFOUNDRY_GENERATED_ARTIFACT_DIR.
+  - id: metric_checkpoints
+    kind: checkpoint
+    path: ${WORLDFOUNDRY_CKPT_DIR}/evalcrafter
+    access: manual_upstream_metric_assets
+    note: Stage DOVER, BLIP2, SDXL, Inception, VideoMAE, FlowNet2, VGG Face, and DeAOT assets per the EvalCrafter runtime profile.
+  - id: official_results_dump
+    kind: result_dump
+    path: ${WORLDFOUNDRY_ARTIFACT_DIR}/runs/evalcrafter/official_results
+    env: WORLDFOUNDRY_EVALCRAFTER_RESULTS_PATH
+    prepare:
+      command: mkdir -p ${WORLDFOUNDRY_ARTIFACT_DIR}/runs/evalcrafter/official_results
+      note: Place upstream final_result.txt outputs here for normalizer-only imports; do not commit result dumps.
+- id: worldscore
+  assets:
+  - id: dataset
+    kind: dataset
+    hf_dataset_id: Howieeeee/WorldScore
+    path: ${WORLDFOUNDRY_DATA_DIR}/datasets/Howieeeee__WorldScore
+- id: vchitect
+  assets:
+  - id: vbench_source
+    kind: in_tree_source
+    path: ${WORLDFOUNDRY_REPO_ROOT}/worldfoundry/evaluation/tasks/execution/runners/vbench/runtime
+    optional_override_env: WORLDFOUNDRY_VBENCH_ROOT
+  - id: vbench_plus_plus_source
+    kind: in_tree_source
+    path: ${WORLDFOUNDRY_REPO_ROOT}/worldfoundry/evaluation/tasks/execution/runners/vbench_plus_plus/runtime
+    optional_override_env: WORLDFOUNDRY_VBENCH_PLUS_PLUS_ROOT
+  - id: vbench2_source
+    kind: in_tree_source
+    path: ${WORLDFOUNDRY_REPO_ROOT}/worldfoundry/evaluation/tasks/execution/runners/vbench_2_0/runtime
+    optional_override_env: WORLDFOUNDRY_VBENCH2_ROOT
+  - id: metric_checkpoints
+    kind: checkpoint_cache
+    env: WORLDFOUNDRY_VBENCH_CACHE_DIR
+    path: ${WORLDFOUNDRY_CACHE_DIR}/models/vbench
+    note: Base VBench weights are downloaded by the WorldFoundry base-model planner or can be staged from an existing cache.
+  - id: vbench2_metric_checkpoints
+    kind: checkpoint_cache
+    env: WORLDFOUNDRY_VBENCH2_CACHE_DIR
+    path: ${WORLDFOUNDRY_CACHE_DIR}/models/vbench2
+    note: VBench-2.0-only LLaVA/Qwen/YOLO/ArcFace/anomaly assets are downloaded or staged only for dimensions that need them.
+  - id: vchitect_checkpoint
+    kind: checkpoint
+    hf_model_id: Vchitect/Vchitect-2.0-2B
+    env: WORLDFOUNDRY_VCHITECT_CHECKPOINT_DIR
+    path: ${WORLDFOUNDRY_CKPT_DIR}/Vchitect__Vchitect-2.0-2B
+  - id: vbench2_sampled_videos
+    kind: dataset
+    hf_dataset_id: Vchitect/VBench-2.0_sampled_videos
+    path: ${WORLDFOUNDRY_DATA_DIR}/datasets/Vchitect__VBench-2.0_sampled_videos
+  - id: vbench2_human_annotation
+    kind: dataset
+    hf_dataset_id: Vchitect/VBench-2.0_human_annotation
+    path: ${WORLDFOUNDRY_DATA_DIR}/datasets/Vchitect__VBench-2.0_human_annotation
+  - id: vbench2_human_anomaly
+    kind: dataset
+    hf_dataset_id: Vchitect/VBench-2.0_human_anomaly
+    path: ${WORLDFOUNDRY_DATA_DIR}/datasets/Vchitect__VBench-2.0_human_anomaly
+- id: libero
+  assets:
+  - id: official_repo
+    kind: repo
+    repo_url: https://github.com/Lifelong-Robot-Learning/LIBERO
+    path: ${WORLDFOUNDRY_CACHE_DIR}/repos/Lifelong-Robot-Learning--LIBERO
+    env: WORLDFOUNDRY_LIBERO_ROOT
+  - id: lerobot_dataset
+    kind: dataset
+    hf_dataset_id: lerobot/libero
+    path: ${WORLDFOUNDRY_HFD_DATASET_ROOT}/lerobot__libero
+    env: WORLDFOUNDRY_LIBERO_LEROBOT_DATASET_ROOT
+  - id: official_dataset
+    kind: dataset
+    hf_dataset_id: yifengzhu-hf/LIBERO-datasets
+    path: ${WORLDFOUNDRY_HFD_DATASET_ROOT}/yifengzhu-hf__LIBERO-datasets
+    env: WORLDFOUNDRY_LIBERO_DATASETS_ROOT
+    access: manual_license_review
+  - id: dataset_split
+    kind: dataset_split
+    path: ${WORLDFOUNDRY_HFD_DATASET_ROOT}/yifengzhu-hf__LIBERO-datasets
+    split_env: WORLDFOUNDRY_LIBERO_SUITE
+    default_split: libero_10
+    allowed_splits:
+    - libero_spatial
+    - libero_object
+    - libero_goal
+    - libero_10
+    - libero_90
+    required_for: official_rollout_execution
+    note: Select the exact LIBERO suite used by the upstream policy rollout.
+  - id: simulator_assets
+    kind: simulator_asset
+    path: ${WORLDFOUNDRY_DATA_DIR}/datasets/libero/simulator_assets
+    note: Stage robosuite/MuJoCo assets and task definitions expected by the LIBERO checkout.
+  - id: policy_checkpoint
+    kind: checkpoint
+    env: WORLDFOUNDRY_LIBERO_POLICY_CHECKPOINT
+    path: ${WORLDFOUNDRY_CKPT_DIR}/openvla__openvla-7b-finetuned-libero-10
+    required_for: official_rollout_execution
+  - id: official_results_dump
+    kind: result_dump
+    path: ${WORLDFOUNDRY_ARTIFACT_DIR}/runs/libero/official_results
+    env: WORLDFOUNDRY_LIBERO_RESULTS_PATH
+    prepare:
+      command: mkdir -p ${WORLDFOUNDRY_ARTIFACT_DIR}/runs/libero/official_results
+      note: Place normalized upstream official result files here; do not commit result dumps.
+  - id: upstream_rollout_execution
+    kind: upstream_rollout_execution
+    depends_on:
+    - official_repo
+    - official_dataset
+    - dataset_split
+    - simulator_assets
+    - policy_checkpoint
+    - official_results_dump
+    required_for: leaderboard_evidence
+    note: Run the official LIBERO evaluator in the upstream checkout, then import its result dump with benchmark-run --mode official-validation.
+- id: libero-para
+  assets:
+  - id: official_repo
+    kind: repo
+    repo_url: https://github.com/cau-hai-lab/LIBERO-Para
+    path: ${WORLDFOUNDRY_CACHE_DIR}/repos/cau-hai-lab--LIBERO-Para
+    env: WORLDFOUNDRY_LIBERO_PARA_ROOT
+  - id: official_dataset
+    kind: dataset
+    hf_dataset_id: HAI-Lab/LIBERO-Para
+    path: ${WORLDFOUNDRY_HFD_DATASET_ROOT}/HAI-Lab__LIBERO-Para
+    env: WORLDFOUNDRY_LIBERO_PARA_DATASET_ROOT
+    access: manual_license_review
+  - id: paraphrase_split
+    kind: dataset_split
+    path: ${WORLDFOUNDRY_HFD_DATASET_ROOT}/HAI-Lab__LIBERO-Para
+    split_env: WORLDFOUNDRY_LIBERO_PARA_SPLIT
+    default_split: paraphrase_eval
+    allowed_splits:
+    - paraphrase_eval
+    - paraphrase_train
+    - libero_10_para
+    required_for: official_rollout_execution
+    note: Keep the paraphrase split mapping fixed when comparing policies.
+  - id: simulator_assets
+    kind: simulator_asset
+    path: ${WORLDFOUNDRY_DATA_DIR}/datasets/libero-para/simulator_assets
+    note: Stage the LIBERO-compatible simulator assets expected by the LIBERO-Para checkout.
+  - id: policy_checkpoint
+    kind: checkpoint
+    env: WORLDFOUNDRY_LIBERO_PARA_POLICY_CHECKPOINT
+    path: ${WORLDFOUNDRY_CKPT_DIR}/libero-para/policy
+    required_for: official_rollout_execution
+  - id: official_results_dump
+    kind: result_dump
+    path: ${WORLDFOUNDRY_ARTIFACT_DIR}/runs/libero-para/official_results
+    env: WORLDFOUNDRY_LIBERO_PARA_RESULTS_PATH
+  - id: upstream_rollout_execution
+    kind: upstream_rollout_execution
+    depends_on:
+    - official_repo
+    - official_dataset
+    - paraphrase_split
+    - simulator_assets
+    - policy_checkpoint
+    - official_results_dump
+    required_for: leaderboard_evidence
+    note: Run the upstream LIBERO-Para evaluator with the selected paraphrase split, then import the rollout result dump.
+- id: simpler-env
+  assets:
+  - id: official_repo
+    kind: repo
+    repo_url: https://github.com/simpler-env/SimplerEnv
+    path: ${WORLDFOUNDRY_CACHE_DIR}/repos/simpler-env--SimplerEnv
+    env: WORLDFOUNDRY_SIMPLERENV_ROOT
+  - id: embodiment_assets
+    kind: simulator_asset
+    path: ${WORLDFOUNDRY_DATA_DIR}/datasets/simpler-env/assets
+    note: Stage Google Robot/WidowX embodiment assets required by the selected SimplerEnv task suite.
+  - id: dataset_split
+    kind: dataset_split
+    path: ${WORLDFOUNDRY_DATA_DIR}/datasets/simpler-env
+    split_env: WORLDFOUNDRY_SIMPLERENV_SUITE
+    default_split: google_robot
+    allowed_splits:
+    - google_robot
+    - widowx_bridge
+    required_for: official_rollout_execution
+  - id: policy_checkpoint
+    kind: checkpoint
+    env: WORLDFOUNDRY_SIMPLERENV_POLICY_CHECKPOINT
+    path: ${WORLDFOUNDRY_CKPT_DIR}/simpler-env/policy
+    required_for: official_rollout_execution
+  - id: official_results_dump
+    kind: result_dump
+    path: ${WORLDFOUNDRY_ARTIFACT_DIR}/runs/simpler-env/official_results
+    env: WORLDFOUNDRY_SIMPLERENV_RESULTS_PATH
+  - id: upstream_rollout_execution
+    kind: upstream_rollout_execution
+    depends_on:
+    - official_repo
+    - embodiment_assets
+    - dataset_split
+    - policy_checkpoint
+    - official_results_dump
+    required_for: leaderboard_evidence
+    note: Run upstream SimplerEnv policy rollouts for the selected suite and import the exported results.
+- id: robocasa
+  assets:
+  - id: official_repo
+    kind: repo
+    repo_url: https://github.com/robocasa/robocasa
+    path: ${WORLDFOUNDRY_CACHE_DIR}/repos/robocasa--robocasa
+    env: WORLDFOUNDRY_ROBOCASA_ROOT
+  - id: kitchen_assets
+    kind: simulator_asset
+    path: ${WORLDFOUNDRY_DATA_DIR}/datasets/robocasa/kitchen_assets
+    note: Stage RoboCasa/robosuite kitchen, object, and scene assets.
+  - id: task_split
+    kind: dataset_split
+    path: ${WORLDFOUNDRY_DATA_DIR}/datasets/robocasa/task_splits
+    split_env: WORLDFOUNDRY_ROBOCASA_SUITE
+    default_split: robocasa_core
+    allowed_splits:
+    - robocasa_core
+    - robocasa_long_horizon
+    - robocasa_eval
+    required_for: official_rollout_execution
+  - id: policy_checkpoint
+    kind: checkpoint
+    env: WORLDFOUNDRY_ROBOCASA_POLICY_CHECKPOINT
+    path: ${WORLDFOUNDRY_CKPT_DIR}/robocasa/policy
+    required_for: official_rollout_execution
+  - id: official_results_dump
+    kind: result_dump
+    path: ${WORLDFOUNDRY_ARTIFACT_DIR}/runs/robocasa/official_results
+    env: WORLDFOUNDRY_ROBOCASA_RESULTS_PATH
+  - id: upstream_rollout_execution
+    kind: upstream_rollout_execution
+    depends_on:
+    - official_repo
+    - kitchen_assets
+    - task_split
+    - policy_checkpoint
+    - official_results_dump
+    required_for: leaderboard_evidence
+    note: Run the upstream RoboCasa evaluator with the chosen task suite and import the rollout result dump.
+- id: calvin
+  assets:
+  - id: official_repo
+    kind: repo
+    repo_url: https://github.com/mees/calvin
+    path: ${WORLDFOUNDRY_CACHE_DIR}/repos/mees--calvin
+    env: WORLDFOUNDRY_CALVIN_ROOT
+  - id: dataset_root
+    kind: dataset
+    path: ${WORLDFOUNDRY_DATA_DIR}/datasets/calvin
+    env: WORLDFOUNDRY_CALVIN_DATASET_ROOT
+    access: manual_license_review
+  - id: dataset_split
+    kind: dataset_split
+    path: ${WORLDFOUNDRY_DATA_DIR}/datasets/calvin
+    split_env: WORLDFOUNDRY_CALVIN_SPLIT
+    default_split: validation
+    allowed_splits:
+    - validation
+    - test
+    - debug
+    required_for: official_rollout_execution
+  - id: simulator_assets
+    kind: simulator_asset
+    path: ${WORLDFOUNDRY_DATA_DIR}/datasets/calvin/simulator_assets
+    note: Stage CALVIN simulator/task assets required by the upstream evaluator.
+  - id: policy_checkpoint
+    kind: checkpoint
+    env: WORLDFOUNDRY_CALVIN_POLICY_CHECKPOINT
+    path: ${WORLDFOUNDRY_CKPT_DIR}/robovlms__RoboFlamingo
+    required_for: official_rollout_execution
+  - id: official_results_dump
+    kind: result_dump
+    path: ${WORLDFOUNDRY_ARTIFACT_DIR}/runs/calvin/official_results
+    env: WORLDFOUNDRY_CALVIN_RESULTS_PATH
+  - id: upstream_rollout_execution
+    kind: upstream_rollout_execution
+    depends_on:
+    - official_repo
+    - dataset_root
+    - dataset_split
+    - simulator_assets
+    - policy_checkpoint
+    - official_results_dump
+    required_for: leaderboard_evidence
+    note: Run the CALVIN long-horizon evaluator upstream and import its per-sequence success results.
+- id: maniskill
+  assets:
+  - id: official_repo
+    kind: repo
+    repo_url: https://github.com/haosulab/ManiSkill
+    path: ${WORLDFOUNDRY_CACHE_DIR}/repos/haosulab--ManiSkill
+    env: WORLDFOUNDRY_MANISKILL_ROOT
+  - id: simulator_assets
+    kind: simulator_asset
+    path: ${WORLDFOUNDRY_DATA_DIR}/datasets/maniskill/assets
+    note: Stage SAPIEN/ManiSkill task assets for the selected environment ids.
+  - id: task_suite
+    kind: dataset_split
+    path: ${WORLDFOUNDRY_DATA_DIR}/datasets/maniskill/task_suites
+    split_env: WORLDFOUNDRY_MANISKILL_SUITE
+    default_split: pickcube_eval_subset
+    allowed_splits:
+    - pickcube_eval_subset
+    - official_task_suite
+    - custom_env_ids
+    required_for: official_rollout_execution
+  - id: policy_checkpoint_or_controller
+    kind: checkpoint
+    env: WORLDFOUNDRY_MANISKILL_POLICY_CHECKPOINT
+    path: ${WORLDFOUNDRY_CKPT_DIR}/maniskill/policy_or_controller
+    required_for: official_rollout_execution
+  - id: official_results_dump
+    kind: result_dump
+    path: ${WORLDFOUNDRY_ARTIFACT_DIR}/runs/maniskill/official_results
+    env: WORLDFOUNDRY_MANISKILL_RESULTS_PATH
+  - id: upstream_rollout_execution
+    kind: upstream_rollout_execution
+    depends_on:
+    - official_repo
+    - simulator_assets
+    - task_suite
+    - policy_checkpoint_or_controller
+    - official_results_dump
+    required_for: leaderboard_evidence
+    note: Run upstream ManiSkill/Gymnasium episodes for the selected env ids and import the result dump.
+- id: rlbench
+  assets:
+  - id: official_repo
+    kind: repo
+    repo_url: https://github.com/stepjam/RLBench
+    path: ${WORLDFOUNDRY_CACHE_DIR}/repos/stepjam--RLBench
+    env: WORLDFOUNDRY_RLBENCH_ROOT
+  - id: coppeliasim_runtime
+    kind: simulator_runtime
+    path: ${WORLDFOUNDRY_CACHE_DIR}/simulators/CoppeliaSim_Edu_V4_1_0_Ubuntu20_04
+    env: COPPELIASIM_ROOT
+    access: manual_simulator_license
+  - id: task_assets
+    kind: simulator_asset
+    path: ${WORLDFOUNDRY_DATA_DIR}/datasets/rlbench/task_assets
+    note: Stage RLBench task assets and PyRep scene resources.
+  - id: task_split
+    kind: dataset_split
+    path: ${WORLDFOUNDRY_DATA_DIR}/datasets/rlbench/task_splits
+    split_env: WORLDFOUNDRY_RLBENCH_TASK_SPLIT
+    default_split: official_eval
+    allowed_splits:
+    - official_eval
+    - few_shot
+    - custom_tasks
+    required_for: official_rollout_execution
+  - id: policy_checkpoint
+    kind: checkpoint
+    env: WORLDFOUNDRY_RLBENCH_POLICY_CHECKPOINT
+    path: ${WORLDFOUNDRY_CKPT_DIR}/rlbench/policy
+    required_for: official_rollout_execution
+  - id: official_results_dump
+    kind: result_dump
+    path: ${WORLDFOUNDRY_ARTIFACT_DIR}/runs/rlbench/official_results
+    env: WORLDFOUNDRY_RLBENCH_RESULTS_PATH
+  - id: upstream_rollout_execution
+    kind: upstream_rollout_execution
+    depends_on:
+    - official_repo
+    - coppeliasim_runtime
+    - task_assets
+    - task_split
+    - policy_checkpoint
+    - official_results_dump
+    required_for: leaderboard_evidence
+    note: Run upstream RLBench/PyRep rollouts with CoppeliaSim, then import the exported per-task results.
+- id: metaworld
+  assets:
+  - id: official_repo
+    kind: repo
+    repo_url: https://github.com/Farama-Foundation/Metaworld
+    path: ${WORLDFOUNDRY_CACHE_DIR}/repos/Farama-Foundation--Metaworld
+    env: WORLDFOUNDRY_METAWORLD_ROOT
+  - id: mujoco_runtime
+    kind: simulator_runtime
+    path: ${WORLDFOUNDRY_CACHE_DIR}/simulators/mujoco
+    env: MUJOCO_ROOT
+  - id: task_suite
+    kind: dataset_split
+    path: ${WORLDFOUNDRY_DATA_DIR}/datasets/metaworld/task_suites
+    split_env: WORLDFOUNDRY_METAWORLD_SUITE
+    default_split: MT1/reach-v3
+    allowed_splits:
+    - MT1
+    - MT10
+    - MT50
+    - ML1
+    - ML10
+    - ML45
+    required_for: official_rollout_execution
+  - id: policy_checkpoint_or_controller
+    kind: checkpoint
+    env: WORLDFOUNDRY_METAWORLD_POLICY_CHECKPOINT
+    path: ${WORLDFOUNDRY_CKPT_DIR}/metaworld/policy_or_controller
+    required_for: official_rollout_execution
+  - id: official_results_dump
+    kind: result_dump
+    path: ${WORLDFOUNDRY_ARTIFACT_DIR}/runs/metaworld/official_results
+    env: WORLDFOUNDRY_METAWORLD_RESULTS_PATH
+  - id: upstream_rollout_execution
+    kind: upstream_rollout_execution
+    depends_on:
+    - official_repo
+    - mujoco_runtime
+    - task_suite
+    - policy_checkpoint_or_controller
+    - official_results_dump
+    required_for: leaderboard_evidence
+    note: Run upstream Meta-World/Gymnasium rollouts for the chosen suite and import the result dump.
+- id: bridgedata-v2
+  assets:
+  - id: official_repo
+    kind: repo
+    repo_url: https://github.com/rail-berkeley/bridge_data_v2
+    path: ${WORLDFOUNDRY_CACHE_DIR}/repos/rail-berkeley--bridge_data_v2
+    env: WORLDFOUNDRY_BRIDGEDATA_V2_ROOT
+  - id: dataset_root
+    kind: dataset
+    path: ${WORLDFOUNDRY_DATA_DIR}/datasets/bridgedata-v2
+    env: WORLDFOUNDRY_BRIDGEDATA_V2_DATASET_ROOT
+    access: manual_huge_dataset
+  - id: eval_split_manifest
+    kind: dataset_split
+    path: ${WORLDFOUNDRY_DATA_DIR}/datasets/bridgedata-v2/eval_split.json
+    split_env: WORLDFOUNDRY_BRIDGEDATA_V2_SPLIT
+    default_split: eval_split
+    required_for: official_rollout_execution
+  - id: offline_prediction_dump
+    kind: result_dump
+    path: ${WORLDFOUNDRY_ARTIFACT_DIR}/runs/bridgedata-v2/offline_predictions
+    env: WORLDFOUNDRY_BRIDGEDATA_V2_PREDICTIONS_PATH
+    note: Store policy predictions or offline evaluation rows for the selected BridgeData V2 split.
+  - id: policy_checkpoint
+    kind: checkpoint
+    env: WORLDFOUNDRY_BRIDGEDATA_V2_POLICY_CHECKPOINT
+    path: ${WORLDFOUNDRY_CKPT_DIR}/bridgedata-v2/policy
+    required_for: upstream_offline_evaluation
+  - id: official_results_dump
+    kind: result_dump
+    path: ${WORLDFOUNDRY_ARTIFACT_DIR}/runs/bridgedata-v2/official_results
+    env: WORLDFOUNDRY_BRIDGEDATA_V2_RESULTS_PATH
+  - id: upstream_rollout_execution
+    kind: upstream_rollout_execution
+    depends_on:
+    - dataset_root
+    - eval_split_manifest
+    - policy_checkpoint
+    - offline_prediction_dump
+    - official_results_dump
+    required_for: leaderboard_evidence
+    note: Run the BridgeData V2 offline policy evaluation for the fixed split, then import the result dump.
+- id: mikasa
+  assets:
+  - id: official_repo
+    kind: repo
+    repo_url: https://github.com/CognitiveAISystems/MIKASA-Robo
+    path: ${WORLDFOUNDRY_CACHE_DIR}/repos/CognitiveAISystems--MIKASA-Robo
+    env: WORLDFOUNDRY_MIKASA_ROOT
+  - id: official_dataset
+    kind: dataset
+    hf_dataset_id: avanturist/mikasa-robo
+    path: ${WORLDFOUNDRY_DATA_DIR}/datasets/mikasa
+    env: WORLDFOUNDRY_MIKASA_DATASET_ROOT
+  - id: official_results_dump
+    kind: result_dump
+    path: ${WORLDFOUNDRY_ARTIFACT_DIR}/runs/mikasa/official_results
+    env: WORLDFOUNDRY_MIKASA_RESULTS_PATH
+    note: Place upstream MiKASA-Robo rollout outputs here before importing leaderboard evidence.
+- id: robocerebra
+  assets:
+  - id: official_repo
+    kind: repo
+    repo_url: https://github.com/buaa-colalab/RoboCerebra
+    path: ${WORLDFOUNDRY_CACHE_DIR}/repos/buaa-colalab--RoboCerebra
+    env: WORLDFOUNDRY_ROBOCEREBRA_ROOT
+  - id: official_benchmark_dataset
+    kind: dataset
+    hf_dataset_id: qiukingballball/RoboCerebraBench
+    path: ${WORLDFOUNDRY_DATA_DIR}/datasets/robocerebra
+    env: WORLDFOUNDRY_ROBOCEREBRA_DATASET_ROOT
+  - id: official_results_dump
+    kind: result_dump
+    path: ${WORLDFOUNDRY_ARTIFACT_DIR}/runs/robocerebra/official_results
+    env: WORLDFOUNDRY_ROBOCEREBRA_RESULTS_PATH
+    note: Place upstream RoboCerebra rollout outputs here before importing leaderboard evidence.
+- id: robotwin
+  assets:
+  - id: official_repo
+    kind: repo
+    repo_url: https://github.com/RoboTwin-Platform/RoboTwin
+    path: ${WORLDFOUNDRY_CACHE_DIR}/repos/RoboTwin-Platform--RoboTwin
+    env: WORLDFOUNDRY_ROBOTWIN_ROOT
+  - id: public_simulator_assets
+    kind: simulator_asset
+    hf_dataset_id: TianxingChen/RoboTwin2.0
+    path: ${WORLDFOUNDRY_HFD_DATASET_ROOT}/TianxingChen__RoboTwin2.0
+    allow_patterns:
+    - background_texture.zip
+    - embodiments.zip
+    - objects.zip
+  - id: unified_dataset
+    kind: dataset
+    hf_dataset_id: lerobot/robotwin_unified
+    path: ${WORLDFOUNDRY_HFD_DATASET_ROOT}/lerobot__robotwin_unified
+    access: manual_license_review
+  - id: task_split
+    kind: dataset_split
+    path: ${WORLDFOUNDRY_HFD_DATASET_ROOT}/TianxingChen__RoboTwin2.0
+    split_env: WORLDFOUNDRY_ROBOTWIN_TASK_CONFIG
+    default_split: demo_clean,demo_randomized
+    allowed_splits:
+    - demo_clean
+    - demo_randomized
+    - all_50_tasks
+    required_for: official_rollout_execution
+  - id: policy_checkpoints
+    kind: checkpoint
+    env: WORLDFOUNDRY_ROBOTWIN_POLICY_CHECKPOINT
+    path: ${WORLDFOUNDRY_CKPT_DIR}/robotwin
+    required_for: official_rollout_execution
+  - id: official_results_dump
+    kind: result_dump
+    path: ${WORLDFOUNDRY_ARTIFACT_DIR}/runs/robotwin/eval_result
+    env: WORLDFOUNDRY_ROBOTWIN_RESULTS_PATH
+    note: May point directly to the upstream RoboTwin eval_result directory containing _result.txt files.
+  - id: upstream_rollout_execution
+    kind: upstream_rollout_execution
+    depends_on:
+    - official_repo
+    - public_simulator_assets
+    - unified_dataset
+    - task_split
+    - policy_checkpoints
+    - official_results_dump
+    required_for: leaderboard_evidence
+    note: Run upstream RoboTwin policy evaluation in its SAPIEN/Curobo environment, then import eval_result.

@@ -1,0 +1,71 @@
+benchmark_ids:
+- mirabench
+blocked_reason: AMT, ViCLIP, MUSIQ, FVD/FID/KID, 3D consistency assets, generated videos, and full upstream scorer
+  execution remain full-suite blockers.
+environment_id: worldplay-mirabench-contract
+id: mirabench
+name: MiraBench
+needs_new_env: false
+notes:
+- MiraBench runtime sources are in tree; WorldFoundry can normalize caller-provided official result files.
+- Reusable CLIP ViT-B/32, DINOv2, and RAFT dependencies are tracked through base_models.
+- AMT, ViCLIP, MUSIQ, FVD/FID/KID, 3D consistency assets, generated videos, and full upstream scorer execution remain
+  full-suite blockers.
+preflight_command: PYTHONPATH=. ${WORLDFOUNDRY_UNIFIED_PYTHON:-python} -m
+  worldfoundry.evaluation.tasks.execution.orchestration.runtime_preflight --profile mirabench --manifest
+  worldfoundry/data/benchmarks/runtime_profiles/official/mirabench.yaml --output-dir
+  tmp/worldfoundry_preflight/mirabench --json
+python_path: ${WORLDFOUNDRY_UNIFIED_PYTHON:-python}
+pythonpath_roots:
+- .
+required_assets:
+  in_tree_runtime_paths:
+  - worldfoundry/evaluation/tasks/execution/runners/mirabench/runtime/mirabench
+  bundled_asset_paths:
+  - worldfoundry/data/benchmarks/assets/mirabench
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/mirabench.yaml
+required_env:
+- WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+- WORLDFOUNDRY_MIRABENCH_RESULTS_PATH
+optional_env:
+- WORLDFOUNDRY_MIRABENCH_ROOT
+required_imports:
+- numpy
+required_packages:
+- numpy
+required_paths:
+- id: official_runner_script
+  path: worldfoundry/evaluation/tasks/execution/runners/mirabench/run_mirabench_official_runner.py
+- id: task_yaml
+  path: worldfoundry/data/benchmarks/tasks/external/mirabench.yaml
+- id: in_tree_runtime_root
+  path: worldfoundry/evaluation/tasks/execution/runners/mirabench/runtime/mirabench
+- id: bundled_assets
+  path: worldfoundry/data/benchmarks/assets/mirabench
+requires_cuda_visibility: false
+status: in_tree_official_runtime_ready_full_upstream_pending
+base_model_dependencies:
+- video_quality_dino_motion_stack
+base_model_dependency_preflight:
+  status: ready
+  missing: []
+optional_imports:
+- torch
+- torchvision
+- cv2
+- pandas
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- mirabench
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.csv>
+- --generated-artifact-dir
+- <generated_videos>
+- --output-dir
+- <out>
+- --json

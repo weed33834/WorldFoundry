@@ -1,0 +1,40 @@
+id: shotstream
+name: ShotStream
+aliases:
+- interactive-video-generation
+tasks:
+- interactive-video-generation
+- real-time-video-generation
+- streaming-video
+output_artifacts:
+- generated_video
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/KlingAIResearch/ShotStream
+  hf_repo_id: KlingTeam/ShotStream
+  license: manual_review:missing_root_license
+official_sources:
+  github:
+    url: https://github.com/KlingAIResearch/ShotStream
+    head_sha: 7ddcfaef6cf303966351c4640269897181bb009d
+  huggingface:
+  - repo_id: KlingTeam/ShotStream
+    type: model
+    status: confirmed
+runtime_profile: runtime-profile:shotstream
+integration:
+  status: runtime_ported
+  notes:
+  - ShotStream official inference route is registered; checkpoint/streaming assets
+    are runtime-gated.
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - resolve_model_zoo_config and pipeline import are expected to pass; real generation
+    emits a runtime plan until required checkpoints/assets are staged.
+catalog_category: world_models
+catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry
+  runtimes; blocked entries retain upstream provenance without runnable backends.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: shotstream

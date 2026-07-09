@@ -1,0 +1,7 @@
+backend: callable_entrypoint
+policy_target: worldfoundry.synthesis.action_generation.openvla.runtime:predict_action
+predict_method: predict_action
+runtime_backend: openvla_in_tree_checkpoint_runtime
+unnorm_key: bridge_orig
+torch_dtype: auto
+attn_implementation: eager

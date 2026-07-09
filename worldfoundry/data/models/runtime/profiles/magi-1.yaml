@@ -1,0 +1,22 @@
+schema_version: 2
+model_id: magi-1
+display_name: MAGI-1
+task_family: video_generation
+groups: [video, image_to_video]
+source_repos:
+- url: https://github.com/SandAI-org/MAGI-1
+checkpoints:
+- repo_id: sand-ai/MAGI-1
+  role: i2v_checkpoint
+input_schema:
+  prompt: true
+  image: true
+artifact_kind: generated_video
+artifact_filename: magi-1.mp4
+execution:
+  backend_stage: official_runtime_bridge
+  runtime_status: integrated_checkpoint_required
+  integration_status: integrated
+  pipeline_binding: magi-1
+integration:
+  status: integrated

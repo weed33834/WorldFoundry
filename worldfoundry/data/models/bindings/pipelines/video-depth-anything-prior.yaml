@@ -1,0 +1,14 @@
+schema_version: 2
+binding_id: video-depth-anything-prior
+model_id: video-depth-anything-prior
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.geometry_priors.pipeline_geometry_priors:VideoDepthAnythingPriorPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation
+aliases:
+- video-depth-anything
+- vda-prior

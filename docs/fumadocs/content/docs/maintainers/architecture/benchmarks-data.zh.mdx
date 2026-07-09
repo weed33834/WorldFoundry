@@ -1,0 +1,101 @@
+---
+title: 基准和数据
+description: Benchmark manifest、task YAML、dataset、model-zoo metadata 和 runtime profile 如何进入 evaluation。
+---
+
+## 简介
+
+Catalog YAML 是可读支持状态与可运行 evaluation 代码之间的桥梁。本文说明 `worldfoundry/data/` 下的文件如何变为 `WorldModelConfig`、`BenchmarkSpec` 以及物化后的 `GenerationRequest` 行。添加 benchmark entry、排查 `zoo benchmark-show` 列出的 metric 为何 runner 未计算、或从 manifest 追到 sample loader 时读这里。
+
+执行侧同一故事见 [Workflow](/zh/docs/maintainers/architecture/workflow#task-materialization)。
+
+## Catalog 到 Scorecard
+
+完整数据故事分四步：**catalog YAML** 声明存在什么、是否 ready；**parser 与 registry** 把 YAML 转为 typed entry；**materialization** 在 generation 前固定 sample 行；**runner 与 reporting** 产出 metrics 与 scorecard。
+
+```text
+Model catalog pipeline:
+  models/catalog/*.yaml
+    -> Schema + ModelZooRegistry
+    -> resolve_model_zoo_runner()
+         \
+          +-> run_evaluate() delegate runner -> scorecard.json + report.md
+          /
+Benchmark catalog pipeline:
+  benchmarks/catalog/*.yaml
+    -> Schema + BenchmarkZooRegistry --\
+  benchmarks/tasks/external/*.yaml      +-> Materialize GenerationRequests
+    -> Task registry -------------------/
+```
+
+Model 与 benchmark catalog 是并行 pipeline。二者仅在 run time 汇合——当 `EvaluateRunRequest` 同时携带 `model_id` 与 `benchmark_id`，或 materialization 为 existing-results run 产出 requests 时。
+
+## Manifest 组织方式
+
+磁盘上 manifest 按领域分组，便于维护者批量浏览。字段结构相近，但各类别的 readiness 信号不同：
+
+**视频、音频与多模态模型** 位于 `worldfoundry/data/models/catalog/video/`。Readiness 取决于 `runner_target` 与 checkpoint ref——完整 entry 暴露可解析 runner；metadata-only entry 只描述意图、无可运行路径。
+
+**Interactive world model** 位于 `world_models/`。Schema 与 video 相同，但侧重 world-model task coverage 与 demo/runtime notes。
+
+**3D/4D 与几何模型** 位于 `three_d_four_d/`。`integration.kind` 标记 `pipeline_runner`、`base_model` 或 `metadata_only`；artifact expectations 与 geometry runtime hints 比通用 task 列表更重要。
+
+**VLA、VA 与 embodied-action 模型** 位于 `vla_va_wam/`。记录 action/task compatibility、上游 provenance 与环境 notes。只有 in-tree runtime 完整后才会出现 `runner_target`。
+
+**Benchmark catalog entry** 在 `worldfoundry/data/benchmarks/catalog/` 中记录 `benchmark_id`、domains、metrics、runner spec、dataset ref 与 `integration_status`。**External task manifest** 在 `benchmarks/tasks/external/` 中以更细粒度定义 per-sample protocol、metric id 与 runner expectations。
+
+**Runtime profile** 在 `worldfoundry/data/models/runtime/profiles/` 中与 catalog YAML 并列，记录 YAML 无法表达的 blocker：dependency stack、command shape、checkpoint layout、device expectations 与 demo parity status。
+
+## 解析 Pipeline
+
+Python 不会随意直读 raw YAML。每个 catalog 领域遵循相同三步：**schema 解析** 把较松的作者输入归一化为 typed entry；**registry 构建** 创建 CLI 查询用的 alias 索引；**spec 转换** 产出 evaluation API 导入的公开契约。
+
+Model 侧：`schema.py` 产出 `ModelZooEntry`；`zoo_registry.py` 按 id、alias、task、integration status 索引；`manifest.py` 转为 `WorldModelManifest`。Benchmark 侧：`evaluation/tasks/catalog/` 中的平行链路产出 `BenchmarkZooEntry` → `BenchmarkZooRegistry` → `BenchmarkSpec`。
+
+Catalog field 迁移或重命名时先改 schema parser——registry 查询、resolver 行为与 docs export 都依赖它。
+
+## Task Materialization
+
+Task YAML 比 benchmark-zoo catalog entry 更细：定义 sample 列、expected artifact 与共享 protocol 片段的 `extends` 链。Materialization 把这些行变成 runner 消费的 `GenerationRequest` ledger。
+
+```text
+Task YAML（含 extends 链）
+  -> Task registry lookup --\
+Dataset manifest（可选）        +-> RunPlan fingerprint
+                               -> materialize_generation_requests()
+                               -> EvaluateRunRequest
+```
+
+在 generation 耗 GPU 前用 `worldfoundry-eval task materialize` 证明此步。跳过 materialization 是「文档里 benchmark 可用、CI 却失败」最常见原因——runner 从未见到 task YAML 承诺的 sample id。
+
+## External Benchmark 执行
+
+Benchmark 有 official runnable path 时，`benchmark_runner.py` 中的 `ManifestBenchmarkRunner` 执行 catalog entry 声明的 external evaluator。Vendor 输出经 official normalizer 处理，metrics 落入共享的 `metrics/summary.json` 形态。External 仓库留在此 runner 边界之后；evaluation 包不会从 catalog YAML 直接 import vendor 代码。
+
+## Dataset 契约
+
+Dataset manifest 描述 sample 在磁盘或对象存储上的位置——不是模型如何运行。Manifest 层校验路径并为 materialization 加载行；Manager 层处理 access review、download plan 与 local cache discovery。「sample not found」类 benchmark 失败通常应追到这里，而非 model resolution。
+
+Dataset manifest 指向 sample 文件或 object-storage key。Materialization 读取这些行，与 task YAML 列定义合并，为每个 sample 产出带稳定 id 的 `GenerationRequest`。Manager 层供人准备数据；manifest 层供 runner 消费。
+
+## 添加或调试 Benchmark
+
+按顺序执行：先 catalog 可见性，再 parsing，再 runnable runner，再 materialization 证明，最后 metric validation。
+
+<Steps>
+  <Step>
+    在 `worldfoundry/data/benchmarks/catalog/*.yaml` 添加 catalog metadata；必要时同步添加 `worldfoundry/data/benchmarks/tasks/external/*.yaml` 的外部 task manifest。
+  </Step>
+  <Step>
+    确认 entry 能被解析并在 `zoo benchmark-show` 输出中出现。
+  </Step>
+  <Step>
+    如果有 official runnable path，实现或指向一个 `ManifestBenchmarkRunner`。
+  </Step>
+  <Step>
+    运行 `worldfoundry-eval task materialize`，在 model generation 前证明 request materialization。
+  </Step>
+  <Step>
+    用 `metrics/summary.json`、`scorecard.json` 和 benchmark-specific validation scripts 验证输出。
+  </Step>
+</Steps>

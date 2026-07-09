@@ -1,0 +1,762 @@
+envs:
+- model_id: wan2.1
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  - cuda-nvcc
+  pip_packages:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - imageio-ffmpeg
+  - opencv-python
+  - numpy
+  - einops
+  - loguru
+  - xfuser
+  validation_imports:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - cv2
+  - numpy
+  notes:
+  - Wan2.1 T2V/I2V routes use the shared CUDA 12.8 inference environment.
+- model_id: wan2.1-vace
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  - cuda-nvcc
+  pip_packages:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - imageio-ffmpeg
+  - opencv-python
+  - numpy
+  - einops
+  - loguru
+  - xfuser
+  validation_imports:
+  - torch
+  - torchvision
+  - xfuser
+  - diffusers
+  - transformers
+  - imageio
+  - cv2
+  - numpy
+  notes:
+  - Wan2.1 VACE uses the shared CUDA 12.8 environment with 8-rank torchrun support.
+- model_id: wan2.2
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  - cuda-nvcc
+  pip_packages:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - imageio-ffmpeg
+  - opencv-python
+  - numpy
+  - einops
+  - loguru
+  - xfuser
+  validation_imports:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - imageio
+  - cv2
+  - numpy
+  notes:
+  - Wan2.2 TI2V/Wan-family routes stay on the shared CUDA 12.8 environment unless a downstream checkpoint declares a stricter
+    runtime.
+- model_id: cogvideox
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - imageio-ffmpeg
+  - opencv-python
+  - numpy
+  - decord
+  - sentencepiece
+  validation_imports:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - imageio
+  - cv2
+  - numpy
+  notes:
+  - CogVideoX 2B T2V, 5B T2V, and 5B I2V routes use the shared CUDA 12.8 environment.
+- model_id: cogvideox-2b-t2v
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - imageio-ffmpeg
+  - opencv-python
+  - numpy
+  - decord
+  - sentencepiece
+  validation_imports:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - imageio
+  - cv2
+  - numpy
+  notes:
+  - Catalog alias for the CogVideoX 2B text-to-video route.
+- model_id: cogvideox-5b-t2v
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - imageio-ffmpeg
+  - opencv-python
+  - numpy
+  - decord
+  - sentencepiece
+  validation_imports:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - imageio
+  - cv2
+  - numpy
+  notes:
+  - Catalog alias for the CogVideoX 5B text-to-video route.
+- model_id: cogvideox-5b-i2v
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - imageio-ffmpeg
+  - opencv-python
+  - numpy
+  - decord
+  - sentencepiece
+  validation_imports:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - imageio
+  - cv2
+  - numpy
+  notes:
+  - Catalog alias for the CogVideoX 5B image-to-video route.
+- model_id: hunyuanworld-voyager
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  - cuda-nvcc
+  pip_packages:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - imageio-ffmpeg
+  - opencv-python
+  - numpy
+  - decord
+  - einops
+  - loguru
+  - xfuser
+  validation_imports:
+  - torch
+  - torchvision
+  - xfuser
+  - diffusers
+  - transformers
+  - imageio
+  - cv2
+  - numpy
+  - decord
+  notes:
+  - HunyuanWorld-Voyager uses the shared CUDA 12.8 inference environment.
+- model_id: hunyuan-world-voyager
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  - cuda-nvcc
+  pip_packages:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - imageio-ffmpeg
+  - opencv-python
+  - numpy
+  - decord
+  - einops
+  - loguru
+  - xfuser
+  validation_imports:
+  - torch
+  - torchvision
+  - xfuser
+  - diffusers
+  - transformers
+  - imageio
+  - cv2
+  - numpy
+  - decord
+  notes:
+  - Catalog alias for HunyuanWorld-Voyager.
+- model_id: hy-worldplay
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - imageio-ffmpeg
+  - opencv-python
+  - numpy
+  - decord
+  - loguru
+  validation_imports:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - decord
+  - loguru
+  - cv2
+  - numpy
+  notes:
+  - Catalog alias for the Hunyuan WorldPlay route in the shared CUDA 12.8 environment.
+- model_id: yume
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - imageio-ffmpeg
+  - opencv-python
+  - numpy
+  - einops
+  validation_imports:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - imageio
+  - cv2
+  - numpy
+  notes:
+  - YUME I2V and YUME-1.5 routes use the shared CUDA 12.8 environment.
+- model_id: yume-1p5
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - imageio-ffmpeg
+  - opencv-python
+  - numpy
+  - einops
+  validation_imports:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - imageio
+  - cv2
+  - numpy
+  notes:
+  - Catalog alias for YUME-1.5.
+- model_id: neoverse
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - imageio-ffmpeg
+  - opencv-python
+  - numpy
+  - einops
+  validation_imports:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - imageio
+  - cv2
+  - numpy
+  notes:
+  - NeoVerse uses the shared CUDA 12.8 inference environment.
+- model_id: worldgen
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - imageio-ffmpeg
+  - opencv-python
+  - numpy
+  - open3d
+  - plyfile
+  validation_imports:
+  - torch
+  - torchvision
+  - numpy
+  - cv2
+  - open3d
+  - plyfile
+  notes:
+  - WorldGen uses the shared CUDA 12.8 inference environment with point-cloud dependencies.
+- model_id: vchitect-2-t2v
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - imageio-ffmpeg
+  - opencv-python
+  - numpy
+  - einops
+  validation_imports:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - imageio
+  - cv2
+  - numpy
+  notes:
+  - Vchitect-2 T2V uses the shared CUDA 12.8 inference environment.
+- model_id: vchitect_2_t2v
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - imageio-ffmpeg
+  - opencv-python
+  - numpy
+  - einops
+  validation_imports:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - imageio
+  - cv2
+  - numpy
+  notes:
+  - Catalog alias for Vchitect-2 T2V.
+- model_id: unianimate-dit
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - imageio-ffmpeg
+  - opencv-python
+  - numpy
+  - decord
+  - einops
+  validation_imports:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - imageio
+  - cv2
+  - numpy
+  - decord
+  notes:
+  - UniAnimate-DiT uses the shared CUDA 12.8 inference environment.
+- model_id: longcat-video
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - imageio-ffmpeg
+  - opencv-python
+  - numpy
+  - decord
+  - einops
+  validation_imports:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - imageio
+  - cv2
+  - numpy
+  - decord
+  notes:
+  - LongCat-Video uses the shared CUDA 12.8 inference environment.
+- model_id: dynamicrafter
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  notes:
+  - DynamiCrafter I2V profiles use the shared CUDA 12.8 inference environment.
+- model_id: dynamicrafter-512-i2v
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  notes:
+  - Catalog profile for DynamiCrafter 512 I2V in the shared CUDA 12.8 environment.
+- model_id: dynamicrafter-1024-i2v
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  notes:
+  - Catalog profile for DynamiCrafter 1024 I2V in the shared CUDA 12.8 environment.
+- model_id: easyanimate
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  notes:
+  - EasyAnimate I2V profiles use the shared CUDA 12.8 inference environment.
+- model_id: easyanimate-i2v
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  notes:
+  - Catalog profile for EasyAnimate I2V in the shared CUDA 12.8 environment.
+- model_id: i2vgen-xl
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  notes:
+  - I2VGen-XL uses the shared CUDA 12.8 inference environment.
+- model_id: modelscope-t2v
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  notes:
+  - ModelScopeT2V uses the shared CUDA 12.8 inference environment.
+- model_id: mochi-1
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  notes:
+  - Mochi-1 preview profiles use the shared CUDA 12.8 inference environment.
+- model_id: mochi-1-preview-t2v
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  notes:
+  - Catalog profile for Mochi-1 preview T2V in the shared CUDA 12.8 environment.
+- model_id: videocrafter
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  notes:
+  - VideoCrafter infer-only profiles use the shared CUDA 12.8 inference environment.
+- model_id: videocrafter1-i2v
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  notes:
+  - Catalog profile for VideoCrafter1 I2V in the shared CUDA 12.8 environment.
+- model_id: videocrafter1-t2v
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  notes:
+  - Catalog profile for VideoCrafter1 T2V in the shared CUDA 12.8 environment.
+- model_id: videocrafter2-t2v
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  notes:
+  - Catalog profile for VideoCrafter2 T2V in the shared CUDA 12.8 environment.
+- model_id: krea-realtime-video
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  notes:
+  - Krea realtime video uses the shared CUDA 12.8 inference environment.
+- model_id: sana
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  notes:
+  - Sana image/video generation profiles use the shared CUDA 12.8 inference environment unless a variant declares a stricter
+    profile.
+- model_id: allegro
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  notes:
+  - Allegro TI2V uses the shared CUDA 12.8 inference environment.
+- model_id: allegro-ti2v
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  notes:
+  - Catalog profile for Allegro TI2V in the shared CUDA 12.8 environment.
+- model_id: skyreels-v2
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  notes:
+  - SkyReels-V2 uses the shared CUDA 12.8 inference environment.

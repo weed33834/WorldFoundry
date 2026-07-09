@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: lyra-2
+model_id: lyra-2
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.lyra.pipeline_lyra2:Lyra2Pipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

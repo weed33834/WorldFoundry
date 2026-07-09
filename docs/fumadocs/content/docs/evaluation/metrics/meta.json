@@ -1,0 +1,14 @@
+{
+  "title": "Metrics",
+  "defaultOpen": false,
+  "pages": [
+    "index",
+    "---Recipes---",
+    "scorers",
+    "distribution",
+    "perceptual",
+    "editing",
+    "---Reference---",
+    "reference"
+  ]
+}

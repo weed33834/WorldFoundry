@@ -1,0 +1,44 @@
+id: genie-envisioner
+name: Genie Envisioner
+aliases:
+- genie_envisioner
+- genieenvisioner
+- genie-envisioner-sim
+tasks:
+- robotics-world-model
+- image-to-video
+- action-conditioned-video
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/AgibotTech/Genie-Envisioner
+official_sources:
+  worldarena_space: https://huggingface.co/spaces/WorldArena/WorldArena
+  github:
+    url: https://github.com/AgibotTech/Genie-Envisioner
+    head_sha: 65ab2fa2191f74d213a3447013f5ff90b55dcc3d
+    verified_by: official GitHub repository selected from WorldArena open-source result names
+  huggingface:
+  - repo_id: agibot-world/Genie-Envisioner
+    status: confirmed
+  - repo_id: Lightricks/LTX-Video
+    status: confirmed
+checkpoint_refs:
+- repo_id: agibot-world/Genie-Envisioner
+- repo_id: Lightricks/LTX-Video
+integration:
+  status: runtime_ported
+  notes:
+  - WorldFoundry registers an in-tree runtime manifest pipeline for the vendored Genie Envisioner source.
+  - Official WorldArena-listed source is vendored in-tree under worldfoundry/synthesis/visual_generation/genie_envisioner/genie_envisioner_runtime.
+runtime_profile: runtime-profile:genie-envisioner
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: genie-envisioner
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - The pipeline resolves the vendored inference entrypoint and returns blocked runtime diagnostics until checkpoints and
+    task assets are staged.
+catalog_category: world_models
+catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry runtimes; blocked entries retain
+  upstream provenance without runnable backends.

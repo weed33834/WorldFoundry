@@ -1,0 +1,57 @@
+benchmark_ids:
+- behavior1k
+blocked_reason: BEHAVIOR-1K official rollout requires OmniGibson/Isaac Sim assets, accepted upstream terms, a policy 
+  checkpoint, and official rollout outputs.
+environment_id: worldfoundry-unified-cu128
+id: behavior1k
+name: BEHAVIOR-1K
+docker:
+  image: ghcr.io/allenai/vla-evaluation-harness/behavior1k:latest
+  source_image: ghcr.io/allenai/vla-evaluation-harness/behavior1k:latest
+  python_env: behavior
+  gpus: all
+  env:
+  - NVIDIA_DRIVER_CAPABILITIES=all
+  - OMNIGIBSON_HEADLESS=1
+  - OMNI_KIT_ACCEPT_EULA=YES
+  - VK_ICD_FILENAMES=/etc/vulkan/icd.d/nvidia_icd.json
+  volumes:
+  - ${WORLDFOUNDRY_DATA_DIR}/datasets/behavior1k:/app/BEHAVIOR-1K/datasets
+needs_new_env: true
+notes:
+- WorldFoundry provides the native contract, result normalizer, and in-tree simulator wrapper; full rollout execution 
+  still depends on the upstream OmniGibson runtime.
+python_path: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}/worldfoundry-unified-cu128/bin/python
+required_assets:
+  local_dataset_paths:
+  - ${WORLDFOUNDRY_DATA_DIR}/datasets/behavior1k
+  local_repo_paths:
+  - ${WORLDFOUNDRY_CACHE_DIR}/repos/StanfordVL--OmniGibson
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/behavior1k.yaml
+required_env:
+- WORLDFOUNDRY_BEHAVIOR1K_ROOT
+- WORLDFOUNDRY_BEHAVIOR1K_RESULTS_PATH
+required_imports:
+- numpy
+required_packages:
+- numpy
+required_paths:
+- id: official_result_normalizer
+  path: worldfoundry/evaluation/tasks/embodied/normalizer.py
+- id: task_yaml
+  path: worldfoundry/data/benchmarks/tasks/external/behavior1k.yaml
+requires_cuda_visibility: false
+status: official_result_normalizer_ready_full_runtime_pending
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- behavior1k
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.json>
+- --output-dir
+- <out>
+- --json

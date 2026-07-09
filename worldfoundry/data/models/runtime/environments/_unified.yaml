@@ -1,0 +1,32 @@
+model_id: _unified
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+python: '3.11'
+cuda_profile: cu128
+driver_status: compatible_unified_default
+conda_packages:
+- python=3.11
+- pip
+- ffmpeg
+- setuptools
+- wheel
+pip_extra_index_url: https://download.pytorch.org/whl/cu128
+pip_packages:
+- torch
+- torchvision
+- torchaudio
+- xfuser
+notes:
+- Default unified WorldFoundry runtime for modern NVIDIA hosts. Install with `bash scripts/setup/unified_install.sh`.
+- Override tier with `--cuda cu124` or `--cuda cu121` when an upstream model still pins an older CUDA wheel bucket.
+- Source the environment file emitted by `scripts/setup/unified_install.sh` so WORLDFOUNDRY_USE_UNIFIED_ENV=1 routes compatible profiles here.
+- Runnable GPU models that previously used cu113/cu118/cu124 CUDA buckets are mapped to this tier when they do not carry
+  hard ABI pins requiring isolation.
+validation_imports:
+- torch
+- torchvision
+- numpy
+- transformers
+- diffusers
+- xfuser
+- worldfoundry

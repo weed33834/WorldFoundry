@@ -1,0 +1,24 @@
+{
+  "results": [
+    {
+      "dimension": "perceptual_clip_iqa_metrics",
+      "score": 0.73,
+      "generated_video_count": 4
+    },
+    {
+      "dimension": "alignment_attribute_control",
+      "score": 0.65,
+      "generated_video_count": 4
+    },
+    {
+      "dimension": "physics_realism",
+      "score": 0.58,
+      "generated_video_count": 4
+    },
+    {
+      "dimension": "consistency_style",
+      "score": 0.81,
+      "generated_video_count": 4
+    }
+  ]
+}

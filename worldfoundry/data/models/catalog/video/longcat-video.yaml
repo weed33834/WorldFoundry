@@ -1,0 +1,44 @@
+id: longcat-video
+name: LongCat-Video
+tasks:
+- text-to-video
+- image-to-video
+- video-continuation
+- long-video-generation
+output_artifacts:
+- generated_video
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/meituan-longcat/LongCat-Video
+  hf_repo_id: meituan-longcat/LongCat-Video
+  license: mit
+official_sources:
+  project_page: https://meituan-longcat.github.io/LongCat-Video/
+  github:
+    url: https://github.com/meituan-longcat/LongCat-Video
+  huggingface:
+  - repo_id: meituan-longcat/LongCat-Video
+    status: confirmed
+checkpoints:
+- repo_id: meituan-longcat/LongCat-Video
+  license: mit
+integration:
+  status: integrated
+  notes:
+  - A model-specific WorldFoundry pipeline is registered and runs the vendored
+    in-tree demo scripts when explicit execute=True is supplied.
+  - The route uses local LongCat-Video checkpoints in the unified environment
+    profile.
+runner_parity:
+  status: pending
+  notes:
+  - Full official 93-frame / 50-step quality parity remains pending.
+  - Per-run visual QA and artifact checks are tracked outside the model catalog.
+runtime_profile: runtime-profile:longcat-video
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: longcat-video
+catalog_category: video
+catalog_scope: Video-generation and video-token catalog entries. Integrated entries
+  expose WorldFoundry pipeline targets; metadata-only entries retain upstream provenance
+  without runnable WorldFoundry backends.

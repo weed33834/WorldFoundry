@@ -1,0 +1,74 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+aliases:
+- physical-intelligence-openpi
+- openpi-family
+availability: open_source
+id: openpi
+integration:
+  notes:
+  - OpenPI/OpenPI-client runtime is vendored in-tree under worldfoundry/synthesis/action_generation/openpi/openpi_runtime.
+  - py_compile, import/from_pretrained, plan-only predict, and checkpoint-backed
+    pi05_libero policy inference passed.
+  - The local pi05_libero route uses backend worldfoundry.openpi.in_tree_runtime.create_trained_policy_infer
+    and emits the configured action schema.
+  status: integrated
+license: apache-2.0
+name: OpenPI
+official_sources:
+  github:
+    head_sha: c23745b5ad24e98f66967ea795a07b2588ed6c79
+    url: https://github.com/Physical-Intelligence/openpi
+pipeline_binding: openpi
+provider: official_repo
+runtime_profile: runtime-profile:openpi
+tasks:
+- vla
+- vla.policy_rollout
+- robot_policy
+variants:
+- checkpoint_refs:
+  - notes:
+    - GCS checkpoint; requires gsutil or gcloud, not HF download.
+    path: gs://openpi-assets/checkpoints/pi0_base
+  id: pi0-base
+  integration_status: runtime_ported
+  notes:
+  - WorldFoundry vendors OpenPI/OpenPI-client runtime source under worldfoundry/synthesis/action_generation/openpi/openpi_runtime;
+    full policy import/inference remains pending.
+  provider: official_gcs
+  task: vla.policy_rollout
+- checkpoint_refs:
+  - notes:
+    - GCS checkpoint; requires gsutil or gcloud, not HF download.
+    path: gs://openpi-assets/checkpoints/pi05_libero
+  id: pi05-libero
+  integration_status: integrated
+  notes:
+  - WorldFoundry vendors OpenPI/OpenPI-client runtime source under worldfoundry/synthesis/action_generation/openpi/openpi_runtime;
+    checkpoint-backed policy inference is wired through the in-tree runtime.
+  provider: official_gcs
+  task: vla.policy_rollout
+- checkpoint_refs:
+  - notes:
+    - GCS checkpoint; requires gsutil or gcloud, not HF download.
+    path: gs://openpi-assets/checkpoints/pi0_fast_base
+  id: pi0-fast-base
+  integration_status: planned
+  notes:
+  - pi0-FAST is tracked as a concrete OpenPI algorithm variant, not as a LeRobot policy-zoo variant.
+  provider: official_gcs
+  task: vla.policy_rollout
+- checkpoint_refs:
+  - notes:
+    - GCS checkpoint; requires gsutil or gcloud, not HF download.
+    path: gs://openpi-assets/checkpoints/pi0_fast_droid
+  id: pi0-fast-droid
+  integration_status: planned
+  notes:
+  - pi0-FAST DROID checkpoint is tracked as a concrete OpenPI algorithm variant.
+  provider: official_gcs
+  task: vla.policy_rollout
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint
+  metadata, and runtime-profile planning records. Runner or pipeline targets are present
+  only after a complete in-tree WorldFoundry model runtime is registered and validated.

@@ -1,0 +1,39 @@
+conda_packages:
+- python
+- pip
+- ffmpeg
+cuda_profile: cu128
+driver_status: compatible
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: lagernvs
+notes:
+- Mirrors the official LagrNVS README package requirements. It is preflight only on the current GPU host because the official
+  stack asks for PyTorch 2.8.0 with CUDA 12.6.
+- Real inference also requires HF_TOKEN access to the gated facebook/lagernvs_general_512 checkpoint and vendoring the minimal
+  official runtime code. The external source clone is reference-only and no local runtime facade is registered.
+pip_packages:
+- torch
+- torchvision
+- torchaudio
+- numpy>=1.21.0
+- pillow>=9.0.0
+- einops>=0.6.0
+- omegaconf>=2.3.0
+- huggingface_hub>=0.16.0
+- scipy>=1.9.0
+- av>=10.0.0
+- xformers==0.0.32.post2
+- timm==1.0.25
+- opencv-python>=4.13.0,<4.14.0
+- tqdm
+python: '3.10'
+validation_imports:
+- torch
+- torchvision
+- numpy
+- PIL
+- einops
+- huggingface_hub
+- av
+- timm

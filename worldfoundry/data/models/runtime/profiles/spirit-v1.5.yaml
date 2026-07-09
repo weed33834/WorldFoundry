@@ -1,0 +1,29 @@
+schema_version: 2
+model_id: spirit-v1.5
+display_name: Spirit-VLA v1.5
+task_family: vla_policy
+groups:
+- vla
+- robot_policy
+source_repos:
+- url: https://huggingface.co/Spirit-AI/Spirit-VLA
+checkpoints:
+- repo_id: Spirit-AI/Spirit-VLA
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Spirit-AI--Spirit-VLA
+  role: spirit_vla_checkpoint
+input_schema:
+  model_id: spirit-v1.5
+  image: true
+  prompt: true
+  state: true
+  policy_family: spirit_vla_policy
+  action_representation: spirit_vla_action_trace
+artifact_kind: action_trace
+artifact_filename: spirit-v1.5_action_trace.json
+execution:
+  backend_stage: official_in_tree_runtime
+  runtime_status: official_hf_runtime_route_ready_checkpoint_required
+  integration_status: runtime_ported
+  pipeline_binding: spirit-v1.5
+integration:
+  status: runtime_ported

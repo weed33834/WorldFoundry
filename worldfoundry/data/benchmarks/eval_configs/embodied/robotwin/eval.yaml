@@ -1,0 +1,18 @@
+id: robotwin_eval
+output_dir: ./results/robotwin_eval
+model_id: external-policy-server
+server:
+  url: ws://localhost:8000
+benchmark_id: robotwin
+benchmark_kwargs:
+  task_name: grab_roller
+  task_config: demo_clean
+  seed: 0
+  instruction_type: seen
+  test_num: 100
+  skip_expert_check: true
+episodes_per_task: 1
+max_tasks: 100
+metric_ids:
+  - task_success
+  - success_rate

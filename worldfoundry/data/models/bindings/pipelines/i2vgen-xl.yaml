@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: i2vgen-xl
+model_id: i2vgen-xl
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.video_official.pipeline_official_video:I2VGenXLPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

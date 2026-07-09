@@ -1,0 +1,48 @@
+schema_version: 2
+model_id: gen3c
+display_name: GEN3C
+task_family: world_model
+groups:
+- 3d
+- world
+- camera_control
+source_repos:
+- url: https://github.com/nv-tlabs/GEN3C
+checkpoints:
+- repo_id: nvidia/GEN3C-Cosmos-7B
+  role: cosmos_gen3c_checkpoint
+- repo_id: Ruicheng/moge-vitl
+  role: moge_depth_checkpoint
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - camera_trajectory
+artifact_kind: generated_video
+artifact_filename: gen3c.mp4
+execution:
+  backend_stage: in_tree_runtime
+  runtime_status: official_8gpu_workspace_verified
+  integration_status: verified_official_8gpu_workspace
+  pipeline_binding: gen3c
+  conda_env: gen3c
+  default_parameters:
+    trajectory: left
+    camera_rotation: center_facing
+    movement_distance: 0.3
+    num_video_frames: 121
+    height: 704
+    width: 1280
+    fps: 24
+    num_steps: 35
+    guidance: 1.0
+    seed: 1
+    num_gpus: 8
+integration:
+  status: verified_official_8gpu_workspace
+notes:
+- In-tree Cosmos Predict1 GEN3C runtime is used; inference does not require an
+  external GEN3C checkout.
+- Official single-image demo settings emit a 121-frame 1280x704 video at 24 fps
+  using the configured 8-GPU GEN3C profile.

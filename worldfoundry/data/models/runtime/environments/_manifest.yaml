@@ -1,0 +1,36 @@
+defaults:
+  channels:
+  - pytorch
+  - conda-forge
+  - defaults
+  conda_executable: conda
+  cuda_profile: cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  torch_cuda_extra_index_url: https://download.pytorch.org/whl/cu128
+  torch_packages:
+  - torch
+  - torchvision
+unified_tiers:
+  default: cu128
+  supported:
+  - cu121
+  - cu124
+  - cu128
+  unified_env_map:
+    cu121: worldfoundry-unified-cu121
+    cu124: worldfoundry-unified-cu124
+    cu128: worldfoundry-unified-cu128
+  legacy_profile_map:
+    cu113: cu128
+    cu118: cu128
+    cu121: cu121
+    cu124: cu124
+    cu126: cu128
+    cu128: cu128
+  install_script: scripts/setup/unified_install.sh
+scope: Runtime profiles now reference actually-existing conda environments at WORLDFOUNDRY_CONDA_ENVS_ROOT.
+  Models with dedicated envs use their specific env_name (e.g. ac3d, scope, dreamdojo). Models without a dedicated
+  env fall back to the unified worldfoundry-unified-<tier> environment. The unified_env_map maps CUDA tiers to actual env names
+  (worldfoundry-unified-cu121, worldfoundry-unified-cu124, worldfoundry-unified-cu128). Keep separate envs only for hard ABI conflicts such as JAX CUDA wheels,
+  Python outside 3.10/3.11, exact torch/xformers/flash-attn pins, or old transformers/diffusers ranges.
+format: worldfoundry-runtime-conda-env-directory-v1

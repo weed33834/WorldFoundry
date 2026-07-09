@@ -1,0 +1,233 @@
+id: camerabench
+name: CameraBench
+source_status: open_source
+benchmark_kind:
+- camera-motion-understanding
+- camera-control-source
+- video-evaluation
+domains:
+- camera-motion
+- camera-control
+- video-understanding
+modalities:
+- video
+- camera
+- text
+status: confirmed_official_code_and_hf_testset_framework_ready
+official_validation:
+  verified: true
+  scope: bounded_official_validation
+  task: binary
+  metric_family: camera_motion_binary_classification
+  score_file_count: 1
+  evaluated_splits: 1
+  official_benchmark_verified: true
+  integration_evidence: true
+  leaderboard_valid: false
+  full_suite_verified: false
+  scorecard: tmp/local_open_eval/camerabench_binary_official_validation_after_readiness_layers_20260525/scorecard.json
+official_sources:
+  github:
+  - url: https://github.com/sy77777en/CameraBench
+    verified_by: git ls-remote --symref https://github.com/sy77777en/CameraBench.git HEAD
+    default_branch: main
+    head_sha: dd5740e44b925d7608b8ca109b51f3c49799f4ec
+  - url: https://github.com/linzhiqiu/t2v_metrics
+    verified_by: git ls-remote https://github.com/linzhiqiu/t2v_metrics.git HEAD
+    default_branch: main
+    head_sha: 0bd9bfc68032ce4f9d5da80d646fa5ceb3b9bb1b
+    path_or_ref: camerabench
+  evaluation_code:
+    url: https://github.com/linzhiqiu/t2v_metrics/tree/main/camerabench
+    notes: Referenced by the CameraBench materials as evaluation code; WorldFoundry ports the metric aggregation in-tree
+      under worldfoundry/evaluation/tasks/execution/runners/camerabench and exposes it through 
+      worldfoundry/evaluation/tasks/execution/runners/camerabench/run_camerabench_official_runner.py.
+  project_page: https://linzhiqiu.github.io/papers/camerabench/
+  paper_url: https://arxiv.org/abs/2504.15376
+  huggingface_datasets:
+  - repo_id: syCen/CameraBench
+    verified_by: GET https://huggingface.co/api/datasets/syCen/CameraBench
+    sha: 659f73c8899d81ffebd85876e3cdd137435b5e1b
+    private: false
+    gated: false
+    license: cc-by-4.0
+evaluation_surface:
+  purpose: Camera-motion understanding benchmark that can seed camera-control evaluation prompts and labels.
+  requires_api: VLM/SfM path dependent
+  task_mismatch: Core benchmark targets camera-motion understanding, not direct video generation.
+metrics:
+- id: camera_motion_average_precision
+  name: Camera Motion Average Precision
+  description: CameraBench binary-classification mean average precision.
+  higher_is_better: true
+  leaderboard_key: camera_motion_average_precision
+  aggregator: mean
+  output_unit: average_precision
+- id: camera_motion_roc_auc
+  name: Camera Motion ROC AUC
+  description: CameraBench binary-classification ROC AUC.
+  higher_is_better: true
+  leaderboard_key: camera_motion_roc_auc
+  aggregator: mean
+  output_unit: roc_auc
+- id: camera_vqa_accuracy
+  name: Camera VQA Accuracy
+  description: Mean of CameraBench yes/no binary and question accuracy.
+  higher_is_better: true
+  leaderboard_key: camera_vqa_accuracy
+  aggregator: mean
+  output_unit: accuracy
+- id: camera_retrieval_accuracy
+  name: Camera Retrieval Accuracy
+  description: Mean of CameraBench text, image, and group retrieval scores.
+  higher_is_better: true
+  leaderboard_key: camera_retrieval_accuracy
+  aggregator: mean
+  output_unit: accuracy
+- id: camera_caption_score
+  name: Camera Caption Score
+  description: Mean caption score from official CameraBench caption evaluation outputs.
+  higher_is_better: true
+  leaderboard_key: camera_caption_score
+  aggregator: mean
+  output_unit: score
+- id: camerabench_average
+  name: CameraBench Average
+  description: Mean over available official CameraBench metric families.
+  higher_is_better: true
+  leaderboard_key: camerabench_average
+  aggregator: mean
+  output_unit: score
+  primary: true
+runner:
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:CameraBenchContract
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - camerabench
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <official_results.json>
+  - --benchmark-data-root
+  - <camerabench_data_root>
+  - --output-dir
+  - <out>
+  - --json
+  required_env:
+  - one of --official-results-path, --score-dir, WORLDFOUNDRY_CAMERABENCH_RESULTS_PATH, or 
+    WORLDFOUNDRY_CAMERABENCH_SCORE_DIR
+  - --benchmark-data-root or WORLDFOUNDRY_CAMERABENCH_DATA_ROOT for strict full-suite coverage
+  - OPENAI_API_KEY only when explicitly enabling caption GPT judging
+  expected_artifacts:
+  - scorecard.json
+  - camera_predictions.jsonl
+  - raw_metric_table.jsonl
+  - upstream_stdout.log
+  - upstream_stderr.log
+  assets:
+    official_validation:
+      status: verified
+      scope: bounded_official_validation
+      task: binary
+      metric_family: camera_motion_binary_classification
+      score_file_count: 1
+      evaluated_splits: 1
+      official_benchmark_verified: true
+      integration_evidence: true
+      leaderboard_valid: false
+      full_suite_verified: false
+      verified: true
+      scorecard: 
+        tmp/local_open_eval/camerabench_binary_official_validation_after_readiness_layers_20260525/scorecard.json
+  verification_status: pending
+  notes:
+  - Contract runner exposes generated videos and camera prompts for camera-motion scoring.
+  - In-tree metric aggregation validates CameraBench score-dir binary, VQA/retrieval, caption, and aggregate score 
+    families from a prepared CameraBench score_dir.
+integration:
+  status: integrated
+  evidence:
+    strict_official_runtime: worldfoundry-eval zoo benchmark-run --benchmark-id camerabench --mode 
+      official-validation --official-results-path <official_results.json> --benchmark-data-root <camerabench_data_root> 
+      --output-dir <out> --json
+    in_tree_score_dir_metric_aggregator: worldfoundry-eval zoo benchmark-run --benchmark-id camerabench --mode 
+      official-validation --score-dir <score_dir> --benchmark-data-root <camerabench_data_root> --output-dir <out> 
+      --json
+    official_benchmark_verified: false
+    integration_evidence: true
+release_status: experimental
+maturity: verified_runner
+open_source_status: in_tree_runtime
+official_benchmark_verified: false
+integration_evidence: true
+leaderboard_valid: false
+requires:
+- syCen/CameraBench testset root via WORLDFOUNDRY_CAMERABENCH_DATA_ROOT or 
+  cache/worldfoundry/data/hfd_datasets/syCen/CameraBench
+- official_results_path or WORLDFOUNDRY_CAMERABENCH_RESULTS_PATH for official-result import
+- score_dir or WORLDFOUNDRY_CAMERABENCH_SCORE_DIR for in-tree metric aggregation
+- OPENAI_API_KEY only when explicitly enabling caption GPT judging
+- VLM/SfM score generation inputs for producing official CameraBench score files
+blockers:
+- Full leaderboard validation still requires source-audited score generation, full-suite CameraBench score files, and 
+  the upstream submission protocol.
+framework_acceptance:
+- WorldFoundry CameraBench integration is OK when the caller supplies official CameraBench result JSON covering binary, 
+  VQA/retrieval, and caption metric families, strict local testset coverage passes, and all six declared metrics are 
+  normalized.
+- The same runner can aggregate a prepared score_dir in-tree; the zoo --score-dir path runs binary, VQA/retrieval, and 
+  caption metric families before normalization.
+leaderboard_requirements:
+- Full leaderboard validation requires source-audited score generation, model/checkpoint/API evidence, full-suite 
+  CameraBench score files, and the upstream submission protocol.
+- WorldFoundry keeps leaderboard_valid false until those upstream official-run and submission details are independently 
+  audited.
+base_model_dependencies:
+- camera_geometry_stack
+base_model_dependency_preflight:
+  status: ready
+  notes:
+  - VGGT, MoGe, UniDepth, and RAFT are tracked as reusable WorldFoundry base-model assets for camera geometry and motion
+    scoring paths.
+  - DROID-SLAM remains available through slam_stack for hard-env official metric paths, but is not required for the 
+    driver-compatible CameraBench validation path.
+  missing: []
+data_refs:
+  hf_dataset_id: syCen/CameraBench
+  local_dataset_paths:
+  - ${WORLDFOUNDRY_CAMERABENCH_DATA_ROOT}
+  - cache/worldfoundry/data/hfd_datasets/syCen/CameraBench
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/camerabench.yaml
+runner_availability:
+  available: true
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:CameraBenchContract
+  runner_script_available: true
+  task_yaml_available: true
+  runtime_verified: true
+  credential_gated: true
+  framework_ready: true
+  surface: camerabench_official_in_tree
+  normalizer_verified: true
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- camerabench
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.json>
+- --benchmark-data-root
+- <camerabench_data_root>
+- --output-dir
+- <out>
+- --json
+checkpoint_refs: []
+artifact_layout:
+  generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  output_artifact: benchmark_scorecard
+  filename_template: scorecard.json

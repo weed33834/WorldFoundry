@@ -1,0 +1,47 @@
+id: i2vgen-xl
+name: I2VGen-XL
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+runtime_profile: runtime-profile:i2vgen-xl
+tasks:
+- image-to-video
+- text-to-video
+source_status:
+  status: confirmed_official_github
+  github:
+    url: https://github.com/ali-vilab/i2vgen-xl
+    verified_by: git ls-remote --symref https://github.com/ali-vilab/i2vgen-xl.git
+      HEAD
+    default_branch: main
+    head_sha: 1e77740b6e3f4e61410dd2d6cec75e4b2077d360
+checkpoint:
+  status: confirmed_public_hf
+  verified_by: GET https://huggingface.co/api/models/<repo_id>
+  repos:
+  - id: ali-vilab/i2vgen-xl
+    sha: 39e1979ea27be737b0278c06755e321f2b4360d5
+    license: mit
+    private: false
+    gated: false
+    tasks:
+    - image-to-video
+    - text-to-video
+integration:
+  status: integrated
+  notes:
+  - WorldFoundry route is complete; missing checkpoint/assets are reported at runtime.
+demo_parity:
+  status: pending
+  notes: The WorldFoundry route is wired for image-conditioned generation; official
+    long-config parity remains pending.
+notes: Official GitHub and ali-vilab HF repo were both reachable.
+catalog_category: video
+catalog_scope: Official GitHub and/or Hugging Face confirmed open-source or open-weight
+  video generation models. Checkpoints are not tracked in git; local validation may
+  download selected repos under cache/hfd.
+catalog_policy:
+  github: Validated with git ls-remote, preferring git ls-remote --symref <repo>.git
+    HEAD for default branch and HEAD SHA.
+  huggingface: Validated with the Hugging Face /api/models endpoint. Recorded repo
+    id, sha, private, gated, license, and selected task tags only.
+  parity: This manifest does not claim WorldFoundry runtime parity unless an explicit
+    parity run and expected artifact are recorded.

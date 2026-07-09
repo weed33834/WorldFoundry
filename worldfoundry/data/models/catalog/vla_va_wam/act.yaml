@@ -1,0 +1,28 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+aliases:
+- action-chunking-transformer
+availability: open_source
+id: act
+integration:
+  notes:
+  - Dataset/checkpoint layout and replay contract must be validated before integrated status.
+  - ACT policy/DETR-VAE runtime is vendored in-tree and plan-only validation passed; real predict needs a local policy checkpoint
+    and dataset_stats.pkl.
+  status: runtime_ported
+name: Action Chunking Transformer
+official_sources:
+  github:
+    head_sha: 742c753c0d4a5d87076c8f69e5628c79a8cc5488
+    url: https://github.com/tonyzhaozh/act
+pipeline_binding: act
+provider: official_repo
+runtime_profile: runtime-profile:act
+tasks:
+- action_chunking_policy
+- robot_policy
+- imitation_policy
+- policy_rollout
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata, and runtime-profile
+  planning records. Runner or pipeline targets are present only after a complete in-tree WorldFoundry model runtime is registered
+  and validated.

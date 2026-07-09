@@ -1,0 +1,46 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+aliases:
+- gigaworld-policy
+- giga_world_policy
+- GigaWorld-Policy
+availability: open_source
+id: giga-world-policy
+integration:
+  notes:
+  - The local source tree is staged, but the README marks pre-trained weights as unreleased. Real parity requires caller-provided
+    transformer_path, stats_path, t5_embedding_pkl, and dataset_paths.
+  - GigaWorld-Policy runtime is vendored in-tree; py_compile, import/from_pretrained, plan-only execution, and lazy alias
+    validation passed.
+  - Full policy inference remains blocked by unreleased or unstaged GigaWorld-Policy transformer, norm stats, T5 embedding,
+    and dataset assets.
+  status: planned
+license: apache-2.0
+name: GigaWorld-Policy
+official_sources:
+  github:
+    head_sha: 749d268b4d2ed0e3117f29dafc8e0f77711c3d62
+    url: https://github.com/GigaAI-research/GigaWorld-Policy
+pipeline_binding: giga-world-policy
+provider: official_repo
+runtime_profile: runtime-profile:giga-world-policy
+tasks:
+- wam
+- world_action_model
+- wam.world_action_modeling
+- robot_policy
+- open_loop_action_prediction
+variants:
+- id: giga-world-policy-open-loop
+  integration_status: planned
+  notes:
+  - Official open-loop client evaluates offline dataset episodes and emits action-trace plots/metrics through the WorldFoundry
+    wrapper.
+  - The Wan base model is recorded in the runtime profile to avoid aliasing this Giga model entry as a Wan checkpoint.
+  - WorldFoundry vendors the GigaWorld-Policy runtime under worldfoundry/synthesis/action_generation/giga_world_policy/giga_world_policy_runtime;
+    real inference still needs transformer checkpoint, norm stats, T5 embedding, and dataset assets.
+  - Wan2.2 base component checks do not count as full GigaWorld-Policy action inference.
+  task: wam.world_action_modeling
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata, and runtime-profile
+  planning records. Runner or pipeline targets are present only after a complete in-tree WorldFoundry model runtime is registered
+  and validated.

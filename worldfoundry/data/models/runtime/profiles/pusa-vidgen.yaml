@@ -1,0 +1,29 @@
+artifact_filename: pusa_vidgen_public_runner.mp4
+artifact_kind: generated_video
+backend_stage: in_tree_runtime
+checkpoints:
+- local_dir: ${WORLDFOUNDRY_HFD_ROOT}/RaphaelLiu--Pusa-Wan2.2-V1
+  repo_id: RaphaelLiu/Pusa-Wan2.2-V1
+  role: official_pusa_v1_lora_checkpoint
+  status: required
+- local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Wan-AI--Wan2.2-T2V-A14B
+  repo_id: Wan-AI/Wan2.2-T2V-A14B
+  role: wan_base_model
+  status: required
+- local_dir: ${WORLDFOUNDRY_HFD_ROOT}/lightx2v--Wan2.2-Lightning
+  repo_id: lightx2v/Wan2.2-Lightning
+  role: optional_lightning_acceleration
+  status: optional
+display_name: Pusa VidGen
+id: pusa-vidgen
+input_schema:
+  image: true
+  prompt: true
+  video: true
+integration_status: integrated
+notes:
+- WorldFoundry public PusaVidGenPipeline exposes a generated_video path through execute=True
+  and an in-tree Pusa V1 Wan2.2 runner; default calls fail fast when execution
+  is not explicitly requested.
+runtime_status: integrated
+task_family: video_generation

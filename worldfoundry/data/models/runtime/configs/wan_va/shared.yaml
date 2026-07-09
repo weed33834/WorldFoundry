@@ -1,0 +1,6 @@
+host: 0.0.0.0
+port: 29536
+param_dtype: bfloat16
+save_root: ./outputs/wan_va
+patch_size: [1, 2, 2]
+enable_offload: false

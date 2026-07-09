@@ -1,0 +1,44 @@
+schema_version: 2
+model_id: dualcamctrl
+display_name: DualCamCtrl
+task_family: world_model
+groups:
+- world
+- video
+- camera_control
+- image_to_video
+- depth_conditioned
+source_repos:
+- url: https://github.com/EnVision-Research/DualCamCtrl
+checkpoints:
+- repo_id: FayeHongfeiZhang/DualCamCtrl
+  role: dualcamctrl_checkpoint
+  files:
+  - checkpoints/dualcamctrl_diffusion_transformer.pt
+- repo_id: alibaba-pai/Wan2.1-Fun-V1.1-1.3B-Control-Camera
+  role: wan_control_camera_base
+- repo_id: Wan-AI/Wan2.1-T2V-1.3B
+  role: shared_text_encoder_vae_tokenizer
+- repo_id: Wan-AI/Wan2.1-I2V-14B-480P
+  role: shared_clip_image_encoder
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - camera_trajectory
+  - depth_image
+artifact_kind: generated_video
+artifact_filename: dualcamctrl.mp4
+execution:
+  backend_stage: in_tree_runtime
+  runtime_status: official_demo_contract
+  integration_status: integrated
+  pipeline_binding: dualcamctrl
+integration:
+  status: integrated
+notes:
+- DualCamCtrl uses an in-tree inference runtime under worldfoundry/synthesis/visual_generation/dualcamctrl.
+- The default demo contract follows the official image, depth image, camera .torch, 61-frame, 320x480, 50-step recipe.
+- Open-source users should rely on the Hugging Face cache/download path by default; local paths can be passed through checkpoint_path,
+  base_model_path, or WORLDFOUNDRY_MODEL_DIR when assets are pre-staged.

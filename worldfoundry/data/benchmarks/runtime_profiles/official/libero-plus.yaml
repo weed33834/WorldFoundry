@@ -1,0 +1,50 @@
+benchmark_ids:
+- libero-plus
+blocked_reason: LIBERO-Plus full status requires its upstream package/runtime, selected suite, policy checkpoint, and 
+  official rollout outputs.
+environment_id: libero-plus-runtime
+id: libero-plus
+name: LIBERO-Plus
+docker:
+  image: ghcr.io/allenai/vla-evaluation-harness/libero-plus:latest
+  source_image: ghcr.io/allenai/vla-evaluation-harness/libero-plus:latest
+  python_env: libero
+  gpus: all
+needs_new_env: true
+notes:
+- LIBERO and LIBERO-Plus package constraints may conflict; use a separate environment if the unified runtime cannot 
+  satisfy both.
+python_path: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}/worldfoundry-unified-cu128/bin/python
+required_assets:
+  local_dataset_paths:
+  - ${WORLDFOUNDRY_DATA_DIR}/datasets/libero-plus
+  local_repo_paths:
+  - ${WORLDFOUNDRY_CACHE_DIR}/repos/Lifelong-Robot-Learning--LIBERO
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/libero-plus.yaml
+required_env:
+- WORLDFOUNDRY_LIBERO_PLUS_ROOT
+- WORLDFOUNDRY_LIBERO_PLUS_RESULTS_PATH
+required_imports:
+- numpy
+required_packages:
+- numpy
+required_paths:
+- id: official_result_normalizer
+  path: worldfoundry/evaluation/tasks/embodied/normalizer.py
+- id: task_yaml
+  path: worldfoundry/data/benchmarks/tasks/external/libero-plus.yaml
+requires_cuda_visibility: false
+status: official_result_normalizer_ready_full_runtime_pending
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- libero-plus
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.json>
+- --output-dir
+- <out>
+- --json

@@ -1,0 +1,57 @@
+schema_version: worldfoundry.model_runtime_config.v1
+model_id: kling-recammaster
+description: ReCamMaster checkpoint hash registry used to auto-detect Wan-family runtime components.
+model_loader_configs:
+- keys_hash_with_shape: 9269f8db9040a9d860eaca435be61814
+  model_names:
+  - wan_video_dit
+  model_classes:
+  - WanModel
+  model_resource: civitai
+- keys_hash_with_shape: aafcfd9672c3a2456dc46e1cb6e52c70
+  model_names:
+  - wan_video_dit
+  model_classes:
+  - WanModel
+  model_resource: civitai
+- keys_hash_with_shape: 6bfcfb3b342cb286ce886889d519a77e
+  model_names:
+  - wan_video_dit
+  model_classes:
+  - WanModel
+  model_resource: civitai
+- keys_hash_with_shape: cb104773c6c2cb6df4f9529ad5c60d0b
+  model_names:
+  - wan_video_dit
+  model_classes:
+  - WanModel
+  model_resource: diffusers
+- keys_hash_with_shape: 9c8818c2cbea55eca56c7b447df170da
+  model_names:
+  - wan_video_text_encoder
+  model_classes:
+  - WanTextEncoder
+  model_resource: civitai
+- keys_hash_with_shape: 5941c53e207d62f20f9025686193c40b
+  model_names:
+  - wan_video_image_encoder
+  model_classes:
+  - WanImageEncoder
+  model_resource: civitai
+- keys_hash_with_shape: 1378ea763357eea97acdef78e65d6d96
+  model_names:
+  - wan_video_vae
+  model_classes:
+  - WanVideoVAE
+  model_resource: civitai
+- keys_hash_with_shape: ccc42284ea13e1ad04693284c7a09be6
+  model_names:
+  - wan_video_vae
+  model_classes:
+  - WanVideoVAE
+  model_resource: civitai
+huggingface_model_loader_configs:
+- architecture: T5EncoderModel
+  huggingface_lib: diffsynth.models.flux_text_encoder
+  model_name: flux_text_encoder_2
+  redirected_architecture: FluxTextEncoder2

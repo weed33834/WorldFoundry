@@ -1,0 +1,50 @@
+conda_packages:
+- python
+- pip
+- ffmpeg
+cuda_profile: cu128
+driver_status: compatible
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: motionctrl
+notes:
+- MotionCtrl has an in-tree WorldFoundry runtime.
+- Prefer the unified Python 3.11 / CUDA 12.8 environment for inference; no dedicated cu113 environment is required for this
+  route.
+pip_packages:
+- torch
+- torchvision
+- numpy
+- pytorch-lightning
+- decord
+- kornia
+- timm
+- open_clip_torch
+- av
+- omegaconf
+- transformers
+- einops
+- scikit-learn
+- taming-transformers-rom1504
+- pandas
+- fairscale
+- psutil
+- plotly
+- imageio
+- imageio-ffmpeg
+- opencv-python
+- moviepy
+- Pillow
+- tqdm
+- gradio
+- gradio_client
+- fastapi
+- pydantic
+- socksio
+- setuptools
+python: '3.11'
+validation_imports:
+- torch
+- pytorch_lightning
+- decord
+- transformers

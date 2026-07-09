@@ -1,0 +1,85 @@
+---
+title: Model Runtime
+description: How pipeline, operator, synthesis, representation, memory, and hosted API files fit together.
+---
+
+## Runtime Shape
+
+A model call in this repository usually follows one chain:
+
+```text
+Pipeline class
+  -> Operator: validate/load/shape interactions and media
+  -> Synthesis: call model runtime or hosted API
+  -> Representation: derive depth, point cloud, 3DGS, scene, or world assets
+  -> Memory: keep prior state for streaming or multi-turn control
+  -> GenerationResult: normalized artifacts and metadata
+```
+
+The pipeline organizes a reproducible public entrypoint. The operator prepares inputs, interactions, and media before model execution. Synthesis owns checkpoint or API execution. Representation and memory join only when a task needs geometric outputs or multi-turn state. Every path should converge on the same `GenerationResult` semantics so Studio, the CLI, and benchmarks can share one artifact contract.
+
+Model-specific code is intentionally repetitive. Most families have a thin `pipeline_*.py`, an `*_operator.py`, optional `*_synthesis.py`, optional representation or memory files, and manifest metadata. That shape is scaffolding only; it becomes a complete integration once runtime code and a real inference path live in-tree.
+
+All model runtime integrations under `worldfoundry/synthesis/**` must be in-tree implementations. They must not depend on machine-local external checkouts. External repos and checkpoints remain provenance or acquisition metadata until the runtime is ported or vendor-reviewed.
+
+Use `integration_status` for the public support claim and `backend_stage` for implementation depth. Only `integrated` plus `in_tree_runtime` means a complete runnable integration. `metadata_only`, `profile_only`, and `official_client_bridge_only` are useful planning states, but they are not runnable integrations.
+
+## Current Runtime Contract
+
+Every runnable method requires both a pipeline and an operator. The pipeline is the concrete class reachable from catalog `pipeline_target` or the canonical binding resolver. It owns model loading, normalized execution, and `GenerationResult` artifact semantics. The operator is the pipeline's input-side partner for validation, image/video loading, camera/action parsing, interaction shaping, and perception preprocessing. Operators may be thin, but they must exist.
+
+Binding resolution should go through `worldfoundry/evaluation/models/pipelines/bindings.py`. Catalog loading, pipeline loading, runner resolution, and validation should call its helpers instead of re-parsing route strings independently. Runtime profiles may carry execution metadata, environment expectations, checkpoint paths, and command hints, but they do not replace a pipeline/operator pair. `metadata_only` or `profile_only` entries must not be advertised as runnable support.
+
+`worldfoundry/base_models/perception_core` and `worldfoundry/base_models/three_dimensions` are inference/runtime packages. Keep transforms and geometry helpers required for inference, but do not keep training datasets, dataloaders, callbacks, losses, augmentation-only modules, or experiment scripts there. `pixelsplat` remains the explicit 3D cleanup exception until its official Lightning test runner is replaced by a pure inference runner.
+
+## Base Abstractions
+
+`PipelineABC` in `pipelines/pipeline_utils.py` defines the minimal public entrypoint: `from_pretrained()` for loading, `process()` / `__call__()` for one-shot execution, and `stream()` when incremental output is supported. `BaseOperator` in `operators/base_operator.py` handles input and interaction shaping only; it should not own generation or scoring. `BaseSynthesis` in `synthesis/base_synthesis.py` is the execution surface for local checkpoints or hosted APIs. `BaseRepresentation` converts model outputs into geometric or world representations. `BaseMemory` in `core/memory/base.py` stores and transforms prior multimodal state for streaming, long-context, or interactive flows.
+
+## Directory Roles
+
+When deciding where a model fix belongs, ask whether the failure happens in input handling, inference, geometry postprocessing, or state management. Public wrappers live in `pipelines/<family>/pipeline_*.py`; user-facing classes should document load path, input signature, and output artifacts. If inputs fail before model execution, inspect `operators/*_operator.py` first. Visual and world-generation checkpoint calls, hosted APIs, subprocess bridges, and runtime env helpers live under `synthesis/visual_generation/**`. Embodied-action surfaces live under `synthesis/action_generation/**`; profile-only shells are not complete integrations.
+
+Depth benchmark logic belongs in `representations/depth_generation/**`. Point cloud, 3DGS, panoramic, and geometry asset builders belong in `representations/point_clouds_generation/**`. Shared memory contracts live in `core/memory/**`; visual-generation runtime state lives in `synthesis/visual_generation/memory/**`; action policy trace state lives in `synthesis/action_generation/memory.py`. CameraCtrl and MotionCtrl do not share one synthesis package; they live in `synthesis/visual_generation/cameractrl/synthesis.py` and `synthesis/visual_generation/motionctrl/synthesis.py` respectively, while shared camera-control YAML belongs under `data/models/runtime/configs/camera_control`.
+
+## Reference Implementation: OpenVLA
+
+`openvla` is the first fully runnable VLA integration in this tree and the best example for understanding embodied-action runtime design. Its goal is simple: one checkpoint loader serves both Studio one-shot action traces and benchmark closed-loop rollouts, without requiring users to clone the upstream GitHub repository.
+
+The embodied closed-loop path starts in runtime config. `data/models/runtime/configs/vla_va_wam/openvla.yaml` declares `backend: callable_entrypoint` and points `policy_target` to `worldfoundry.synthesis.action_generation.openvla.runtime:predict_action`. Embodied eval reads that config in `evaluation/tasks/embodied/policy_adapter.py` through `build_policy_adapter()`, then wraps the callable with `CallableRuntimePolicyAdapter` in `evaluation/tasks/embodied/adapters/runtime_policy_adapters.py`. Simulator rollouts therefore need only a language instruction and RGB observation to obtain one robot action, without going through the full pipeline lifecycle.
+
+Studio and one-shot action traces still use the pipeline path. `OpenVLAPipeline` binds `OpenVLASynthesis`; `OpenVLASynthesis.predict()` resolves the runtime profile, selects a checkpoint, writes a plan JSON, and dispatches real inference unless `plan_only` is set. That path is better suited to single jobs that need artifact files, a run directory, and profile metadata rather than step-by-step simulator interaction.
+
+Both entrypoints converge on `synthesis/action_generation/openvla/openvla_runtime/inference.py`. `select_openvla_checkpoint()` chooses a locally staged base or LIBERO fine-tuned checkpoint from `unnorm_key`. `OpenVLARuntime` then loads processor/model, builds the official OpenVLA prompt, runs `predict_action`, and writes normalized action-trace metadata. Prismatic/OpenVLA HF config, model, and processor code are vendored in `openvla_runtime/configuration_prismatic.py`, `modeling_prismatic.py`, and `processing_prismatic.py`, so the runtime does not depend on external repo checkouts or Hugging Face remote-code cache.
+
+If you add a similar VLA policy, you usually need three pieces: a callable config under `data/models/runtime/configs/vla_va_wam/`, a `predict_action()` entrypoint in `synthesis/action_generation/<model>/runtime.py`, and an embodied adapter that can resolve image and instruction fields from simulator observations. Pipeline/synthesis layers can follow later for Studio and model-zoo one-shot runs, but they should not be prerequisites for closed-loop eval.
+
+## Pipeline Authoring Conventions
+
+A typical pipeline file stores synthesis, operator, representation, and runtime config in its constructor; `from_pretrained()` stages checkpoints or initializes API clients; `process()` / `__call__()` converts user input into artifacts; and `stream()` is implemented only when Studio live controls or incremental output require it. Helpers should remain limited to reproducibility, credential handling, or artifact semantics. Do not carry training-script-style experiment logic into public pipelines.
+
+## Hosted API Paths
+
+Hosted provider paths such as Wan hosted family, Kling, Runway, Luma Ray, Hailuo hosted, Sora/Veo API, and World Labs live in separate wrappers under `pipelines/`, kept apart from local checkpoint runtimes. Hosted wrappers usually stage local images, build provider payloads, or wait for remote jobs to finish; they should not silently reuse local diffusion checkpoint loaders. Provider credentials belong in environment variables only. Do not place API keys in manifests, docs, tests, or generated reports.
+
+## Bridge to Evaluation
+
+The evaluation runner does not import pipeline files directly unless the catalog model runner resolves to that route. The full chain is:
+
+```text
+worldfoundry/data/models/catalog/<category>/<model-id>.yaml
+  -> runner_target / pipeline_target / runtime_profile binding
+  -> resolve_pipeline_route()
+  -> resolve_model_zoo_runner()
+  -> runtime runner
+  -> pipeline class or subprocess command
+  -> GenerationResult artifacts
+```
+
+`evaluation/models/runners/resolver.py` and `registry.py` resolve catalog `runner_target` values into runnable runner instances. `evaluation/models/pipelines/bindings.py` merges catalog targets, runtime-profile execution metadata, and model bindings into one route contract. `evaluation/models/runners/pipeline.py` and `evaluation/models/pipelines/loading.py` build a `PipelineRunnerSpec`, import the pipeline target, and invoke the full lifecycle. Planned or profile-only entries may keep `runtime_profile` but should not expose a runner target; thin planning wrappers must not advertise `pipeline_target` as verified support.
+
+## Model Family Inventory
+
+Start in `pipelines/` when adding or debugging a model; each family or variant usually has one public wrapper. Inspect `operators/` whenever inputs, camera controls, or interactions are malformed, because every runnable pipeline requires one. `synthesis/` holds in-tree runtime implementation only; external repos or checkpoints remain metadata until ported. Use `representations/` for 3D/4D artifacts and visualization issues, and `core/memory/` plus `synthesis/*/memory` for streaming or multi-turn behavior.
+
+For models with a claimed runnable runner, document public class behavior and public methods. For unclaimed or archived wrappers, keep only a short index entry instead of expanding implementation detail.

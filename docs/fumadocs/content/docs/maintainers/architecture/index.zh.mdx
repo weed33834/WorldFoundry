@@ -1,0 +1,56 @@
+---
+title: 架构
+description: 解释 WorldFoundry workflow、模型 runtime、benchmark 执行和证据追踪的基本原理。
+---
+
+## 目的
+
+架构文档用于解释这个仓库在子系统层面如何工作，不作为逐文件源码索引。阅读它是为了理解概念、选择正确工作流，并判断某个改动属于哪一层。正文以段落说明为主：先讲职责边界和数据流，再在必要时引用关键路径；端到端运行流与评测 internals 请从 [Workflow](/zh/docs/maintainers/architecture/workflow) 与 [评测核心](/zh/docs/maintainers/architecture/evaluation-core) 入手。
+
+**适合谁读：** 添加模型或 benchmark 的维护者、需要从 CLI 追到 scorecard 的 reviewer，以及排查「catalog 显示 supported 但 run 仍失败」的人。**何时从这里开始：** 完成 [快速开始](/zh/docs/quickstart) 且第一次 run 成功后，若需要命令背后的整体模型再读本文——不必在第一次 run 之前通读。确定要改哪一层后，从下方卡片进入对应子页。
+
+<Cards>
+  <Card title="Workflow" description="从 CLI 输入追踪到产物、指标、scorecard 和报告。" href="/zh/docs/maintainers/architecture/workflow" />
+  <Card title="评测核心" description="理解 requests、runners、metrics、reports 和 scorecards。" href="/zh/docs/maintainers/architecture/evaluation-core" />
+  <Card title="模型运行时" description="以段落说明 pipeline、operator、runtime 与 artifact contract 如何协作；OpenVLA 作为参考实现。" href="/zh/docs/maintainers/architecture/model-runtime" />
+  <Card title="基准和数据" description="理解 benchmark manifests、datasets、官方 evaluator 和 readiness checks。" href="/zh/docs/maintainers/architecture/benchmarks-data" />
+  <Card title="Studio 内部" description="理解交互式预览界面如何复用同一套 runtime contract。" href="/zh/docs/maintainers/architecture/studio-internals" />
+</Cards>
+
+## 核心思想
+
+WorldFoundry 将模型执行和 benchmark 评分分开。模型负责产出归一化 artifact，benchmark 负责评价 artifact，runner 负责记录真实发生了什么。这个分层让同一套框架可以覆盖视频生成、3D/4D 资产、world-action rollout、托管 API 和 embodied policy，而不需要为每个模型族重写每个 benchmark。
+
+例如，视频模型 run 和 VLA policy run 最终都会写出 `GenerationResult` 行和 `scorecard.json`，尽管推理发生在完全不同的 runtime 里。Benchmark 不会直接 import 模型 checkpoint——它们消费 runner 写入磁盘的归一化 artifact 契约。
+
+## 主要层级
+
+改行为前先问该改哪一层。若属于 model runtime，就不应把 scoring logic 塞进 runner；若属于 reporting，就不应假设某种 checkpoint 布局。层与层之间通过可序列化契约（`GenerationRequest`、`GenerationResult`、`BenchmarkSpec`、scorecard 字段）通信，而不是共享全局状态或机器本地路径。
+
+- **CLI 与编排** 负责用户命令、运行模式、suite、resume 行为和输出位置，不应承担模型特定推理细节。
+- **Model runtime** 负责 pipeline、operator、本地 runtime、hosted API wrapper 和归一化生成结果，不应承担 benchmark scoring logic。
+- **Benchmark runtime** 负责 benchmark manifest、dataset、evaluator、metric 和结果归一化，不应承担模型加载或 checkpoint-specific setup。
+- **Catalog 与 readiness** 负责模型/benchmark metadata、source provenance、资产、环境要求、blocker 和支持状态，不应描述没有代码证据支撑的 runtime 行为。
+- **Reporting** 负责 manifest、summary、report、scorecard 和 leaderboard eligibility，不应隐藏缺失资产或 skipped work。
+- **Studio** 负责基于同一套 catalog 和 runtime contract 的交互式预览和检查，不应包含只有 UI 内才能工作的核心逻辑。
+
+## 设计原则
+
+这些原则用于日常取舍：为何 official validation 与 official benchmark run 分开、为何 catalog metadata 可以在代码落地前描述意图、以及为何即使只做 artifact check 也要写 manifest 和 ledger。
+
+- **统一公开 runner contract** — 每条模型路径最终都应产出同一种归一化结果形态。
+- **Operator plus pipeline** — 可运行方法需要同时具备 pipeline 和 operator，让输入处理明确且可复现。
+- **证据优先于声明** — Catalog entry 可以描述意图，但支持状态必须匹配真实可运行证据。
+- **外部代码先作为 provenance** — 官方仓库和 checkpoint 可以记录，但机器本地路径不能成为 runtime dependency。
+- **Official validation 不等于 benchmark parity** — Official-validation import 用真实文件证明结果归一化链路；benchmark-ready 需要真实数据、指标和 scorecard。
+
+## 常见阅读路径
+
+多数任务会跨两层。添加模型既要读 [模型运行时](/zh/docs/maintainers/architecture/model-runtime)，也要读 [评测核心](/zh/docs/maintainers/architecture/evaluation-core)。添加 benchmark 则要结合 [基准和数据](/zh/docs/maintainers/architecture/benchmarks-data) 与 [Workflow](/zh/docs/maintainers/architecture/workflow)。
+
+- **跑一次评测** — 从 [快速开始](/zh/docs/quickstart) 入手，再看 [评测指南](/zh/docs/evaluation) 和 [CLI 参考](/zh/docs/reference/cli)。
+- **选择模型** — 从 [支持的模型](/zh/docs/guides/supported-models) 入手，再用 `worldfoundry-eval zoo model-show`、`zoo model-download --check-local` 和单 profile 的 `preflight runtime --profile <benchmark-id>`。
+- **添加模型** — 从 [添加模型](/zh/docs/guides/add-model) 入手，再看 [模型运行时](/zh/docs/maintainers/architecture/model-runtime)。
+- **添加 benchmark** — 从 [添加基准](/zh/docs/guides/add-benchmark) 入手，再看 [基准和数据](/zh/docs/maintainers/architecture/benchmarks-data)。
+- **理解输出产物** — 从 [评测核心](/zh/docs/maintainers/architecture/evaluation-core) 入手，再查看真实 run 产出的 `report.md`、`scorecard.json` 和 metrics summary。
+- **查看支持状态** — 从 [支持的模型](/zh/docs/guides/supported-models) 入手，再用 `zoo model-show` / `zoo benchmark-show`。

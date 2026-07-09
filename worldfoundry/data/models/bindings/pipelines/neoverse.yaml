@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: neoverse
+model_id: neoverse
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.neoverse.pipeline_neoverse:NeoVersePipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

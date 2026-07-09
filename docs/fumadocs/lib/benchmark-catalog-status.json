@@ -1,0 +1,582 @@
+{
+  "ai2thor": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Embodied AI",
+    "categoryZh": "Embodied AI",
+    "integrationStatus": "integrated",
+    "name": "AI2-THOR",
+    "verificationStatus": "integration_ready"
+  },
+  "aigcbench": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Video Generation",
+    "categoryZh": "Video Generation",
+    "integrationStatus": "integrated",
+    "name": "AIGCBench",
+    "verificationStatus": "in_tree_artifact_import_ready"
+  },
+  "behavior1k": {
+    "badges": [
+      "normalizer"
+    ],
+    "category": "Embodied AI",
+    "categoryZh": "Embodied AI",
+    "integrationStatus": "integrated",
+    "name": "BEHAVIOR-1K",
+    "verificationStatus": "normalizer_only"
+  },
+  "bridgedata-v2": {
+    "badges": [
+      "normalizer"
+    ],
+    "category": "Embodied AI",
+    "categoryZh": "Embodied AI",
+    "integrationStatus": "integrated",
+    "name": "BridgeData V2",
+    "verificationStatus": "normalizer_only"
+  },
+  "calvin": {
+    "badges": [
+      "normalizer"
+    ],
+    "category": "Embodied AI",
+    "categoryZh": "Embodied AI",
+    "integrationStatus": "integrated",
+    "name": "CALVIN",
+    "verificationStatus": "normalizer_only"
+  },
+  "camerabench": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Video Generation",
+    "categoryZh": "Video Generation",
+    "integrationStatus": "integrated",
+    "name": "CameraBench",
+    "verificationStatus": "pending"
+  },
+  "chronomagic-bench": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Video Generation",
+    "categoryZh": "Video Generation",
+    "integrationStatus": "integrated",
+    "name": "ChronoMagic-Bench",
+    "verificationStatus": "verified"
+  },
+  "devil-dynamics": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Video Generation",
+    "categoryZh": "Video Generation",
+    "integrationStatus": "integrated",
+    "name": "DEVIL Dynamics",
+    "verificationStatus": "pending"
+  },
+  "evalcrafter": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Video Generation",
+    "categoryZh": "Video Generation",
+    "integrationStatus": "integrated",
+    "name": "EvalCrafter",
+    "verificationStatus": "verified"
+  },
+  "ewmbench": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "World Models",
+    "categoryZh": "World Models",
+    "integrationStatus": "integrated",
+    "name": "EWMBench",
+    "verificationStatus": "pending"
+  },
+  "fetv": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Video Generation",
+    "categoryZh": "Video Generation",
+    "integrationStatus": "integrated",
+    "name": "FETV",
+    "verificationStatus": "pending"
+  },
+  "genai-bench": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Video Generation",
+    "categoryZh": "Video Generation",
+    "integrationStatus": "integrated",
+    "name": "GenAI-Bench",
+    "verificationStatus": "pending"
+  },
+  "ipv-bench": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Video Generation",
+    "categoryZh": "Video Generation",
+    "integrationStatus": "integrated",
+    "name": "IPV-Bench",
+    "verificationStatus": "pending"
+  },
+  "iworld-bench": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "World Models",
+    "categoryZh": "World Models",
+    "integrationStatus": "integrated",
+    "name": "iWorld-Bench",
+    "verificationStatus": "verified"
+  },
+  "kinetix": {
+    "badges": [
+      "normalizer"
+    ],
+    "category": "Embodied AI",
+    "categoryZh": "Embodied AI",
+    "integrationStatus": "integrated",
+    "name": "Kinetix",
+    "verificationStatus": "normalizer_only"
+  },
+  "libero": {
+    "badges": [
+      "normalizer"
+    ],
+    "category": "Embodied AI",
+    "categoryZh": "Embodied AI",
+    "integrationStatus": "integrated",
+    "name": "LIBERO",
+    "verificationStatus": "normalizer_only"
+  },
+  "libero-mem": {
+    "badges": [
+      "normalizer"
+    ],
+    "category": "Embodied AI",
+    "categoryZh": "Embodied AI",
+    "integrationStatus": "integrated",
+    "name": "LIBERO-Mem",
+    "verificationStatus": "normalizer_only"
+  },
+  "libero-para": {
+    "badges": [
+      "normalizer"
+    ],
+    "category": "Embodied AI",
+    "categoryZh": "Embodied AI",
+    "integrationStatus": "integrated",
+    "name": "LIBERO-Para",
+    "verificationStatus": "normalizer_only"
+  },
+  "libero-plus": {
+    "badges": [
+      "normalizer"
+    ],
+    "category": "Embodied AI",
+    "categoryZh": "Embodied AI",
+    "integrationStatus": "integrated",
+    "name": "LIBERO-Plus",
+    "verificationStatus": "normalizer_only"
+  },
+  "libero-pro": {
+    "badges": [
+      "normalizer"
+    ],
+    "category": "Embodied AI",
+    "categoryZh": "Embodied AI",
+    "integrationStatus": "integrated",
+    "name": "LIBERO-Pro",
+    "verificationStatus": "normalizer_only"
+  },
+  "maniskill": {
+    "badges": [
+      "normalizer"
+    ],
+    "category": "Embodied AI",
+    "categoryZh": "Embodied AI",
+    "integrationStatus": "integrated",
+    "name": "ManiSkill",
+    "verificationStatus": "normalizer_only"
+  },
+  "maniskill2": {
+    "badges": [
+      "normalizer"
+    ],
+    "category": "Embodied AI",
+    "categoryZh": "Embodied AI",
+    "integrationStatus": "integrated",
+    "name": "ManiSkill2",
+    "verificationStatus": "normalizer_only"
+  },
+  "metaworld": {
+    "badges": [
+      "normalizer"
+    ],
+    "category": "Embodied AI",
+    "categoryZh": "Embodied AI",
+    "integrationStatus": "integrated",
+    "name": "Meta-World",
+    "verificationStatus": "normalizer_only"
+  },
+  "mikasa": {
+    "badges": [
+      "normalizer"
+    ],
+    "category": "Embodied AI",
+    "categoryZh": "Embodied AI",
+    "integrationStatus": "integrated",
+    "name": "MiKASA-Robo",
+    "verificationStatus": "normalizer_only"
+  },
+  "mirabench": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Video Generation",
+    "categoryZh": "Video Generation",
+    "integrationStatus": "integrated",
+    "name": "MiraBench",
+    "verificationStatus": "pending"
+  },
+  "molmospaces": {
+    "badges": [
+      "normalizer"
+    ],
+    "category": "Embodied AI",
+    "categoryZh": "Embodied AI",
+    "integrationStatus": "integrated",
+    "name": "MolmoSpaces-Bench",
+    "verificationStatus": "normalizer_only"
+  },
+  "phyeduvideo": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Video Generation",
+    "categoryZh": "Video Generation",
+    "integrationStatus": "integrated",
+    "name": "PhyEduVideo",
+    "verificationStatus": "official_runtime_ready"
+  },
+  "phyfps-bench-gen": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Video Generation",
+    "categoryZh": "Video Generation",
+    "integrationStatus": "integrated",
+    "name": "PhyFPS-Bench-Gen",
+    "verificationStatus": "official_runtime_ready"
+  },
+  "phygenbench": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Video Generation",
+    "categoryZh": "Video Generation",
+    "integrationStatus": "integrated",
+    "name": "PhyGenBench",
+    "verificationStatus": "official_runtime_ready"
+  },
+  "phyground": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Video Generation",
+    "categoryZh": "Video Generation",
+    "integrationStatus": "integrated",
+    "name": "PhyGround",
+    "verificationStatus": "official_runtime_ready"
+  },
+  "physics-iq": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Video Generation",
+    "categoryZh": "Video Generation",
+    "integrationStatus": "integrated",
+    "name": "Physics-IQ",
+    "verificationStatus": "official_runtime_ready"
+  },
+  "physvidbench": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Video Generation",
+    "categoryZh": "Video Generation",
+    "integrationStatus": "integrated",
+    "name": "PhysVidBench",
+    "verificationStatus": "official_runtime_ready"
+  },
+  "rlbench": {
+    "badges": [
+      "normalizer"
+    ],
+    "category": "Embodied AI",
+    "categoryZh": "Embodied AI",
+    "integrationStatus": "integrated",
+    "name": "RLBench",
+    "verificationStatus": "normalizer_only"
+  },
+  "robocasa": {
+    "badges": [
+      "normalizer"
+    ],
+    "category": "Embodied AI",
+    "categoryZh": "Embodied AI",
+    "integrationStatus": "integrated",
+    "name": "RoboCasa",
+    "verificationStatus": "normalizer_only"
+  },
+  "robocerebra": {
+    "badges": [
+      "normalizer"
+    ],
+    "category": "Embodied AI",
+    "categoryZh": "Embodied AI",
+    "integrationStatus": "integrated",
+    "name": "RoboCerebra",
+    "verificationStatus": "normalizer_only"
+  },
+  "robomme": {
+    "badges": [
+      "normalizer"
+    ],
+    "category": "Embodied AI",
+    "categoryZh": "Embodied AI",
+    "integrationStatus": "integrated",
+    "name": "RoboMME",
+    "verificationStatus": "normalizer_only"
+  },
+  "robotwin": {
+    "badges": [
+      "normalizer"
+    ],
+    "category": "Embodied AI",
+    "categoryZh": "Embodied AI",
+    "integrationStatus": "integrated",
+    "name": "RoboTwin 2.0",
+    "verificationStatus": "normalizer_only"
+  },
+  "simpler-env": {
+    "badges": [
+      "normalizer"
+    ],
+    "category": "Embodied AI",
+    "categoryZh": "Embodied AI",
+    "integrationStatus": "integrated",
+    "name": "SimplerEnv",
+    "verificationStatus": "normalizer_only"
+  },
+  "t2v-compbench": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Video Generation",
+    "categoryZh": "Video Generation",
+    "integrationStatus": "integrated",
+    "name": "T2V-CompBench",
+    "verificationStatus": "pending"
+  },
+  "t2v-safety-bench": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Video Generation",
+    "categoryZh": "Video Generation",
+    "integrationStatus": "integrated",
+    "name": "T2VSafetyBench",
+    "verificationStatus": "pending"
+  },
+  "t2vworldbench": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "World Models",
+    "categoryZh": "World Models",
+    "integrationStatus": "integrated",
+    "name": "T2VWorldBench",
+    "verificationStatus": "pending"
+  },
+  "vbench": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Video Generation",
+    "categoryZh": "Video Generation",
+    "integrationStatus": "integrated",
+    "name": "VBench",
+    "verificationStatus": "verified"
+  },
+  "vbench-2.0": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Video Generation",
+    "categoryZh": "Video Generation",
+    "integrationStatus": "integrated",
+    "name": "VBench-2.0",
+    "verificationStatus": "verified"
+  },
+  "vbench-plus-plus": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Video Generation",
+    "categoryZh": "Video Generation",
+    "integrationStatus": "integrated",
+    "name": "VBench++",
+    "verificationStatus": "verified"
+  },
+  "video-bench": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Video Generation",
+    "categoryZh": "Video Generation",
+    "integrationStatus": "integrated",
+    "name": "Video-Bench",
+    "verificationStatus": "verified"
+  },
+  "videophy": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Video Generation",
+    "categoryZh": "Video Generation",
+    "integrationStatus": "integrated",
+    "name": "VideoPhy",
+    "verificationStatus": "in_tree_official_runtime_ready"
+  },
+  "videophy2": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Video Generation",
+    "categoryZh": "Video Generation",
+    "integrationStatus": "integrated",
+    "name": "VideoPhy2",
+    "verificationStatus": "in_tree_official_runtime_ready"
+  },
+  "videoscience-bench": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Video Generation",
+    "categoryZh": "Video Generation",
+    "integrationStatus": "integrated",
+    "name": "VideoScience-Bench",
+    "verificationStatus": "pending"
+  },
+  "videoscore": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Video Generation",
+    "categoryZh": "Video Generation",
+    "integrationStatus": "integrated",
+    "name": "VideoScore",
+    "verificationStatus": "verified"
+  },
+  "videoverse": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Video Generation",
+    "categoryZh": "Video Generation",
+    "integrationStatus": "integrated",
+    "name": "VideoVerse",
+    "verificationStatus": "official_runtime_ready"
+  },
+  "vlabench": {
+    "badges": [
+      "normalizer"
+    ],
+    "category": "Embodied AI",
+    "categoryZh": "Embodied AI",
+    "integrationStatus": "integrated",
+    "name": "VLABench",
+    "verificationStatus": "normalizer_only"
+  },
+  "vmbench": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "Video Generation",
+    "categoryZh": "Video Generation",
+    "integrationStatus": "integrated",
+    "name": "VMBench",
+    "verificationStatus": "pending"
+  },
+  "wbench": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "World Models",
+    "categoryZh": "World Models",
+    "integrationStatus": "integrated",
+    "name": "WBench",
+    "verificationStatus": "in_tree_runtime"
+  },
+  "world-in-world": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "World Models",
+    "categoryZh": "World Models",
+    "integrationStatus": "integrated",
+    "name": "World-in-World",
+    "verificationStatus": "in_tree_artifact_evaluator"
+  },
+  "worldarena": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "World Models",
+    "categoryZh": "World Models",
+    "integrationStatus": "integrated",
+    "name": "WorldArena",
+    "verificationStatus": "in_tree_video_quality_runtime"
+  },
+  "worldbench": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "World Models",
+    "categoryZh": "World Models",
+    "integrationStatus": "integrated",
+    "name": "WorldBench",
+    "verificationStatus": "pending"
+  },
+  "worldmodelbench": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "World Models",
+    "categoryZh": "World Models",
+    "integrationStatus": "integrated",
+    "name": "WorldModelBench",
+    "verificationStatus": "verified"
+  },
+  "worldscore": {
+    "badges": [
+      "integrated"
+    ],
+    "category": "World Models",
+    "categoryZh": "World Models",
+    "integrationStatus": "integrated",
+    "name": "WorldScore",
+    "verificationStatus": "verified"
+  }
+}

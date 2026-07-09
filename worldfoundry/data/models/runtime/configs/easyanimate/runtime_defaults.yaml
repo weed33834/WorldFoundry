@@ -1,0 +1,14 @@
+schema_version: worldfoundry.runtime_defaults.v1
+defaults:
+  easyanimate_i2v:
+    model_name: easyanimate_i2v
+    sample_size:
+      - 768
+      - 1344
+    video_length: 49
+    fps: 8
+    generation_type: i2v
+    sampler_name: Flow
+    negative_prompt: Twisted body, limb deformities, text captions, comic, static, ugly, error, messy code.
+    config_path: runtime/configs/easyanimate/easyanimate_video_v5.1_magvit_qwen.yaml
+    model_path: ${WORLDFOUNDRY_CKPT_DIR}/hfd/alibaba-pai--EasyAnimateV5.1-7b-zh-InP

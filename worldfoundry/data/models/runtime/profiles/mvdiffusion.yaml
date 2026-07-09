@@ -1,0 +1,27 @@
+schema_version: 2
+model_id: mvdiffusion
+display_name: MVDiffusion
+task_family: three_dimension
+groups:
+- 3d
+- multiview_generation
+- official_repo
+source_repos:
+- url: https://github.com/Tangshitao/MVDiffusion
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - camera_views
+artifact_kind: generated_3d_asset
+artifact_filename: mvdiffusion.png
+execution:
+  backend_stage: in_tree_model_subprocess_adapter
+  runtime_status: runtime_integrated_assets_may_be_missing
+  integration_status: integrated
+  pipeline_binding: mvdiffusion
+integration:
+  status: integrated
+notes:
+- Uses an in-tree subprocess adapter for upstream MVDiffusion source when available.

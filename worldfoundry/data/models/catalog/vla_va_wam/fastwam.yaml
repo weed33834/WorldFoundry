@@ -1,0 +1,34 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+availability: open_source
+checkpoint_refs:
+- repo_id: yuanty/fastwam
+id: fastwam
+integration:
+  status: runtime_ported
+  notes:
+  - WorldFoundry routes FastWAM through the in-tree official-policy runtime using the official FastWAM action inference class.
+  - Checkpoint absence is reported by runtime missing_assets and is not a catalog blocker.
+license: mit
+name: FastWAM
+output_artifacts:
+- action_trace
+official_sources:
+  github:
+    head_sha: 45d8e1458921d83f8ad6cf9ce993d371208dabd0
+    url: https://github.com/yuantianyuan01/FastWAM
+  huggingface:
+  - repo_id: yuanty/fastwam
+    status: confirmed
+    type: model
+provider: official_repo
+runtime_profile: runtime-profile:fastwam
+pipeline_binding: fastwam
+tasks:
+- wam
+- robot_policy
+- policy_rollout
+- embodied_benchmark
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint
+  metadata, and runtime-profile planning records. Runner or pipeline targets are present
+  only after a complete in-tree WorldFoundry model runtime is registered and validated.

@@ -1,0 +1,339 @@
+benchmark: wbench
+name: WBench
+description: WBench external benchmark manifest for multi-turn interactive video world model evaluation.
+tags:
+- benchmark-zoo
+- external-official
+- wbench
+- interactive-video-world-model
+- multi-turn-control
+splits:
+- standard
+metrics:
+  aesthetic_quality:
+    aggregation: mean
+  imaging_quality:
+    aggregation: mean
+  temporal_flickering:
+    aggregation: mean
+  dynamic_degree:
+    aggregation: mean
+  motion_smoothness:
+    aggregation: mean
+  hpsv3_quality:
+    aggregation: mean
+  scene_adherence:
+    aggregation: mean
+  subject_adherence:
+    aggregation: mean
+  navigation_trajectory:
+    aggregation: mean
+  event_edit_adherence:
+    aggregation: mean
+  subject_action_adherence:
+    aggregation: mean
+  perspective_switch_adherence:
+    aggregation: mean
+  background_consistency:
+    aggregation: mean
+  segment_continuity:
+    aggregation: mean
+  perspective_consistency:
+    aggregation: mean
+  subject_consistency:
+    aggregation: mean
+  geometric_consistency:
+    aggregation: mean
+  photometric_consistency:
+    aggregation: mean
+  spatial_consistency:
+    aggregation: mean
+  gated_spatial_consistency:
+    aggregation: mean
+  visual_plausibility:
+    aggregation: mean
+  causal_fidelity:
+    aggregation: mean
+  quality_score:
+    aggregation: mean
+  setting_score:
+    aggregation: mean
+  interaction_score:
+    aggregation: mean
+  consistency_score:
+    aggregation: mean
+  physical_score:
+    aggregation: mean
+  wbench_average:
+    aggregation: mean
+    primary: true
+metadata:
+  source_kind: benchmark_zoo
+  benchmark_id: wbench
+  contract_validation_command: worldfoundry-eval zoo benchmark-run --benchmark-id wbench --mode contract --output-dir tmp/benchmark_zoo/benchmark_contract/wbench --json
+  official_runner_target: worldfoundry.evaluation.tasks.contracts.external:WBenchContract
+  official_runner_script: worldfoundry/evaluation/tasks/execution/runners/wbench/run_wbench_official_runner.py
+  official_runner_command: worldfoundry-eval zoo benchmark-run
+  name: WBench
+  domain:
+  - world-model
+  - interactive-video
+  - navigation
+  - physical-plausibility
+  task_type: interactive_video_world_model_evaluation
+  status: integrated
+  maturity: contract_ready
+  release_status: experimental
+  open_source_status: experimental
+  official_benchmark_verified: false
+  integration_evidence: false
+  leaderboard_valid: false
+  base_model_dependencies:
+  - video_world_perception_stack
+  source_provenance:
+    official_repo:
+      url: https://github.com/meituan-longcat/WBench
+      provenance: official source; runtime code is vendored in tree under the WorldFoundry runner
+      role: provenance_only_not_runtime_dependency
+    paper:
+      url: https://arxiv.org/abs/2605.25874
+    project_page:
+      url: https://meituan-longcat.github.io/WBench/
+    huggingface_dataset:
+      repo_id: meituan-longcat/WBench
+    huggingface_weights:
+      repo_id: meituan-longcat/WBench-weights
+  input_contract:
+  - case_json
+  - generated_video
+  - multi_turn_actions
+  - optional_precomputed_masks_depth_poses
+  output_contract:
+  - scorecard
+  - raw_metric_table
+  - report_json
+  evaluation_requirements:
+  - Generated videos follow the official work_dirs/<model>/videos/case_<id>_combined.mp4 naming convention.
+  - Execute the checked-in WBench metric runtime through the WorldFoundry benchmark runner, or normalize WBench
+    report.json/per-metric evaluation directories when recomputation has already been completed.
+  - Default metric recomputation uses in-tree WBench runtime code and WorldFoundry-managed base-model assets for
+    SAM/depth/geometry/VLM components, HPSv3, TransNetV2 segment continuity, DreamSim, PAVRM visual plausibility,
+    and MegaSAM pose precompute.
+  requires:
+  - --run-official with --model-name or WORLDFOUNDRY_WBENCH_MODEL_NAME, or --official-results-path <report.json_or_eval_dir>
+    for result normalization
+  - --generated-artifact-dir <generated_videos> when coverage metadata is required
+  blockers:
+  - Leaderboard-valid scores require a complete official report for the full split.
+  data_refs:
+    task_yaml: worldfoundry/data/benchmarks/tasks/external/wbench.yaml
+    hf_dataset_ids:
+    - meituan-longcat/WBench
+  checkpoint_refs: []
+  validation_command:
+  - python
+  - worldfoundry/evaluation/tasks/execution/runners/wbench/run_wbench_official_runner.py
+  - --run-official
+  - --model-name
+  - <model_name>
+  - --phase
+  - report
+  - --generated-artifact-dir
+  - <generated_videos>
+  - --output-dir
+  - <out>
+  - --json
+  runner_availability:
+    available: true
+    runner_target: worldfoundry.evaluation.tasks.contracts.external:WBenchContract
+    runner_script_available: true
+    task_yaml_available: true
+    runtime_verified: true
+    surface: official_runner
+    normalizer_verified: true
+  artifact_layout:
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+    output_artifact: benchmark_scorecard
+    filename_template: scorecard.json
+  runtime:
+    kind: in_tree_official_runtime
+    root: worldfoundry/evaluation/tasks/execution/runners/wbench
+    runtime_root: worldfoundry/evaluation/tasks/execution/runners/wbench/runtime/wbench
+    root_env: WORLDFOUNDRY_WBENCH_ROOT
+    results_path_env: WORLDFOUNDRY_WBENCH_RESULTS_PATH
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  metric_protocol:
+    metric_ids:
+    - aesthetic_quality
+    - imaging_quality
+    - temporal_flickering
+    - dynamic_degree
+    - motion_smoothness
+    - hpsv3_quality
+    - scene_adherence
+    - subject_adherence
+    - navigation_trajectory
+    - event_edit_adherence
+    - subject_action_adherence
+    - perspective_switch_adherence
+    - background_consistency
+    - segment_continuity
+    - perspective_consistency
+    - subject_consistency
+    - geometric_consistency
+    - photometric_consistency
+    - spatial_consistency
+    - gated_spatial_consistency
+    - visual_plausibility
+    - causal_fidelity
+    - quality_score
+    - setting_score
+    - interaction_score
+    - consistency_score
+    - physical_score
+    - wbench_average
+    primary_metric: wbench_average
+  local_evaluator:
+    target: worldfoundry/evaluation/tasks/execution/runners/wbench/run_wbench_official_runner.py
+    status: implemented
+    protocol: official_wbench_in_tree_runtime
+    official_result_normalization:
+      status: implemented
+      input_keys:
+      - official_results_path
+      - WORLDFOUNDRY_WBENCH_RESULTS_PATH
+      formats:
+      - json
+      provenance: normalizes WBench report.json or per-metric evaluation directories when --run-official is not used
+  runner:
+    validation_command:
+    - worldfoundry-eval
+    - zoo
+    - benchmark-run
+    - --benchmark-id
+    - wbench
+    - --mode
+    - official-validation
+    - --official-results-path
+    - <report.json>
+    - --generated-artifact-dir
+    - <generated_videos>
+    - --output-dir
+    - <out>
+    - --json
+    runtime:
+      results_path_env: WORLDFOUNDRY_WBENCH_RESULTS_PATH
+    official_validation_command: worldfoundry-eval zoo benchmark-run --benchmark-id wbench --mode official-validation --official-results-path <report.json> --generated-artifact-dir <generated_videos> --output-dir <out> --json
+  integration_status: integrated
+  checkpoint_refs:
+  - repo_id: meituan-longcat/WBench-weights
+    repo_type: model
+    role: metric_weights
+tasks:
+  wbench_standard:
+    benchmark_name: wbench
+    protocol: external_official_benchmark
+    capability_track: interactive_video_world_model
+    schema_type: generated_artifact_set
+    input_keys:
+    - case_json
+    - generated_video
+    - multi_turn_actions
+    output_keys:
+    - scorecard
+    - raw_metric_table
+    - report_json
+    metric_ids:
+    - aesthetic_quality
+    - imaging_quality
+    - temporal_flickering
+    - dynamic_degree
+    - motion_smoothness
+    - hpsv3_quality
+    - scene_adherence
+    - subject_adherence
+    - navigation_trajectory
+    - event_edit_adherence
+    - subject_action_adherence
+    - perspective_switch_adherence
+    - background_consistency
+    - segment_continuity
+    - perspective_consistency
+    - subject_consistency
+    - geometric_consistency
+    - photometric_consistency
+    - spatial_consistency
+    - gated_spatial_consistency
+    - visual_plausibility
+    - causal_fidelity
+    - quality_score
+    - setting_score
+    - interaction_score
+    - consistency_score
+    - physical_score
+    - wbench_average
+    metric_groups:
+    - wbench_quality
+    - wbench_setting
+    - wbench_interaction
+    - wbench_consistency
+    - wbench_physical
+    tags:
+    - benchmark-zoo
+    - external-official
+    - wbench
+    - interactive-video-world-model
+    metadata:
+      source_kind: benchmark_zoo
+      benchmark_id: wbench
+      official_benchmark_verified: false
+      integration_evidence: false
+      leaderboard_valid: false
+    dataset:
+      hf_dataset_id: meituan-longcat/WBench
+      split: standard
+    runtime_requirements:
+      generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+      results_path_env: WORLDFOUNDRY_WBENCH_RESULTS_PATH
+    artifact_contract:
+      required:
+        generated_video:
+          kind: video
+        case_json:
+          kind: json
+      optional:
+        report_json:
+          kind: json
+    evaluation_protocol:
+    - name: in_tree_official_runtime
+      metric_ids:
+      - aesthetic_quality
+      - imaging_quality
+      - temporal_flickering
+      - dynamic_degree
+      - motion_smoothness
+      - hpsv3_quality
+      - scene_adherence
+      - subject_adherence
+      - navigation_trajectory
+      - event_edit_adherence
+      - subject_action_adherence
+      - perspective_switch_adherence
+      - background_consistency
+      - segment_continuity
+      - perspective_consistency
+      - subject_consistency
+      - geometric_consistency
+      - photometric_consistency
+      - spatial_consistency
+      - gated_spatial_consistency
+      - visual_plausibility
+      - causal_fidelity
+      - quality_score
+      - setting_score
+      - interaction_score
+      - consistency_score
+      - physical_score
+      - wbench_average
+      runner_target: worldfoundry.evaluation.tasks.contracts.external:WBenchContract
+      runner_script: worldfoundry/evaluation/tasks/execution/runners/wbench/run_wbench_official_runner.py

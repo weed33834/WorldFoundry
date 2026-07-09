@@ -1,0 +1,10 @@
+backend: custom_from_pretrained
+checkpoint_path: ${WORLDFOUNDRY_CKPT_DIR}/2toINF--X-VLA-WidowX
+source_repo: ${WORLDFOUNDRY_MODEL_SOURCE_DIR}/X-VLA
+policy_target: models.modeling_xvla:XVLA
+processor_target: models.processing_xvla:XVLAProcessor
+predict_method: predict_action
+torch_dtype: float32
+trust_remote_code: true
+action_contract: xvla_cross_embodiment_action
+runtime_backend: xvla_official_processor_model

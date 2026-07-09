@@ -1,0 +1,27 @@
+schema_version: 2
+model_id: i2vgen-xl
+display_name: I2VGen-XL
+task_family: video_generation
+groups:
+- video
+- image_to_video
+source_repos:
+- url: https://github.com/ali-vilab/i2vgen-xl
+checkpoints:
+- repo_id: ali-vilab/i2vgen-xl
+  role: i2v_checkpoint
+input_schema:
+  prompt: true
+  image: true
+artifact_kind: generated_video
+artifact_filename: i2vgen-xl.mp4
+execution:
+  backend_stage: official_hf_diffusers_runtime
+  runtime_status: official_demo_parity_pending
+  integration_status: integrated
+  pipeline_binding: i2vgen-xl
+integration:
+  status: integrated
+notes:
+- Runtime profile records stable environment, checkpoint, and parameter assumptions
+  only; run readiness is kept in release run manifests.

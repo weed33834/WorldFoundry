@@ -1,0 +1,23 @@
+schema_version: 2
+model_id: spatial-reasoner
+display_name: SpatialReasoner
+task_family: video_generation
+groups: [video, multimodal, spatial_reasoning]
+source_repos:
+- url: https://huggingface.co/ccvl/SpatialReasoner
+checkpoints:
+- repo_id: ccvl/SpatialReasoner
+  role: model_checkpoint
+input_schema:
+  prompt: true
+  image: optional
+  video: optional
+artifact_kind: model_response
+artifact_filename: spatial-reasoner.json
+execution:
+  backend_stage: official_hf_transformers_runtime
+  runtime_status: integrated_checkpoint_required
+  integration_status: integrated
+  pipeline_binding: spatial-reasoner
+integration:
+  status: integrated

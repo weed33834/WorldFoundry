@@ -1,0 +1,85 @@
+schema_version: worldfoundry.official_video_runtime.v1
+model_id: open-sora-plan
+runtime:
+  kind: official_cli
+  backend_quality: in_tree_official_runtime
+  repo_root_candidates:
+  - ${WORLDFOUNDRY_PACKAGE_ROOT}/synthesis/visual_generation/open_sora_plan/open_sora_plan_runtime
+  checkpoint_candidates:
+  - $WORLDFOUNDRY_HFD_ROOT/LanguageBind--Open-Sora-Plan-v1.3.0
+  - $WORLDFOUNDRY_CKPT_DIR/Open-Sora-Plan-v1.3.0
+  - $WORLDFOUNDRY_CKPT_DIR/Open-Sora-Plan-v1.5.0
+  - $WORLDFOUNDRY_HFD_ROOT/LanguageBind--Open-Sora-Plan-v1.5.0
+  preferred_artifact_patterns:
+  - "*_0_gs*.mp4"
+  - "*.mp4"
+  defaults:
+    nproc_per_node: 1
+    master_port: 29521
+    version: v1_3
+    model_subdir: any93x640x640
+    vae_subdir: vae
+    num_frames: 93
+    height: 352
+    width: 640
+    cache_dir: $WORLDFOUNDRY_CKPT_DIR/hf_cache
+    text_encoder_name_1: $WORLDFOUNDRY_CKPT_DIR/mt5-xxl
+    ae: WFVAEModel_D8_4x8x8
+    fps: 18
+    guidance_scale: 7.5
+    num_sampling_steps: 100
+    max_sequence_length: 512
+    sample_method: EulerAncestralDiscrete
+    seed: 1234
+    num_samples_per_prompt: 1
+  command:
+  - "{torchrun}"
+  - "--nproc_per_node"
+  - "{nproc_per_node}"
+  - "--master_port"
+  - "{master_port}"
+  - "-m"
+  - "opensora.sample.sample"
+  - "--model_path"
+  - "{checkpoint_path}/{model_subdir}"
+  - "--version"
+  - "{version}"
+  - "--num_frames"
+  - "{num_frames}"
+  - "--height"
+  - "{height}"
+  - "--width"
+  - "{width}"
+  - "--cache_dir"
+  - "{cache_dir}"
+  - "--text_encoder_name_1"
+  - "{text_encoder_name_1}"
+  - "--ae"
+  - "{ae}"
+  - "--ae_path"
+  - "{checkpoint_path}/{vae_subdir}"
+  - "--text_prompt"
+  - "{prompt}"
+  - "--save_img_path"
+  - "{output_dir}"
+  - "--fps"
+  - "{fps}"
+  - "--guidance_scale"
+  - "{guidance_scale}"
+  - "--num_sampling_steps"
+  - "{num_sampling_steps}"
+  - "--max_sequence_length"
+  - "{max_sequence_length}"
+  - "--sample_method"
+  - "{sample_method}"
+  - "--seed"
+  - "{seed}"
+  - "--num_samples_per_prompt"
+  - "{num_samples_per_prompt}"
+  - "--rescale_betas_zero_snr"
+  - "--prediction_type"
+  - "v_prediction"
+notes:
+- Open-Sora-Plan v1.3.0 is the GPU validation target; v1.5.0 weights are staged for NPU/MindSpeed in the current official release.
+- Defaults mirror the upstream scripts/text_condition/gpu/sample_t2v_v1_3.sh recipe for model, frames, resolution, scheduler, and sampler settings. Studio uses one worker for the single-prompt demo because upstream torchrun parallelism distributes multiple prompts across ranks; set nproc_per_node=8 when passing a prompt file or prompt list.
+- Runtime code is resolved from WorldFoundry's in-tree infer-only port; checkpoint assets use Hugging Face/local cache layout.

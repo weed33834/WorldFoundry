@@ -1,0 +1,180 @@
+id: videoscience-bench
+name: VideoScience-Bench
+benchmark_kind:
+- text-to-video
+- scientific-reasoning
+- physics-chemistry
+domains:
+- science
+- physics
+- chemistry
+- reasoning
+modalities:
+- text
+- video
+status: confirmed_official_code
+official_sources:
+  github:
+    url: https://github.com/hao-ai-lab/VideoScience
+    verified_by: git ls-remote https://github.com/hao-ai-lab/VideoScience HEAD
+    head_sha: 0b3bb2da74388991bf842bca1096a6a25d3c9311
+  paper_url: https://arxiv.org/abs/2512.02942
+  project_page: https://huggingface.co/spaces/lmgame/videoscience-bench/blob/main/README.md
+benchmark_assets:
+  prompt_suite:
+    status: official_repo_data
+evaluation_surface:
+  purpose: Scientific understanding and reasoning benchmark for video generation.
+  requires_science_judge: true
+  metric_protocol:
+    metric_ids:
+    - prompt_consistency
+    - phenomenon_congruency
+    - correct_dynamism
+    - immutability
+    - spatio_temporal_coherence
+    - videoscience_average
+    primary_metric: videoscience_average
+metrics:
+- id: prompt_consistency
+  name: Prompt Consistency
+  description: prompt_consistency normalized benchmark score.
+  higher_is_better: true
+  leaderboard_key: prompt_consistency
+  aggregator: mean
+  output_unit: score
+- id: phenomenon_congruency
+  name: Phenomenon Congruency
+  description: phenomenon_congruency normalized benchmark score.
+  higher_is_better: true
+  leaderboard_key: phenomenon_congruency
+  aggregator: mean
+  output_unit: score
+- id: correct_dynamism
+  name: Correct Dynamism
+  description: correct_dynamism normalized benchmark score.
+  higher_is_better: true
+  leaderboard_key: correct_dynamism
+  aggregator: mean
+  output_unit: score
+- id: immutability
+  name: Immutability
+  description: immutability normalized benchmark score.
+  higher_is_better: true
+  leaderboard_key: immutability
+  aggregator: mean
+  output_unit: score
+- id: spatio_temporal_coherence
+  name: Spatio Temporal Coherence
+  description: spatio_temporal_coherence normalized benchmark score.
+  higher_is_better: true
+  leaderboard_key: spatio_temporal_coherence
+  aggregator: mean
+  output_unit: score
+- id: videoscience_average
+  name: Videoscience Average
+  description: videoscience_average normalized benchmark score.
+  higher_is_better: true
+  leaderboard_key: videoscience_average
+  aggregator: mean
+  output_unit: score
+  primary: true
+runner:
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:VideoScienceBenchContract
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - videoscience-bench
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <official_results.json>
+  - --generated-artifact-dir
+  - <generated_videos>
+  - --output-dir
+  - <out>
+  - --json
+  runtime:
+    kind: in_tree_official_source
+    root: worldfoundry/evaluation/tasks/execution/runners/videoscience_bench/runtime/videoscience_bench
+    repo_url: https://github.com/hao-ai-lab/VideoScience.git
+    repo_revision: 0b3bb2da74388991bf842bca1096a6a25d3c9311
+    root_env: WORLDFOUNDRY_VIDEOSCIENCE_BENCH_ROOT
+    results_path_env: WORLDFOUNDRY_VIDEOSCIENCE_BENCH_RESULTS_PATH
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  expected_artifacts:
+  - scorecard.json
+  - benchmark_contract.json
+  - raw_metric_table.jsonl
+  verification_status: pending
+  notes:
+  - WorldFoundry normalizes caller-provided VideoScience-Bench official result files through the unified benchmark-run 
+    entrypoint.
+  - 'Scorecards remain non-leaderboard setup evidence: official runtime execution, judge assets, and leaderboard parity remain pending.'
+  - Full validation requires generated artifacts for the official prompt/task suite plus upstream scorer or judge 
+    assets.
+  required_env:
+  - WORLDFOUNDRY_VIDEOSCIENCE_BENCH_RESULTS_PATH
+integration:
+  status: integrated
+  blocked_reasons:
+  - Official repository/source metadata and the official-result normalizer are integrated.
+  - Full validation requires generated videos or rollouts for the official prompt/task suite.
+  - Leaderboard parity requires official judge/checkpoint/API assets and normalized upstream result files.
+release_status: experimental
+maturity: contract_ready
+open_source_status: in_tree_runtime
+official_benchmark_verified: false
+integration_evidence: true
+leaderboard_valid: false
+requires:
+- WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+- WORLDFOUNDRY_VIDEOSCIENCE_BENCH_RESULTS_PATH
+- official_results_path or official_results
+- configured VLM judge provider/API key for full official-run mode
+blockers:
+- Official repository/source metadata and the official-result normalizer are integrated.
+- Full validation requires generated videos or rollouts for the official prompt/task suite.
+- Leaderboard parity requires official judge/checkpoint/API assets and normalized upstream result files.
+data_refs:
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/videoscience-bench.yaml
+  in_tree_runtime_paths:
+  - worldfoundry/evaluation/tasks/execution/runners/videoscience_bench/runtime/videoscience_bench
+official_runner_script: 
+  worldfoundry/evaluation/tasks/execution/runners/videoscience_bench/run_videoscience_bench_official_runner.py
+runner_availability:
+  available: true
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:VideoScienceBenchContract
+  runner_script_available: true
+  task_yaml_available: true
+  runtime_verified: true
+  surface: videoscience_bench_official_in_tree
+  normalizer_verified: true
+dataset:
+  not_applicable: true
+  reason: Official benchmark assets are supplied by the source repository or caller-provided generated artifacts; no 
+    Hugging Face dataset is required for this contract entry.
+optional_base_model_dependencies:
+- grounded_depth_segmentation_stack
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- videoscience-bench
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.json>
+- --generated-artifact-dir
+- <generated_videos>
+- --output-dir
+- <out>
+- --json
+checkpoint_refs: []
+artifact_layout:
+  generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  output_artifact: benchmark_scorecard
+  filename_template: scorecard.json

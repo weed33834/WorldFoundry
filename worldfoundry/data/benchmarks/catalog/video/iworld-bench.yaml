@@ -1,0 +1,193 @@
+id: iworld-bench
+name: iWorld-Bench
+benchmark_kind:
+- interactive-world-model
+- action-control
+- camera-control
+- memory
+status: bounded_official_memory_metric_unified_verified_full_suite_pending
+official_sources:
+  project_page: https://iworld-bench.com/
+  github:
+    url: https://github.com/EmbodiedCity/iWorld-Bench
+    verified_by: git ls-remote --symref https://github.com/EmbodiedCity/iWorld-Bench.git HEAD
+    revision: 666cdea0e98ec77c2666074abdc3c01ce4f1eb44
+    license: Apache-2.0
+    status: public
+  huggingface_dataset:
+    repo_id: EmbodiedCity/iWorld-Bench-Dataset
+    verified_by: GET https://huggingface.co/api/datasets/EmbodiedCity/iWorld-Bench-Dataset
+    revision: 530c48cd3d8e9bb20ed685a96521c3a9b68cf6d2
+    private: false
+    gated: false
+    used_storage: 969898245578
+    required_paths:
+    - dataset/all_pack/metadata.csv
+    - dataset/all_pack/camera_following_metadata.csv
+    - dataset/all_pack/assets
+    status: public_released
+  github_attempts:
+  - url: https://github.com/iWorld-Bench/iWorld-Bench
+    verified_by: git ls-remote --symref https://github.com/iWorld-Bench/iWorld-Bench.git HEAD
+    status: not_public_or_not_found
+  - url: https://github.com/iworld-bench/iworld-bench
+    verified_by: git ls-remote --symref https://github.com/iworld-bench/iworld-bench.git HEAD
+    status: not_public_or_not_found
+  huggingface_attempts:
+  - repo_id: iWorld-Bench/iWorld-Bench
+    verified_by: GET https://huggingface.co/api/datasets/iWorld-Bench/iWorld-Bench
+    status: 401_or_not_public
+  - repo_id: iworld-bench/iWorld-Bench
+    verified_by: GET https://huggingface.co/api/datasets/iworld-bench/iWorld-Bench
+    status: 401_or_not_public
+  - repo_id: EmbodiedCity/iWorld-Bench-Dataset
+    verified_by: GET https://huggingface.co/api/datasets/EmbodiedCity/iWorld-Bench-Dataset
+    sha: 530c48cd3d8e9bb20ed685a96521c3a9b68cf6d2
+    private: false
+    gated: false
+    used_storage: 969898245578
+    status: public_released
+    notes: API confirmed released dataset/all_pack files on 2026-05-30.
+  paper_url: unknown_pending_review
+  github_status: public_released
+  license: Apache-2.0
+  access_notes: Official EmbodiedCity/iWorld-Bench code and EmbodiedCity/iWorld-Bench-Dataset assets are public as of
+    2026-05-30. WorldFoundry bounded memory metric execution is verified in the unified runtime; full execution still
+    requires generated videos plus VBench/VIPe metric dependencies.
+benchmark_assets:
+  claimed_dataset:
+    status: public_hf_dataset_released
+    num_video_clips: 330000
+    num_test_tasks: 4900
+    notes: Project page describes 330K video clips and 4.9K test tasks; the released HF dataset includes
+      dataset/all_pack metadata and first-frame assets.
+dataset:
+  name: iWorld-Bench-Dataset
+  repo_id: EmbodiedCity/iWorld-Bench-Dataset
+  revision: 530c48cd3d8e9bb20ed685a96521c3a9b68cf6d2
+  root_env: WORLDFOUNDRY_IWORLD_BENCH_DATASET_ROOT
+  required_paths:
+  - dataset/all_pack/metadata.csv
+  - dataset/all_pack/camera_following_metadata.csv
+  - dataset/all_pack/assets
+metrics:
+- id: image_quality
+  name: Image Quality
+  primary: false
+- id: brightness_consistency
+  name: Brightness Consistency
+  primary: false
+- id: color_temperature_constraint
+  name: Color Temperature Constraint
+  primary: false
+- id: sharpness_retention
+  name: Sharpness Retention
+  primary: false
+- id: motion_smoothness
+  name: Motion Smoothness
+  primary: false
+- id: trajectory_accuracy
+  name: Trajectory Accuracy
+  primary: false
+- id: trajectory_tolerance
+  name: Trajectory Tolerance
+  primary: false
+- id: memory_symmetry
+  name: Memory Symmetry
+  primary: false
+- id: trajectory_alignment
+  name: Trajectory Alignment
+  primary: false
+- id: iworldbench_average
+  name: iWorld-Bench Average
+  primary: true
+runner:
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:IWorldBenchContract
+  run_command: PYTHONPATH=. "${WORLDFOUNDRY_UNIFIED_PYTHON:-python}"
+    worldfoundry/evaluation/tasks/execution/runners/iworldbench/run_iworldbench_official_runner.py --run-official
+    --generated-videos-dir "${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}" --metric
+    "${WORLDFOUNDRY_IWORLD_BENCH_METRIC:-all}" --output-dir "${WORLDFOUNDRY_BENCHMARK_OUTPUT_DIR}" --json
+  validation_command: PYTHONPATH=. "${WORLDFOUNDRY_UNIFIED_PYTHON:-python}"
+    worldfoundry/evaluation/tasks/execution/runners/iworldbench/run_iworldbench_official_runner.py --run-official
+    --generated-videos-dir "${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}" --metric
+    "${WORLDFOUNDRY_IWORLD_BENCH_METRIC:-memory}" --output-dir "${WORLDFOUNDRY_BENCHMARK_OUTPUT_DIR}" --json
+  verification_status: verified
+  runtime:
+    kind: in_tree_official_runner
+    root_env: WORLDFOUNDRY_IWORLD_BENCH_ROOT
+    root_env_required: false
+    dataset_root_env: WORLDFOUNDRY_IWORLD_BENCH_DATASET_ROOT
+    generated_video_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+    results_path_env: WORLDFOUNDRY_IWORLD_BENCH_RESULTS_PATH
+    runtime_backend_env: WORLDFOUNDRY_IWORLD_BENCH_RUNTIME_BACKEND
+  expected_artifacts:
+  - scorecard.json
+  - raw_metric_table.jsonl
+  - upstream_command.json
+  notes:
+  - Official runner wrapper normalizes iWorld-Bench report CSV/JSON outputs into WorldFoundry scorecards.
+  - Full official execution requires generated videos, bundled or user-supplied dataset metadata, and the WorldFoundry
+    VBench/VIPe checkpoint assets.
+integration:
+  status: integrated
+  limitations:
+  - Leaderboard-grade claims require full generated-video coverage and official metric dependencies.
+  - Full `memory_ability`, trajectory, action-control, and camera-following paths require VIPe/VBench assets; bounded
+    `memory` metric execution is verified.
+release_status: experimental
+maturity: verified_runner
+open_source_status: experimental
+official_benchmark_verified: false
+integration_evidence: false
+leaderboard_valid: false
+requires:
+- In-tree iWorld-Bench metric runtime, or optional WORLDFOUNDRY_IWORLD_BENCH_ROOT override
+- EmbodiedCity/iWorld-Bench-Dataset, or bundled metadata for prompt materialization
+- Generated videos for the requested task split
+- WorldFoundry VBench and VIPe runtime assets for full official execution beyond bounded memory metric
+blockers:
+- Full official GPU execution beyond the bounded memory metric requires the WorldFoundry VIPe and VBench checkpoint assets.
+data_refs:
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/iworld-bench.yaml
+  official_repo: https://github.com/EmbodiedCity/iWorld-Bench
+  dataset_repo: EmbodiedCity/iWorld-Bench-Dataset
+  dataset_revision: 530c48cd3d8e9bb20ed685a96521c3a9b68cf6d2
+runner_availability:
+  available: true
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:IWorldBenchContract
+  runner_script_available: true
+  task_yaml_available: true
+  runtime_verified: true
+  surface: bounded_official_memory_metric
+  normalizer_verified: false
+official_gpu_validation:
+  status: verified
+  scope: bounded_official_memory_metric
+  metric: memory
+  generated_video_count: 2
+  metrics_available: 2
+  official_benchmark_verified: true
+  integration_evidence: true
+  leaderboard_valid: false
+  full_suite_verified: false
+  runtime_env: conda/envs/worldfoundry-unified-cu128
+  python: ${WORLDFOUNDRY_UNIFIED_PYTHON}
+optional_base_model_dependencies:
+- video_world_perception_stack
+- vbench_source_assets
+validation_command:
+- ${WORLDFOUNDRY_UNIFIED_PYTHON}
+- worldfoundry/evaluation/tasks/execution/runners/iworldbench/run_iworldbench_official_runner.py
+- --run-official
+- --generated-videos-dir
+- ${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}
+- --metric
+- memory
+- --output-dir
+- <out>
+- --json
+checkpoint_refs: []
+artifact_layout:
+  generated_artifact_dir_env: WORLDFOUNDRY_IWORLD_BENCH_RESULTS_PATH
+  output_artifact: benchmark_scorecard
+  filename_template: scorecard.json

@@ -1,0 +1,4 @@
+{"task": "video_generation", "human_label": "A>B", "prediction": "A>B", "pair_id": "video-001"}
+{"task": "video_generation", "human_label": "B>A", "prediction": "A>B", "pair_id": "video-002"}
+{"task": "image_generation", "human_label": "A=B=Good", "prediction": "A=B=Good", "pair_id": "image-001"}
+{"task": "image_editing", "human_label": "A>B", "prediction": "B>A", "pair_id": "edit-001"}

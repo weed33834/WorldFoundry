@@ -1,0 +1,50 @@
+id: diamond
+name: DIAMOND
+aliases:
+- diamond-atari
+- diamond-csgo
+tasks:
+- diffusion-world-model
+- reinforcement-learning-world-model
+- game-world-model
+output_artifacts:
+- generated_video
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/eloialonso/diamond
+  license: mit
+official_sources:
+  project_page: https://diamond-wm.github.io/
+  github:
+    url: https://github.com/eloialonso/diamond
+variants:
+- id: diamond-atari
+  task: atari-world-model
+  provider: official_repo
+  integration:
+    status: planned
+- id: diamond-csgo
+  task: game-world-model
+  provider: official_repo
+  integration:
+    status: planned
+integration:
+  status: integrated
+  notes:
+  - WorldFoundry vendors the official DIAMOND play/inference stack in-tree under synthesis/visual_generation/world_model/diamond/diamond_runtime.
+  - Runtime configs are packaged under worldfoundry/data/models/runtime/configs/diamond/config.
+  - Lightweight game/RL world-model candidate; upstream runtime downloads Atari assets on demand.
+  - Jobs can run with a local checkpoint or pretrained=true plus a non-interactive pretrained_game value.
+runner_parity:
+  status: pending
+  notes:
+  - The pipeline resolves the in-tree official play.py entrypoint and constructs the same pretrained/checkpoint command route used by the official repo.
+  - Full generation parity requires staged Atari assets/checkpoints; per-run
+    validation evidence is tracked outside the model catalog.
+runtime_profile: runtime-profile:diamond
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: diamond
+catalog_category: world_models
+catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry runtimes; blocked
+  entries retain upstream provenance without runnable backends.

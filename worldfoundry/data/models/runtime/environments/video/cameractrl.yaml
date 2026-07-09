@@ -1,0 +1,42 @@
+conda_packages:
+- python
+- pip
+- ffmpeg
+cuda_profile: cu113
+driver_status: compatible_with_downgraded_torch
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: cameractrl
+notes:
+- CameraCtrl now has an in-tree WorldFoundry runtime. This env record keeps the cu113-compatible dependency baseline for hosts
+  where the upstream CUDA 11.7 environment is not available.
+pip_packages:
+- torch
+- torchvision
+- torchaudio
+- diffusers
+- huggingface_hub
+- imageio
+- imageio-ffmpeg
+- numpy
+- opencv-python
+- transformers
+- gdown
+- einops
+- decord
+- omegaconf
+- safetensors
+- gradio
+- gradio_client
+- fastapi
+- pydantic
+- socksio
+- setuptools
+- wandb
+- termcolor
+python: '3.10'
+validation_imports:
+- torch
+- diffusers
+- transformers
+- decord

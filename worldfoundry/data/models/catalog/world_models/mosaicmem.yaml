@@ -1,0 +1,35 @@
+id: mosaicmem
+name: MosaicMem
+tasks:
+- world-model
+- memory-augmented-generation
+- video-generation
+output_artifacts:
+- memory_index
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/AbdelStark/mosaicmem
+  license: mit
+official_sources:
+  github:
+    url: https://github.com/AbdelStark/mosaicmem
+    head_sha: 3178e01e3639d7e2e7a487d5d589fd5f53719904
+  project_page: https://mosaicmem.github.io/mosaicmem/
+runtime_profile: runtime-profile:mosaicmem
+integration:
+  status: runtime_ported
+  notes:
+  - MosaicMem source route is registered for memory-plan artifacts; generator assets
+    remain runtime-gated.
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - resolve_model_zoo_config and pipeline import are expected to pass; real generation
+    emits a runtime plan until required checkpoints/assets are staged.
+catalog_category: world_models
+catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry
+  runtimes; request-plan entries expose validated planning surfaces without claiming
+  generated artifacts.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: mosaicmem

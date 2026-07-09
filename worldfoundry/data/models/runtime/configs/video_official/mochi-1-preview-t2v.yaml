@@ -1,0 +1,16 @@
+schema_version: worldfoundry.official_video_runtime.v1
+model_id: mochi-1-preview-t2v
+runtime:
+  kind: diffusers_pipeline
+  backend_quality: official_hf_diffusers_pipeline
+  pipeline_target: diffusers:MochiPipeline
+  checkpoint_candidates:
+  - $WORLDFOUNDRY_CKPT_DIR/mochi-1-preview
+  - $WORLDFOUNDRY_HFD_ROOT/genmo--mochi-1-preview
+  torch_dtype: float16
+  fps: 30
+  call_kwargs:
+    num_frames: 31
+    num_inference_steps: 64
+notes:
+- Uses the official Genmo open-weight checkpoint through the maintained diffusers runtime path.

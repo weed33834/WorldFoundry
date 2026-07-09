@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: cogvideox-5b-i2v
+model_id: cogvideox-5b-i2v
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.cogvideox.pipeline_cogvideox_5b_i2v:CogVideoX5bI2VPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

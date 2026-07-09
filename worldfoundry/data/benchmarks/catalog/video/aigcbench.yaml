@@ -1,0 +1,226 @@
+id: aigcbench
+name: AIGCBench
+benchmark_kind:
+- image-to-video
+- video-generation-quality
+- i2v
+domains:
+- image-to-video
+- motion-quality
+- temporal-consistency
+- alignment
+modalities:
+- image
+- text
+- video
+status: confirmed_official_code
+official_sources:
+  github:
+    url: https://github.com/BenchCouncil/AIGCBench
+    verified_by: git ls-remote https://github.com/BenchCouncil/AIGCBench HEAD
+    head_sha: cc230c8474fdd1af8a7a0749981aa1d09198eaf3
+  paper_url: https://arxiv.org/abs/2401.01651
+  project_page: https://huggingface.co/papers/2401.01651
+  license: apache-2.0
+  access_notes: Official GitHub repository is public under Apache-2.0; HF dataset stevenfan/AIGCBench_v1.0 is public and
+    gated=false under Apache-2.0 metadata.
+benchmark_assets:
+  prompt_suite:
+    status: official_repo_or_dataset_assets
+    notes: Official benchmark assets are obtained from official dataset links or user-provided local assets.
+evaluation_surface:
+  purpose: Comprehensive image-to-video generation evaluation.
+  score_families:
+  - alignment
+  - motion
+  - consistency
+  - quality
+  requires_heavy_metrics: true
+  official_result_normalization: implemented for caller-provided official CSV/JSON outputs
+  blocked_without_required_inputs:
+  - official_results_path or official_results
+  - reference_image_dir for first-frame image fidelity metrics
+  - reference videos for reference-video metrics
+  - generated_video artifacts for the official prompt suite
+  - CLIP/DOVER/optical-flow scorer outputs
+metrics:
+- id: mse_first
+  name: Mse First
+  description: AIGCBench MSE between the condition image and first generated frame; lower is better.
+  higher_is_better: false
+  leaderboard_key: mse_first
+  aggregator: mean
+  output_unit: score
+- id: ssim_first
+  name: Ssim First
+  description: AIGCBench SSIM between the condition image and first generated frame.
+  higher_is_better: true
+  leaderboard_key: ssim_first
+  aggregator: mean
+  output_unit: score
+- id: image_genvideo_clip
+  name: Image Genvideo Clip
+  description: AIGCBench CLIP similarity between condition image and generated video.
+  higher_is_better: true
+  leaderboard_key: image_genvideo_clip
+  aggregator: mean
+  output_unit: score
+- id: genvideo_text_clip
+  name: Genvideo Text Clip
+  description: AIGCBench CLIP similarity between generated video and text prompt.
+  higher_is_better: true
+  leaderboard_key: genvideo_text_clip
+  aggregator: mean
+  output_unit: score
+- id: genvideo_refvideo_clip_keyframes
+  name: Genvideo Refvideo Clip Keyframes
+  description: AIGCBench CLIP similarity between generated and reference video keyframes.
+  higher_is_better: true
+  leaderboard_key: genvideo_refvideo_clip_keyframes
+  aggregator: mean
+  output_unit: score
+- id: flow_square_mean
+  name: Flow Square Mean
+  description: AIGCBench optical-flow square mean for generated video motion effects.
+  higher_is_better: true
+  leaderboard_key: flow_square_mean
+  aggregator: mean
+  output_unit: score
+- id: genvideo_refvideo_clip_corresponding_frames
+  name: Genvideo Refvideo Clip Corresponding Frames
+  description: AIGCBench CLIP similarity for generated and reference corresponding frames.
+  higher_is_better: true
+  leaderboard_key: genvideo_refvideo_clip_corresponding_frames
+  aggregator: mean
+  output_unit: score
+- id: genvideo_clip_adjacent_frames
+  name: Genvideo Clip Adjacent Frames
+  description: AIGCBench adjacent-frame CLIP similarity for temporal consistency.
+  higher_is_better: true
+  leaderboard_key: genvideo_clip_adjacent_frames
+  aggregator: mean
+  output_unit: score
+- id: frame_count
+  name: Frame Count
+  description: AIGCBench generated video frame count.
+  higher_is_better: true
+  leaderboard_key: frame_count
+  aggregator: mean
+  output_unit: score
+- id: dover
+  name: Dover
+  description: AIGCBench DOVER video quality score.
+  higher_is_better: true
+  leaderboard_key: dover
+  aggregator: mean
+  output_unit: score
+- id: genvideo_refvideo_ssim
+  name: Genvideo Refvideo Ssim
+  description: AIGCBench SSIM between generated and reference videos.
+  higher_is_better: true
+  leaderboard_key: genvideo_refvideo_ssim
+  aggregator: mean
+  output_unit: score
+- id: aigcbench_average
+  name: Aigcbench Average
+  description: AIGCBench official aggregate when supplied by the official scorer or normalized output.
+  higher_is_better: true
+  leaderboard_key: aigcbench_average
+  aggregator: mean
+  output_unit: score
+  primary: true
+runner:
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:AIGCBenchContract
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - aigcbench
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <official_results.csv>
+  - --generated-artifact-dir
+  - <generated_videos>
+  - --output-dir
+  - <out>
+  - --json
+  runtime:
+    kind: in_tree_artifact_metric_importer
+    results_path_env: WORLDFOUNDRY_AIGCBENCH_RESULTS_PATH
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  expected_artifacts:
+  - scorecard.json
+  - benchmark_contract.json
+  - raw_metric_table.jsonl
+  verification_status: in_tree_artifact_import_ready
+  notes:
+  - WorldFoundry materializes HF dataset prompt lists and normalizes caller-provided AIGCBench metric outputs.
+  - Workspace and TUI generate videos through WorldFoundry model integrations; this runner imports metric artifacts and
+    writes scorecards.
+  - Full leaderboard validation still requires generated videos, reference assets, and CLIP/DOVER/flow metric outputs.
+integration:
+  status: integrated
+  blocked_reasons:
+  - Official repository/source metadata and official-result normalizer are integrated.
+  - Full validation requires generated videos or rollouts for the official prompt/task suite.
+  - Leaderboard parity requires official judge/checkpoint/API assets and normalized metric result files.
+release_status: experimental
+maturity: contract_ready
+open_source_status: experimental
+official_benchmark_verified: false
+integration_evidence: true
+leaderboard_valid: false
+requires:
+- WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+- Official benchmark assets and generated artifacts
+- official_results_path or official_results
+- reference_image_dir for first-frame image fidelity metrics
+- reference videos for reference-video metrics
+- generated_video artifacts for the official prompt suite
+- CLIP/DOVER/optical-flow scorer outputs
+blockers:
+- Official repository/source metadata and official-result normalizer are integrated.
+- Full validation requires generated videos or rollouts for the official prompt/task suite.
+- Leaderboard parity requires official judge/checkpoint/API assets and normalized metric result files.
+data_refs:
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/aigcbench.yaml
+  bundled_assets: worldfoundry/data/benchmarks/assets/aigcbench
+  official_repo: provenance only; runtime uses WorldFoundry-integrated generation and in-tree metric normalization
+runner_availability:
+  available: true
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:AIGCBenchContract
+  runner_script_available: true
+  task_yaml_available: true
+  runtime_verified: true
+  surface: aigcbench_official_in_tree
+  normalizer_verified: false
+dataset:
+  not_applicable: true
+  reason: Bundled prompt_suite.json supports request materialization; full HF dataset optional for leaderboard parity.
+base_model_dependencies:
+- video_quality_motion_stack
+base_model_dependency_preflight:
+  status: ready
+  missing: []
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- aigcbench
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.csv>
+- --generated-artifact-dir
+- <generated_videos>
+- --output-dir
+- <out>
+- --json
+checkpoint_refs: []
+artifact_layout:
+  generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  output_artifact: benchmark_scorecard
+  filename_template: scorecard.json

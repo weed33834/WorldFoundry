@@ -1,0 +1,16 @@
+artifact_filename: pixelsplat.ply
+artifact_kind: generated_3d_asset
+backend_stage: in_tree_runtime
+id: pixelsplat
+input_schema:
+  actions:
+  - view_sequence
+  image: true
+  prompt: false
+integration_status: planned
+notes:
+- WorldFoundry vendors the pixelSplat runtime under worldfoundry/base_models/three_dimensions/point_clouds/pixelsplat_runtime
+  and registers a lazy wrapper.
+- Actual inference requires a locally provided Gaussian rasterization extension
+  and a staged re10k.ckpt checkpoint.
+runtime_status: in_tree_pixelsplat_runtime_blocked_on_local_extension

@@ -1,0 +1,33 @@
+id: vggt-world
+name: VGGT-World
+tasks:
+- world-model
+- 3d-scene-understanding
+- video-generation
+output_artifacts:
+- generated_world
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/SimonSun0810/VGGT-World
+  license: manual_review:missing_root_license
+official_sources:
+  paper: https://arxiv.org/pdf/2603.12655
+  github:
+    url: https://github.com/SimonSun0810/VGGT-World
+    head_sha: c90f5ee289036277fe75a69aa96418c04ccd5cc7
+runtime_profile: runtime-profile:vggt-world
+integration:
+  status: runtime_ported
+  notes:
+  - VGGT-World official source route is registered; checkpoints/assets are runtime-gated.
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - resolve_model_zoo_config and pipeline import are expected to pass; real generation
+    emits a runtime plan until required checkpoints/assets are staged.
+catalog_category: world_models
+catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry
+  runtimes; blocked entries retain upstream provenance without runnable backends.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: vggt-world

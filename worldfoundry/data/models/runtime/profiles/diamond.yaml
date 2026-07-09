@@ -1,0 +1,29 @@
+schema_version: 2
+model_id: diamond
+display_name: DIAMOND
+task_family: world_model
+groups:
+- world
+- game
+source_repos:
+- url: https://github.com/eloialonso/diamond
+input_schema:
+  prompt: true
+  image: true
+  video: true
+  actions:
+  - game_action
+  - atari_action
+artifact_kind: generated_world
+artifact_filename: diamond.mp4
+execution:
+  backend_stage: in_tree_runtime_manifest
+  runtime_status: in_tree_runtime_manifest_command_preflight_ready
+  integration_status: integrated
+  pipeline_binding: diamond
+integration:
+  status: integrated
+notes:
+- DIAMOND official play/inference source is vendored in-tree under synthesis/visual_generation/world_model/diamond/diamond_runtime.
+- Runtime configs live under data/models/runtime/configs/diamond/config; execution
+  uses either a local weights file or pretrained=true with a non-interactive pretrained_game.

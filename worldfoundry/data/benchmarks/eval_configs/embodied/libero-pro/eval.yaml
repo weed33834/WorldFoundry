@@ -1,0 +1,15 @@
+id: libero_pro_eval
+output_dir: ./results/libero_pro_eval
+model_id: external-policy-server
+server:
+  url: ws://localhost:8000
+benchmark_id: libero-pro
+benchmark_kwargs:
+  suite: libero_spatial_with_mug
+  seed: 7
+  num_steps_wait: 10
+episodes_per_task: 50
+max_tasks: 10
+metric_ids:
+  - task_success
+  - success_rate

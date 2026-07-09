@@ -1,0 +1,10 @@
+metric_id,score
+static_quality,0.8
+temporal_quality,0.7
+overall_alignment,0.9
+fine_grained_alignment,0.6
+clip_score,0.5
+blip_score,0.4
+fid,0.3
+fvd,0.2
+fetv_average,0.55

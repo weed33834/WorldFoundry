@@ -1,0 +1,162 @@
+id: visual-chronometer
+name: Visual Chronometer
+benchmark_kind:
+- video-metric
+- temporal-consistency
+- frame-rate-audit
+domains:
+- temporal-consistency
+- motion-quality
+- chronometric-hallucination
+modalities:
+- video
+status: confirmed_official_code
+official_sources:
+  github:
+    url: https://github.com/taco-group/Visual_Chronometer
+    verified_by: git ls-remote --symref https://github.com/taco-group/Visual_Chronometer.git HEAD
+    default_branch: main
+    head_sha: 0dc1fd68641f476f18e76c9d1d0931278c02a386
+  huggingface_models:
+  - repo_id: xiangbog/Visual_Chronometer
+    verified_by: GET https://huggingface.co/api/models/xiangbog/Visual_Chronometer
+    filename: vc_common_10_60fps.ckpt
+evaluation_surface:
+  purpose: Predict Physical FPS (PhyFPS) from arbitrary generated or real videos.
+  requires_api: false
+  requires_metric_runtime: true
+metrics:
+- id: mean_phyfps
+  name: Mean PhyFPS
+  description: Mean average PhyFPS across evaluated videos.
+  higher_is_better: false
+  leaderboard_key: mean_phyfps
+  aggregator: mean
+  output_unit: fps
+- id: inter_video_cv
+  name: Inter-video CV
+  description: Cross-video coefficient of variation over average PhyFPS.
+  higher_is_better: false
+  leaderboard_key: inter_video_cv
+  aggregator: mean
+  output_unit: ratio
+- id: intra_video_cv
+  name: Intra-video CV
+  description: Mean within-video coefficient of variation over sliding-window clips.
+  higher_is_better: false
+  leaderboard_key: intra_video_cv
+  aggregator: mean
+  output_unit: ratio
+- id: visual_chronometer_average
+  name: Visual Chronometer Average
+  description: Mean over available Visual Chronometer consistency score families.
+  higher_is_better: false
+  leaderboard_key: visual_chronometer_average
+  aggregator: mean
+  output_unit: score
+  primary: true
+runner:
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:VisualChronometerContract
+  official_runner_script: 
+    worldfoundry/evaluation/tasks/execution/runners/phyfps_bench_gen/run_visual_chronometer_official_runner.py
+  run_command: PYTHONPATH=. "${WORLDFOUNDRY_UNIFIED_PYTHON:-python}" 
+    worldfoundry/evaluation/tasks/execution/runners/phyfps_bench_gen/run_visual_chronometer_official_runner.py 
+    --run-official --generated-artifact-dir "${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}" --output-dir 
+    "${WORLDFOUNDRY_BENCHMARK_OUTPUT_DIR}" --json
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - visual-chronometer
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <results.csv>
+  - --generated-artifact-dir
+  - <generated_videos>
+  - --output-dir
+  - <out>
+  - --json
+  runtime:
+    kind: in_tree_official_runtime
+    repo_url: https://github.com/taco-group/Visual_Chronometer.git
+    repo_revision: 0dc1fd68641f476f18e76c9d1d0931278c02a386
+    root: worldfoundry/evaluation/tasks/execution/runners/phyfps_bench_gen/runtime/visual_chronometer
+    optional_root_env: WORLDFOUNDRY_VISUAL_CHRONOMETER_ROOT
+    results_path_env: WORLDFOUNDRY_VISUAL_CHRONOMETER_RESULTS_PATH
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  expected_artifacts:
+  - scorecard.json
+  - benchmark_contract.json
+  - raw_metric_table.jsonl
+  - results.csv
+  - per_sample_scores.jsonl
+  verification_status: official_runtime_ready
+  notes:
+  - WorldFoundry runs Visual Chronometer PhyFPS prediction in-process via the checked-in runtime wrapper.
+  - Use WORLDFOUNDRY_VISUAL_CHRONOMETER_PREDICT_BACKEND to select the local prediction backend.
+  required_env:
+  - WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  optional_env:
+  - WORLDFOUNDRY_VISUAL_CHRONOMETER_ROOT
+  - WORLDFOUNDRY_VISUAL_CHRONOMETER_PREDICT_BACKEND
+  - WORLDFOUNDRY_VISUAL_CHRONOMETER_RESULTS_PATH
+  - WORLDFOUNDRY_VISUAL_CHRONOMETER_STRICT
+integration:
+  status: integrated
+  evidence:
+    normalizer_surface: visual_chronometer_official_in_tree
+    framework_validation: worldfoundry-eval zoo benchmark-run --benchmark-id visual-chronometer --mode 
+      official-validation --official-results-path <results.csv> --generated-artifact-dir <generated_videos> --output-dir
+      <out> --json
+    official_runtime: worldfoundry-eval zoo benchmark-run --benchmark-id visual-chronometer --mode official-run 
+      --generated-artifact-dir <generated_videos> --output-dir <out> --json
+release_status: experimental
+maturity: contract_ready
+open_source_status: in_tree_runtime
+official_benchmark_verified: false
+integration_evidence: true
+leaderboard_valid: false
+requires:
+- WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+- Visual Chronometer checkpoint assets for full official prediction
+framework_acceptance:
+- Visual Chronometer integration is OK when in-tree PhyFPS prediction or caller-supplied results.csv and generated 
+  videos pass strict coverage checks and all declared metrics are normalized.
+runner_availability:
+  available: true
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:VisualChronometerContract
+  runner_script_available: true
+  task_yaml_available: true
+  runtime_verified: true
+  credential_gated: false
+  framework_ready: true
+  surface: visual_chronometer_official_in_tree
+  normalizer_verified: false
+data_refs:
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/visual-chronometer.yaml
+  in_tree_runtime_paths:
+  - worldfoundry/evaluation/tasks/execution/runners/phyfps_bench_gen/runtime/visual_chronometer
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- visual-chronometer
+- --mode
+- official-validation
+- --official-results-path
+- <results.csv>
+- --generated-artifact-dir
+- <generated_videos>
+- --output-dir
+- <out>
+- --json
+checkpoint_refs: []
+blockers:
+- Full leaderboard parity requires the complete official assets, generated artifacts, and verified scorecard evidence.
+artifact_layout:
+  generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  output_artifact: benchmark_scorecard
+  filename_template: scorecard.json

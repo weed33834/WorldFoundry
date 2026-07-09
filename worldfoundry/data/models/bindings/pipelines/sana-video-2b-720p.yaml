@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: sana-video-2b-720p
+model_id: sana-video-2b-720p
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.sana.pipeline_sana:SanaVideo2b720pPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

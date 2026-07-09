@@ -1,0 +1,35 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+aliases:
+- diffusion_policy
+- dp
+availability: open_source
+id: diffusion-policy
+integration:
+  notes:
+  - Low-dimensional PushT Diffusion Policy runtime is vendored in-tree.
+  - The in-tree runtime includes an inference-only TrainDiffusionUnetLowdimWorkspace loader for official checkpoint configs.
+  - The checkpoint-backed policy.predict_action route emits the configured low-dimensional PushT action schema.
+  status: integrated
+name: Diffusion Policy
+official_sources:
+  github:
+    head_sha: 5ba07ac6661db573af695b419a7947ecb704690f
+    url: https://github.com/real-stanford/diffusion_policy
+pipeline_binding: diffusion-policy
+provider: official_repo
+runtime_profile: runtime-profile:diffusion-policy
+tasks:
+- visuomotor_policy
+- robot_policy
+- action_diffusion
+- policy_rollout
+runner_parity:
+  notes:
+  - Verified through the in-tree low-dimensional PushT runtime using the official TrainDiffusionUnetLowdimWorkspace checkpoint
+    target.
+  - Per-run action trace evidence is tracked outside the model catalog.
+  status: verified
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata, and runtime-profile
+  planning records. Runner or pipeline targets are present only after a complete in-tree WorldFoundry model runtime is registered
+  and validated.

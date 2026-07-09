@@ -1,0 +1,88 @@
+id: mochi-1
+name: Mochi-1
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: mochi-1
+runtime_profile: runtime-profile:mochi-1-preview-t2v
+tasks:
+- text-to-video
+source_status:
+  status: confirmed_official_github
+  github:
+    url: https://github.com/genmoai/models
+    verified_by: git ls-remote --symref https://github.com/genmoai/models.git HEAD
+    default_branch: main
+    head_sha: 0c86aebf386e6622deadfb47ff1996878cefc0ac
+checkpoint:
+  status: confirmed_public_hf
+  verified_by: GET https://huggingface.co/api/models/<repo_id>
+  repos:
+  - id: genmo/mochi-1-preview
+    sha: 14be5fcea23095ed330cb214647916a451e38b6e
+    license: apache-2.0
+    private: false
+    gated: false
+    tasks:
+    - text-to-video
+  notes: A similarly named diffusers repo candidate returned 401 and is not listed.
+variants:
+- id: mochi-1-preview-t2v
+  task: text-to-video
+  provider: official_repo
+  checkpoint_refs:
+  - repo_id: genmo/mochi-1-preview
+    revision: 14be5fcea23095ed330cb214647916a451e38b6e
+    license: apache-2.0
+    private: false
+    gated: false
+  runtime_profile: mochi-1-preview-t2v
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: mochi-1-preview-t2v
+  integration:
+    status: integrated
+  demo_parity:
+    status: pending
+    notes:
+    - The WorldFoundry route is wired with the local genmo/mochi-1-preview checkpoint.
+    - Full official 31-frame / 64-step Mochi preview parity remains pending.
+    demo_command:
+    - bash
+    - scripts/model_zoo/run_mochi1_preview_official_demo.sh
+    expected_artifacts:
+    - mochi1_preview_seed12345_848x480_31f.mp4
+  runner_parity:
+    status: pending
+demo_parity:
+  status: pending
+  demo_command:
+  - bash
+  - scripts/model_zoo/run_mochi1_preview_official_demo.sh
+  expected_artifacts:
+  - mochi1_preview_seed12345_848x480_31f.mp4
+  official_repo_dir: tmp/model_zoo/repos/github.com_genmoai_models
+  checkpoint_repo_id: genmo/mochi-1-preview
+  checkpoint_snapshot: 14be5fcea23095ed330cb214647916a451e38b6e
+  notes:
+  - Official Mochi-1 preview CLI parity command is wired with fixed prompt, seed,
+    resolution, frame count, CFG scale, and step count, but the full 31-frame /
+    64-step official quality run remains pending.
+integration:
+  status: integrated
+  notes:
+  - WorldFoundry route is complete; missing checkpoint/assets are reported at runtime.
+runner_parity:
+  status: pending
+  notes:
+  - WorldFoundry runner path is wired for the official preview checkpoint.
+  - Full official runner parity remains pending.
+notes: Official GitHub org is genmoai; official HF org is genmo.
+catalog_category: video
+catalog_scope: Official GitHub and/or Hugging Face confirmed open-source or open-weight
+  video generation models. Checkpoints are not tracked in git; local validation may
+  download selected repos under cache/hfd.
+catalog_policy:
+  github: Validated with git ls-remote, preferring git ls-remote --symref <repo>.git
+    HEAD for default branch and HEAD SHA.
+  huggingface: Validated with the Hugging Face /api/models endpoint. Recorded repo
+    id, sha, private, gated, license, and selected task tags only.
+  parity: This manifest does not claim WorldFoundry runtime parity unless an explicit
+    parity run and expected artifact are recorded.

@@ -1,0 +1,56 @@
+id: dvlt
+name: "D\xE9j\xE0 View Looping Transformer"
+aliases:
+- deja-view
+- dejaview
+- deja-view-looping-transformer
+- nvidia/dvlt
+tasks:
+- 3d-reconstruction
+- multi-view-reconstruction
+- camera-pose-estimation
+- depth-estimation
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/nv-tlabs/dvlt
+  hf_repo_id: nvidia/dvlt
+  license: apache-2.0
+official_sources:
+  project_page: https://research.nvidia.com/labs/dvl/projects/dvlt/
+  paper: https://arxiv.org/abs/2605.30215
+  github:
+    url: https://github.com/nv-tlabs/dvlt
+    revision: 265fe618db34a0be77441127ee5a57237a3ecccc
+  huggingface:
+  - repo_id: nvidia/dvlt
+    status: confirmed
+    license: nvidia-noncommercial-research-evaluation
+  license: apache-2.0
+  access_notes: Code is Apache-2.0; the nvidia/dvlt checkpoint is released under NVIDIA
+    non-commercial research/evaluation terms and remains an external asset.
+checkpoint_refs:
+- repo_id: nvidia/dvlt
+  filename: model.safetensors
+  license: nvidia-noncommercial-research-evaluation
+integration:
+  kind: pipeline_runner
+  status: integrated
+  notes:
+  - Runtime source is externalized from the public release tree; checkpoints remain
+    external assets.
+  - DVLTSynthesis provides a lazy WorldFoundry wrapper that runs the external DVLT
+    GLB export path when CUDA, dependencies, source, inputs, and weights are
+    available locally.
+runtime_profile: runtime-profile:dvlt
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: dvlt
+runner_parity:
+  status: pending
+  notes:
+  - Runner registration is wired; GPU parity is pending checkpoint and environment
+    validation.
+catalog_category: three_d_four_d
+catalog_scope: 3D Gaussian-splatting catalog entries. Integrated entries expose in-tree
+  WorldFoundry runtimes; externalized entries retain upstream provenance and runner glue
+  without bundling license-gated source.

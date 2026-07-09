@@ -1,0 +1,80 @@
+model_id: evalcrafter
+env_name: worldfoundry-evalcrafter-metrics
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+python: '3.10'
+cuda_profile: cu118
+driver_status: compatible_benchmark_isolated_cuda118_mmaction_tensorflow_paddleocr
+channels:
+- pytorch
+- conda-forge
+- defaults
+conda_packages:
+- python=3.10
+- pip
+- ffmpeg
+- setuptools
+- wheel
+pip_extra_index_url: https://download.pytorch.org/whl/cu118
+pip_packages:
+- torch==2.1.2
+- torchvision==0.16.2
+- numpy==1.26.4
+- scipy==1.11.4
+- pandas==2.2.2
+- pillow==10.4.0
+- opencv-python==4.8.1.78
+- decord==0.6.0
+- scikit-image==0.22.0
+- scikit-video==1.1.11
+- timm==0.6.13
+- einops==0.8.0
+- open-clip-torch==2.24.0
+- transformers==4.40.2
+- diffusers==0.27.2
+- accelerate==0.29.3
+- safetensors==0.4.3
+- sentencepiece==0.2.0
+- protobuf==3.20.3
+- tensorflow-cpu==2.15.0
+- keras==2.15.0
+- deprecated==1.2.14
+- gdown==5.2.0
+- mtcnn==0.1.1
+- retina-face==0.0.17
+- nltk==3.8.1
+- fastwer==0.1.3
+- cer==1.2.0
+- paddlepaddle==2.6.2
+- paddleocr==2.7.3
+- pycocoevalcap==1.2
+- ftfy==6.2.0
+- regex==2024.5.15
+- requests==2.32.3
+- pyyaml==6.0.2
+- tqdm==4.66.4
+- ipdb==0.13.13
+- openmim==0.3.9
+pythonpath_dirs:
+- worldfoundry/base_models/perception_core/face/deepface
+- worldfoundry/base_models/perception_core/video_quality/dover
+validation_imports:
+- worldfoundry
+- torch
+- torchvision
+- tensorflow
+- cv2
+- decord
+- skvideo
+- paddleocr
+- mmengine
+- mmaction
+- deepface
+- dover
+- pycocoevalcap
+notes:
+- EvalCrafter full official scoring is intentionally isolated from the unified inference environment because it needs
+  TensorFlow/DeepFace, PaddleOCR, DOVER/scikit-video, and MMAction2/MMCV action-recognition dependencies.
+- The profile keeps only the concrete VideoMAE config and Kinetics-400 label map in `base_models`; MMAction2 remains an
+  environment dependency installed by the setup script, not vendored framework source.
+- The environment is for official metric execution. Normalizing an existing EvalCrafter `final_result.txt` works in the
+  unified environment and does not require this profile.

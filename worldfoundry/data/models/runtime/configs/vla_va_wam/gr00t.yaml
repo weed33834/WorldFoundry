@@ -1,0 +1,6 @@
+default_variant: libero_10
+torch_dtype: bfloat16
+seed: 0
+variants:
+  libero_10:
+    embodiment_tag: LIBERO_PANDA

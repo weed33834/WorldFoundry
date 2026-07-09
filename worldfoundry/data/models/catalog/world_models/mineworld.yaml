@@ -1,0 +1,33 @@
+id: mineworld
+name: MineWorld
+tasks:
+- interactive-world-model
+- minecraft-world-model
+- action-conditioned-video
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/microsoft/mineworld
+  license: mit
+official_sources:
+  paper: https://arxiv.org/abs/2504.08388
+  github:
+    url: https://github.com/microsoft/mineworld
+integration:
+  status: runtime_ported
+  blocked_reasons:
+  - Official source is vendored in-tree under synthesis/visual_generation; runnable execution still requires the official
+    dependency environment, checkpoints, and validation/demo data.
+  notes:
+  - WorldFoundry registers an in-tree runtime manifest pipeline for the vendored MineWorld source.
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - The pipeline resolves the official inference entrypoint and returns blocked runtime diagnostics until checkpoints and
+    validation data are staged.
+runtime_profile: runtime-profile:mineworld
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: mineworld
+catalog_category: world_models
+catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry runtimes; blocked entries retain
+  upstream provenance without runnable backends.

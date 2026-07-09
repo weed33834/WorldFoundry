@@ -1,0 +1,27 @@
+artifact_filename: lapa_action_tokens.json
+artifact_kind: action_tokens
+backend_stage: in_tree_runtime
+checkpoints:
+- local_dir: ${WORLDFOUNDRY_CKPT_DIR}/LAPA-7B-openx
+  repo_id: latent-action-pretraining/LAPA-7B-openx
+  role: openx_latent_action_checkpoint
+id: lapa
+input_schema:
+  actions:
+  - latent_action_tokens
+  - video_context
+  image: true
+  instruction: true
+  prompt: true
+  video: true
+integration_status: runtime_ported
+notes:
+- VA/VAM latent-action profile. It may consume video context, but it is categorized
+  as visual_action_model rather than video generation.
+- Official LAPA-7B-openx assets are staged as action-token model assets, not as video-generation
+  weights.
+- Predicted-video artifacts should be added only by a concrete LAPA runtime runner
+  that emits them.
+runtime_status: in_tree_lapa_7b_openx_jax_gpu_action_tokens_ready
+task_family: visual_action_model
+verification_status: official_demo_jax_gpu_ready

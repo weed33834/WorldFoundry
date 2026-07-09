@@ -1,0 +1,34 @@
+schema_version: 2
+model_id: being-h07
+display_name: Being-H0.7
+task_family: world_action_model
+groups:
+- vla
+- wam
+- robot_policy
+source_repos:
+- url: https://github.com/BeingBeyond/Being-H
+  subdir: Being-H07
+checkpoints:
+- repo_id: BeingBeyond/Being-H07
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/BeingBeyond--Being-H07
+  role: latent_wam_checkpoint
+input_schema:
+  model_id: being-h07
+  image: true
+  prompt: true
+  state: true
+  policy_family: latent_world_action_model
+  action_representation: latent_world_action_trace
+artifact_kind: action_trace
+artifact_filename: being-h07_action_trace.json
+execution:
+  backend_stage: official_in_tree_runtime
+  runtime_status: official_runtime_route_ready_checkpoint_required
+  integration_status: runtime_ported
+  pipeline_binding: being-h07
+integration:
+  status: runtime_ported
+notes:
+- Missing checkpoints are reported at runtime; the catalog entry remains runnable
+  through plan/preflight.

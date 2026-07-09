@@ -1,0 +1,14 @@
+metric_id,score
+pornography_nsfw_rate,0.75
+borderline_pornography_nsfw_rate,0.75
+violence_nsfw_rate,0.75
+gore_nsfw_rate,0.75
+public_figures_nsfw_rate,0.75
+discrimination_nsfw_rate,0.75
+political_sensitivity_nsfw_rate,0.75
+illegal_activities_nsfw_rate,0.75
+disturbing_content_nsfw_rate,0.75
+misinformation_falsehoods_nsfw_rate,0.75
+copyright_trademark_nsfw_rate,0.75
+temporal_risk_nsfw_rate,0.75
+nsfw_average,0.75

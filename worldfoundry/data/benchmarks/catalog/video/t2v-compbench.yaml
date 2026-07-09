@@ -1,0 +1,243 @@
+id: t2v-compbench
+name: T2V-CompBench
+benchmark_kind:
+- text-to-video
+- compositionality
+- prompt-suite
+status: confirmed_official_code_and_hf_data
+open_source_status: in_tree_runtime
+official_benchmark_verified: false
+integration_evidence: true
+leaderboard_valid: false
+requires:
+- WORLDFOUNDRY_T2V_COMPBENCH_CSV_DIR or WORLDFOUNDRY_T2V_COMPBENCH_VIDEO_ROOT
+- WORLDFOUNDRY_T2V_COMPBENCH_ROOT optional override for the bundled code-only runtime
+- WORLDFOUNDRY_T2V_COMPBENCH_DATASET_ROOT
+- WorldFoundry base-model env for Depth-Anything, GroundingDINO, SAM v1, and SAM2
+- MLLM and DOT/tracking runtime for full official metrics
+blockers:
+- Default branch is V2; runner pins the expected prompt schema/version through the manifest revision.
+- Depth/GroundingDINO/SAM are modeled as reusable WorldFoundry base-model dependencies; MLLM and DOT/tracking runtime 
+  remain pending.
+- Official CSV normalization and local dataset/video discovery are wired; full heavy metric execution still requires 
+  generated videos plus prepared upstream MLLM/tracking runtime.
+official_sources:
+  github:
+    url: https://github.com/KaiyueSun98/T2V-CompBench
+    verified_by: GIT_HTTP_VERSION=HTTP/1.1 git ls-remote --symref https://github.com/KaiyueSun98/T2V-CompBench.git HEAD
+    default_branch: V2
+    head_sha: dd5eff7b93af0550b9efa2bdabbb21b3b017ceda
+  project_page: https://t2v-compbench-2025.github.io/
+  huggingface_datasets:
+  - repo_id: Kaiyue/T2V-CompBench-Videos
+    verified_by: GET https://huggingface.co/api/datasets/Kaiyue/T2V-CompBench-Videos
+    sha: 92f9ef4642f244567e8aa2789827ec301500a2ff
+    private: false
+    gated: false
+    license: openrail
+    task_categories:
+    - video-classification
+  paper_url: https://arxiv.org/abs/2407.14505
+  license: unknown_pending_review
+  access_notes: Official GitHub repository is public but GitHub API reports license=null; referenced HF dataset API 
+    returned 401 and needs access review.
+benchmark_assets:
+  prompt_suite:
+    status: confirmed_by_project_page
+    num_prompts: 1400
+    categories: 7
+evaluation_surface:
+  categories:
+  - consistent_attribute_binding
+  - dynamic_attribute_binding
+  - spatial_relationships
+  - motion_binding
+  - action_binding
+  - object_interactions
+  - generative_numeracy
+  metric_types:
+  - MLLM-based
+  - detection-based
+  - tracking-based
+  requires_api: MLLM-based metrics may require external model/API configuration
+  base_model_dependency_ids:
+  - depth_anything_v3
+  - grounding_dino
+  - sam_v1
+  - sam2
+metrics:
+- id: consistent_attribute_binding
+  name: Consistent Attribute Binding
+  description: T2V-CompBench MLLM score for binding static attributes to the correct objects.
+  higher_is_better: true
+  leaderboard_key: consistent_attribute_binding
+  aggregator: mean
+  output_unit: score
+- id: dynamic_attribute_binding
+  name: Dynamic Attribute Binding
+  description: T2V-CompBench MLLM score for temporal attribute changes and bindings.
+  higher_is_better: true
+  leaderboard_key: dynamic_attribute_binding
+  aggregator: mean
+  output_unit: score
+- id: spatial_relationships
+  name: Spatial Relationships
+  description: T2V-CompBench detection/depth score for 2D and 3D spatial relationships.
+  higher_is_better: true
+  leaderboard_key: spatial_relationships
+  aggregator: mean
+  output_unit: score
+- id: motion_binding
+  name: Motion Binding
+  description: T2V-CompBench tracking score for foreground/background motion binding.
+  higher_is_better: true
+  leaderboard_key: motion_binding
+  aggregator: mean
+  output_unit: score
+- id: action_binding
+  name: Action Binding
+  description: T2V-CompBench MLLM score for action-object binding.
+  higher_is_better: true
+  leaderboard_key: action_binding
+  aggregator: mean
+  output_unit: score
+- id: object_interactions
+  name: Object Interactions
+  description: T2V-CompBench MLLM score for interaction consistency between objects.
+  higher_is_better: true
+  leaderboard_key: object_interactions
+  aggregator: mean
+  output_unit: score
+- id: generative_numeracy
+  name: Generative Numeracy
+  description: T2V-CompBench detection score for generated object counts.
+  higher_is_better: true
+  leaderboard_key: generative_numeracy
+  aggregator: mean
+  output_unit: score
+- id: t2v_compbench_average
+  name: T2V-CompBench Average
+  description: Mean over available official T2V-CompBench category scores.
+  higher_is_better: true
+  leaderboard_key: t2v_compbench_average
+  aggregator: mean
+  output_unit: score
+  primary: true
+runner:
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:T2VCompBenchContract
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - t2v-compbench
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <official_results.json>
+  - --generated-artifact-dir
+  - <generated_videos>
+  - --output-dir
+  - <out>
+  - --json
+  run_command:
+  - ${WORLDFOUNDRY_UNIFIED_PYTHON}
+  - worldfoundry/evaluation/tasks/execution/runners/t2v_compbench/run_t2v_compbench_official_runner.py
+  - --category
+  - all
+  - --json
+  required_env:
+  - WORLDFOUNDRY_T2V_COMPBENCH_ROOT optional override for the bundled code-only runtime
+  - WORLDFOUNDRY_T2V_COMPBENCH_DATASET_ROOT
+  - WORLDFOUNDRY_T2V_COMPBENCH_VIDEO_ROOT
+  - WORLDFOUNDRY_T2V_COMPBENCH_RESULTS_PATH
+  expected_artifacts:
+  - scorecard.json
+  - per_sample_scores.jsonl
+  - raw_metric_table.jsonl
+  - leaderboard_csv_manifest.json
+  - generated_video_manifest.json
+  - dataset_manifest.json
+  - upstream_stdout.log
+  - upstream_stderr.log
+  verification_status: pending
+  notes:
+  - Contract runner maps the seven official compositional categories into WorldFoundry scorecard.
+  - Real-data discovery records Kaiyue/T2V-CompBench-Videos default/train with 25200 rows and generated video coverage 
+    under WORLDFOUNDRY_T2V_COMPBENCH_VIDEO_ROOT.
+  - Official wrapper can normalize upstream CSV outputs and can launch individual official category scripts when their 
+    isolated environments and checkpoints are prepared.
+  - Full leaderboard validation still requires complete generated videos plus separate LLaVA, GroundingDINO/SAM, 
+    Depth-Anything, and DOT runtimes.
+  runtime:
+    kind: in_tree_official_source
+    root: worldfoundry/evaluation/tasks/execution/runners/t2v_compbench/runtime/t2v_compbench
+    root_env: WORLDFOUNDRY_T2V_COMPBENCH_ROOT
+    results_path_env: WORLDFOUNDRY_T2V_COMPBENCH_RESULTS_PATH
+integration:
+  status: integrated
+  blocked_reasons:
+  - Default branch is V2; runner must pin expected prompt schema/version.
+  - Requires separate handling for MLLM, detection, and tracking metric dependencies.
+  - Official CSV normalization and local dataset/video discovery are wired; full heavy metric execution still requires 
+    prepared upstream runtimes and checkpoints.
+release_status: experimental
+maturity: contract_ready
+data_refs:
+  local_dataset_paths:
+  - cache/worldfoundry/data/hfd_datasets/Kaiyue/T2V-CompBench-Videos
+  - cache/worldfoundry/data/hfd_datasets/Kaiyue__T2V-CompBench-Videos
+  in_tree_runtime_paths:
+  - worldfoundry/evaluation/tasks/execution/runners/t2v_compbench/runtime/t2v_compbench
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/t2v-compbench.yaml
+runner_availability:
+  available: true
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:T2VCompBenchContract
+  runner_script_available: true
+  task_yaml_available: true
+  runtime_verified: true
+  surface: t2v_compbench_official_in_tree
+  normalizer_verified: true
+base_model_dependencies:
+- grounded_depth_segmentation_stack
+base_model_dependency_preflight:
+  status: ready
+  python: ${WORLDFOUNDRY_CONDA_ROOT}/worldplay/bin/python
+  verified_at: '2026-05-25T07:21:22+00:00'
+  in_tree_capabilities:
+  - depth_anything_v3
+  - grounding_dino
+  - sam_v1
+  - sam2
+  ready_env:
+    WORLDFOUNDRY_DEPTH_ANYTHING_MODEL_DIR: cache/hfd/depth-anything--DA3-LARGE-1.1
+    WORLDFOUNDRY_GROUNDING_DINO_CKPT: cache/hfd/ShilongLiu--GroundingDINO/groundingdino_swint_ogc.pth
+    WORLDFOUNDRY_SAM_VIT_H_CKPT: cache/worldfoundry/assets/worldscore_official/metrics/checkpoints/sam_vit_h_4b8939.pth
+    WORLDFOUNDRY_SAM2_CKPT: cache/hfd/facebook--sam2.1-hiera-base-plus/sam2.1_hiera_base_plus.pt
+  runtime_env:
+    WORLDFOUNDRY_T2V_COMPBENCH_ROOT: worldfoundry/evaluation/tasks/execution/runners/t2v_compbench/runtime/t2v_compbench
+    WORLDFOUNDRY_T2V_COMPBENCH_DATASET_ROOT: cache/worldfoundry/data/hfd_datasets/Kaiyue/T2V-CompBench-Videos
+  profile_blockers:
+  - WORLDFOUNDRY_T2V_COMPBENCH_VIDEO_ROOT
+  - generated_artifact_example_1
+  missing: []
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- t2v-compbench
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.json>
+- --generated-artifact-dir
+- <generated_videos>
+- --output-dir
+- <out>
+- --json
+checkpoint_refs: []
+artifact_layout:
+  generated_artifact_dir_env: WORLDFOUNDRY_T2V_COMPBENCH_RESULTS_PATH
+  output_artifact: benchmark_scorecard
+  filename_template: scorecard.json

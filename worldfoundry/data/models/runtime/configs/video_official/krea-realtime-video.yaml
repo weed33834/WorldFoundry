@@ -1,0 +1,44 @@
+schema_version: worldfoundry.official_video_runtime.v1
+model_id: krea-realtime-video
+runtime:
+  kind: official_cli
+  backend_quality: in_tree_official_runtime
+  repo_root_candidates:
+  - worldfoundry/synthesis/visual_generation/krea_realtime/krea_runtime
+  checkpoint_candidates:
+  - $WORLDFOUNDRY_CKPT_DIR/krea-realtime-video
+  - $WORLDFOUNDRY_HFD_ROOT/krea--krea-realtime-video
+  defaults:
+    model_folder: $WORLDFOUNDRY_CKPT_DIR
+    num_blocks: 2
+    height: 480
+    width: 832
+    fps: 16
+    seed: 42
+  command:
+  - "{python}"
+  - "-m"
+  - "worldfoundry.synthesis.visual_generation.krea_realtime.worldfoundry_runner"
+  - "--repo-root"
+  - "{repo_root}"
+  - "--checkpoint-path"
+  - "{checkpoint_path}/krea-realtime-video-14b.safetensors"
+  - "--model-folder"
+  - "{model_folder}"
+  - "--prompt"
+  - "{prompt}"
+  - "--output-path"
+  - "{output_path}"
+  - "--num-blocks"
+  - "{num_blocks}"
+  - "--height"
+  - "{height}"
+  - "--width"
+  - "{width}"
+  - "--fps"
+  - "{fps}"
+  - "--seed"
+  - "{seed}"
+notes:
+- WorldFoundry vendors the infer-only realtime-video runtime under worldfoundry/synthesis/visual_generation/krea_realtime/krea_runtime.
+- Release runs use the in-tree runtime and Hugging Face/local checkpoint assets.

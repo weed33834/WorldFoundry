@@ -1,0 +1,52 @@
+schema_version: worldfoundry.official_video_runtime.v1
+model_id: framepack
+runtime:
+  kind: official_cli
+  backend_quality: in_tree_official_runtime
+  repo_root_candidates:
+  - ${WORLDFOUNDRY_REPO_ROOT}/worldfoundry/synthesis/visual_generation/framepack/framepack_runtime
+  checkpoint_candidates:
+  - $WORLDFOUNDRY_CKPT_DIR/FramePackI2V_HY
+  - $WORLDFOUNDRY_HFD_ROOT/lllyasviel--FramePackI2V_HY
+  - $WORLDFOUNDRY_HFD_ROOT/lllyasviel--FramePack_F1_I2V_HY_20250503
+  defaults:
+    hf_home: $WORLDFOUNDRY_HFD_ROOT
+    hunyuan_root: $WORLDFOUNDRY_HFD_ROOT/hub/models--hunyuanvideo-community--HunyuanVideo
+    flux_redux_root: $WORLDFOUNDRY_CKPT_DIR/FLUX.1-Redux-dev
+    seconds: 1
+    latent_window_size: 9
+    num_steps: 4
+    seed: 31337
+    gpu_memory_preservation: 6
+  command:
+  - "{python}"
+  - "-m"
+  - "worldfoundry.synthesis.visual_generation.framepack.worldfoundry_runner"
+  - "--repo-root"
+  - "{repo_root}"
+  - "--checkpoint-path"
+  - "{checkpoint_path}"
+  - "--hf-home"
+  - "{hf_home}"
+  - "--hunyuan-root"
+  - "{hunyuan_root}"
+  - "--flux-redux-root"
+  - "{flux_redux_root}"
+  - "--image-path"
+  - "{image_path}"
+  - "--prompt"
+  - "{prompt}"
+  - "--output-path"
+  - "{output_path}"
+  - "--seconds"
+  - "{seconds}"
+  - "--latent-window-size"
+  - "{latent_window_size}"
+  - "--steps"
+  - "{num_steps}"
+  - "--seed"
+  - "{seed}"
+  - "--gpu-memory-preservation"
+  - "{gpu_memory_preservation}"
+notes:
+- Official repo exposes a Gradio entrypoint; WorldFoundry vendors the minimal inference runtime in-tree and wraps the official process function in a non-interactive runner.

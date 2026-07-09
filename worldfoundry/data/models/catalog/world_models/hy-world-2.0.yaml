@@ -1,0 +1,68 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+availability: open_source
+checkpoints:
+- tencent/HY-World-2.0
+family: Tencent Hunyuan / HY-World
+id: hy-world-2.0
+aliases:
+- hyworld2.0
+- hyworld-2.0
+- hy-world2.0
+- hy-world-2p0
+- hy-world2p0
+- hyworld2p0
+integration:
+  notes:
+  - WorldFoundry wraps HY-Pano 2.0 panorama generation and WorldMirror 2.0 reconstruction in-tree.
+  - The WorldMirror 2.0 reconstruction path is verified through the Workspace infer path and exports depth, normals,
+    point cloud, Gaussian splat, camera parameters, COLMAP sparse files, and RRD scene metadata.
+  - Full text/image-to-3D world generation is open upstream but remains gated in WorldFoundry until the five-stage
+    WorldNav, WorldStereo 2.0, GS data, and 3DGS composition runtime is fully migrated and verified.
+  status: component_verified
+license: other:tencent-hunyuanworld-community
+modalities:
+- text-to-3d-world
+- image-to-3d-world
+- video-to-3d-world
+- simulation
+tasks:
+- id: panorama
+  status: supported_in_tree
+  notes: HY-Pano 2.0 image/panorama component.
+- id: worldrecon
+  status: verified
+  notes: WorldMirror 2.0 reconstruction component.
+- id: worldgen
+  status: migration_pending
+  notes: Full text/image-to-3D-world generation requires the distributed WorldNav/WorldStereo/3DGS stages and a VLM endpoint.
+name: HY-World 2.0
+official_sources:
+  github:
+    confirmed_by: git ls-remote --heads
+    confirmed_ref: refs/heads/main
+    url: https://github.com/Tencent-Hunyuan/HY-World-2.0
+  huggingface:
+  - confirmed_by: https://huggingface.co/api/models/tencent/HY-World-2.0
+    repo_id: tencent/HY-World-2.0
+    status: confirmed
+    type: model
+pipeline_binding: hy-world-2.0
+release_type: code_and_weights
+runtime_profile: runtime-profile:hy-world-2.0
+starred: true
+runner_parity:
+  notes:
+  - In-tree HY-World 2.0 pipeline target is registered and verified for WorldMirror 2.0 reconstruction.
+  - Full world-generation parity still requires in-tree orchestration of traj_generate.py, traj_render.py, video_gen.py,
+    gen_gs_data.py, and world_gs_trainer.py with the required native extensions and VLM endpoint.
+  status: component_verified_worldgen_pending
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models
+catalog_policy:
+  checkpoint_rule: Only list checkpoints that were confirmed on official Hugging Face
+    model pages. Use the Hugging Face default cache/download behavior at runtime.
+  integration_rule: Closed, API-only, or unknown releases stay blocked or planned
+    until an official integration surface is available.
+  open_source_rule: Only mark open_source when an official GitHub repository or official
+    Hugging Face model page was confirmed. Do not infer checkpoint availability from
+    papers, demos, or third-party mirrors.

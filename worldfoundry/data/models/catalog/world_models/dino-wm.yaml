@@ -1,0 +1,35 @@
+id: dino-wm
+name: DINO-WM
+tasks:
+- visual-feature-world-model
+- predictive-coding
+- robot-world-model
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/gaoyuezhou/dino_wm
+official_sources:
+  project_page: https://dino-wm.github.io/
+  github:
+    url: https://github.com/gaoyuezhou/dino_wm
+integration:
+  status: integrated
+  notes:
+  - WorldFoundry vendors the official DINO-WM planning/evaluation route in-tree under synthesis/visual_generation/world_model/dino_wm.
+  - The WorldFoundry infer entrypoint loads runtime configs from worldfoundry/data/models/runtime/configs/dino_wm/conf.
+  - The vendored `dino_wm/env/` simulators are required for official planning runs and are intentionally kept in-tree.
+  - Execution remains checkpoint/task-asset gated but no longer depends on an external repo checkout.
+runner_parity:
+  status: pending
+  notes:
+  - The pipeline resolves the in-tree infer.py wrapper and official planning_main route.
+  - Full runtime parity remains blocked until the OSF checkpoint/task-asset layout
+    is staged; per-run validation evidence is tracked outside the model catalog.
+runtime_profile: runtime-profile:dino-wm
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: dino-wm
+output_artifacts:
+- generated_world
+catalog_category: world_models
+catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry runtimes; blocked
+  entries retain upstream provenance without runnable backends.

@@ -1,0 +1,23 @@
+schema_version: 2
+model_id: modelscope-t2v
+display_name: ModelScopeT2V
+task_family: video_generation
+groups:
+- video
+- text_to_video
+source_repos:
+- url: https://github.com/modelscope/modelscope
+checkpoints:
+- repo_id: ali-vilab/modelscope-damo-text-to-video-synthesis
+  role: t2v_checkpoint
+input_schema:
+  prompt: true
+artifact_kind: generated_video
+artifact_filename: modelscope-t2v.mp4
+execution:
+  backend_stage: official_hf_diffusers_runtime
+  runtime_status: integrated
+  integration_status: integrated
+  pipeline_binding: modelscope-t2v
+integration:
+  status: integrated

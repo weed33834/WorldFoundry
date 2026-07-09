@@ -1,0 +1,49 @@
+benchmark_ids:
+- libero-mem
+blocked_reason: LIBERO-Mem full status requires LIBERO-Mem task assets, split selection, policy checkpoint, and official
+  rollout outputs.
+environment_id: worldfoundry-unified-cu128
+id: libero-mem
+name: LIBERO-Mem
+docker:
+  image: ghcr.io/allenai/vla-evaluation-harness/libero-mem:latest
+  source_image: ghcr.io/allenai/vla-evaluation-harness/libero-mem:latest
+  python_env: libero_mem
+  gpus: all
+needs_new_env: false
+notes:
+- WorldFoundry provides contract and official result normalization for caller-provided LIBERO-Mem outputs.
+python_path: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}/worldfoundry-unified-cu128/bin/python
+required_assets:
+  local_dataset_paths:
+  - ${WORLDFOUNDRY_DATA_DIR}/datasets/libero-mem
+  local_repo_paths:
+  - ${WORLDFOUNDRY_CACHE_DIR}/repos/Lifelong-Robot-Learning--LIBERO
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/libero-mem.yaml
+required_env:
+- WORLDFOUNDRY_LIBERO_MEM_ROOT
+- WORLDFOUNDRY_LIBERO_MEM_RESULTS_PATH
+required_imports:
+- numpy
+required_packages:
+- numpy
+required_paths:
+- id: official_result_normalizer
+  path: worldfoundry/evaluation/tasks/embodied/normalizer.py
+- id: task_yaml
+  path: worldfoundry/data/benchmarks/tasks/external/libero-mem.yaml
+requires_cuda_visibility: false
+status: official_result_normalizer_ready_full_runtime_pending
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- libero-mem
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.json>
+- --output-dir
+- <out>
+- --json

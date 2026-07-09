@@ -1,0 +1,31 @@
+schema_version: 2
+model_id: skyreels-v3
+display_name: SkyReels V3
+task_family: video_generation
+groups:
+- video
+- reference_to_video
+- skyreels
+source_repos:
+- url: https://github.com/SkyworkAI/SkyReels-V3
+checkpoints:
+- repo_id: Skywork/SkyReels-V3-R2V-14B
+  role: reference_to_video_checkpoint
+input_schema:
+  prompt: true
+  image: true
+  video: true
+  actions:
+  - seed
+artifact_kind: generated_video
+artifact_filename: skyreels-v3.mp4
+execution:
+  backend_stage: official_in_tree_runtime
+  runtime_status: in_tree_runtime_ready_checkpoint_environment_required
+  integration_status: integrated
+  pipeline_binding: skyreels-v3
+integration:
+  status: integrated
+notes:
+- SkyReels V3 official source is vendored in-tree and exposed through a WorldFoundry pipeline shim.
+- Execution still requires the official dependency environment, checkpoints, and task assets.

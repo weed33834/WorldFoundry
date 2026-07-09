@@ -1,0 +1,57 @@
+id: open-sora-plan
+name: Open-Sora-Plan
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+runtime_profile: runtime-profile:open-sora-plan
+tasks:
+- text-to-video
+source_status:
+  status: confirmed_official_github
+  github:
+    url: https://github.com/PKU-YuanGroup/Open-Sora-Plan
+    verified_by: git ls-remote --symref https://github.com/PKU-YuanGroup/Open-Sora-Plan.git
+      HEAD
+    default_branch: main
+    head_sha: f7fa604f4e3a523d6b973e4c89a5620ed1aff65a
+checkpoint:
+  status: confirmed_public_hf
+  verified_by: GET https://huggingface.co/api/models/<repo_id>
+  repos:
+  - id: LanguageBind/Open-Sora-Plan-v1.3.0
+    sha: cd3b49a3500b98724bd01eb00bdae59f1c247750
+    license: mit
+    private: false
+    gated: false
+    tasks:
+    - text-to-video
+  notes: Open-Sora-Plan has older public LanguageBind releases (v1.0.0 through
+    v1.2.0) and a v1.5.0 NPU/MindSpeed-oriented release, but the validated
+    WorldFoundry GPU route uses v1.3.0 plus google/mt5-xxl. The text encoder is
+    staged by scripts/inference/prepare_model_infer.sh to avoid duplicating the
+    50GB checkpoint inside both WORLDFOUNDRY_CKPT_DIR and WORLDFOUNDRY_HFD_ROOT.
+integration:
+  status: integrated
+  notes:
+  - WorldFoundry route is complete; missing checkpoint/assets are reported at runtime.
+demo_parity:
+  status: passed
+  notes:
+  - >-
+    Studio/API validation uses the official v1.3 GPU demo recipe: Tokyo street
+    prompt, LanguageBind/Open-Sora-Plan-v1.3.0, mt5-xxl, torchrun
+    --nproc_per_node=8, 93 frames, 352x640, fps 18, 100 EulerAncestralDiscrete
+    steps, guidance 7.5, and seed 1234.
+  - >-
+    Expected validation output decodes as 93 non-empty 640x352 frames and passes
+    visual QA for the Tokyo street prompt.
+notes: Official GitHub is PKU-YuanGroup; official HF releases are under LanguageBind.
+catalog_category: video
+catalog_scope: Official GitHub and/or Hugging Face confirmed open-source or open-weight
+  video generation models. Checkpoints are not tracked in git; local validation may
+  download selected repos under cache/hfd.
+catalog_policy:
+  github: Validated with git ls-remote, preferring git ls-remote --symref <repo>.git
+    HEAD for default branch and HEAD SHA.
+  huggingface: Validated with the Hugging Face /api/models endpoint. Recorded repo
+    id, sha, private, gated, license, and selected task tags only.
+  parity: This manifest does not claim WorldFoundry runtime parity unless an explicit
+    parity run and expected artifact are recorded.

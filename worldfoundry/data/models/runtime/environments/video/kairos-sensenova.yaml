@@ -1,0 +1,40 @@
+conda_packages:
+- python
+- pip
+- ffmpeg
+cuda_profile: cu128
+driver_status: compatible
+env_name: kairos-sensenova
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: kairos-sensenova
+notes:
+- Kairos upstream recommends Python >=3.10, PyTorch >=2.6, and CUDA >=12.6. WorldFoundry ships the official inference
+  runtime in tree and launches it through torchrun.
+- The local validated profile uses Python 3.10.20, torch 2.12.0+cu126, mmengine 0.10.7, transformers 4.57.1, and
+  sageattention 20260228. Use this dedicated environment when the unified CUDA environment does not provide the
+  Kairos native attention stack.
+pip_packages:
+- torch==2.12.0
+- torchvision
+- einops
+- flash-linear-attention
+- huggingface-hub
+- imageio
+- imageio-ffmpeg
+- mmengine
+- modelscope
+- numpy
+- numpydantic
+- pillow
+- transformers
+- autoawq
+python: '3.10'
+source_requirement_files: []
+validation_imports:
+- torch
+- mmengine
+- transformers
+- imageio
+- fla
+- apex
+- sageattention

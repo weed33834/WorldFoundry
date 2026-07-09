@@ -1,0 +1,32 @@
+schema_version: 2
+model_id: genie-envisioner
+display_name: Genie Envisioner
+task_family: world_model
+groups:
+- world
+- robotics
+source_repos:
+- url: https://github.com/AgibotTech/Genie-Envisioner
+  revision: 65ab2fa2191f74d213a3447013f5ff90b55dcc3d
+checkpoints:
+- repo_id: agibot-world/Genie-Envisioner
+  role: genie_envisioner_checkpoint
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - robot_action
+  - world_action
+artifact_kind: generated_world
+artifact_filename: genie-envisioner.mp4
+execution:
+  backend_stage: in_tree_runtime_manifest
+  runtime_status: in_tree_runtime_manifest_checkpoint_env_pending
+  integration_status: runtime_ported
+  pipeline_binding: genie-envisioner
+integration:
+  status: runtime_ported
+notes:
+- Genie Envisioner source is vendored in-tree under synthesis/visual_generation/genie_envisioner/genie_envisioner_runtime.
+- The pipeline resolves the vendored inference entrypoint; execution remains checkpoint and robot-task gated.

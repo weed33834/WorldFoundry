@@ -1,0 +1,27 @@
+id: pandora
+name: Pandora
+aliases:
+- pandora-world
+tasks:
+- diffusion-world-model
+- world-generation
+- text-to-video
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/maitrix-org/Pandora
+integration:
+  status: planned
+  notes:
+  - Runtime source is vendored in-tree; full generation remains blocked by hidden official weights.
+runtime_profile: runtime-profile:pandora
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: pandora
+runner_parity:
+  status: implemented_hidden_weights_pending
+  notes:
+  - PandoraSynthesis provides an in-tree runtime plan wrapper; real generation requires caller-provided official-compatible
+    checkpoints.
+catalog_category: world_models
+catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry runtimes; blocked entries retain
+  upstream provenance without runnable backends.

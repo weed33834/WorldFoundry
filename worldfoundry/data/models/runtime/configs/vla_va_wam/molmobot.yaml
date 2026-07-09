@@ -1,0 +1,46 @@
+backend: callable_entrypoint
+checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/allenai--MolmoBot-DROID
+checkpoint_ref: allenai/MolmoBot-DROID
+source_repo: ${WORLDFOUNDRY_REPO_ROOT}/worldfoundry/synthesis/action_generation/molmobot/molmobot_runtime
+source_subdir: MolmoBot
+require_checkpoint: true
+policy_target: worldfoundry.synthesis.action_generation.molmobot.runtime:predict_action
+predict_method: get_action_chunk
+torch_dtype: bfloat16
+trust_remote_code: false
+runtime_backend: molmobot_in_tree_vendored_in_process_runtime
+action_contract: robot_specific_action_chunk
+control_mode: franka_or_rby1_policy_action
+norm_repo_id: synthmanip
+camera_keys:
+- exo_camera_1
+- wrist_camera
+official_infer_entrypoint: olmo.models.molmobot.inference_wrapper:SynthManipMolmoInferenceWrapper.get_action_chunk
+default_demo_input:
+  prompt_key: task
+  image_keys:
+  - exo_camera_1
+  - wrist_camera
+  state_keys:
+  - qpos.arm
+  - qpos.gripper
+variants:
+  droid:
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/allenai--MolmoBot-DROID
+    repo_id: allenai/MolmoBot-DROID
+  img_droid:
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/allenai--MolmoBot-Img-DROID
+    repo_id: allenai/MolmoBot-Img-DROID
+  rby1_multitask:
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/allenai--MolmoBot-RBY1Multitask
+    repo_id: allenai/MolmoBot-RBY1Multitask
+  pi0_droid:
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/allenai--MolmoBot-Pi0-DROID
+    repo_id: allenai/MolmoBot-Pi0-DROID
+    official_infer_entrypoint: molmobot_pi0.eval.policies.pi:PiJointPosPolicy.get_action
+excluded_dependencies:
+- molmo_spaces simulator
+- robot_eval real robot clients
+- wandb
+- polymetis
+- training stack

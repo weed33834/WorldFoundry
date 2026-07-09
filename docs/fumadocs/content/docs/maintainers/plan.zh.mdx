@@ -1,0 +1,46 @@
+---
+title: 规划
+description: WorldFoundry 框架的路线图与优化优先级。
+---
+
+WorldFoundry 面向 world model、视频生成与 embodied 策略的统一框架。下面是我们当前对齐的优化方向——不是固定发布承诺，而是维护者共同推进的优先级。
+
+## 社区集成
+
+World model 社区迭代很快：新架构、训练 recipe 和开源 checkpoint 持续涌现。WorldFoundry 需要保持「可集成的工作台」，而不是某一时刻研究线的静态快照。
+
+我们会扩展 catalog 对 world model、video gen 与 embodied model（VLA、diffusion policy、simulator 等）的覆盖。优先接入维护活跃、推理或评测路径清晰、能在公开 checkpoint 上跑通的项目，而不是依赖私有 fork。
+
+集成仍遵循现有契约：runtime 代码 in-tree（`worldfoundry/synthesis/**`），manifest 与 profile 在 `worldfoundry/data/models/`，catalog 标记 ready 前要有可复查的证据。社区项目很强但尚未可移植时，先以 profile 或 prepare-only 路径接入，parity 验证通过后再落地完整 runtime。
+
+## Runtime 范围
+
+WorldFoundry 当前对外发布面聚焦 inference、evaluation、Studio 与 runtime 集成。
+
+训练 launcher、dataset builder、finetune script 和 experiment-only callback 暂时不进入当前 release tree。后续如果恢复训练支持，应作为独立且重新设计的子系统接入，并遵循与 inference、evaluation 相同的证据标准，而不是恢复已经删除的 prototype 代码。
+
+## 代码库统一
+
+WorldFoundry 通过集成大量上游 runtime 长大。下一阶段是在**共享抽象**上收敛，并删除重复实现。
+
+`worldfoundry/core/` 已有 checkpoint 加载、分布式、attention、geometry、VRAM 等公共层。我们会继续扩展这些抽象，让各 model runtime 依赖框架代码，而不是拷贝 vendor 模块。若 vendored 文件只为薄 wrapper 服务，应把逻辑迁入 in-tree 或换成共享 helper；因 license / ABI 必须 vendoring 时，边界要小且明确。
+
+冗余 upstream 拷贝会增加 review 成本与漂移风险。in-tree 路径通过 runnable parity 或 official parity 检查后，应退役重复拷贝。每个模型族在 catalog、profile 与文档里只描述一条 canonical 实现路径。
+
+## UI 与产品体验
+
+Studio 与文档站是多数用户的主入口，应体现 catalog 广度，而不是调试控制台。
+
+近期 UX 目标：更快的模型发现（筛选、profile、readiness 提示）、更清晰的运行配置（环境、checkpoint、profile 驱动的多卡默认项）、更丰富的产物审查（视频、action trace、3D 导出、外部路径）。CLI / TUI 继续服务高级用户；Studio 应覆盖常见的「选模型 → 运行 → 查看」闭环，减少手填 env 与导出路径。
+
+文档保持叙述优先：inference / evaluation 有独立 hub，细节落在 catalog 与 reference 页，避免大矩阵重复。本主题的改动应同步中英文，并与 UI 调用的 runtime 契约一致。
+
+## 基准验证与评测
+
+Benchmark 用来证明集成是真实的——不只是 import 成功。
+
+**Embodied** 侧以 official path 复现为标准：正确的 simulator 环境、上游或 in-tree runner、与声明配置一致的导入结果（RoboTwin、AI2-THOR、LIBERO 等路径）。专用 conda 环境继续隔离，但选择与证据记录应在主文档里呈现为一条连贯工作流。
+
+**Video gen / world model** 侧将加强 official validation、metric 插件、scorecard 与 benchmark hub 覆盖，使新模型评分无需 fork runner。EvalCrafter 类 official metric、物理与时序类 bench、hub registry 应共享同一 artifact 契约（`GenerationResult`、规范化输出、run manifest）。
+
+每条 validation 声明都应可追溯到命令、输出路径与 blocker——与 contributing、发布 readiness 同一标准。没有可复现证据的 benchmark 集成，不进入对外 readiness 叙事。

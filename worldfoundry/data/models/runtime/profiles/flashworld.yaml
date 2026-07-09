@@ -1,0 +1,35 @@
+schema_version: 2
+model_id: flashworld
+display_name: FlashWorld
+task_family: three_dimension
+groups:
+- 3d
+- video
+- camera_control
+source_repos:
+- url: https://github.com/imlixinyang/FlashWorld
+checkpoints:
+- repo_id: imlixinyang/FlashWorld
+  role: flashworld_checkpoint
+- repo_id: Wan-AI/Wan2.2-TI2V-5B-Diffusers
+  role: wan22_ti2v_base
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - camera_path
+  - camera_action_sequence
+artifact_kind: generated_3d_asset
+artifact_filename: flashworld.ply
+execution:
+  backend_stage: in_tree_runtime
+  runtime_status: official_camera_scene_contract
+  integration_status: integrated
+  pipeline_binding: flashworld
+integration:
+  status: integrated
+notes:
+- Runtime profile for the in-tree FlashWorld pipeline and operator.
+- Runtime execution requires FlashWorld, Wan2.2, diffusers/transformers, and CUDA
+  assets.

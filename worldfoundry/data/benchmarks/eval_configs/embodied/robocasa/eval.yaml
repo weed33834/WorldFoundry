@@ -1,0 +1,23 @@
+id: robocasa_eval
+output_dir: ./results/robocasa_eval
+model_id: external-policy-server
+server:
+  url: ws://localhost:8000
+benchmark_id: robocasa
+benchmark_kwargs:
+  tasks:
+    - PickPlaceCounterToCabinet
+    - PickPlaceCounterToSink
+    - OpenSingleDoor
+    - CloseDoubleDoor
+    - TurnOnSinkFaucet
+    - PreheatOven
+  robot: PandaOmron
+  camera_size: 256
+  max_steps: 500
+  split: pretrain
+  seed: null
+episodes_per_task: 5
+metric_ids:
+  - task_success
+  - success_rate

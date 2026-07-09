@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: krea-realtime-video
+model_id: krea-realtime-video
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.video_official.pipeline_official_video:KreaRealtimeVideoPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

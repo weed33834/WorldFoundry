@@ -1,0 +1,29 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+aliases:
+- rt1
+- robotics-transformer
+availability: open_source
+id: rt-1
+integration:
+  notes:
+  - Official checkpoint and TensorFlow rollout command must be validated before integrated status.
+  - RT-1 SavedModel runtime and upstream source are vendored in-tree; py_compile, import/from_pretrained, and plan generation
+    passed, but the configured checkpoint directory is missing locally.
+  status: runtime_ported
+name: RT-1
+official_sources:
+  github:
+    head_sha: 4569641b8111f3f402c32d8e24becd2a6e952ecc
+    url: https://github.com/google-research/robotics_transformer
+pipeline_binding: rt-1
+provider: official_repo
+runtime_profile: runtime-profile:rt-1
+tasks:
+- vla
+- vla.policy_rollout
+- robot_policy
+- robotics_transformer
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata, and runtime-profile
+  planning records. Runner or pipeline targets are present only after a complete in-tree WorldFoundry model runtime is registered
+  and validated.

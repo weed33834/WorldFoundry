@@ -1,0 +1,39 @@
+id: metric3d-prior
+name: Metric3D Prior
+aliases:
+- metric3d
+- yvanyin-metric3d
+tasks:
+- monocular-depth-estimation
+- metric-depth-estimation
+- geometry-prior
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/YvanYin/Metric3D
+  hf_repo_id: JUGGHM/Metric3D
+  license: bsd-2-clause
+checkpoint_refs:
+- repo_id: JUGGHM/Metric3D
+  filename: metric_depth_vit_giant2_800k.pth
+integration:
+  kind: pipeline_runner
+  status: integrated
+  notes:
+  - Integrated as an independent metric-depth prior at worldfoundry/base_models/three_dimensions/depth/metric3d.
+  - The VIPE SLAM defaults reference this prior by model name through the shared priors
+    factory.
+  - Exposed through the shared WorldFoundry geometry-prior pipeline/operator contract.
+base_model_target: worldfoundry.base_models.three_dimensions.depth.metric3d
+runtime_profile: runtime-profile:metric3d-prior
+runner_parity:
+  status: verified
+  notes:
+  - Checkpoint-backed inference is implemented through the shared geometry-prior
+    pipeline/operator contract.
+  - Per-run validation evidence is tracked outside the model catalog so this file
+    remains stable release metadata.
+catalog_category: three_d_four_d
+catalog_scope: Independent geometric prior integrations used by 3D and world-model
+  runtimes.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner

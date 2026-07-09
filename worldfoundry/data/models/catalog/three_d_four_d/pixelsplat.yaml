@@ -1,0 +1,34 @@
+id: pixelsplat
+name: pixelSplat
+aliases:
+- pixel-splat
+- pixel_splat
+tasks:
+- 3d-reconstruction
+- gaussian-splatting
+- novel-view-synthesis
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/dcharatan/pixelsplat
+  license: mit
+checkpoint_refs:
+- repo_id: dylanebert/pixelSplat
+  license: mit
+integration:
+  kind: pipeline_runner
+  status: planned
+  notes:
+  - Runtime source is vendored in-tree; inference is blocked until a local Gaussian
+    rasterization extension is provided and re10k.ckpt is staged.
+runtime_profile: runtime-profile:pixelsplat
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: pixelsplat
+runner_parity:
+  status: implemented_local_extension_pending
+  notes:
+  - PixelSplatSynthesis provides an in-tree wrapper around the official test entrypoint.
+catalog_category: three_d_four_d
+catalog_scope: 3D Gaussian-splatting catalog entries. Integrated entries expose in-tree
+  WorldFoundry runtimes; metadata-only entries retain upstream provenance without runnable
+  backends.

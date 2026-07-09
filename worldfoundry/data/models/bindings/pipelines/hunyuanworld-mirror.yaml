@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: hunyuanworld-mirror
+model_id: hunyuanworld-mirror
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.hunyuan_world.pipeline_hunyuan_mirror:HunyuanMirrorPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

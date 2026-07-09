@@ -1,0 +1,205 @@
+benchmark: 4dworldbench
+name: 4DWorldBench
+description: 4DWorldBench external benchmark manifest for 3D/4D world generation evaluation.
+tags:
+- benchmark-zoo
+- external-official
+- 4dworldbench
+- world-generation
+- physical-realism
+splits:
+- standard
+metrics:
+  perceptual_clip_iqa_metrics:
+    aggregation: mean
+  perceptual_clip_aesthetic_metrics:
+    aggregation: mean
+  perceptual_fastvqa:
+    aggregation: mean
+  alignment_attribute_control:
+    aggregation: mean
+  alignment_relationship_control:
+    aggregation: mean
+  alignment_motion_control:
+    aggregation: mean
+  alignment_event_control:
+    aggregation: mean
+  alignment_scene_control:
+    aggregation: mean
+  alignment_camera_error_metrics:
+    aggregation: mean
+    lower_is_better: true
+  physics_realism:
+    aggregation: mean
+  consistency_viewpoint:
+    aggregation: mean
+    lower_is_better: true
+  consistency_motion_smoothness:
+    aggregation: mean
+  consistency_motion_qa:
+    aggregation: mean
+  consistency_style:
+    aggregation: mean
+  perceptual_quality:
+    aggregation: mean
+  condition_4d_alignment:
+    aggregation: mean
+  physical_realism_score:
+    aggregation: mean
+  four_d_consistency:
+    aggregation: mean
+  four_d_worldbench_average:
+    aggregation: mean
+    primary: true
+metadata:
+  source_kind: benchmark_zoo
+  benchmark_id: 4dworldbench
+  contract_validation_command: worldfoundry-eval zoo benchmark-run --benchmark-id 4dworldbench --mode contract --output-dir tmp/benchmark_zoo/benchmark_contract/4dworldbench --json
+  official_runner_target: worldfoundry.evaluation.tasks.contracts.external:FourDWorldBenchContract
+  official_runner_script: worldfoundry/evaluation/tasks/execution/runners/four_d_worldbench/run_four_d_worldbench_official_runner.py
+  official_runner_command: worldfoundry-eval zoo benchmark-run
+  task_type: three_d_four_d_world_generation_evaluation
+  status: integrated
+  maturity: contract_ready
+  release_status: experimental
+  open_source_status: in_tree_official_runtime
+  official_benchmark_verified: false
+  integration_evidence: true
+  leaderboard_valid: false
+  source_provenance:
+    official_repo:
+      url: https://github.com/yeppp27/4dworldbench_code.git
+      commit: 9dc305cb15418055813be8b26c716a230289d6b5
+      role: provenance_only_not_runtime_dependency
+    project_page:
+      url: https://yeppp27.github.io/4DWorldBench.github.io/
+    paper:
+      url: https://arxiv.org/pdf/2511.19836
+  input_contract:
+  - dataset_json in official 4DWorldBench schema
+  - model_name matching a models[].model_name entry
+  - dimension metric id
+  - generated videos referenced by dataset_json
+  output_contract:
+  - scorecard
+  - raw_metric_table
+  - per_sample_scores
+  - dimension_result_json
+  evaluation_requirements:
+  - Use the in-tree runner under worldfoundry/evaluation/tasks/execution/runners/four_d_worldbench.
+  - Prepare official dataset_json files and generated video paths before running --run-official.
+  - Stage only the assets required by the selected dimension.
+  requires:
+  - --run-official with --dataset-json, --model-name, --dimension, and --generated-video-dir, or --official-results-path for result normalization
+  blockers:
+  - Leaderboard-valid scores require complete official data and all requested dimension assets.
+  - FastVQA weights/runtime must be staged before perceptual_fastvqa recomputation.
+  data_refs:
+    task_yaml: worldfoundry/data/benchmarks/tasks/external/4dworldbench.yaml
+  runner_availability:
+    available: true
+    runner_target: worldfoundry.evaluation.tasks.contracts.external:FourDWorldBenchContract
+    runner_script_available: true
+    task_yaml_available: true
+    runtime_verified: true
+    surface: official_runner
+    normalizer_verified: true
+  artifact_layout:
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+    output_artifact: benchmark_scorecard
+    filename_template: scorecard.json
+  runtime:
+    kind: in_tree_official_runtime
+    root: worldfoundry/evaluation/tasks/execution/runners/four_d_worldbench
+    runtime_root: worldfoundry/evaluation/tasks/execution/runners/four_d_worldbench/runtime/four_d_worldbench
+    root_env: WORLDFOUNDRY_4DWORLDBENCH_ROOT
+    results_path_env: WORLDFOUNDRY_4DWORLDBENCH_RESULTS_PATH
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  metric_protocol:
+    metric_ids:
+    - perceptual_clip_iqa_metrics
+    - perceptual_clip_aesthetic_metrics
+    - perceptual_fastvqa
+    - alignment_attribute_control
+    - alignment_relationship_control
+    - alignment_motion_control
+    - alignment_event_control
+    - alignment_scene_control
+    - alignment_camera_error_metrics
+    - physics_realism
+    - consistency_viewpoint
+    - consistency_motion_smoothness
+    - consistency_motion_qa
+    - consistency_style
+    - perceptual_quality
+    - condition_4d_alignment
+    - physical_realism_score
+    - four_d_consistency
+    - four_d_worldbench_average
+    primary_metric: four_d_worldbench_average
+  local_evaluator:
+    target: worldfoundry/evaluation/tasks/execution/runners/four_d_worldbench/run_four_d_worldbench_official_runner.py
+    status: implemented
+    protocol: official_4dworldbench_in_tree_runtime
+    official_result_normalization:
+      status: implemented
+      input_keys:
+      - official_results_path
+      - WORLDFOUNDRY_4DWORLDBENCH_RESULTS_PATH
+      formats:
+      - json
+      provenance: normalizes 4DWorldBench dimension result JSON files when --run-official is not used
+  runner:
+    validation_command:
+    - worldfoundry-eval
+    - zoo
+    - benchmark-run
+    - --benchmark-id
+    - 4dworldbench
+    - --mode
+    - official-validation
+    - --official-results-path
+    - <4dworldbench_results.json>
+    - --generated-artifact-dir
+    - <generated_artifacts>
+    - --output-dir
+    - <out>
+    - --json
+tasks:
+  4dworldbench_standard:
+    benchmark_name: 4dworldbench
+    protocol: external_official_benchmark
+    capability_track: world_generation
+    input_keys:
+    - dataset_json
+    - model_name
+    - generated_video
+    - dimension
+    output_keys:
+    - scorecard
+    - dimension_result_json
+    metric_ids:
+    - four_d_worldbench_average
+    metric_groups:
+    - 4dworldbench
+    tags:
+    - benchmark-zoo
+    - 4dworldbench
+    metadata:
+      source_kind: benchmark_zoo
+      benchmark_id: 4dworldbench
+      official_benchmark_verified: false
+      integration_evidence: true
+      leaderboard_valid: false
+    runtime_requirements:
+      results_path_env: WORLDFOUNDRY_4DWORLDBENCH_RESULTS_PATH
+    artifact_contract:
+      required:
+        generated_video:
+          kind: video
+    evaluation_protocol:
+    - name: in_tree_official_runtime
+      metric_ids:
+      - four_d_worldbench_average
+      runner_target: worldfoundry.evaluation.tasks.contracts.external:FourDWorldBenchContract
+      runner_script: worldfoundry/evaluation/tasks/execution/runners/four_d_worldbench/run_four_d_worldbench_official_runner.py

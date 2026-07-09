@@ -1,0 +1,59 @@
+id: wonderworld
+name: WonderWorld
+aliases:
+- 'WonderWorld: Interactive 3D Scene Generation from a Single Image'
+area: 3d
+task: interactive 3D scene generation from a single image
+tasks:
+- image-to-3d-world
+- 3d-scene-generation
+- interactive-3d-generation
+developer: Stanford University and MIT authors
+user_starred: true
+source:
+  status: source_available
+  official_repo_url: https://github.com/KovenYu/WonderWorld
+  notes:
+  - WorldFoundry vendors the infer-only WonderWorld runtime under
+    worldfoundry/synthesis/visual_generation/wonderworld/wonderworld_runtime.
+official_sources:
+  project_page: https://kovenyu.com/wonderworld/
+  paper: https://arxiv.org/abs/2406.09394
+  github:
+    url: https://github.com/KovenYu/WonderWorld
+availability:
+  status: source_available
+  open_source: false
+  code: public
+  weights: not_found
+  license: not_found
+integration:
+  kind: pipeline_runner
+  status: integrated
+  notes:
+  - WorldFoundry runs the in-tree WonderWorld run.py/example_config flow through the shared 3D/4D subprocess adapter.
+  - Missing source, inpainting, segmentation, depth/normal, or 3DGS assets are reported at inference time.
+runtime_profile: runtime-profile:wonderworld
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: wonderworld
+runner_parity:
+  status: pending
+  notes:
+  - Pipeline target imports and plan-only inference are wired; full artifact parity needs runtime assets.
+confirmation: Upstream project page, paper, and public GitHub repo are recorded; WorldFoundry resolves WonderWorld through
+  the in-tree runtime source, with full artifact parity pending runtime assets.
+catalog_category: three_d_four_d
+catalog_scope: Official-source manifest for 3D, 4D, and camera-controlled world/model generation projects.
+catalog_policy:
+  open_source_true_requires: An upstream GitHub or Hugging Face source with an explicit OSI-style software license or otherwise
+    clearly open source/open weights metadata. Public code without a license is source-available, not open_source.
+  weights_policy: Weights were not downloaded. Entries record only upstream repository, Hugging Face, project page, paper,
+    and license metadata.
+  status_values:
+  - open_source
+  - source_available
+  - open_weights_restricted
+  - api_or_closed
+  - unknown
+output_artifacts:
+- generated_world

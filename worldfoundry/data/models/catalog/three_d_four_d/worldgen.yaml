@@ -1,0 +1,38 @@
+id: worldgen
+name: WorldGen
+tasks:
+- 3d-world-generation
+- text-to-3d-world
+- image-to-3d-world
+output_artifacts:
+- generated_3d_asset
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/ZiYang-xie/WorldGen
+  license: apache-2.0
+official_sources:
+  project_page: https://worldgen.github.io/
+  paper: https://arxiv.org/abs/2511.16825
+  github:
+    url: https://github.com/ZiYang-xie/WorldGen
+integration:
+  kind: pipeline_runner
+  status: integrated
+  notes:
+  - WorldFoundry exposes an in-tree adapter that runs the WorldGen inference flow.
+  - Missing gated foundation models or WorldGen assets are reported at inference time.
+runner_parity:
+  status: pending
+  notes:
+  - The in-tree adapter can execute the WorldGen inference flow when required
+    assets are staged.
+  - Full official scene-quality parity remains pending; per-run artifact checks
+    are tracked outside the model catalog.
+runtime_profile: runtime-profile:worldgen
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: worldgen
+catalog_category: three_d_four_d
+catalog_scope: 3D Gaussian-splatting catalog entries. Integrated entries expose in-tree
+  WorldFoundry runtimes; metadata-only entries retain upstream provenance without runnable
+  backends.

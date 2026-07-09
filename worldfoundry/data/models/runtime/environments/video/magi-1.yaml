@@ -1,0 +1,46 @@
+conda_packages:
+- python=3.10.12
+- pip
+- ffmpeg=4.4
+- pytorch==2.4.0
+- torchvision==0.19.0
+- torchaudio==2.4.0
+- pytorch-cuda=12.4
+cuda_profile: cu124
+driver_status: compatible
+env_name: magi-official-cu124
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: magi-1
+notes:
+- MAGI-1 pins the official PyTorch 2.4 / CUDA 12.4 stack because flash-attn and flashinfer are ABI-sensitive.
+- This profile is intentionally isolated from the shared worldfoundry-unified-cu128 environment.
+pip_packages:
+- accelerate==0.32.1
+- beautifulsoup4==4.13.4
+- debugpy==1.8.14
+- diffusers==0.29.2
+- einops>=0.6.0
+- ffmpeg-python
+- ftfy==6.2.0
+- gpustat==1.1.1
+- imageio==2.34.0
+- imageio[ffmpeg]
+- matplotlib==3.10.1
+- numpy==1.26.4
+- protobuf==5.28.3
+- rich==14.0.0
+- sentencepiece==0.2.0
+- timm==1.0.15
+- torchdiffeq==0.2.4
+- transformers==4.42.3
+pip_extra_index_url: https://download.pytorch.org/whl/cu124
+python: 3.10.12
+validation_imports:
+- torch
+- torchvision
+- flash_attn
+- flashinfer
+- diffusers
+- transformers
+- sentencepiece
+- torchdiffeq

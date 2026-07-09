@@ -1,0 +1,44 @@
+schema_version: 2
+asset_profile_id: demo_runtime_assets
+model_id: demo_runtime_assets
+notes:
+  - Demo galleries under worldfoundry/data/models/runtime_assets are not shipped in git/sdist.
+  - Run scripts/setup/fetch_runtime_demo_assets.py to stage them locally.
+  - Override the install root with WORLDFOUNDRY_RUNTIME_ASSET_DIR when needed.
+roots:
+  runtime_assets: "{WORLDFOUNDRY_DATA_ROOT}/models/runtime_assets"
+assets:
+  - asset_id: wonderjourney-examples
+    kind: demo_bundle
+    role: wonderjourney
+    required: false
+    local_dir: "{WORLDFOUNDRY_DATA_ROOT}/models/runtime_assets/wonderjourney"
+    metadata:
+      size_hint_mb: 361
+      manifest: examples/examples.yaml
+      source_repo: https://github.com/KovenYu/WonderJourney
+      source_paths:
+        - examples/images
+        - examples/sky_images
+  - asset_id: wonderworld-examples
+    kind: demo_bundle
+    role: wonderworld
+    required: false
+    local_dir: "{WORLDFOUNDRY_DATA_ROOT}/models/runtime_assets/wonderworld"
+    metadata:
+      size_hint_mb: 271
+      manifest: examples/examples.yaml
+      source_repo: https://github.com/KovenYu/WonderWorld
+      source_paths:
+        - examples/images
+        - examples/sky_images
+  - asset_id: stable-virtual-camera-demos
+    kind: demo_bundle
+    role: stable_virtual_camera
+    required: false
+    local_dir: "{WORLDFOUNDRY_DATA_ROOT}/models/runtime_assets/stable_virtual_camera"
+    metadata:
+      size_hint_mb: 34
+      source_repo: https://github.com/Stability-AI/stable-virtual-camera
+      source_paths:
+        - assets

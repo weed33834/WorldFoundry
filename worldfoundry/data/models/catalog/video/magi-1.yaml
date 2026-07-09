@@ -1,0 +1,50 @@
+id: magi-1
+name: MAGI-1
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+runtime_profile: runtime-profile:magi-1
+tasks:
+- image-to-video
+- video-generation
+source_status:
+  status: confirmed_official_github
+  github:
+    url: https://github.com/SandAI-org/MAGI-1
+    verified_by: git ls-remote --symref https://github.com/SandAI-org/MAGI-1.git HEAD
+    default_branch: main
+    head_sha: 6ff822e74ded50611e81e1d0e115146b5c4dd2a5
+checkpoint:
+  status: confirmed_public_hf
+  verified_by: GET https://huggingface.co/api/models/<repo_id>
+  repos:
+  - id: sand-ai/MAGI-1
+    sha: cd0a46589f3279a3c5c579f5f3c693a6ad36d0d4
+    license: apache-2.0
+    private: false
+    gated: false
+    tasks:
+    - image-to-video
+integration:
+  status: integrated
+  notes:
+  - WorldFoundry route is complete; missing checkpoint/assets are reported at runtime.
+demo_parity:
+  status: pending
+  notes:
+  - The in-tree MAGI-1 I2V route is wired with the official example image/config
+    assets, local sand-ai/MAGI-1 checkpoint, 4.5B distill profile, sampling
+    controls, fps, and seed.
+  - Full official long-config parity remains pending; per-run artifact checks are
+    tracked outside the model catalog.
+notes: Added as a high-priority open video generation candidate with Apache-2.0 HF
+  metadata.
+catalog_category: video
+catalog_scope: Official GitHub and/or Hugging Face confirmed open-source or open-weight
+  video generation models. Checkpoints are not tracked in git; local validation may
+  download selected repos under cache/hfd.
+catalog_policy:
+  github: Validated with git ls-remote, preferring git ls-remote --symref <repo>.git
+    HEAD for default branch and HEAD SHA.
+  huggingface: Validated with the Hugging Face /api/models endpoint. Recorded repo
+    id, sha, private, gated, license, and selected task tags only.
+  parity: This manifest does not claim WorldFoundry runtime parity unless an explicit
+    parity run and expected artifact are recorded.

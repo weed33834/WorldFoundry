@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: fantasyworld-wan21
+model_id: fantasyworld-wan21
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.fantasy_world.pipeline_fantasy_world:FantasyWorldWan21Pipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

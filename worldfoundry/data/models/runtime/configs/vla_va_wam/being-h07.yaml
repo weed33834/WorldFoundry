@@ -1,0 +1,9 @@
+backend: hf_auto_action_model
+checkpoint_path: ${WORLDFOUNDRY_CKPT_DIR}/BeingBeyond--Being-H07
+source_repo: ${WORLDFOUNDRY_MODEL_SOURCE_DIR}/Being-H
+source_subdir: Being-H07
+torch_dtype: bfloat16
+trust_remote_code: true
+predict_method: predict_action
+action_contract: latent_world_action_model_trace
+runtime_backend: being_h07_official_hf_or_repo

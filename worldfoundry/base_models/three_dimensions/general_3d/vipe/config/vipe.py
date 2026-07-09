@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+"""Module for base_models -> three_dimensions -> general_3d -> vipe -> config -> vipe.py functionality."""
+
+from __future__ import annotations
+
+from worldfoundry.base_models.three_dimensions.general_3d.vipe.config.base_schema import BaseConfigSchema, Field
+from worldfoundry.base_models.three_dimensions.general_3d.vipe.config.pipeline import PipelineConfig
+from worldfoundry.base_models.three_dimensions.general_3d.vipe.config.streams import StreamsConfig
+
+
+class ViPEConfig(BaseConfigSchema):
+    """Top-level ViPE runtime configuration."""
+
+    streams: StreamsConfig = Field(
+        description="Input stream list that supplies videos or frame directories to process."
+    )
+    pipeline: PipelineConfig = Field(description="Annotation pipeline and all pipeline-specific runtime options.")

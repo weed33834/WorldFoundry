@@ -1,0 +1,183 @@
+id: ipv-bench
+name: IPV-Bench
+benchmark_kind:
+- text-to-video
+- counterfactual-video
+- world-understanding
+domains:
+- impossible-videos
+- counterfactual-physics
+- world-knowledge
+modalities:
+- text
+- video
+status: confirmed_official_code
+official_sources:
+  github:
+    url: https://github.com/showlab/Impossible-Videos
+    verified_by: git ls-remote https://github.com/showlab/Impossible-Videos HEAD
+    head_sha: b959c423093d6e46a7e7008e205b9a16104e3f70
+  paper_url: https://arxiv.org/abs/2503.14378
+  project_page: https://huggingface.co/papers/2503.14378
+benchmark_assets:
+  prompt_suite:
+    status: official_repo_data
+evaluation_surface:
+  purpose: Generation and understanding benchmark for physically impossible videos.
+  tracks:
+  - generation
+  - understanding
+  requires_human_or_judge_scores: true
+  official_result_normalization: implemented for caller-provided official CSV/JSON outputs
+  blocked_without_required_inputs:
+  - visual_quality annotation
+  - prompt_following annotation
+  - judgement/mcqa/open_qa labels or official judge scores
+  - prediction or model_answer for understanding tasks
+metrics:
+- id: visual_quality
+  name: Visual Quality
+  description: IPV-Bench human or official judge annotation for generated-video visual quality.
+  higher_is_better: true
+  leaderboard_key: visual_quality
+  aggregator: mean
+  output_unit: score
+- id: prompt_following
+  name: Prompt Following
+  description: IPV-Bench human or official judge annotation for prompt following.
+  higher_is_better: true
+  leaderboard_key: prompt_following
+  aggregator: mean
+  output_unit: score
+- id: impossible_video_score
+  name: Impossible Video Score
+  description: Percentage of generated videos that are both high quality and good prompt following under the IPV-Bench 
+    protocol.
+  higher_is_better: true
+  leaderboard_key: impossible_video_score
+  aggregator: mean
+  output_unit: score
+- id: judgement_accuracy
+  name: Judgement Accuracy
+  description: IPV-Bench video-understanding judgement task accuracy against official labels.
+  higher_is_better: true
+  leaderboard_key: judgement_accuracy
+  aggregator: mean
+  output_unit: score
+- id: mcqa_accuracy
+  name: MCQA Accuracy
+  description: IPV-Bench multi-choice QA accuracy against official labels.
+  higher_is_better: true
+  leaderboard_key: mcqa_accuracy
+  aggregator: mean
+  output_unit: score
+- id: open_qa_score
+  name: Open QA Score
+  description: IPV-Bench open-ended QA score from official evaluator or judge outputs.
+  higher_is_better: true
+  leaderboard_key: open_qa_score
+  aggregator: mean
+  output_unit: score
+- id: ipv_bench_average
+  name: IPV-Bench Average
+  description: IPV-Bench aggregate when supplied by official annotations, judge outputs, or normalized result files.
+  higher_is_better: true
+  leaderboard_key: ipv_bench_average
+  aggregator: mean
+  output_unit: score
+  primary: true
+runner:
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:IPVBenchContract
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - ipv-bench
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <official_results.csv>
+  - --generated-artifact-dir
+  - <generated_videos>
+  - --output-dir
+  - <out>
+  - --json
+  runtime:
+    kind: in_tree_official_runner
+    root: worldfoundry/evaluation/tasks/execution/runners/ipv_bench
+    repo_url: https://github.com/showlab/Impossible-Videos.git
+    repo_revision: b959c423093d6e46a7e7008e205b9a16104e3f70
+    root_env: WORLDFOUNDRY_IPV_BENCH_ROOT
+    results_path_env: WORLDFOUNDRY_IPV_BENCH_RESULTS_PATH
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+    runtime_backend_env: WORLDFOUNDRY_IPV_BENCH_RUNTIME_BACKEND
+  expected_artifacts:
+  - scorecard.json
+  - benchmark_contract.json
+  - raw_metric_table.jsonl
+  verification_status: pending
+  notes:
+  - In-tree normalizer accepts official CSV/JSON exports; run ``--run-fixture`` on the IPV runner to validate without 
+    external assets.
+  - Full leaderboard parity still requires official annotations, judge outputs, or understanding predictions plus 
+    generated videos.
+integration:
+  status: integrated
+  blocked_reasons:
+  - Full official runtime (generation + human/judge scoring) has not been executed in-tree.
+  - Leaderboard parity requires official judge/checkpoint/API assets beyond the normalizer fixture.
+release_status: experimental
+maturity: verified_runner
+open_source_status: in_tree_runtime
+official_benchmark_verified: false
+integration_evidence: true
+leaderboard_valid: false
+requires:
+- WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+- visual_quality annotation
+- prompt_following annotation
+- judgement/mcqa/open_qa labels or official judge scores
+- prediction or model_answer for understanding tasks
+blockers:
+- Official source provenance and in-tree official-result normalizer are integrated.
+- Full leaderboard validation still requires official annotations, judge outputs, or understanding predictions plus 
+  generated videos.
+data_refs:
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/ipv-bench.yaml
+  in_tree_runtime_paths:
+  - worldfoundry/evaluation/tasks/execution/runners/ipv_bench
+runner_availability:
+  available: true
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:IPVBenchContract
+  runner_script_available: true
+  task_yaml_available: true
+  runtime_verified: false
+  surface: ipv_bench_official_in_tree
+  normalizer_verified: true
+dataset:
+  not_applicable: true
+  reason: Official benchmark assets are supplied by the source repository or caller-provided generated artifacts; no 
+    Hugging Face dataset is required for this contract entry.
+optional_base_model_dependencies:
+- video_world_perception_stack
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- ipv-bench
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.csv>
+- --generated-artifact-dir
+- <generated_videos>
+- --output-dir
+- <out>
+- --json
+checkpoint_refs: []
+artifact_layout:
+  generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  output_artifact: benchmark_scorecard
+  filename_template: scorecard.json

@@ -1,0 +1,27 @@
+schema_version: 2
+model_id: wan2.1-i2v-14b-480p
+display_name: Wan2.1 I2V 14B 480P
+task_family: video_generation
+groups:
+- video
+source_repos:
+- url: https://github.com/Wan-Video/Wan2.1
+checkpoints:
+- repo_id: Wan-AI/Wan2.1-I2V-14B-480P
+  revision: 6b73f84e66371cdfe870c72acd6826e1d61cf279
+  role: i2v_checkpoint
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - seed
+artifact_kind: generated_video
+artifact_filename: wan2.1-i2v-14b-480p.mp4
+execution:
+  backend_stage: in_tree_runtime_plan
+  runtime_status: profile_resolves_catalog_variant_runner_parity_pending
+  integration_status: integrated
+  pipeline_binding: wan2.1-i2v-14b-480p
+integration:
+  status: integrated

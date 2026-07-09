@@ -1,0 +1,184 @@
+---
+title: WorldScore
+description: 使用 WorldFoundry 仓内运行时执行 WorldScore。
+---
+
+## 简介
+
+WorldScore 评测 world generation：模型从一个已观察场景出发，在相机、物体、视觉和运动约束下继续扩展场景。公开 benchmark 覆盖 3D generation、4D generation、image-to-video、text-to-video，共 3,000 个样例。
+
+WorldFoundry 已经在 `worldfoundry/evaluation/tasks/execution/runners/worldscore` 中带有 benchmark runner 和 runtime。使用 WorldFoundry 时不要 clone 官方 repo；只需要准备 Hugging Face 数据集和指标 checkpoint。
+
+## 评测什么
+
+WorldScore 是第一个统一的 **world generation** benchmark。它把世界构建拆成带显式 camera-trajectory layout 的 next-scene 序列任务，并在 3D、4D、I2V、T2V 系统上评测 controllability、quality 和 dynamics。
+
+## Benchmark 设计
+
+| 属性 | 说明 |
+| --- | --- |
+| 样例数 | 3,000 个 curated test cases，覆盖 static 与 dynamic 世界 |
+| 模态 | 3D generation、4D generation、image-to-video、text-to-video |
+| 任务形式 | 从已观察场景出发，在 camera 或 layout 约束下生成 next scene |
+| Static split | controllability + quality（camera/object control、3D/photometric/style consistency） |
+| Dynamic split | 额外加入 motion accuracy、magnitude、smoothness |
+| 汇总 | leaderboard 提供 `WorldScore-Static` 与 `WorldScore-Dynamic` 两个变体 |
+
+与单场景视频 benchmark 不同，WorldScore 在同一协议里要求 multi-scene continuity、长序列、image conditioning、多风格、camera control 和 3D consistency。
+
+## 官方参考
+
+- Paper: [arXiv:2504.00983](https://arxiv.org/abs/2504.00983)
+- Project page 与 leaderboard: [haoyi-duan.github.io/WorldScore](https://haoyi-duan.github.io/WorldScore/)
+- 官方源码参考: [github.com/haoyi-duan/WorldScore](https://github.com/haoyi-duan/WorldScore)
+- 数据集: [Howieeeee/WorldScore](https://huggingface.co/datasets/Howieeeee/WorldScore)
+- 仓内 runner: `worldfoundry/evaluation/tasks/execution/runners/worldscore/run_worldscore_official_runner.py`
+
+## Leaderboard 说明
+
+官方站点发布 `WorldScore-Static` 与 `WorldScore-Dynamic` 排名，并展示各子族指标（camera/object control、content alignment、3D/photometric/style consistency、subjective quality、motion accuracy/magnitude/smoothness）。WorldFoundry 目前只记录了一个 dynamic 样例的有界 GPU 验证；完整 3,000 样例 leaderboard parity 需要完整 `evaluation.json` 树和全套 metric checkpoint。
+
+## 准备数据和资产
+
+从 WorldFoundry 仓库根目录运行：
+
+```bash
+cd /path/to/WorldFoundry
+export PYTHONPATH="$PWD:${PYTHONPATH:-}"
+```
+
+下载或放置 dataset。传入的数据根目录下必须包含 `WorldScore-Dataset/`：
+
+```bash
+export WORLDFOUNDRY_WORLDSCORE_DATA_PATH=/path/to/Howieeeee__WorldScore
+hf download Howieeeee/WorldScore \
+  --repo-type dataset \
+  --local-dir "${WORLDFOUNDRY_WORLDSCORE_DATA_PATH}"
+```
+
+准备指标资产。WorldFoundry 把这些依赖建模为可复用 base-model dependencies，但完整指标运行仍需要本地文件：
+
+- `WORLDFOUNDRY_WORLDSCORE_CONFIG_ROOT`：可选 config 覆盖；默认是 `worldfoundry/data/benchmarks/assets/worldscore/config`。
+- `WORLDFOUNDRY_WORLDSCORE_ASSET_CHECKPOINT_DIR`：WorldScore 指标 checkpoint 目录。
+- `WORLDFOUNDRY_DROID_SLAM_CKPT`：DROID-SLAM checkpoint，通常是 `droid.pth`。
+- `WORLDFOUNDRY_GROUNDING_DINO_CKPT`：GroundingDINO Swin-T checkpoint。
+- `WORLDFOUNDRY_SAM_VIT_H_CKPT`：SAM ViT-H checkpoint。
+- `WORLDFOUNDRY_SAM2_CKPT`：SAM2.1 checkpoint。
+- `WORLDFOUNDRY_RAFT_THINGS_CKPT`：RAFT Things checkpoint。
+- `WORLDFOUNDRY_SEA_RAFT_CKPT`：SEA-RAFT checkpoint。
+- `WORLDFOUNDRY_FLOWFORMERPLUSPLUS_CKPT`：FlowFormer++ checkpoint。
+- `WORLDFOUNDRY_VFIMAMBA_CKPT`：VFIMamba checkpoint。
+
+候选模型输出支持两种形态：
+
+```text
+完整运行：
+  <model_workspace>/<model_name>/worldscore_output/
+    static/.../input_image.png
+    static/.../frames/000.png
+    static/.../camera_data.json
+    static/.../image_data.json
+    static/.../evaluation.json
+    dynamic/.../input_image.png
+    dynamic/.../frames/000.png
+    dynamic/.../videos/output.mp4
+    dynamic/.../image_data.json
+    dynamic/.../evaluation.json
+    worldscore.json
+
+有界运行：
+  <generated_artifact_dir>/
+    candidate.mp4
+```
+
+有界运行适合本地集成验证。它只把一个生成视频或帧目录整理到 dynamic WorldScore layout，不代表 leaderboard 结果。
+
+```bash
+export WORLDFOUNDRY_GENERATED_ARTIFACT_DIR=/path/to/generated/worldscore_artifacts
+export WORLDFOUNDRY_WORLDSCORE_MODEL_NAME=wan2.1_i2v
+export WORLDFOUNDRY_WORLDSCORE_MODEL_PATH=/path/to/model_workspace
+export WORLDFOUNDRY_WORLDSCORE_HF_DATASET_ROOT="${WORLDFOUNDRY_WORLDSCORE_DATA_PATH}"
+```
+
+## 使用 WorldFoundry 运行
+
+通过公开 benchmark 命令运行仓内 runtime：
+
+```bash
+worldfoundry-eval zoo benchmark-run \
+  --benchmark-id worldscore \
+  --mode official-run \
+  --generated-artifact-dir "${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}" \
+  --env WORLDFOUNDRY_WORLDSCORE_HF_DATASET_ROOT="${WORLDFOUNDRY_WORLDSCORE_HF_DATASET_ROOT}" \
+  --env WORLDFOUNDRY_WORLDSCORE_ASSET_CHECKPOINT_DIR="${WORLDFOUNDRY_WORLDSCORE_ASSET_CHECKPOINT_DIR}" \
+  --env WORLDFOUNDRY_WORLDSCORE_MODEL_NAME="${WORLDFOUNDRY_WORLDSCORE_MODEL_NAME}" \
+  --env WORLDFOUNDRY_WORLDSCORE_MODEL_PATH="${WORLDFOUNDRY_WORLDSCORE_MODEL_PATH}" \
+  --output-dir tmp/worldscore/official-run \
+  --json
+```
+
+导入已有 `worldscore.json`：
+
+```bash
+worldfoundry-eval zoo benchmark-run \
+  --benchmark-id worldscore \
+  --mode official-validation \
+  --official-results-path /path/to/worldscore_output/worldscore.json \
+  --benchmark-data-root "${WORLDFOUNDRY_WORLDSCORE_DATA_PATH}" \
+  --generated-artifact-dir /path/to/worldscore_output \
+  --output-dir tmp/worldscore/official-validation \
+  --json
+```
+
+直接调用 runner，整理一个动态样例并运行：
+
+```bash
+PYTHONPATH=. "${WORLDFOUNDRY_UNIFIED_PYTHON:-python}" \
+  worldfoundry/evaluation/tasks/execution/runners/worldscore/run_worldscore_official_runner.py \
+  --worldscore-root worldfoundry/evaluation/tasks/execution/runners/worldscore/runtime/worldscore \
+  --worldscore-config-root worldfoundry/data/benchmarks/assets/worldscore/config \
+  --model-name "${WORLDFOUNDRY_WORLDSCORE_MODEL_NAME}" \
+  --model-path "${WORLDFOUNDRY_WORLDSCORE_MODEL_PATH}" \
+  --data-path "${WORLDFOUNDRY_WORLDSCORE_DATA_PATH}" \
+  --stage-dynamic-source "${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}" \
+  --stage-target-frames 8 \
+  --stage-overwrite \
+  --output-dir tmp/worldscore/direct-runner \
+  --json
+```
+
+直接导入完整结果文件：
+
+```bash
+PYTHONPATH=. "${WORLDFOUNDRY_UNIFIED_PYTHON:-python}" \
+  worldfoundry/evaluation/tasks/execution/runners/worldscore/run_worldscore_official_runner.py \
+  --data-path "${WORLDFOUNDRY_WORLDSCORE_DATA_PATH}" \
+  --generated-root /path/to/worldscore_output \
+  --official-results-path /path/to/worldscore_output/worldscore.json \
+  --output-dir tmp/worldscore/direct-import \
+  --json
+```
+
+## 指标
+
+| Metric ID | 含义 |
+| --- | --- |
+| `controllability` | 相机控制和物体控制遵循度的平均值，越高越好。 |
+| `quality` | 视觉与重建质量指标族：content alignment、3D consistency、photometric consistency、style consistency，以及可用时的 subjective quality，越高越好。 |
+| `dynamics` | 运动指标族：motion accuracy、motion magnitude、motion smoothness，越高越好。 |
+| `worldscore_average` | 可用 WorldScore 指标族的主聚合分数。WorldFoundry 会在 scorecard 中把百分制风格数值规范到 unit score。 |
+
+## 输出
+
+WorldFoundry 会在 `--output-dir` 下写入：
+
+- `scorecard.json`：报告和对比工具使用的规范化 benchmark scorecard。
+- `per_sample_metrics.jsonl`：每个发现样例或导入样例指标一行。
+- `raw_metric_table.jsonl`：包含 available、raw score、normalized score 和 source 的指标表。
+- `official_stdout.log` 和 `official_stderr.log`：直接执行官方 runtime 时的日志。
+
+## 限制
+
+WorldFoundry 已记录的 GPU 验证范围是一个 dynamic 样例，不是完整 3,000 样例 leaderboard 复现。完整运行需要完整 `evaluation.json` 树、WorldScore 指标 checkpoint stack、CUDA 依赖，以及足够的 GPU 时间执行 DROID-SLAM、分割、光流和插帧指标。runner 只评估已经生成的输出，不负责把 3D、4D 或视频模型改造成生成器。
+
+[← 返回 Benchmark Hub](/zh/docs/evaluation/benchmark-hub)

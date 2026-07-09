@@ -1,0 +1,32 @@
+id: rlbench_eval
+output_dir: ./results/rlbench_eval
+model_id: external-policy-server
+server:
+  url: ws://localhost:8000
+benchmark_id: rlbench
+benchmark_kwargs:
+  tasks:
+    - reach_target
+    - pick_up_cup
+    - push_button
+    - close_drawer
+    - open_door
+    - open_drawer
+    - close_jar
+    - stack_blocks
+    - put_item_in_drawer
+    - sweep_to_dustpan
+    - turn_tap
+    - slide_block_to_target
+    - put_groceries_in_cupboard
+    - place_shape_in_shape_sorter
+    - insert_onto_square_peg
+    - stack_cups
+    - light_bulb_in
+    - take_lid_off_saucepan
+  render_resolution: 256
+  max_steps: 200
+episodes_per_task: 25
+metric_ids:
+  - task_success
+  - success_rate

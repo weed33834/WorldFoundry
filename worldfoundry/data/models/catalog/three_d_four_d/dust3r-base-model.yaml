@@ -1,0 +1,32 @@
+id: dust3r-base-model
+name: DUSt3R Base Model
+aliases:
+- dust3r-base
+tasks:
+- geometry
+- 3d-reconstruction
+- geometry-prior
+provider: official_repo
+source:
+  status: source_available
+  official_repo_url: https://github.com/naver/dust3r
+  license: CC-BY-NC-SA-4.0
+official_sources:
+  github:
+    url: https://github.com/naver/dust3r
+  project_page: https://dust3r.europe.naverlabs.com/
+integration:
+  kind: pipeline_runner
+  status: runtime_ported
+  notes:
+  - Base-model profile for the DUSt3R catalog entry; exposed through the shared geometry-prior pipeline/operator contract.
+  - Aligns with the dust3r catalog entry, which vendors the same in-tree source under worldfoundry.base_models.three_dimensions.general_3d.dust3r.
+runtime_profile: runtime-profile:dust3r-base-model
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: dust3r-base-model
+runner_parity:
+  status: pending
+  notes:
+  - Real prior inference remains gated by external source, checkpoints, and assets.
+catalog_category: three_d_four_d
+catalog_scope: Independent geometric prior integrations used by 3D and world-model runtimes.

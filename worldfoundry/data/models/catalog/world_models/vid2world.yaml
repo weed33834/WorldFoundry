@@ -1,0 +1,33 @@
+id: vid2world
+name: Vid2World
+tasks:
+- interactive-world-model
+- video-diffusion-adaptation
+- action-conditioned-video
+output_artifacts:
+- generated_video
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/thuml/Vid2World
+official_sources:
+  project_page: https://knightnemo.github.io/vid2world/
+  github:
+    url: https://github.com/thuml/Vid2World
+    head_sha: ae24077adbd0783bc6e1b79f705d9b8fad5888ce
+integration:
+  status: runtime_ported
+  notes:
+  - Vid2World official evaluation route is registered; checkpoints/config assets are
+    runtime-gated.
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - resolve_model_zoo_config and pipeline import are expected to pass; real generation
+    emits a runtime plan until required checkpoints/assets are staged.
+runtime_profile: runtime-profile:vid2world
+catalog_category: world_models
+catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry
+  runtimes; blocked entries retain upstream provenance without runnable backends.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: vid2world

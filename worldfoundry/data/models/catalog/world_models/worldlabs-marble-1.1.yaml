@@ -1,0 +1,29 @@
+id: worldlabs-marble-1.1
+name: World Labs Marble 1.1
+aliases:
+- marble-1.1
+- worldlab-marble-1.1
+tasks:
+- world-generation
+- 3d-world-generation
+- api-world-model
+provider: api
+source:
+  status: api
+  official_repo_url: https://radiancefields.com/world-labs-releases-marble-1.1-and-marble-1.1-plus
+official_sources:
+  release_notes: https://radiancefields.com/world-labs-releases-marble-1.1-and-marble-1.1-plus
+  api: https://api.worldlabs.ai
+runtime_profile: runtime-profile:worldlabs-marble-1.1
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: worldlabs-marble-1.1
+integration:
+  status: planned
+  notes:
+  - World Labs Marble 1.1 is exposed through the existing in-tree WorldLabs API pipeline
+    with the marble-1.1 model id.
+runner_parity:
+  status: pending
+catalog_category: world_models
+catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry
+  runtimes; blocked entries retain upstream provenance without runnable backends.

@@ -1,0 +1,57 @@
+id: nwm
+name: Navigation World Models
+aliases:
+- navigation-world-models
+- nwm-recon
+- nwm-scand
+tasks:
+- navigation-world-model
+- action-conditioned-video
+- egocentric-video-generation
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/facebookresearch/nwm
+  hf_repo_id: facebook/nwm
+  license: cc-by-nc-4.0
+official_sources:
+  project_page: https://www.amirbar.net/nwm/
+  github:
+    url: https://github.com/facebookresearch/nwm
+  huggingface:
+  - repo_id: facebook/nwm
+    status: confirmed
+variants:
+- id: nwm-recon
+  task: navigation-world-model
+  provider: official_repo
+  checkpoint: facebook/nwm
+  integration:
+    status: planned
+- id: nwm-scand
+  task: navigation-world-model
+  provider: official_repo
+  checkpoint: facebook/nwm
+  integration:
+    status: planned
+integration:
+  status: runtime_ported
+  blocked_reasons:
+  - Official source is vendored in-tree under synthesis/visual_generation; runnable execution still requires the official
+    dependency environment, checkpoints, and evaluation datasets.
+  notes:
+  - WorldFoundry registers an in-tree runtime manifest pipeline for the vendored NWM source.
+  - Initial candidate for non-driving navigation video evaluation.
+  - A model-specific WorldFoundry pipeline is registered against the independent in-tree NWM source package; real upstream
+    inference remains checkpoint/environment gated.
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - The pipeline resolves the official NWM inference entrypoint and returns blocked runtime diagnostics until checkpoints
+    and datasets are staged.
+runtime_profile: runtime-profile:nwm
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: nwm
+catalog_category: world_models
+catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry runtimes; blocked entries retain
+  upstream provenance without runnable backends.

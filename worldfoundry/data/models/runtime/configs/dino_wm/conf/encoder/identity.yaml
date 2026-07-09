@@ -1,0 +1,2 @@
+_target_: models.identity.IdentityFeatureModel
+emb_dim: 7

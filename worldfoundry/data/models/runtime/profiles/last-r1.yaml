@@ -1,0 +1,30 @@
+schema_version: 2
+model_id: last-r1
+display_name: LaST-R1
+task_family: vla_policy
+groups:
+- vla
+- reinforcement_learning
+- policy_rollout
+source_repos:
+- url: https://github.com/CHEN-H01/LaST-R1
+checkpoints:
+- repo_id: chenhao01/LaST-R1
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/chenhao01--LaST-R1
+  role: last_r1_checkpoint
+input_schema:
+  model_id: last-r1
+  image: true
+  prompt: true
+  state: true
+  policy_family: rl_refined_vla_policy
+  action_representation: vla_action_trace
+artifact_kind: action_trace
+artifact_filename: last-r1_action_trace.json
+execution:
+  backend_stage: official_in_tree_runtime
+  runtime_status: official_runtime_route_ready_checkpoint_required
+  integration_status: runtime_ported
+  pipeline_binding: last-r1
+integration:
+  status: runtime_ported

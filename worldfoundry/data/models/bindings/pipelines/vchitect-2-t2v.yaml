@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: vchitect-2-t2v
+model_id: vchitect-2-t2v
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.vchitect.pipeline_vchitect_2_t2v:Vchitect2T2VPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

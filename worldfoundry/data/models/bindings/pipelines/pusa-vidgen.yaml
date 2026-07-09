@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: pusa-vidgen
+model_id: pusa-vidgen
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.pusa_vidgen.pipeline_pusa_vidgen:PusaVidGenPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

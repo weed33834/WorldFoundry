@@ -1,0 +1,13 @@
+schema_version: 2
+binding_id: kairos-sensenova
+model_id: kairos-sensenova
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.kairos.pipeline_kairos:KairosPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation
+aliases:
+- kairos_sensenova

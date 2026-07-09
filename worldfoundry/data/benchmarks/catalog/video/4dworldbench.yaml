@@ -1,0 +1,258 @@
+id: 4dworldbench
+name: 4DWorldBench
+benchmark_kind:
+- world-generation
+- three-d-four-d-generation
+- video-generation-quality
+- physical-plausibility
+domains:
+- world-model
+- 3d-generation
+- 4d-generation
+- physical-realism
+modalities:
+- text
+- image
+- video
+- generated-video
+status: confirmed_official_code
+official_sources:
+  github:
+    url: https://github.com/yeppp27/4dworldbench_code.git
+    commit: 9dc305cb15418055813be8b26c716a230289d6b5
+    provenance: official source; runtime entrypoints and metric code are integrated in tree
+    role: provenance_only_not_runtime_dependency
+  project_page: https://yeppp27.github.io/4DWorldBench.github.io/
+  paper_url: https://arxiv.org/pdf/2511.19836
+benchmark_assets:
+  dataset_json:
+    status: user_prepared
+    layout: condition_to_4D/<condition_family>/<task>.json
+  generated_outputs:
+    status: user_prepared
+    layout: generated_videos entries referenced by dataset_json
+evaluation_surface:
+  purpose: Evaluate 3D/4D world-generation outputs across perceptual quality, Condition-4D alignment, physical realism, and 4D consistency.
+  metric_protocol:
+    metric_ids:
+    - perceptual_clip_iqa_metrics
+    - perceptual_clip_aesthetic_metrics
+    - perceptual_fastvqa
+    - alignment_attribute_control
+    - alignment_relationship_control
+    - alignment_motion_control
+    - alignment_event_control
+    - alignment_scene_control
+    - alignment_camera_error_metrics
+    - physics_realism
+    - consistency_viewpoint
+    - consistency_motion_smoothness
+    - consistency_motion_qa
+    - consistency_style
+    - perceptual_quality
+    - condition_4d_alignment
+    - physical_realism_score
+    - four_d_consistency
+    - four_d_worldbench_average
+    primary_metric: four_d_worldbench_average
+metrics:
+- id: perceptual_clip_iqa_metrics
+  name: CLIP-IQA
+  description: Official 4DWorldBench frame-level CLIP-IQA perceptual quality score.
+  higher_is_better: true
+  aggregator: mean
+  output_unit: score
+- id: perceptual_clip_aesthetic_metrics
+  name: CLIP Aesthetic
+  description: Official 4DWorldBench CLIP-aesthetic perceptual quality score.
+  higher_is_better: true
+  aggregator: mean
+  output_unit: score
+- id: perceptual_fastvqa
+  name: FastVQA
+  description: Official 4DWorldBench temporal video-quality score.
+  higher_is_better: true
+  aggregator: mean
+  output_unit: score
+- id: alignment_attribute_control
+  name: Attribute Control
+  description: Keye-VL yes/no judge score for dynamic attribute control.
+  higher_is_better: true
+  aggregator: mean
+  output_unit: accuracy
+- id: alignment_relationship_control
+  name: Relationship Control
+  description: Keye-VL yes/no judge score for dynamic spatial relationship control.
+  higher_is_better: true
+  aggregator: mean
+  output_unit: accuracy
+- id: alignment_motion_control
+  name: Motion Control
+  description: Keye-VL yes/no judge score for motion order alignment.
+  higher_is_better: true
+  aggregator: mean
+  output_unit: accuracy
+- id: alignment_event_control
+  name: Event Control
+  description: Keye-VL yes/no judge score for complex plot/event alignment.
+  higher_is_better: true
+  aggregator: mean
+  output_unit: accuracy
+- id: alignment_scene_control
+  name: Scene Control
+  description: Keye-VL yes/no judge score for complex landscape/scene alignment.
+  higher_is_better: true
+  aggregator: mean
+  output_unit: accuracy
+- id: alignment_camera_error_metrics
+  name: Camera Error
+  description: DROID-SLAM camera trajectory error for camera-control alignment; lower raw error is better and normalized inversely.
+  higher_is_better: false
+  aggregator: mean
+  output_unit: error
+- id: physics_realism
+  name: Physical Realism
+  description: Official LLM-assisted physics-reasoning score.
+  higher_is_better: true
+  aggregator: mean
+  output_unit: accuracy
+- id: consistency_viewpoint
+  name: Viewpoint Consistency
+  description: DROID-SLAM reprojection error for multi-view consistency; lower raw error is better and normalized inversely.
+  higher_is_better: false
+  aggregator: mean
+  output_unit: error
+- id: consistency_motion_smoothness
+  name: Motion Smoothness
+  description: VFIMamba interpolation consistency score.
+  higher_is_better: true
+  aggregator: mean
+  output_unit: score
+- id: consistency_motion_qa
+  name: Motion QA
+  description: Keye-VL yes/no judge score for motion consistency questions.
+  higher_is_better: true
+  aggregator: mean
+  output_unit: accuracy
+- id: consistency_style
+  name: Style Consistency
+  description: VGG Gram-matrix style consistency score.
+  higher_is_better: true
+  aggregator: mean
+  output_unit: score
+- id: perceptual_quality
+  name: Perceptual Quality
+  description: Mean normalized perceptual quality component.
+  higher_is_better: true
+  aggregator: mean
+  output_unit: score
+- id: condition_4d_alignment
+  name: Condition-4D Alignment
+  description: Mean normalized Condition-4D alignment component.
+  higher_is_better: true
+  aggregator: mean
+  output_unit: score
+- id: physical_realism_score
+  name: Physical Realism Score
+  description: Normalized physical realism component.
+  higher_is_better: true
+  aggregator: mean
+  output_unit: score
+- id: four_d_consistency
+  name: 4D Consistency
+  description: Mean normalized 4D consistency component.
+  higher_is_better: true
+  aggregator: mean
+  output_unit: score
+- id: four_d_worldbench_average
+  name: 4DWorldBench Average
+  description: Mean normalized score across available 4DWorldBench components.
+  higher_is_better: true
+  aggregator: mean
+  output_unit: score
+  primary: true
+runner:
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:FourDWorldBenchContract
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - 4dworldbench
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <4dworldbench_results.json>
+  - --generated-artifact-dir
+  - <generated_artifacts>
+  - --output-dir
+  - <out>
+  - --json
+  required_env: []
+  expected_artifacts:
+  - scorecard.json
+  - raw_metric_table.jsonl
+  - per_sample_scores.jsonl
+  runtime:
+    kind: in_tree_official_runtime
+    root: worldfoundry/evaluation/tasks/execution/runners/four_d_worldbench
+    runtime_root: worldfoundry/evaluation/tasks/execution/runners/four_d_worldbench/runtime/four_d_worldbench
+    root_env: WORLDFOUNDRY_4DWORLDBENCH_ROOT
+    results_path_env: WORLDFOUNDRY_4DWORLDBENCH_RESULTS_PATH
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+integration:
+  status: integrated
+  evidence:
+  - In-tree runner and metric entrypoints are available under worldfoundry/evaluation/tasks/execution/runners/four_d_worldbench.
+  - Heavy official dependencies are resolved through WorldFoundry base_models or explicit environment variables.
+release_status: experimental
+maturity: contract_ready
+open_source_status: in_tree_official_runtime
+official_benchmark_verified: false
+integration_evidence: true
+leaderboard_valid: false
+requires:
+- dataset_json prepared in the official 4DWorldBench JSON schema
+- generated videos referenced by dataset_json
+- Keye-VL, DROID-SLAM, VFIMamba, FastVQA, and OpenAI/API assets only for dimensions that use them
+data_refs:
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/4dworldbench.yaml
+runner_availability:
+  available: true
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:FourDWorldBenchContract
+  runner_script_available: true
+  task_yaml_available: true
+  runtime_verified: true
+  surface: official_runner
+  normalizer_verified: true
+base_model_dependencies:
+- keye_vl
+- droid_slam
+- vfimamba
+- fastvqa
+validation_command:
+- python
+- worldfoundry/evaluation/tasks/execution/runners/four_d_worldbench/run_four_d_worldbench_official_runner.py
+- --run-official
+- --dataset-json
+- <dataset.json>
+- --model-name
+- <model_name>
+- --dimension
+- perceptual_clip_iqa_metrics
+- --generated-video-dir
+- <generated_artifacts>
+- --output-dir
+- <out>
+- --json
+checkpoint_refs:
+- id: keye_vl
+  env: WORLDFOUNDRY_4DWORLDBENCH_KEYE_MODEL
+- id: droid_slam
+  env: WORLDFOUNDRY_4DWORLDBENCH_DROID_CKPT
+- id: openai
+  env: OPENAI_API_KEY
+artifact_layout:
+  generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  output_artifact: benchmark_scorecard
+  filename_template: scorecard.json

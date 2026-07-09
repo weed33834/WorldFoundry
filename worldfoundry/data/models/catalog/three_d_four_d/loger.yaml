@@ -1,0 +1,30 @@
+id: loger
+name: LoGeR
+tasks:
+- 3d-reconstruction
+- trajectory
+- point-cloud
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/Junyi42/LoGeR
+  license: apache-2.0
+official_sources:
+  github:
+    url: https://github.com/Junyi42/LoGeR
+  huggingface:
+  - repo_id: Junyi42/LoGeR
+    type: model
+    status: confirmed
+integration:
+  status: runtime_ported
+  notes:
+  - In-tree LoGeR point-cloud navigation pipeline is registered for reconstruction and trajectory rendering.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: loger
+runner_parity:
+  status: pending
+  notes:
+  - Per-run validation evidence is tracked outside the model catalog.
+catalog_category: three_d_four_d
+catalog_scope: Official-source manifest for 3D, 4D, and camera-controlled world/model generation projects.

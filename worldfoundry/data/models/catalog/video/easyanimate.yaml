@@ -1,0 +1,80 @@
+id: easyanimate
+name: EasyAnimate
+aliases:
+  - easyanimate_i2v
+  - easyanimate-i2v
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+runtime_profile: runtime-profile:easyanimate-i2v
+tasks:
+  - text-to-video
+  - image-to-video
+  - video-to-video
+source_status:
+  status: confirmed_official_github
+  github:
+    url: https://github.com/aigc-apps/EasyAnimate
+    verified_by: git ls-remote --symref https://github.com/aigc-apps/EasyAnimate.git HEAD
+    default_branch: main
+    head_sha: c2a70d17daa1549a22129d0cd0e02053ecccd75c
+checkpoint:
+  status: confirmed_public_hf
+  verified_by: GET https://huggingface.co/api/models/<repo_id>
+  repos:
+    - id: alibaba-pai/EasyAnimateV5-12b-zh
+      sha: f3d0c964eff71adb0b15947f18ffbf01c19a7b05
+      license: other
+      private: false
+      gated: false
+      tasks:
+        - text-to-video
+        - image-to-video
+    - id: alibaba-pai/EasyAnimateV5.1-12b-zh
+      sha: 024eaaeba65e24f4223f60c11558227545f3f9b6
+      license: apache-2.0
+      private: false
+      gated: false
+      tasks:
+        - text-to-video
+        - image-to-video
+    - id: alibaba-pai/EasyAnimateV5.1-7b-zh-InP
+      sha: a18486a2647f32a8963bee479326947067bab836
+      license: apache-2.0
+      private: false
+      gated: false
+      tasks:
+        - image-to-video
+    - id: alibaba-pai/EasyAnimateV5.1-7b-zh
+      sha: 4dd5a1990589332da6294286f32bcc63e143831d
+      license: apache-2.0
+      private: false
+      gated: false
+      tasks:
+        - text-to-video
+    - id: alibaba-pai/EasyAnimateV4-XL-2-InP
+      sha: 0bdb0bfc02bfe5f5497fd30b55f79e2ddebb630b
+      license: other
+      private: false
+      gated: false
+      tasks:
+        - text-to-video
+        - image-to-video
+  notes: EasyAnimateV3 candidate returned 401 and is not listed.
+demo_parity:
+  status: pending
+  notes: The EasyAnimate V5.1 I2V route is wired with the official InP checkpoint and Flow scheduler; full official benchmark parity remains pending.
+notes: Official GitHub is aigc-apps/EasyAnimate; official HF checkpoint org is alibaba-pai.
+catalog_category: video
+catalog_scope: Official GitHub and/or Hugging Face confirmed open-source or open-weight video generation models. Checkpoints are not tracked in git; local validation may download selected repos under cache/hfd.
+catalog_policy:
+  github: Validated with git ls-remote, preferring git ls-remote --symref <repo>.git HEAD for default branch and HEAD SHA.
+  huggingface: Validated with the Hugging Face /api/models endpoint. Recorded repo id, sha, private, gated, license, and selected task tags only.
+  parity: This manifest does not claim WorldFoundry runtime parity unless an explicit parity run and expected artifact are recorded.
+integration:
+  status: integrated
+  notes:
+    - WorldFoundry wraps the in-tree EasyAnimate I2V runtime.
+runner_parity:
+  status: pending
+  notes:
+    - The fix uses the official V5.1 Flow scheduler, InP checkpoint, and height/width to sample_size mapping.
+    - Per-run visual QA and artifact checks are tracked outside the model catalog.

@@ -1,0 +1,190 @@
+id: sana
+name: Sana
+aliases:
+- sana-video
+- longsana-video
+tasks:
+- text-to-image
+- text-to-video
+- image-conditioned-generation
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/NVlabs/Sana
+  license: apache-2.0
+official_sources:
+  project_page: https://nvlabs.github.io/Sana/
+  paper: https://arxiv.org/abs/2410.10629
+  github:
+    url: https://github.com/NVlabs/Sana
+  huggingface:
+  - repo_id: Efficient-Large-Model/Sana_1600M_1024px
+    status: confirmed
+  license: apache-2.0
+  access_notes: Official GitHub repository is public under Apache-2.0; Hugging Face
+    checkpoints remain external assets and were not downloaded.
+integration:
+  status: runtime_ported
+  notes:
+  - Official Sana source, configs, ControlNet runner, Sprint runner, and video runner
+    are vendored under worldfoundry.base_models.diffusion_model.image.sana.
+  - Checkpoint assets remain external Hugging Face artifacts.
+  - The 2B 480p video path is wired through the in-tree runtime; official long
+    configuration parity remains pending.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: sana
+runtime_profile: runtime-profile:sana
+runner_parity:
+  status: pending
+  notes:
+  - SanaSynthesis plan-onlys and executes the official in-tree CLI scripts.
+  - Full 50-step / longer-frame official quality parity remains pending.
+variants:
+- id: sana-600m-512px
+  task: text-to-image
+  integration_status: planned
+  checkpoint_refs:
+  - repo_id: Efficient-Large-Model/Sana_600M_512px
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: sana-600m-512px
+  runtime_profile: runtime-profile:sana
+- id: sana-600m-1024px
+  task: text-to-image
+  integration_status: planned
+  checkpoint_refs:
+  - repo_id: Efficient-Large-Model/Sana_600M_1024px
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: sana-600m-1024px
+  runtime_profile: runtime-profile:sana
+- id: sana-1600m-512px
+  task: text-to-image
+  integration_status: planned
+  checkpoint_refs:
+  - repo_id: Efficient-Large-Model/Sana_1600M_512px
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: sana-1600m-512px
+  runtime_profile: runtime-profile:sana
+- id: sana-1600m-512px-multiling
+  task: text-to-image
+  integration_status: planned
+  checkpoint_refs:
+  - repo_id: Efficient-Large-Model/Sana_1600M_512px_MultiLing
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: sana-1600m-512px-multiling
+  runtime_profile: runtime-profile:sana
+- id: sana-1600m-1024px
+  task: text-to-image
+  integration_status: planned
+  checkpoint_refs:
+  - repo_id: Efficient-Large-Model/Sana_1600M_1024px
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: sana-1600m-1024px
+  runtime_profile: runtime-profile:sana
+- id: sana-1600m-1024px-multiling
+  task: text-to-image
+  integration_status: planned
+  checkpoint_refs:
+  - repo_id: Efficient-Large-Model/Sana_1600M_1024px_MultiLing
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: sana-1600m-1024px-multiling
+  runtime_profile: runtime-profile:sana
+- id: sana-1600m-1024px-bf16
+  task: text-to-image
+  integration_status: planned
+  checkpoint_refs:
+  - repo_id: Efficient-Large-Model/Sana_1600M_1024px_BF16
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: sana-1600m-1024px-bf16
+  runtime_profile: runtime-profile:sana
+- id: sana-1600m-2k-bf16
+  task: text-to-image
+  integration_status: planned
+  checkpoint_refs:
+  - repo_id: Efficient-Large-Model/Sana_1600M_2Kpx_BF16
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: sana-1600m-2k-bf16
+  runtime_profile: runtime-profile:sana
+- id: sana-1600m-4k-bf16
+  task: text-to-image
+  integration_status: planned
+  checkpoint_refs:
+  - repo_id: Efficient-Large-Model/Sana_1600M_4Kpx_BF16
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: sana-1600m-4k-bf16
+  runtime_profile: runtime-profile:sana
+- id: sana1p5-1600m-1024px
+  task: text-to-image
+  integration_status: planned
+  checkpoint_refs:
+  - repo_id: Efficient-Large-Model/SANA1.5_1.6B_1024px
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: sana1p5-1600m-1024px
+  runtime_profile: runtime-profile:sana
+- id: sana1p5-4800m-1024px
+  task: text-to-image
+  integration_status: planned
+  checkpoint_refs:
+  - repo_id: Efficient-Large-Model/SANA1.5_4.8B_1024px
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: sana1p5-4800m-1024px
+  runtime_profile: runtime-profile:sana
+- id: sana-sprint-600m-1024px
+  task: text-to-image
+  integration_status: planned
+  checkpoint_refs:
+  - repo_id: Efficient-Large-Model/Sana_Sprint_0.6B_1024px
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: sana-sprint-600m-1024px
+  runtime_profile: runtime-profile:sana
+- id: sana-sprint-1600m-1024px
+  task: text-to-image
+  integration_status: planned
+  checkpoint_refs:
+  - repo_id: Efficient-Large-Model/Sana_Sprint_1.6B_1024px
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: sana-sprint-1600m-1024px
+  runtime_profile: runtime-profile:sana
+- id: sana-controlnet-600m-1024px
+  task: image-conditioned-generation
+  integration_status: planned
+  checkpoint_refs:
+  - repo_id: Efficient-Large-Model/Sana_600M_1024px_ControlNet_HED
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: sana-controlnet-600m-1024px
+  runtime_profile: runtime-profile:sana
+- id: sana-controlnet-1600m-1024px-bf16
+  task: image-conditioned-generation
+  integration_status: planned
+  checkpoint_refs:
+  - repo_id: Efficient-Large-Model/Sana_1600M_1024px_BF16_ControlNet_HED
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: sana-controlnet-1600m-1024px-bf16
+  runtime_profile: runtime-profile:sana
+- id: sana-video-2b-480p
+  task: text-to-video
+  integration_status: integrated
+  checkpoint_refs:
+  - repo_id: Efficient-Large-Model/SANA-Video_2B_480p
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: sana-video-2b-480p
+  runtime_profile: runtime-profile:sana
+- id: sana-video-2b-720p
+  task: text-to-video
+  integration_status: planned
+  checkpoint_refs:
+  - repo_id: Efficient-Large-Model/SANA-Video_2B_720p
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: sana-video-2b-720p
+  runtime_profile: runtime-profile:sana
+- id: longsana-video-2b-480p
+  task: text-to-video
+  integration_status: planned
+  checkpoint_refs:
+  - repo_id: Efficient-Large-Model/SANA-Video_2B_480p_LongLive
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: longsana-video-2b-480p
+  runtime_profile: runtime-profile:sana
+catalog_category: video
+catalog_scope: Video-generation and video-token catalog entries. Integrated entries
+  expose WorldFoundry pipeline targets; metadata-only entries retain upstream provenance
+  without runnable WorldFoundry backends.

@@ -1,0 +1,55 @@
+id: recammaster
+name: ReCamMaster
+aliases:
+- Camera-Controlled Generative Rendering from A Single Video
+area: 4d
+task: camera-controlled video rerendering
+developer: Kling Team / Kuaishou, Zhejiang University, CUHK, and HUST authors
+user_starred: true
+official_sources:
+  github: https://github.com/KlingAIResearch/ReCamMaster
+  project_page: https://jianhongbai.github.io/ReCamMaster/
+  paper: https://arxiv.org/abs/2503.11647
+availability:
+  status: open_source
+  open_source: true
+  code: public_reference_implementation
+  weights: not_confirmed
+  license: MIT
+  api: upload_service_for_best_version
+integration:
+  kind: pipeline_runner
+  status: integrated
+  notes:
+  - WorldFoundry exposes the in-tree ReCamMaster pipeline, operator, and synthesis runtime under the Kling namespace.
+  - The open-source reference runtime is checkpoint/GPU gated; no empty runner shim is registered.
+confirmation: Official GitHub repo resolves to KlingAIResearch/ReCamMaster and has
+  MIT license; README says the open-source repository is a reference implementation
+  and best-version access is via upload/trial service.
+output_artifacts:
+- generated_video
+- generated_4d_scene
+runtime_profile: runtime-profile:recammaster
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: recammaster
+runner_parity:
+  status: verified
+  notes:
+  - The in-tree ReCamMaster runner supports the official camera-trajectory
+    video-to-video demo with local ReCamMaster/Wan assets.
+  - Per-run visual QA and artifact checks are tracked outside the model catalog.
+catalog_category: three_d_four_d
+catalog_scope: Official-source manifest for 3D, 4D, and camera-controlled world/model
+  generation projects.
+catalog_policy:
+  open_source_true_requires: An official GitHub or Hugging Face source with an explicit
+    OSI-style software license or otherwise clearly open source/open weights metadata.
+    Public code without a license is source-available, not open_source.
+  weights_policy: Weights were not downloaded. Entries record only official repository,
+    Hugging Face, project page, paper, and license metadata.
+  status_values:
+  - open_source
+  - source_available
+  - open_weights_restricted
+  - api_or_closed
+  - unknown

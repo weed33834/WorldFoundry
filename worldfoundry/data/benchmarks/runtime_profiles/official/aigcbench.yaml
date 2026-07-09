@@ -1,0 +1,71 @@
+benchmark_ids:
+- aigcbench
+blocked_reason: AIGCBench runner imports metric artifacts produced by the WorldFoundry evaluation pipeline; full 
+  leaderboard parity still needs the complete official prompt suite, generated videos, reference assets, and metric 
+  outputs.
+environment_id: worldfoundry-unified-cu128
+id: aigcbench
+name: AIGCBench
+needs_new_env: false
+notes:
+- WorldFoundry materializes HF dataset prompt lists and normalizes caller-provided AIGCBench metric result files.
+- Workspace and TUI generate videos through WorldFoundry model integrations; this runner imports the metric result file.
+- Full validation requires reference assets, generated videos, ViT-L-14.pt, DOVER, and optical-flow metric outputs.
+preflight_command: PYTHONPATH=. ${WORLDFOUNDRY_CONDA_ROOT}/worldfoundry-unified-cu128/bin/python -m 
+  worldfoundry.evaluation.tasks.execution.orchestration.runtime_preflight --profile aigcbench --manifest 
+  worldfoundry/data/benchmarks/runtime_profiles/official/aigcbench.yaml --output-dir 
+  tmp/worldfoundry_preflight/aigcbench --json
+python_path: ${WORLDFOUNDRY_CONDA_ROOT}/worldfoundry-unified-cu128/bin/python
+pythonpath_roots:
+- .
+required_assets:
+  bundled_assets: worldfoundry/data/benchmarks/assets/aigcbench
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/aigcbench.yaml
+required_env:
+- WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+optional_env:
+- WORLDFOUNDRY_AIGCBENCH_DATASET_ROOT
+- WORLDFOUNDRY_AIGCBENCH_PROMPT_MANIFEST
+- WORLDFOUNDRY_AIGCBENCH_RESULTS_PATH
+- WORLDFOUNDRY_AIGCBENCH_SCORER_BACKEND
+- WORLDFOUNDRY_AIGCBENCH_STRICT
+required_imports:
+- json
+required_packages:
+- numpy
+required_paths:
+- id: official_runner_script
+  path: worldfoundry/evaluation/tasks/execution/runners/aigcbench/run_aigcbench_official_runner.py
+- id: task_yaml
+  path: worldfoundry/data/benchmarks/tasks/external/aigcbench.yaml
+- id: bundled_prompt_manifest
+  path: worldfoundry/data/benchmarks/assets/aigcbench/prompt_suite.json
+requires_cuda_visibility: false
+status: in_tree_artifact_import_ready
+base_model_dependencies:
+- video_quality_motion_stack
+base_model_dependency_preflight:
+  status: ready
+  missing: []
+optional_imports:
+- torch
+- torchvision
+- cv2
+- pandas
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- aigcbench
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.csv>
+- --generated-artifact-dir
+- <generated_videos>
+- --output-dir
+- <out>
+- --json
+tags:
+- aigcbench

@@ -1,0 +1,9 @@
+{
+  "title": "维护者",
+  "defaultOpen": false,
+  "pages": [
+    "contributing",
+    "plan",
+    "architecture"
+  ]
+}

@@ -1,0 +1,29 @@
+conda_packages:
+- python
+- pip
+cuda_profile: cu113
+driver_status: compatible
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: openvla
+notes:
+- OpenVLA official HF predict_action demos use the GPU cu113 baseline recorded for WorldFoundry. The demo wrapper keeps attention_mask
+  aligned with the upstream predict_action token-append path and runs fp16 on driver 470 because bf16 CUDA ops are incomplete
+  in this torch stack.
+pip_packages:
+- numpy
+- Pillow
+- transformers
+- accelerate
+- safetensors
+- sentencepiece
+- torch
+- torchvision
+- timm
+- tokenizers
+python: '3.10'
+validation_imports:
+- numpy
+- PIL
+- torch
+- transformers

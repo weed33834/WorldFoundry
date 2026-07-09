@@ -1,0 +1,23 @@
+schema_version: 2
+model_id: spatial-ladder
+display_name: SpatialLadder
+task_family: video_generation
+groups: [video, multimodal, spatial_reasoning]
+source_repos:
+- url: https://huggingface.co/hongxingli/SpatialLadder-3B
+checkpoints:
+- repo_id: hongxingli/SpatialLadder-3B
+  role: model_checkpoint
+input_schema:
+  prompt: true
+  image: optional
+  video: optional
+artifact_kind: model_response
+artifact_filename: spatial-ladder.json
+execution:
+  backend_stage: official_hf_transformers_runtime
+  runtime_status: integrated_checkpoint_required
+  integration_status: integrated
+  pipeline_binding: spatial-ladder
+integration:
+  status: integrated

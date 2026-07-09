@@ -1,0 +1,51 @@
+schema_version: worldfoundry.official_video_runtime.v1
+model_id: unianimate-dit
+runtime:
+  kind: official_cli
+  backend_quality: in_tree_official_runtime
+  repo_root_candidates:
+  - ${WORLDFOUNDRY_PACKAGE_ROOT}/synthesis/visual_generation/unianimate_dit/unianimate_dit_runtime
+  checkpoint_candidates:
+  - $WORLDFOUNDRY_CKPT_DIR/UniAnimate-DiT
+  - $WORLDFOUNDRY_HFD_ROOT/ZheWang123--UniAnimate-DiT
+  defaults:
+    wan_root: $WORLDFOUNDRY_CKPT_DIR/Wan2.1-I2V-14B-720P
+    max_frames: 81
+    height: 832
+    width: 480
+    num_inference_steps: 50
+    seed: 0
+    use_usp: false
+    nproc_per_node: 4
+  command:
+  - "{python}"
+  - "-m"
+  - "worldfoundry.synthesis.visual_generation.unianimate_dit.worldfoundry_runner"
+  - "--repo-root"
+  - "{repo_root}"
+  - "--checkpoint-dir"
+  - "{checkpoint_path}"
+  - "--wan-root"
+  - "{wan_root}"
+  - "--prompt"
+  - "{prompt}"
+  - "--output-path"
+  - "{output_path}"
+  - "--max-frames"
+  - "{max_frames}"
+  - "--num-inference-steps"
+  - "{num_inference_steps}"
+  - "--height"
+  - "{height}"
+  - "--width"
+  - "{width}"
+  - "--seed"
+  - "{seed}"
+  - "--use-usp"
+  - "{use_usp}"
+  - "--nproc-per-node"
+  - "{nproc_per_node}"
+notes:
+- Human animation candidate built on Wan2.1-I2V; demo inputs live under `worldfoundry/data/test_cases/unianimate_dit/` (override with `WORLDFOUNDRY_UNIANIMATE_DIT_DEMO_ROOT`).
+- Set `use_usp=true` and `nproc_per_node=4` or higher to use the official UniAnimate-DiT USP torchrun demo path.
+- Runtime code is resolved from WorldFoundry's in-tree infer-only port.

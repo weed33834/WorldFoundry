@@ -1,0 +1,5 @@
+metric_id,score
+semantic_adherence,0.75
+physical_commonsense,0.75
+joint_score,0.75
+videophy_average,0.75

@@ -1,0 +1,1 @@
+"""Canonical base-model package."""

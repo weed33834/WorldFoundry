@@ -1,0 +1,14 @@
+schema_version: 2
+binding_id: hunyuan-game-craft
+model_id: hunyuan-game-craft
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.hunyuan_world.pipeline_hunyuan_game_craft:HunyuanGameCraftPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation
+aliases:
+- hunyuan_game_craft
+- hunyuan-gamecraft

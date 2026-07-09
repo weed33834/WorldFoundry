@@ -1,0 +1,189 @@
+id: hunyuanvideo
+name: HunyuanVideo
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: hunyuanvideo
+runtime_profile: runtime-profile:hunyuanvideo-t2v
+tasks:
+  - text-to-video
+  - image-to-video
+source_status:
+  status: confirmed_official_github
+  github:
+    url: https://github.com/Tencent-Hunyuan/HunyuanVideo
+    verified_by: git ls-remote --symref https://github.com/Tencent-Hunyuan/HunyuanVideo.git HEAD
+    default_branch: main
+    head_sha: e260ed40c88d104801a8b1de05d2ab81e965a9ef
+checkpoint:
+  status: confirmed_public_hf
+  verified_by: GET https://huggingface.co/api/models/<repo_id>
+  repos:
+    - id: tencent/HunyuanVideo
+      sha: 6204ad6aea1a77ff5aba337c88278bb9500eb37d
+      license: other
+      private: false
+      gated: false
+      tasks:
+        - text-to-video
+    - id: tencent/HunyuanVideo-I2V
+      sha: 3914f209367854b5e470f062c33159d5ab139e1e
+      license: other
+      private: false
+      gated: false
+      tasks:
+        - image-to-video
+  notes: HF cardData reports license as 'other'; review upstream license terms before redistribution.
+variants:
+  - id: hunyuanvideo-t2v
+    task: text-to-video
+    provider: official_repo
+    checkpoint_refs:
+      - repo_id: tencent/HunyuanVideo
+        revision: 6204ad6aea1a77ff5aba337c88278bb9500eb37d
+        license: other
+        private: false
+        gated: false
+    runtime_profile: hunyuanvideo-t2v
+    demo_parity:
+      status: verified
+      demo_command:
+        - bash
+        - scripts/model_zoo/run_hunyuanvideo_t2v_official_demo.sh
+      expected_artifacts:
+        - path: hunyuanvideo_t2v_official_cat_grass_1280x720_129f.mp4
+          video_probe:
+            expected_width: 1280
+            expected_height: 720
+            expected_frames: 129
+            expected_fps: 24
+            fps_tolerance: 0.01
+            expected_duration_seconds: 5.375
+            duration_tolerance_seconds: 0.05
+      notes:
+        - >-
+          Native in-tree HunyuanVideo `sample_video.py` T2V uses
+          `torchrun --nproc_per_node=8`, local `HunyuanVideo` assets, prompt
+          "A cat walks on the grass, realistic style.", `video-size=720 1280`,
+          `video-length=129`, `infer-steps=50`, `ulysses-degree=8`,
+          `ring-degree=1`, and `seed=42`.
+        - Per-run visual QA and artifact checks are tracked outside the model catalog.
+    runner_parity:
+      status: verified
+      demo_command:
+        - bash
+        - scripts/model_zoo/run_hunyuanvideo_t2v_worldfoundry_runner_demo.sh
+      expected_artifacts:
+        - path: hunyuanvideo_t2v_worldfoundry_cat_grass_1280x720_129f.mp4
+          video_probe:
+            expected_width: 1280
+            expected_height: 720
+            expected_frames: 129
+            expected_fps: 24
+            fps_tolerance: 0.01
+            expected_duration_seconds: 5.375
+            duration_tolerance_seconds: 0.05
+    notes:
+      - HF license metadata is 'other'; require manual license review before redistribution.
+    runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+    pipeline_binding: hunyuanvideo-t2v
+    integration:
+      status: integrated
+  - id: hunyuanvideo-i2v
+    task: image-to-video
+    provider: official_repo
+    checkpoint_refs:
+      - repo_id: tencent/HunyuanVideo-I2V
+        revision: 3914f209367854b5e470f062c33159d5ab139e1e
+        license: other
+        private: false
+        gated: false
+    runtime_profile: hunyuanvideo-i2v
+    demo_parity:
+      status: verified
+      demo_command:
+        - bash
+        - scripts/model_zoo/run_hunyuanvideo_i2v_official_demo.sh
+      expected_artifacts:
+        - path: hunyuanvideo_i2v_official_firework_864x1024_129f.mp4
+          video_probe:
+            expected_width: 864
+            expected_height: 1024
+            expected_frames: 129
+            expected_fps: 24
+            fps_tolerance: 0.01
+            expected_duration_seconds: 5.375
+            duration_tolerance_seconds: 0.05
+      notes:
+        - >-
+          Native in-tree HunyuanVideo I2V `sample_image2video.py` uses
+          `torchrun --nproc_per_node=8`, local `HunyuanVideo-I2V` assets,
+          the upstream firework portrait image, `i2v-resolution=720p`,
+          `i2v-stability`, `video-length=129`, `infer-steps=50`,
+          `ulysses-degree=8`, `ring-degree=1`, and `seed=0`.
+    runner_parity:
+      status: verified
+      demo_command:
+        - bash
+        - scripts/model_zoo/run_hunyuanvideo_i2v_worldfoundry_runner_demo.sh
+      expected_artifacts:
+        - path: hunyuanvideo_i2v_worldfoundry_firework_864x1024_129f.mp4
+          video_probe:
+            expected_width: 864
+            expected_height: 1024
+            expected_frames: 129
+            expected_fps: 24
+            fps_tolerance: 0.01
+            expected_duration_seconds: 5.375
+            duration_tolerance_seconds: 0.05
+    notes:
+      - HF license metadata is 'other'; require manual license review before redistribution.
+    runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+    pipeline_binding: hunyuanvideo-i2v
+    integration:
+      status: integrated
+demo_parity:
+  status: verified
+  demo_command:
+    - bash
+    - scripts/model_zoo/run_hunyuanvideo_t2v_official_demo.sh
+  expected_artifacts:
+    - path: hunyuanvideo_t2v_official_cat_grass_1280x720_129f.mp4
+      video_probe:
+        expected_width: 1280
+        expected_height: 720
+        expected_frames: 129
+        expected_fps: 24
+        fps_tolerance: 0.01
+        expected_duration_seconds: 5.375
+        duration_tolerance_seconds: 0.05
+  notes:
+    - T2V uses the official multi-GPU cat-on-grass demo recipe.
+    - I2V uses the official multi-GPU firework portrait stability demo recipe.
+notes: Tencent-Hunyuan GitHub and tencent Hugging Face repos were both reachable.
+catalog_category: video
+catalog_scope: Official GitHub and/or Hugging Face confirmed open-source or open-weight video generation models. Checkpoints are not tracked in git; local validation may download selected repos under cache/hfd.
+catalog_policy:
+  github: Validated with git ls-remote, preferring git ls-remote --symref <repo>.git HEAD for default branch and HEAD SHA.
+  huggingface: Validated with the Hugging Face /api/models endpoint. Recorded repo id, sha, private, gated, license, and selected task tags only.
+  parity: This manifest does not claim WorldFoundry runtime parity unless an explicit parity run and expected artifact are recorded.
+integration:
+  status: integrated
+  notes:
+    - WorldFoundry wraps the in-tree HunyuanVideo T2V and I2V official runtimes.
+runner_parity:
+  status: verified
+  demo_command:
+    - bash
+    - scripts/model_zoo/run_hunyuanvideo_t2v_worldfoundry_runner_demo.sh
+  expected_artifacts:
+    - path: hunyuanvideo_t2v_worldfoundry_cat_grass_1280x720_129f.mp4
+      video_probe:
+        expected_width: 1280
+        expected_height: 720
+        expected_frames: 129
+        expected_fps: 24
+        fps_tolerance: 0.01
+        expected_duration_seconds: 5.375
+        duration_tolerance_seconds: 0.05
+  notes:
+    - WorldFoundry pipeline targets are registered and use the same official runtime configs as Studio.
+    - Original HunyuanVideo T2V and I2V scripted runner parity is verified.

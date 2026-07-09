@@ -1,0 +1,48 @@
+model_id: mmaudio
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+python: '3.11'
+cuda_profile: cu128
+driver_status: compatible_unified_default
+conda_packages:
+- python=3.11
+- pip
+- ffmpeg
+pip_packages:
+- torch
+- torchvision
+- torchaudio
+- av
+- numpy
+- pillow
+- scipy
+- tqdm
+- einops
+- huggingface_hub
+- torchdiffeq
+- open_clip_torch
+- colorlog
+- librosa
+- soundfile
+- hydra-core
+- hydra_colorlog
+- tensordict
+- python-dotenv
+notes:
+- MMAudio is launched through WorldFoundry's in-tree infer-only port of the official demo runtime.
+- The official demo expects weights/ext_weights relative to the working directory; WorldFoundry runs the CLI from the Hugging Face checkpoint directory.
+- WorldFoundry wraps the official demo with an in-tree runner that saves audio through soundfile, avoiding the torchcodec dependency required by torchaudio 2.11 save.
+- The default open-source path should download hkchengrex/MMAudio through Hugging Face and should not require hard-coded local paths.
+validation_imports:
+- torch
+- torchvision
+- torchaudio
+- av
+- colorlog
+- librosa
+- soundfile
+- torchdiffeq
+- open_clip
+- hydra
+- hydra_plugins.hydra_colorlog
+- tensordict

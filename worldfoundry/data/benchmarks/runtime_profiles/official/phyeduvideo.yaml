@@ -1,0 +1,68 @@
+benchmark_ids:
+- phyeduvideo
+blocked_reason: PhyEduVideo in-tree scorer runtime is wired; full upstream judge/checkpoint 
+  runtime and leaderboard parity remain pending.
+environment_id: worldplay-phyeduvideo-contract
+id: phyeduvideo
+name: PhyEduVideo
+needs_new_env: false
+notes:
+- WorldFoundry materializes Prompts/Prompts.json teaching-point T2V prompts and normalizes PhyEduVideo official result 
+  files.
+- Use WORLDFOUNDRY_PHYEDUVIDEO_SCORER_BACKEND to select the local scorer backend.
+- Full validation requires 205 generated videos plus upstream InternVL/CLIP/VQA judge assets for leaderboard parity.
+preflight_command: PYTHONPATH=. ${WORLDFOUNDRY_UNIFIED_PYTHON:-python} -m
+  worldfoundry.evaluation.tasks.execution.orchestration.runtime_preflight --profile phyeduvideo --manifest 
+  worldfoundry/data/benchmarks/runtime_profiles/official/phyeduvideo.yaml --output-dir 
+  tmp/worldfoundry_preflight/phyeduvideo --json
+python_path: ${WORLDFOUNDRY_UNIFIED_PYTHON:-python}
+pythonpath_roots:
+- .
+required_assets:
+  bundled_assets: worldfoundry/data/benchmarks/assets/phyeduvideo
+  in_tree_runtime_paths:
+  - worldfoundry/evaluation/tasks/execution/runners/phyeduvideo
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/phyeduvideo.yaml
+required_env:
+- WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+optional_env:
+- WORLDFOUNDRY_PHYEDUVIDEO_ROOT
+- WORLDFOUNDRY_PHYEDUVIDEO_PROMPTS_FILE
+- WORLDFOUNDRY_PHYEDUVIDEO_CAP_FILE
+- WORLDFOUNDRY_PHYEDUVIDEO_SA_FILE
+- WORLDFOUNDRY_PHYEDUVIDEO_SCORER_BACKEND
+- WORLDFOUNDRY_PHYEDUVIDEO_RESULTS_PATH
+- WORLDFOUNDRY_PHYEDUVIDEO_STRICT
+- WORLDFOUNDRY_PHYEDUVIDEO_OFFICIAL_SCRIPT
+required_imports:
+- json
+required_packages:
+- numpy
+- id: official_runner_script
+  path: worldfoundry/evaluation/tasks/execution/runners/phyeduvideo/run_phyeduvideo_official_runner.py
+required_paths:
+- id: task_yaml
+  path: worldfoundry/data/benchmarks/tasks/external/phyeduvideo.yaml
+- id: bundled_prompts
+  path: worldfoundry/data/benchmarks/assets/phyeduvideo/Prompts/Prompts.json
+requires_cuda_visibility: false
+status: in_tree_official_runtime_ready
+optional_imports:
+- numpy
+optional_base_model_dependencies:
+- grounded_depth_segmentation_stack
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- phyeduvideo
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.json>
+- --generated-artifact-dir
+- <generated_videos>
+- --output-dir
+- <out>
+- --json

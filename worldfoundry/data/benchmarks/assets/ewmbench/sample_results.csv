@@ -1,0 +1,6 @@
+metric_id,score
+scene_consistency,0.75
+motion_correctness,0.75
+semantic_alignment,0.75
+diversity,0.75
+ewmbench_average,0.75

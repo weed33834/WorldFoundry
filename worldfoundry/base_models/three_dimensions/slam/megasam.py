@@ -1,0 +1,334 @@
+"""MegaSAM runtime and pose precompute entry points used by WBench."""
+
+from __future__ import annotations
+
+import argparse
+import multiprocessing
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+import numpy as np
+
+from worldfoundry.base_models.capabilities import BASE_MODEL_CAPABILITIES
+
+RUNTIME_ROOT = Path(__file__).resolve().parent / "mega_sam_runtime"
+
+
+def _asset_path(asset_id: str) -> Path:
+    for asset in BASE_MODEL_CAPABILITIES["wbench_megasam"].assets:
+        if asset.id == asset_id:
+            status = asset.check()
+            return Path(status["matched_path"] or status["local_path"])
+    raise RuntimeError(f"wbench_megasam asset is not registered: {asset_id}")
+
+
+def runtime_root() -> Path:
+    return RUNTIME_ROOT
+
+
+def checkpoint_path() -> Path:
+    return _asset_path("wbench_megasam_checkpoint")
+
+
+def depth_anything_checkpoint_path() -> Path:
+    return _asset_path("wbench_megasam_depth_anything_checkpoint")
+
+
+def weights_dir() -> Path:
+    return checkpoint_path().parent
+
+
+def compute_stride(video_path: str | os.PathLike[str], target_fps: float = 15.0) -> tuple[int, float, float]:
+    import cv2
+
+    cap = cv2.VideoCapture(str(video_path))
+    fps = cap.get(cv2.CAP_PROP_FPS) or 24.0
+    cap.release()
+    stride = max(1, int(fps / target_fps))
+    return stride, fps, fps / stride
+
+
+def extract_frames(video_path: str | os.PathLike[str], frames_dir: Path, stride: int = 1) -> int:
+    import cv2
+
+    frames_dir.mkdir(parents=True, exist_ok=True)
+    cap = cv2.VideoCapture(str(video_path))
+    idx, saved = 0, 0
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+        if idx % stride == 0:
+            cv2.imwrite(str(frames_dir / f"{saved:05d}.jpg"), frame)
+            saved += 1
+        idx += 1
+    cap.release()
+    return saved
+
+
+def setup_env(device: str | int | None = None) -> dict[str, str]:
+    env = os.environ.copy()
+    if device is not None and "CUDA_VISIBLE_DEVICES" not in env:
+        env["CUDA_VISIBLE_DEVICES"] = str(device)
+
+    runtime = runtime_root()
+    pythonpath = [
+        str(runtime / "UniDepth"),
+        str(runtime / "base" / "droid_slam"),
+        str(runtime / "base" / "thirdparty" / "lietorch"),
+        env.get("PYTHONPATH", ""),
+    ]
+    env["PYTHONPATH"] = os.pathsep.join(path for path in pythonpath if path)
+
+    weights = weights_dir()
+    torch_home = weights / "torch_home"
+    hub_dir = torch_home / "hub"
+    hub_dir.mkdir(parents=True, exist_ok=True)
+
+    dinov2_src = weights / "facebookresearch_dinov2_main"
+    dinov2_dst = hub_dir / "facebookresearch_dinov2_main"
+    if dinov2_src.exists() and not dinov2_dst.exists():
+        dinov2_dst.symlink_to(dinov2_src, target_is_directory=True)
+
+    ckpt_src = weights / "torch_hub_checkpoints"
+    ckpt_dst = hub_dir / "checkpoints"
+    if ckpt_src.exists() and not ckpt_dst.exists():
+        ckpt_dst.symlink_to(ckpt_src, target_is_directory=True)
+
+    env["TORCH_HOME"] = str(torch_home)
+    env["HF_HOME"] = str(weights / "huggingface")
+    env["HF_HUB_OFFLINE"] = env.get("HF_HUB_OFFLINE", "1")
+    env["TRANSFORMERS_OFFLINE"] = env.get("TRANSFORMERS_OFFLINE", "1")
+    return env
+
+
+def run_single(
+    video_path: str | os.PathLike[str],
+    output_path: str | os.PathLike[str],
+    *,
+    device: str | int = "0",
+    target_fps: float = 15.0,
+    cpu_list: str | None = None,
+    n_threads: int = 4,
+) -> None:
+    video_path = Path(video_path).resolve()
+    output_path = Path(output_path).resolve()
+    scene_name = video_path.stem
+    stride, orig_fps, eff_fps = compute_stride(video_path, target_fps)
+    print(f"[INFO] {scene_name}: {orig_fps:.0f}fps -> stride={stride} -> {eff_fps:.1f}fps")
+
+    env = setup_env(device)
+    env["OMP_NUM_THREADS"] = str(n_threads)
+    env["MKL_NUM_THREADS"] = str(n_threads)
+    env["OPENBLAS_NUM_THREADS"] = str(n_threads)
+    env["NUMEXPR_NUM_THREADS"] = str(n_threads)
+
+    has_taskset = shutil.which("taskset") is not None
+    runtime = runtime_root()
+    t0 = time.time()
+
+    tmp_base = output_path.parent / "_megasam_tmp"
+    tmp_base.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=f"megasam_{scene_name}_", dir=str(tmp_base)) as td:
+        tmp = Path(td)
+        frames_dir = tmp / "frames" / scene_name
+        mono_root = tmp / "mono"
+        mono_dir = mono_root / scene_name
+        metric_root = tmp / "metric"
+
+        n_frames = extract_frames(video_path, frames_dir, stride)
+        print(f"[TIME] extract: {time.time() - t0:.1f}s ({n_frames} frames)")
+
+        def run_cmd(cmd: list[str]) -> None:
+            if has_taskset and cpu_list:
+                cmd = ["taskset", "-c", cpu_list] + cmd
+            subprocess.run(cmd, cwd=str(runtime), env=env, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+
+        run_cmd([
+            sys.executable,
+            "Depth-Anything/run_videos.py",
+            "--encoder",
+            "vitl",
+            "--load-from",
+            str(depth_anything_checkpoint_path()),
+            "--img-path",
+            str(frames_dir),
+            "--outdir",
+            str(mono_dir),
+            "--localhub",
+        ])
+        run_cmd([
+            sys.executable,
+            "UniDepth/scripts/demo_mega-sam.py",
+            "--scene-name",
+            scene_name,
+            "--img-path",
+            str(frames_dir),
+            "--outdir",
+            str(metric_root),
+        ])
+        run_cmd([
+            sys.executable,
+            "camera_tracking_scripts/test_demo.py",
+            "--datapath",
+            str(frames_dir),
+            "--weights",
+            str(checkpoint_path()),
+            "--scene_name",
+            scene_name,
+            "--mono_depth_path",
+            str(mono_root),
+            "--metric_depth_path",
+            str(metric_root),
+            "--disable_vis",
+        ])
+
+        npz_path = runtime / "outputs" / f"{scene_name}_droid.npz"
+        if not npz_path.exists():
+            raise FileNotFoundError(f"MegaSAM output not found: {npz_path}")
+
+        data = np.load(npz_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        np.savez(
+            output_path,
+            cam_c2w=data["cam_c2w"],
+            camera_centers=data["cam_c2w"][:, :3, 3],
+            intrinsic=data["intrinsic"],
+            stride=stride,
+            original_fps=orig_fps,
+            effective_fps=eff_fps,
+        )
+        npz_path.unlink()
+        print(f"[DONE] {output_path} ({data['cam_c2w'].shape[0]} poses, {time.time() - t0:.1f}s)")
+
+
+def _gpu_worker_process(gpu_id: int, worker_idx: int, n_workers: int, task_list: list[tuple[str, str]], target_fps: float) -> None:
+    try:
+        available = sorted(os.sched_getaffinity(0))
+    except AttributeError:
+        available = list(range(os.cpu_count() or 64))
+    total = len(available)
+    n_cores = max(1, total // n_workers)
+    n_threads = max(1, total // (2 * n_workers))
+    start = worker_idx * n_cores
+    cpu_ids = available[start : start + n_cores]
+    cpu_list = ",".join(str(c) for c in cpu_ids)
+
+    try:
+        os.sched_setaffinity(0, cpu_ids)
+    except (AttributeError, OSError):
+        pass
+
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+    os.environ["OMP_NUM_THREADS"] = str(n_threads)
+    os.environ["MKL_NUM_THREADS"] = str(n_threads)
+    os.environ["OPENBLAS_NUM_THREADS"] = str(n_threads)
+
+    tag = f"[GPU{gpu_id}]"
+    cpu_span = f"{cpu_ids[0]}-{cpu_ids[-1]}" if cpu_ids else "n/a"
+    print(f"  {tag} Worker started: {len(task_list)} videos, cpus={cpu_span}, threads={n_threads}", flush=True)
+
+    ok, fail = 0, 0
+    for idx, (video_path, output_path) in enumerate(task_list):
+        print(f"  {tag} [{idx + 1}/{len(task_list)}] {os.path.basename(video_path)}", flush=True)
+        try:
+            run_single(video_path, output_path, device="0", target_fps=target_fps, cpu_list=cpu_list, n_threads=n_threads)
+            ok += 1
+        except subprocess.CalledProcessError as exc:
+            stderr_msg = exc.stderr.decode(errors="replace")[-500:] if exc.stderr else "no stderr"
+            print(f"  {tag} FAIL {os.path.basename(video_path)}:\n    {stderr_msg}", flush=True)
+            fail += 1
+        except Exception as exc:
+            print(f"  {tag} FAIL {os.path.basename(video_path)}: {exc}", flush=True)
+            fail += 1
+    print(f"  {tag} Done: {ok}/{len(task_list)} ok, {fail} fail", flush=True)
+
+
+def run_batch(
+    video_dir: str | os.PathLike[str],
+    output_dir: str | os.PathLike[str],
+    *,
+    gpus: str = "0",
+    target_fps: float = 15.0,
+    force: bool = False,
+) -> None:
+    gpu_ids = [int(gpu) for gpu in str(gpus).split(",") if str(gpu).strip()]
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    videos = sorted(Path(video_dir).glob("case_*_combined.mp4"))
+    tasks: list[tuple[str, str]] = []
+    for video in videos:
+        output = output_dir / f"{video.stem}.npz"
+        if output.exists() and not force:
+            continue
+        tasks.append((str(video), str(output)))
+
+    print(f"Found {len(videos)} videos, {len(tasks)} to process, {len(gpu_ids)} GPUs")
+    if not tasks:
+        return
+
+    n_workers = min(len(gpu_ids), len(tasks))
+    worker_tasks = [[] for _ in range(n_workers)]
+    for idx, task in enumerate(tasks):
+        worker_tasks[idx % n_workers].append(task)
+
+    ctx = multiprocessing.get_context("spawn")
+    processes = []
+    for worker_idx in range(n_workers):
+        process = ctx.Process(
+            target=_gpu_worker_process,
+            args=(gpu_ids[worker_idx], worker_idx, n_workers, worker_tasks[worker_idx], target_fps),
+        )
+        process.start()
+        processes.append(process)
+    for process in processes:
+        process.join()
+        if process.exitcode:
+            raise RuntimeError(f"MegaSAM worker exited with code {process.exitcode}")
+    print("Done: all workers finished")
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="MegaSAM pose inference")
+    parser.add_argument("--video", type=str, help="Single video path")
+    parser.add_argument("--video_dir", type=str, help="Batch: video directory")
+    parser.add_argument("--output", type=str, help="Output .npz path in single mode")
+    parser.add_argument("--output_dir", type=str, help="Output directory in batch mode")
+    parser.add_argument("--gpus", type=str, default="0", help="GPU IDs (comma-separated)")
+    parser.add_argument("--target_fps", type=float, default=15.0)
+    parser.add_argument("--force", action="store_true")
+    args = parser.parse_args(argv)
+
+    if args.video:
+        output = args.output or str(Path(args.video).with_suffix(".npz"))
+        run_single(args.video, output, device=args.gpus.split(",")[0], target_fps=args.target_fps)
+        return 0
+
+    if args.video_dir:
+        output_dir = args.output_dir or str(Path(args.video_dir).parent / "megasam")
+        run_batch(args.video_dir, output_dir, gpus=args.gpus, target_fps=args.target_fps, force=args.force)
+        return 0
+
+    parser.error("--video or --video_dir is required")
+    return 2
+
+
+__all__ = [
+    "RUNTIME_ROOT",
+    "checkpoint_path",
+    "compute_stride",
+    "depth_anything_checkpoint_path",
+    "extract_frames",
+    "main",
+    "run_batch",
+    "run_single",
+    "runtime_root",
+    "setup_env",
+    "weights_dir",
+]

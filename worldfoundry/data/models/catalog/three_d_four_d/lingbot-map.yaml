@@ -1,0 +1,50 @@
+id: lingbot-map
+name: LingBot-Map
+aliases:
+- lingbot_map
+- robbyant/lingbot-map
+tasks:
+- 3d-reconstruction
+- streaming-3d-reconstruction
+- camera-pose-estimation
+- depth-estimation
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/Robbyant/lingbot-map
+  license: apache-2.0
+official_sources:
+  project_page: https://technology.robbyant.com/lingbot-map
+  paper: https://arxiv.org/abs/2604.14141
+  github:
+    url: https://github.com/Robbyant/lingbot-map
+  huggingface:
+  - repo_id: robbyant/lingbot-map
+    status: confirmed
+  license: apache-2.0
+checkpoint_refs:
+- repo_id: robbyant/lingbot-map
+  filenames:
+  - lingbot-map-long.pt
+  - lingbot-map.pt
+  - lingbot-map-stage1.pt
+  license: apache-2.0
+integration:
+  kind: pipeline_runner
+  status: integrated
+  notes:
+  - Runtime source is vendored in-tree under worldfoundry/base_models/three_dimensions/point_clouds/lingbot_map;
+    checkpoints remain external cache assets.
+  - WorldFoundry exposes streaming and windowed reconstruction through LingBotMapPipeline.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: lingbot-map
+runtime_profile: runtime-profile:lingbot-map
+runner_parity:
+  status: implemented_pending_gpu_parity
+  notes:
+  - Import and dispatch integration is in-tree; full GPU parity still needs staged
+    robbyant/lingbot-map checkpoints.
+catalog_category: three_d_four_d
+catalog_scope: 3D Gaussian-splatting catalog entries. Integrated entries expose in-tree
+  WorldFoundry runtimes; metadata-only entries retain upstream provenance without runnable
+  backends.

@@ -1,0 +1,51 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+aliases:
+- LAPA
+- LAPA-7B-openx
+availability: open_source
+checkpoint:
+  license: mit
+  repo_id: latent-action-pretraining/LAPA-7B-openx
+  revision: b5397375f9dd5e07fcaf2e88e6da8690524058b2
+id: lapa
+integration:
+  notes:
+  - LAPA latent action runtime is vendored in-tree; py_compile, from_pretrained, plan-only
+    execution, and alias validation passed.
+  - Real 7B inference is blocked by missing tux in the prepare env and incompatible
+    JAX in the gpu-jax0325 env.
+  status: runtime_ported
+license: mit
+name: Latent Action Pretraining
+official_sources:
+  github:
+    head_sha: 46aca51d7faebcec02d7d323bbb3820c2df07bc6
+    url: https://github.com/LatentActionPretraining/LAPA
+  huggingface:
+  - license: mit
+    repo_id: latent-action-pretraining/LAPA-7B-openx
+    revision: b5397375f9dd5e07fcaf2e88e6da8690524058b2
+    status: confirmed
+pipeline_binding: lapa
+provider: official_repo
+runtime_profile: runtime-profile:lapa
+tasks:
+- va
+- vam
+- latent_action
+- video_action_modeling
+variants:
+- checkpoint_refs:
+  - license: mit
+    repo_id: latent-action-pretraining/LAPA-7B-openx
+    revision: b5397375f9dd5e07fcaf2e88e6da8690524058b2
+  id: lapa-7b-openx
+  integration_status: runtime_ported
+  notes:
+  - WorldFoundry vendors LAPA latent_pretraining inference runtime under worldfoundry/synthesis/action_generation/lapa/lapa_runtime;
+    real inference is blocked by missing tux/JAX environment compatibility.
+  task: vam.video_action_modeling
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint
+  metadata, and runtime-profile planning records. Runner or pipeline targets are present
+  only after a complete in-tree WorldFoundry model runtime is registered and validated.

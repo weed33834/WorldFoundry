@@ -1,0 +1,29 @@
+schema_version: 2
+model_id: worldfm
+display_name: WorldFM
+task_family: world_model
+groups:
+- world
+- video
+source_repos:
+- url: https://github.com/world-fm/worldfm
+checkpoints:
+- role: worldfm_checkpoint
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/worldfm
+input_schema:
+  prompt: true
+  image: true
+  video: true
+  actions:
+  - camera_path
+artifact_kind: generated_world
+artifact_filename: worldfm.mp4
+execution:
+  backend_stage: in_tree_runtime
+  runtime_status: official_meta_contract
+  integration_status: verified
+  pipeline_binding: worldfm
+integration:
+  status: verified
+notes:
+- Runtime profile added for the existing WorldFMPipeline catalog binding.

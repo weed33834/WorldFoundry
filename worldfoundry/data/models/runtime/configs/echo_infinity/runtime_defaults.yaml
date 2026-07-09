@@ -1,0 +1,46 @@
+schema_version: worldfoundry.runtime_defaults.v1
+defaults:
+  echo-infinity:
+    model_name: echo-infinity
+    wan_root: ${WORLDFOUNDRY_CKPT_DIR}
+    wan_model_name: Wan2.1-T2V-1.3B
+    generator_ckpt: ${WORLDFOUNDRY_CKPT_DIR}/Echo-Infinity/echo_infinity.pt
+    use_ema: false
+    seed: 0
+    num_samples: 1
+    num_output_frames: 21
+    denoising_step_list:
+    - 1000
+    - 750
+    - 500
+    - 250
+    warp_denoising_step: true
+    num_frame_per_block: 3
+    context_noise: 0
+    global_sink: true
+    dtype: bfloat16
+    model_kwargs:
+      model_name: Wan2.1-T2V-1.3B
+      wan_root: ${WORLDFOUNDRY_CKPT_DIR}
+      local_attn_size: 12
+      timestep_shift: 5.0
+      sink_size: 3
+    memory_kwargs:
+      enabled: true
+      Q_frames: 3
+      tokens_per_frame: 1560
+      n_encoder_layers: 2
+      hidden_dim: 1536
+      num_heads: 12
+      head_dim: 128
+      initializer_range: 0.014
+      rope: true
+      qk_norm: true
+      use_evicted_kv: false
+      use_batch_update: false
+      use_sink_anchor: false
+      use_vib: false
+      bptt_clips: 1
+      gate_init_bias: 2.0
+      encoder_lr_multiplier: 5.0
+      normalize_memory_k: true

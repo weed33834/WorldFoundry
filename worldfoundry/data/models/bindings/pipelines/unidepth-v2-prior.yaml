@@ -1,0 +1,15 @@
+schema_version: 2
+binding_id: unidepth-v2-prior
+model_id: unidepth-v2-prior
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.geometry_priors.pipeline_geometry_priors:UniDepthV2PriorPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation
+aliases:
+- unidepth-v2
+- unidepth-v2-vitl14
+- unidepth_v2_vitl14

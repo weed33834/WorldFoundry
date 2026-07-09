@@ -1,0 +1,62 @@
+benchmark_ids:
+- simpler-env
+blocked_reason: SimplerEnv source/runtime import 可见；完整状态需要 embodiment assets、policy wrapper 和 rollout 结果。
+environment_id: giga-world-policy-py311
+id: simpler-env
+name: SimplerEnv
+docker:
+  image: ghcr.io/allenai/vla-evaluation-harness/simpler:latest
+  source_image: ghcr.io/allenai/vla-evaluation-harness/simpler:latest
+  python_env: simpler
+  gpus: all
+  env:
+  - NVIDIA_DRIVER_CAPABILITIES=all
+  volumes:
+  - /usr/share/vulkan/icd.d:/usr/share/vulkan/icd.d:ro
+needs_new_env: false
+notes:
+- SimplerEnv source/runtime import 可见；完整状态需要 embodiment assets、policy wrapper 和 rollout 结果。
+preflight_command: PYTHONPATH=${WORLDFOUNDRY_CACHE_DIR}/repos/simpler-env--SimplerEnv:src 
+  ${WORLDFOUNDRY_CONDA_ENVS_ROOT}/worldfoundry-giga-world-policy-py311/bin/python -m 
+  worldfoundry.evaluation.tasks.execution.orchestration.runtime_preflight --profile simpler-env --manifest 
+  worldfoundry/data/benchmarks/runtime_profiles/official/simpler-env.yaml --output-dir 
+  tmp/worldfoundry_preflight/simpler-env --json
+python_path: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}/worldfoundry-giga-world-policy-py311/bin/python
+pythonpath_roots:
+- ${WORLDFOUNDRY_CACHE_DIR}/repos/simpler-env--SimplerEnv
+required_assets:
+  local_repo_paths:
+  - ${WORLDFOUNDRY_CACHE_DIR}/repos/simpler-env--SimplerEnv
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/simpler-env.yaml
+required_env:
+- WORLDFOUNDRY_SIMPLERENV_ROOT
+- WORLDFOUNDRY_SIMPLERENV_RESULTS_PATH
+required_packages:
+- numpy
+- SimplerEnv checkout
+required_paths:
+- id: official_result_normalizer
+  path: worldfoundry/evaluation/tasks/embodied/normalizer.py
+- id: official_repo_1
+  path: ${WORLDFOUNDRY_CACHE_DIR}/repos/simpler-env--SimplerEnv
+- id: task_yaml
+  path: worldfoundry/data/benchmarks/tasks/external/simpler-env.yaml
+requires_cuda_visibility: false
+status: official_result_normalizer_ready_full_runtime_pending
+optional_imports:
+- numpy
+optional_base_model_dependencies:
+- spatial_perception_core_stack
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- simpler-env
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.json>
+- --output-dir
+- <out>
+- --json

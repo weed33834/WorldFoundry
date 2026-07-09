@@ -1,0 +1,25 @@
+artifact_filename: egowm_runtime_plan.json
+artifact_kind: generated_video
+backend_stage: worldfoundry_runtime_plan
+display_name: EgoWM
+id: egowm
+input_schema:
+  actions:
+  - action
+  image: true
+  prompt: true
+  video: true
+integration_status: runtime_ported
+notes:
+- EgoWM official source route is registered; checkpoint/assets are runtime-gated.
+- Missing checkpoints/assets are reported by the runtime plan and are not catalog
+  blockers.
+- WorldFoundry tracks upstream source and checkpoint metadata only; no runnable pipeline
+  is registered.
+- Official source is bound from ${WORLDFOUNDRY_MODEL_SOURCE_DIR}/egowm at 4a24b6fb917b8b86cea892312971f39691c532e8.
+runtime_status: route_ready_assets_pending
+task_family: world_model
+execution:
+  pipeline_binding: egowm
+  backend_stage: worldfoundry_runtime_plan
+  runtime_status: route_ready_assets_pending

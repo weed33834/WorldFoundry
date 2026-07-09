@@ -1,0 +1,19 @@
+server_host: 0.0.0.0
+server_port: 8000
+nproc_per_node: 2
+enable_dit_cache: true
+client_demo:
+  prompt: Move the pan forward and use the brush in the middle of the plates to brush the inside of the pan
+  camera_files:
+    observation/exterior_image_0_left: exterior_image_1_left.mp4
+    observation/exterior_image_1_left: exterior_image_2_left.mp4
+    observation/wrist_image_left: wrist_image_left.mp4
+  relative_offsets:
+  - -23
+  - -16
+  - -8
+  - 0
+  action_horizon: 24
+  num_chunks: 15
+  zero_image_height: 180
+  zero_image_width: 320

@@ -1,0 +1,110 @@
+---
+title: TUI Guide
+description: How to use the Terminal User Interface for discovery, configuration, and command generation.
+---
+
+The Terminal User Interface (TUI) provides a text-based interactive dashboard directly in your terminal. It is the easiest way to browse the model and benchmark catalogs, check readiness, and generate CLI commands without memorizing flags.
+
+## Launch the TUI
+
+Before launching, ensure the WorldFoundry package is installed. The recommended setup uses the unified environment:
+
+```bash
+bash scripts/setup/unified_install.sh
+source tmp/worldfoundry_unified_env.sh
+conda activate "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}"
+```
+
+If you manage your own conda environment, install the package with the `[tui]` extra from the repo root:
+
+```bash
+pip install -e ".[tui]"
+```
+
+Once your environment is active, launch the TUI:
+
+```bash
+worldfoundry-eval tui
+```
+
+The TUI reads the same model-zoo and benchmark-zoo manifests as the CLI discovery commands. It does not bypass manifest readiness, runtime profiles, or runner validation.
+
+### Launch options
+
+| Flag | Effect |
+| --- | --- |
+| `--catalog-json` | Print the catalog payload used by the TUI and exit. |
+| `--model-id openvla` | Pre-select a model and skip the model picker. |
+| `--benchmark-id libero` | Pre-select a benchmark and skip the benchmark picker. |
+| `--print-command` | Print the generated `run` command to stdout and exit, without entering the interactive session. |
+
+Example — generate a command for a specific model × benchmark pair and exit:
+
+```bash
+worldfoundry-eval tui --model-id openvla --benchmark-id libero --print-command
+```
+
+This is useful in scripts or CI pipelines where you need the canonical command without manual interaction.
+
+## Navigate the TUI
+
+The TUI displays three main panels:
+
+1. **Model Catalog** — Lists all model-zoo entries with their ids, aliases, maturity levels, and runtime status. Use arrow keys to browse; press Enter to select a model.
+
+2. **Benchmark Catalog** — Lists all benchmark-zoo entries with their ids, task scopes, maturity levels, and dataset readiness. Use arrow keys to browse; press Enter to select a benchmark.
+
+3. **Command Output** — The bottom panel dynamically generates the corresponding `worldfoundry-eval run` command based on your selections. You can copy this command to execute later on a GPU node.
+
+### Configuration
+
+After selecting a model and a benchmark, the TUI presents inference parameters you can adjust:
+
+- **Steps / iterations** — Number of denoising or sampling steps.
+- **Guidance scale / cfg** — Classifier-free guidance strength.
+- **Sequence length** — Maximum token or frame count.
+- **Seed** — Deterministic generation seed (optional).
+
+These fields map to the same flags accepted by `worldfoundry-eval run`. Changing a parameter in the TUI updates the generated command in real time.
+
+### Readiness indicators
+
+The TUI surfaces readiness warnings alongside catalog entries:
+
+- **Missing checkpoint** — The model requires a checkpoint that is not found at the declared path.
+- **Missing dataset** — The benchmark requires a dataset that is not staged locally.
+- **Missing environment** — The runtime profile declares conda packages or CUDA versions that are not satisfied.
+- **License gate** — The model or dataset has a gated or non-commercial license that requires manual review.
+
+When a readiness blocker is present, the generated command includes `--mode official-validation` by default. This ensures you can validate the wiring without committing GPU resources to a blocked run.
+
+## Fallback mode
+
+If the Textual dependency is not installed, the TUI prints a static fallback summary instead of the interactive dashboard. The fallback lists model ids, benchmark ids, and a brief readiness note.
+
+To restore the full interactive TUI, install the `[tui]` extra:
+
+```bash
+pip install -e ".[tui]"
+```
+
+## TUI vs CLI discovery
+
+Both the TUI and the CLI discovery commands read the same catalog manifests. Choose based on your workflow:
+
+| Need | Use |
+| --- | --- |
+| Browse catalogs visually, adjust parameters interactively | TUI (`worldfoundry-eval tui`) |
+| Generate a single command for scripts or CI | TUI with `--print-command` |
+| List all model or benchmark ids as JSON | `worldfoundry-eval zoo models --json` or `zoo benchmarks --json` |
+| Check readiness for a specific model | `worldfoundry-eval zoo model-download --check-local --model-id <id> --json` |
+| Check benchmark/runtime readiness | `worldfoundry-eval preflight runtime --profile <benchmark-id> --manifest worldfoundry/data/benchmarks/runtime_profiles/official/<benchmark-id>.yaml --output-dir tmp/preflight/runtime/<benchmark-id> --json` |
+| Full environment preflight | Run the per-profile command for each benchmark profile you need to validate. |
+
+## Next steps
+
+<Cards>
+  <Card title="Studio" description="Inspect rich media outputs, prompt models visually, and view evaluation histories." href="/docs/guides/studio" />
+  <Card title="CLI" description="Full command map for discovery, evaluation, suites, and gates." href="/docs/reference/cli" />
+  <Card title="Evaluation" description="Score generated outputs with benchmark runners and scorecards." href="/docs/evaluation" />
+</Cards>

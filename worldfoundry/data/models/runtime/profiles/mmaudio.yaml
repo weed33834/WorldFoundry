@@ -1,0 +1,22 @@
+schema_version: 2
+model_id: mmaudio
+display_name: MMAudio
+task_family: video_generation
+groups: [video, audio_generation]
+source_repos:
+- url: https://github.com/hkchengrex/MMAudio
+checkpoints:
+- repo_id: hkchengrex/MMAudio
+  role: audio_checkpoint
+input_schema:
+  prompt: true
+  video: optional
+artifact_kind: generated_audio
+artifact_filename: mmaudio.wav
+execution:
+  backend_stage: official_runtime_bridge
+  runtime_status: integrated_checkpoint_required
+  integration_status: integrated
+  pipeline_binding: mmaudio
+integration:
+  status: integrated

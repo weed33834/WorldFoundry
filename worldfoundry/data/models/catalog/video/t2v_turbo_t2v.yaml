@@ -1,0 +1,36 @@
+id: t2v_turbo_t2v
+name: T2V Turbo T2V
+aliases:
+- t2v-turbo-t2v
+- t2v-turbo
+tasks:
+- text-to-video
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/Ji4chenLi/t2v-turbo
+  license: apache-2.0
+official_sources:
+  paper: https://arxiv.org/abs/2405.18750
+  project_page: https://t2v-turbo.github.io/
+  github:
+    url: https://github.com/Ji4chenLi/t2v-turbo
+  huggingface:
+  - repo_id: jiachenli-ucsb/T2V-Turbo-VC2
+    type: model
+    status: confirmed
+  - repo_id: VideoCrafter/VideoCrafter2
+    type: model
+    status: confirmed
+integration:
+  status: runtime_ported
+  notes:
+  - In-tree T2V-Turbo VC2 runtime is registered; VideoCrafter2 base weights and T2V-Turbo LoRA assets are runtime-gated.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: t2v_turbo_t2v
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - resolve_model_zoo_config and pipeline import are expected to pass; vendored runtime source completion and checkpoint staging remain pending.
+catalog_category: video
+catalog_scope: Video-generation and video-token catalog entries. Integrated entries expose WorldFoundry pipeline targets; metadata-only entries retain upstream provenance without runnable WorldFoundry backends.

@@ -1,0 +1,12 @@
+{
+  "title": "Architecture",
+  "defaultOpen": true,
+  "pages": [
+    "index",
+    "workflow",
+    "evaluation-core",
+    "model-runtime",
+    "benchmarks-data",
+    "studio-internals"
+  ]
+}

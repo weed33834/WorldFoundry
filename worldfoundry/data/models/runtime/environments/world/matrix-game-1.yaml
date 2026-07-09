@@ -1,0 +1,29 @@
+conda_packages:
+- python
+- pip
+- setuptools
+- wheel
+cuda_profile: cu128
+driver_status: compatible
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: matrix-game-1
+notes:
+- Matrix-Game-1 official requirements were authored for torch 2.5.1+cu124, but the in-tree runner has now been exercised in
+  worldfoundry-unified-cu128 on the A100 validation host. Prefer the unified cu128 env on modern NVIDIA hosts.
+- Official requirements are recorded inline in this runtime profile and worldfoundry/data/models/runtime/configs/matrix_game_1/environment.yml.
+pip_packages:
+- torch
+- torchvision
+- diffusers
+- transformers
+- numpy
+- opencv-python-headless
+- sentencepiece
+python: '3.11'
+validation_imports:
+- torch
+- diffusers
+- transformers>=4.57.0,<5
+- cv2
+- sentencepiece

@@ -1,0 +1,34 @@
+id: videocrafter1-i2v
+name: VideoCrafter1 I2V
+aliases:
+- videocrafter1_i2v
+tasks:
+- image-to-video
+- video-generation
+output_artifacts:
+- generated_video
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/VideoCrafter/VideoCrafter
+integration:
+  status: integrated
+  notes:
+  - In-tree infer-only runtime wraps the official VideoCrafter image-to-video path.
+  - Training, dataset, and download scripts are intentionally not packaged.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+runtime_profile: runtime-profile:videocrafter1-i2v
+runner_parity:
+  status: pending
+  notes:
+  - The in-tree VideoCrafter1 I2V route is wired with local checkpoint, fps, frame
+    count, and seed controls.
+  - Per-run artifact checks are tracked outside the model catalog.
+notes:
+- Checkpoint provenance is tracked on the top-level videocrafter catalog entry to
+  avoid duplicate HF repo aliases.
+pipeline_binding: videocrafter1-i2v
+catalog_category: video
+catalog_scope: Video-generation and video-token catalog entries. Integrated entries
+  expose WorldFoundry pipeline targets; metadata-only entries retain upstream provenance
+  without runnable WorldFoundry backends.

@@ -1,0 +1,33 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+id: spirit-v1.5
+name: Spirit-VLA v1.5
+aliases:
+- spirit-vla
+- spirit-v1p5
+- spirit_v1p5
+tasks:
+- vla.action_prediction
+- vla.policy_rollout
+output_artifacts:
+- action_trace
+provider: worldfoundry_native
+source:
+  status: unknown
+  official_repo_url: https://huggingface.co/Spirit-AI/Spirit-VLA
+  notes:
+  - Originally exposed by WorldFoundry-native-3D.
+integration:
+  status: runtime_ported
+  notes:
+  - WorldFoundry routes Spirit-VLA through an in-tree HF action runtime adapter.
+  - Checkpoint absence is reported by runtime missing_assets and is not a catalog blocker.
+runtime_profile: runtime-profile:spirit-v1.5
+pipeline_binding: spirit-v1.5
+runner_parity:
+  status: runtime_ported
+  notes:
+  - Runtime route resolves and imports; checkpoint-backed parity remains asset-gated.
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata,
+  and runtime-profile planning records. Runner or pipeline targets are present only after a complete in-tree
+  WorldFoundry model runtime is registered and validated.

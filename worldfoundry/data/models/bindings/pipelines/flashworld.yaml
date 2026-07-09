@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: flashworld
+model_id: flashworld
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.flash_world.pipeline_flash_world:FlashWorldPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

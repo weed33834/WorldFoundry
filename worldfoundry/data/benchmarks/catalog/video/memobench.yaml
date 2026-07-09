@@ -1,0 +1,276 @@
+id: memobench
+name: MemoBench
+benchmark_kind:
+- world-model
+- visual-memory
+- video-generation-quality
+domains:
+- visual-memory
+- object-permanence
+- camera-revisit
+- 3d-consistency
+modalities:
+- text
+- image
+- frames
+- video
+status: in_tree_official_runtime_ready_full_upstream_pending
+official_sources:
+  github:
+    url: https://github.com/MemoBench-Team/MemoBench
+    revision: 8822e2713b01db90820a2c75115a37814ff992a0
+    role: vendored_runtime_source
+  local_runtime:
+    path: worldfoundry/evaluation/tasks/execution/runners/memobench/runtime/memobench
+  docs:
+    path: worldfoundry/evaluation/tasks/execution/runners/memobench/runtime/memobench/docs
+benchmark_assets:
+  prompt_suite:
+    status: official_dataset_required
+  bundled_runtime_docs:
+    status: vendored
+evaluation_surface:
+  purpose: Visual-memory benchmark for world generation under the Visible / Disappeared / Reappear protocol.
+  claimed_clips: 360
+  claimed_synthetic_clips: 196
+  claimed_real_clips: 164
+  requires_generated_frames: true
+  requires_sam3_for_ors: true
+  requires_vlm_for_vqa: true
+  metric_protocol:
+    metric_ids:
+    - visual_quality
+    - motion_smoothness
+    - object_identity_consistency
+    - geo3d_consistency
+    - camera_controllability
+    - image_reward_score
+    - object_revisit_score
+    - gt_all_psnr
+    - gt_all_ssim
+    - gt_all_lpips
+    - instruction_following
+    - object_background
+    - continuity_of_memory
+    - physics_adherence
+    - memobench_average
+    primary_metric: memobench_average
+metrics:
+- id: visual_quality
+  name: Visual Quality
+  description: CLIP-IQA+ and LAION aesthetic quality over the full video.
+  higher_is_better: true
+  leaderboard_key: visual_quality
+  aggregator: mean
+  output_unit: score
+- id: motion_smoothness
+  name: Motion Smoothness
+  description: Optical-flow temporal coherence over visible and reappear phases.
+  higher_is_better: true
+  leaderboard_key: motion_smoothness
+  aggregator: mean
+  output_unit: score
+- id: object_identity_consistency
+  name: Object Identity Consistency
+  description: DINOv2 object-centric identity consistency after reappearance.
+  higher_is_better: true
+  leaderboard_key: object_identity_consistency
+  aggregator: mean
+  output_unit: score
+- id: geo3d_consistency
+  name: Geo3D Consistency
+  description: Depth-based geometric consistency across visible and reappear phases.
+  higher_is_better: true
+  leaderboard_key: geo3d_consistency
+  aggregator: mean
+  output_unit: score
+- id: camera_controllability
+  name: Camera Controllability
+  description: Alignment between generated and target camera motion.
+  higher_is_better: true
+  leaderboard_key: camera_controllability
+  aggregator: mean
+  output_unit: score
+- id: image_reward_score
+  name: Image Reward Score
+  description: Human-preference alignment score from the ImageReward path.
+  higher_is_better: true
+  leaderboard_key: image_reward_score
+  aggregator: mean
+  output_unit: score
+- id: object_revisit_score
+  name: Object Revisit Score
+  description: SAM-3 text-prompted detection score for target-object reappearance.
+  higher_is_better: true
+  leaderboard_key: object_revisit_score
+  aggregator: mean
+  output_unit: score
+- id: gt_all_psnr
+  name: GT All PSNR
+  description: PSNR against ground-truth frames across all phases.
+  higher_is_better: true
+  leaderboard_key: gt_all_psnr
+  aggregator: mean
+  output_unit: dB
+- id: gt_all_ssim
+  name: GT All SSIM
+  description: SSIM against ground-truth frames across all phases.
+  higher_is_better: true
+  leaderboard_key: gt_all_ssim
+  aggregator: mean
+  output_unit: score
+- id: gt_all_lpips
+  name: GT All LPIPS
+  description: LPIPS against ground-truth frames across all phases.
+  higher_is_better: false
+  leaderboard_key: gt_all_lpips
+  aggregator: mean
+  output_unit: distance
+- id: instruction_following
+  name: Instruction Following
+  description: VQA pass rate for requested camera movements and events.
+  higher_is_better: true
+  leaderboard_key: instruction_following
+  aggregator: mean
+  output_unit: score
+- id: object_background
+  name: Object and Background
+  description: VQA pass rate for object identity and background consistency.
+  higher_is_better: true
+  leaderboard_key: object_background
+  aggregator: mean
+  output_unit: score
+- id: continuity_of_memory
+  name: Continuity of Memory
+  description: VQA pass rate for preserving target-object state while out of frame.
+  higher_is_better: true
+  leaderboard_key: continuity_of_memory
+  aggregator: mean
+  output_unit: score
+- id: physics_adherence
+  name: Physics Adherence
+  description: VQA pass rate for plausible lighting, shadows, and motion.
+  higher_is_better: true
+  leaderboard_key: physics_adherence
+  aggregator: mean
+  output_unit: score
+- id: memobench_average
+  name: MemoBench Average
+  description: Mean over available normalized MemoBench component metrics.
+  higher_is_better: true
+  leaderboard_key: memobench_average
+  aggregator: mean
+  output_unit: score
+  primary: true
+runner:
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:MemoBenchContract
+  official_runner_script: worldfoundry/evaluation/tasks/execution/runners/memobench/run_memobench_official_runner.py
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - memobench
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <official_results.csv>
+  - --generated-artifact-dir
+  - <generated_frames>
+  - --output-dir
+  - <out>
+  - --json
+  runtime:
+    kind: in_tree_official_source
+    root: worldfoundry/evaluation/tasks/execution/runners/memobench/runtime/memobench
+    repo_url: https://github.com/MemoBench-Team/MemoBench.git
+    repo_revision: 8822e2713b01db90820a2c75115a37814ff992a0
+    root_env: WORLDFOUNDRY_MEMOBENCH_ROOT
+    root_env_required: false
+    results_path_env: WORLDFOUNDRY_MEMOBENCH_RESULTS_PATH
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+    generated_synthetic_dir_env: WORLDFOUNDRY_MEMOBENCH_GENERATED_SYNTHETIC_DIR
+    generated_real_dir_env: WORLDFOUNDRY_MEMOBENCH_GENERATED_REAL_DIR
+  expected_artifacts:
+  - scorecard.json
+  - raw_metric_table.jsonl
+  - per_sample_scores.jsonl
+  - eval_csv
+  - ors_scores.csv
+  - leaderboard.csv
+  verification_status: pending
+  notes:
+  - WorldFoundry normalizes caller-provided MemoBench Step 1, ORS, VQA, or leaderboard outputs.
+  - The in-tree runner can execute the vendored Step 1 automated metric script when generated frame artifacts and dependencies are available.
+  - ORS and VQA remain explicit external stages because they require SAM-3 and Gemini or compatible VLM credentials.
+  required_env:
+  - WORLDFOUNDRY_MEMOBENCH_RESULTS_PATH
+  optional_env:
+  - WORLDFOUNDRY_MEMOBENCH_ROOT
+  - WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  - WORLDFOUNDRY_MEMOBENCH_GENERATED_SYNTHETIC_DIR
+  - WORLDFOUNDRY_MEMOBENCH_GENERATED_REAL_DIR
+  - WORLDFOUNDRY_MEMOBENCH_EVAL_DIR
+  - WORLDFOUNDRY_MEMOBENCH_ORS_DIR
+  - WORLDFOUNDRY_MEMOBENCH_VQA_DIR
+  - WORLDFOUNDRY_MEMOBENCH_LEADERBOARD_PATH
+integration:
+  status: integrated
+  evidence:
+    framework_validation: worldfoundry-eval zoo benchmark-run --benchmark-id memobench --mode official-validation --official-results-path <official_results.csv> --generated-artifact-dir <generated_frames> --output-dir <out> --json
+    runtime_surface: memobench_official_in_tree
+    full_suite_verified: false
+release_status: experimental
+maturity: contract_ready
+open_source_status: in_tree_runtime
+official_benchmark_verified: false
+integration_evidence: true
+leaderboard_valid: false
+requires:
+- Bundled MemoBench runtime sources and docs
+- WORLDFOUNDRY_MEMOBENCH_RESULTS_PATH or --official-results-path for normalization-only runs
+- WORLDFOUNDRY_GENERATED_ARTIFACT_DIR, or separate synthetic and real generated frame roots for Step 1 official execution
+- Complete MemoBench dataset assets for full automated metric execution
+- SAM-3 assets for Object Revisit Score
+- Gemini or compatible VLM credentials for VQA
+blockers:
+- Leaderboard parity requires generated frames for the complete synthetic and real suites plus Step 1, ORS, VQA, and leaderboard evidence.
+data_refs:
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/memobench.yaml
+  sample_results: worldfoundry/data/benchmarks/assets/memobench/sample_results.csv
+  in_tree_runtime_paths:
+  - worldfoundry/evaluation/tasks/execution/runners/memobench/runtime/memobench
+official_runner_script: worldfoundry/evaluation/tasks/execution/runners/memobench/run_memobench_official_runner.py
+runner_availability:
+  available: true
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:MemoBenchContract
+  runner_script_available: true
+  task_yaml_available: true
+  runtime_verified: false
+  surface: memobench_official_in_tree
+  normalizer_verified: true
+base_model_dependencies:
+- video_quality_dino_motion_stack
+optional_base_model_dependencies:
+- sam3_segmentation_stack
+- gemini_vlm_judge
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- memobench
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.csv>
+- --generated-artifact-dir
+- <generated_frames>
+- --output-dir
+- <out>
+- --json
+checkpoint_refs: []
+artifact_layout:
+  generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  output_artifact: benchmark_scorecard
+  filename_template: scorecard.json

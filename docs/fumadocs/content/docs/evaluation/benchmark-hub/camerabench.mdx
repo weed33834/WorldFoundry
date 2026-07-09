@@ -1,0 +1,142 @@
+---
+title: CameraBench
+description: Camera-motion understanding benchmark with in-tree WorldFoundry result aggregation.
+---
+
+## About
+
+CameraBench evaluates whether a video model understands camera motion rather than only producing visually pleasing clips. It focuses on motions such as pan, tilt, roll, zoom, tracking, and follow, and asks whether the generated or retrieved video matches the intended camera behavior.
+
+The benchmark was introduced with the CameraBench project and paper, "Towards Understanding Camera Motions in Any Video". The public benchmark release includes a test split on Hugging Face and fine-tuned Qwen2.5-VL camera-motion scorers. WorldFoundry does not require users to fetch an external source tree: the result importer and metric aggregation code live in this repository under `worldfoundry/evaluation/tasks/execution/runners/camerabench/`.
+
+WorldFoundry currently covers the reproducible aggregation stage. You provide either an official CameraBench result JSON or a prepared CameraBench `score_dir`, and WorldFoundry writes a standard scorecard. Producing the raw CameraBench score JSONs from videos still requires the CameraBench scorer assets and the fine-tuned VLM checkpoints described below.
+
+
+## Official References
+
+| Resource | Link |
+| --- | --- |
+| Project page | [linzhiqiu.github.io/papers/camerabench](https://linzhiqiu.github.io/papers/camerabench/) |
+| Paper | [arXiv:2504.15376](https://arxiv.org/abs/2504.15376) |
+| GitHub | [github.com/sy77777en/CameraBench](https://github.com/sy77777en/CameraBench) |
+| HF dataset | [syCen/CameraBench](https://huggingface.co/datasets/syCen/CameraBench) |
+| In-tree runner | `worldfoundry/evaluation/tasks/execution/runners/camerabench/run_camerabench_official_runner.py` |
+## What To Prepare
+
+### Dataset
+
+Download the public test assets from Hugging Face:
+
+```bash
+hf download syCen/CameraBench \
+  --repo-type dataset \
+  --local-dir /path/to/datasets/CameraBench
+```
+
+The local root should contain the test metadata and video assets:
+
+```text
+/path/to/datasets/CameraBench/
+|-- test.jsonl
+`-- videos_gif/
+    |-- *.gif
+    `-- ...
+```
+
+Use this path for `WORLDFOUNDRY_CAMERABENCH_DATA_ROOT` or `--benchmark-data-root`.
+
+### Scorer Checkpoints
+
+CameraBench reports use fine-tuned Qwen2.5-VL camera-motion models. Download checkpoints from Hugging Face into your normal model cache or a shared checkpoint directory:
+
+```bash
+hf download chancharikm/qwen2.5-vl-7b-cam-motion  --local-dir /path/to/checkpoints/qwen2.5-vl-7b-cam-motion
+hf download chancharikm/qwen2.5-vl-32b-cam-motion --local-dir /path/to/checkpoints/qwen2.5-vl-32b-cam-motion
+hf download chancharikm/qwen2.5-vl-72b-cam-motion --local-dir /path/to/checkpoints/qwen2.5-vl-72b-cam-motion
+```
+
+The WorldFoundry base-model tree already contains reusable Qwen/VQAScore infrastructure under `worldfoundry/base_models/`. Keep checkpoint paths outside the source tree unless you are preparing a local release bundle.
+
+### Score Directory
+
+The in-tree CameraBench runner consumes prepared JSON score files. The expected filenames are:
+
+```text
+/path/to/camerabench/score_dir/
+|-- classification_scores_*.json
+|-- vqa_retrieval_scores_*.json
+`-- caption_results_*.json
+```
+
+Each file should include a top-level `scores` list and optional `metadata` with `model_name`, `checkpoint`, and `split_name`. These are the same score families used by the official CameraBench evaluation code: binary camera-motion classification, VQA/retrieval, and caption matching.
+
+## Run Evaluation
+
+### Aggregate A Prepared Score Directory
+
+```bash
+export WORLDFOUNDRY_CAMERABENCH_DATA_ROOT=/path/to/datasets/CameraBench
+export WORLDFOUNDRY_CAMERABENCH_SCORE_DIR=/path/to/camerabench/score_dir
+
+PYTHONPATH=. "${WORLDFOUNDRY_UNIFIED_PYTHON:-python}" \
+  worldfoundry/evaluation/tasks/execution/runners/camerabench/run_camerabench_official_runner.py \
+  --score-dir "${WORLDFOUNDRY_CAMERABENCH_SCORE_DIR}" \
+  --benchmark-data-root "${WORLDFOUNDRY_CAMERABENCH_DATA_ROOT}" \
+  --task all \
+  --mode both \
+  --output-dir tmp/camerabench/score-dir \
+  --json
+```
+
+To run only part of the suite, set `--task binary`, `--task vqa_retrieval`, or `--task caption`. Caption matching can use an API-backed judge when you pass `--openai-api-key "$OPENAI_API_KEY"`; omit caption if your local reproduction only covers binary and VQA/retrieval metrics.
+
+### Use The Public CLI
+
+```bash
+worldfoundry-eval zoo benchmark-run \
+  --benchmark-id camerabench \
+  --mode official-validation \
+  --score-dir "${WORLDFOUNDRY_CAMERABENCH_SCORE_DIR}" \
+  --benchmark-data-root "${WORLDFOUNDRY_CAMERABENCH_DATA_ROOT}" \
+  --output-dir tmp/camerabench/score-dir-cli \
+  --json
+```
+
+### Import Existing Official Results
+
+```bash
+worldfoundry-eval zoo benchmark-run \
+  --benchmark-id camerabench \
+  --mode official-validation \
+  --official-results-path /path/to/camerabench_results.json \
+  --benchmark-data-root "${WORLDFOUNDRY_CAMERABENCH_DATA_ROOT}" \
+  --output-dir tmp/camerabench/imported \
+  --json
+```
+
+Use this path when you already have the JSON output from a prior CameraBench evaluation and only need a WorldFoundry scorecard for comparison with other benchmarks.
+
+## Metrics
+
+| Metric | Meaning |
+| --- | --- |
+| `camera_motion_average_precision` | Mean average precision for binary camera-motion classification. |
+| `camera_motion_roc_auc` | ROC-AUC for binary camera-motion classification. |
+| `camera_vqa_accuracy` | Mean of yes/no and question-level CameraBench VQA accuracy. |
+| `camera_retrieval_accuracy` | Mean of text, image, and group retrieval accuracy. |
+| `camera_caption_score` | Caption agreement score from prepared CameraBench caption outputs. |
+| `camerabench_average` | Mean over the available CameraBench metric families. |
+
+## Outputs
+
+The runner writes:
+
+- `scorecard.json`
+- `camera_predictions.jsonl`
+- `raw_metric_table.jsonl`
+- `upstream_stdout.log`
+- `upstream_stderr.log`
+
+For a leaderboard-quality reproduction, make sure the local dataset root covers the full test split and the score directory contains all metric families you intend to report.
+
+[Back to Benchmark Hub](/docs/evaluation/benchmark-hub)

@@ -1,0 +1,16 @@
+{
+  "overall_average_precision": 0.82,
+  "overall_roc_auc": 0.79,
+  "evaluated_splits": 3,
+  "overall_binary_acc": 0.75,
+  "overall_question_acc": 0.7,
+  "overall_retrieval_text": 0.68,
+  "overall_retrieval_image": 0.66,
+  "overall_retrieval_group": 0.64,
+  "results_by_split": {
+    "binary": {"accuracy": 0.75}
+  },
+  "results": [
+    {"sample_id": "sample-0001", "caption_score": 0.6}
+  ]
+}

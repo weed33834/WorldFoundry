@@ -1,0 +1,139 @@
+id: bridgedata-v2
+name: BridgeData V2
+benchmark_kind:
+- vla
+- robot-manipulation
+- real-robot-dataset
+- offline-policy
+domains:
+- vla
+- embodied-action
+- robot-manipulation
+- real-robot
+- offline-evaluation
+modalities:
+- language
+- vision
+- action
+- state
+- proprioception
+aliases:
+- BridgeData
+- BridgeData V2
+- bridge-data-v2
+status: open_source
+official_sources:
+  github:
+    url: https://github.com/rail-berkeley/bridge_data_v2
+    head_sha: bc60a35b701a12021c8c95e9d8601274d3acd928
+  project_page: https://rail-berkeley.github.io/bridgedata/
+  paper_url: https://arxiv.org/abs/2308.12952
+  license: mit
+  huggingface_status: third_party_conversions_only
+  access_notes: Official GitHub repository is public under MIT; official release is project-page/HTTP based, while 
+    observed HF copies are third-party conversions and are not treated as official sources.
+dataset:
+  path: ${WORLDFOUNDRY_DATA_DIR}/datasets/bridgedata-v2
+  split: eval
+  notes:
+  - Official dataset download is HTTP/project-page based rather than a single confirmed Hugging Face benchmark table.
+runner:
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:BridgeDataV2Contract
+  verification_status: normalizer_only
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - bridgedata-v2
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <official_results.json>
+  - --output-dir
+  - <out>
+  - --json
+  expected_artifacts:
+  - scorecard.json
+  - raw_results.jsonl
+  runtime:
+    kind: external_official_results_runner
+    results_path_env: WORLDFOUNDRY_BRIDGEDATA_V2_RESULTS_PATH
+  required_env:
+  - WORLDFOUNDRY_BRIDGEDATA_V2_RESULTS_PATH
+  notes:
+  - WorldFoundry public benchmark-run can normalize caller-provided official result files without simulator execution.
+metrics:
+- id: success_rate
+  name: Success Rate
+  higher_is_better: true
+  normalizer: percent_or_fraction_to_unit
+  primary: true
+- id: task_success
+  name: Task Success
+  higher_is_better: true
+  normalizer: percent_or_fraction_to_unit
+- id: goal_success
+  name: Goal Success
+  higher_is_better: true
+  normalizer: percent_or_fraction_to_unit
+- id: action_accuracy
+  name: Action Accuracy
+  higher_is_better: true
+  normalizer: percent_or_fraction_to_unit
+- id: rollout_success
+  name: Rollout Success
+  higher_is_better: true
+  normalizer: percent_or_fraction_to_unit
+integration:
+  status: integrated
+  blocked_reasons:
+  - Dataset materialization, split definition, and policy-result import validation must be validated before integrated 
+    status.
+release_status: normalizer_only
+maturity: contract_ready
+open_source_status: normalizer_only
+official_benchmark_verified: false
+integration_evidence: true
+leaderboard_valid: false
+full_test_harness_ready: true
+full_suite_testable: true
+full_suite_execution_recorded: false
+requires:
+- BridgeData V2 dataset materialization
+- Eval split definition
+- Policy checkpoint or offline prediction dump
+- Action normalization and task-goal mapping
+blockers:
+- Dataset materialization, split definition, and policy-result import validation must be validated before integrated 
+  status.
+data_refs:
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/bridgedata-v2.yaml
+runner_availability:
+  available: true
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:BridgeDataV2Contract
+  runner_script_available: false
+  task_yaml_available: true
+  runtime_verified: false
+  normalizer_verified: true
+  surface: official_result_normalizer
+optional_base_model_dependencies:
+- spatial_perception_core_stack
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- bridgedata-v2
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.json>
+- --output-dir
+- <out>
+- --json
+checkpoint_refs: []
+artifact_layout:
+  generated_artifact_dir_env: WORLDFOUNDRY_BRIDGEDATA_V2_RESULTS_PATH
+  output_artifact: benchmark_scorecard
+  filename_template: scorecard.json

@@ -1,0 +1,33 @@
+id: gen3c
+name: GEN3C
+tasks:
+- image-to-video
+- navigation
+- camera-control
+- 3d-reconstruction
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/nv-tlabs/GEN3C
+  license: nvidia-source-code
+official_sources:
+  github:
+    url: https://github.com/nv-tlabs/GEN3C
+  huggingface:
+  - repo_id: nvidia/GEN3C-Cosmos-7B
+    type: model
+    status: confirmed
+integration:
+  status: verified_official_8gpu_workspace
+  notes:
+  - In-tree Cosmos Predict1 GEN3C runtime is registered; inference follows the dedicated gen3c conda profile.
+  - Official single-image Workspace demo passed on 8 A100 GPUs with local Cosmos/MoGe assets.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: gen3c
+runner_parity:
+  status: verified_official_8gpu_workspace
+  notes:
+  - Workspace CLI validation uses the upstream single-image demo parameters: 121 frames, 1280x704, 24 fps.
+  - Visual QA shows the expected futuristic city camera-control scene with smooth left motion.
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models

@@ -1,0 +1,27 @@
+schema_version: 2
+model_id: ltx-2-i2v
+display_name: LTX-2 I2V
+task_family: video_generation
+groups:
+- video
+source_repos:
+- url: https://github.com/Lightricks/LTX-Video
+checkpoints:
+- repo_id: Lightricks/LTX-2
+  revision: 47da56e2ad66ce4125a9922b4a8826bf407f9d0a
+  role: i2v_checkpoint
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - seed
+artifact_kind: generated_video
+artifact_filename: ltx-2-i2v.mp4
+execution:
+  backend_stage: official_in_tree_runtime
+  runtime_status: official_in_tree_runtime_ready_checkpoint_required
+  integration_status: integrated
+  pipeline_binding: ltx-2-i2v
+integration:
+  status: integrated

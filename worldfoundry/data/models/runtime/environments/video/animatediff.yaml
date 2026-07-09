@@ -1,0 +1,41 @@
+conda_packages:
+- python
+- pip
+- ffmpeg
+cuda_profile: cu128
+driver_status: compatible
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: animatediff
+notes:
+- AnimateDiff runs in the unified CUDA 12.8 environment with small compatibility shims for current diffusers/transformers
+  checkpoint key names. The default demo resolves openai/clip-vit-large-patch14 through the native Hugging Face cache or the
+  local cache roots declared by WorldFoundry.
+pip_packages:
+- torch
+- torchvision
+- diffusers
+- transformers
+- huggingface_hub
+- imageio
+- imageio-ffmpeg
+- numpy
+- decord
+- omegaconf
+- gradio
+- gradio_client
+- fastapi
+- pydantic
+- socksio
+- setuptools
+- safetensors
+- einops
+- wandb
+- accelerate
+python: '3.11'
+validation_imports:
+- torch
+- diffusers
+- transformers
+- imageio
+- gradio

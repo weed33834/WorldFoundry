@@ -1,0 +1,38 @@
+id: step-video-t2v
+name: Step-Video-T2V
+aliases:
+- step-video
+- stepvideo-t2v
+- step_video_t2v
+tasks:
+- text-to-video
+- video-generation
+output_artifacts:
+- generated_video
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/stepfun-ai/Step-Video-T2V
+  license: mit
+checkpoint_refs:
+- repo_id: stepfun-ai/stepvideo-t2v
+  revision: 7a2b639ca2685350e87a4df7e4026285309f7fb6
+  license: mit
+  estimated_size_gb: 183
+integration:
+  status: planned
+  notes:
+  - Runtime source is vendored in-tree; full execution remains multi-GPU/service/checkpoint
+    gated.
+runtime_profile: runtime-profile:step-video-t2v
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: step-video-t2v
+runner_parity:
+  status: implemented_multigpu_services_pending
+  notes:
+  - StepVideoT2VSynthesis provides an in-tree execution plan wrapper around the vendored
+    runtime.
+catalog_category: video
+catalog_scope: Video-generation and video-token catalog entries. Integrated entries
+  expose WorldFoundry pipeline targets; metadata-only entries retain upstream provenance
+  without runnable WorldFoundry backends.

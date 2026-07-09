@@ -1,0 +1,40 @@
+schema_version: 2
+model_id: warp-as-history
+display_name: Warp-as-History
+task_family: video_generation
+groups:
+- video
+- image_to_video
+- camera_control
+source_repos:
+- url: https://github.com/yyfz/Warp-as-History
+checkpoints:
+- repo_id: BestWishYsh/Helios-Distilled
+  role: base_video_diffusion_checkpoint
+- repo_id: yyfz233/warp-as-history
+  filename: visible_lora_state_step1000.safetensors
+  role: warp_as_history_lora_checkpoint
+- repo_id: yyfz233/Pi3X
+  filename: model.safetensors
+  role: optional_camera_pose_warp_checkpoint
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - warp_video
+  - camera_path
+artifact_kind: generated_video
+artifact_filename: warp-as-history.mp4
+execution:
+  backend_stage: in_tree_official_cli
+  runtime_status: official_demo_contract
+  integration_status: verified
+  pipeline_binding: warp-as-history
+  conda_env: warp-as-history
+integration:
+  status: verified
+notes:
+- WorldFoundry vendors the official Warp-as-History runtime under worldfoundry/synthesis/visual_generation/warp_as_history/warp_as_history_runtime.
+- This model intentionally uses the dedicated warp-as-history conda profile because
+  its official stack pins Python 3.10 and torch 2.5.0+cu121.

@@ -1,0 +1,30 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+id: being-h07
+name: Being-H0.7
+aliases:
+- being-h0.7
+- beingh07
+- Being-H07
+availability: open_source
+provider: official_repo
+official_sources:
+  github:
+    url: https://github.com/BeingBeyond/Being-H
+    subdir: Being-H07
+integration:
+  status: runtime_ported
+  notes:
+  - WorldFoundry routes Being-H0.7 through the in-tree official-policy action runtime.
+  - Checkpoint absence is reported by the runtime missing_assets plan and is not a catalog blocker.
+tasks:
+- vla
+- wam
+- latent_world_action_model
+- robot_policy
+output_artifacts:
+- action_trace
+pipeline_binding: being-h07
+runtime_profile: runtime-profile:being-h07
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint
+  metadata, and runtime-profile planning records.

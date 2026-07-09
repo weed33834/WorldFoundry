@@ -1,0 +1,39 @@
+conda_packages:
+- python
+- pip
+cuda_profile: cu121
+driver_status: compatible
+env_name: worldfoundry-vla-openvla-compat-cu121
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: openvla-oft
+notes:
+- Official OpenVLA-OFT inference reports about 16 GB VRAM for LIBERO and about 18 GB for ALOHA.
+- OpenVLA-OFT and CogACT share this dedicated Prismatic/OpenVLA-compatible runtime profile because transformers 4.57 in the unified env imports unrelated JAX/scipy/generation paths too slowly for this model family.
+- The model code is vendored in-tree; checkpoints are resolved through the standard Hugging Face cache or a local snapshot path.
+pip_extra_index_url: https://download.pytorch.org/whl/cu121
+pip_packages:
+- torch==2.2.0
+- torchvision==0.17.0
+- transformers==4.40.1
+- accelerate==0.30.1
+- peft==0.11.1
+- timm==0.9.10
+- tokenizers==0.19.1
+- sentencepiece==0.1.99
+- diffusers==0.30.3
+- Pillow==10.4.0
+- numpy==1.26.4
+- einops==0.8.0
+- safetensors==0.4.5
+- huggingface-hub==0.23.5
+- json-numpy
+- draccus==0.8.0
+- rich==13.9.4
+python: '3.10'
+validation_imports:
+- numpy
+- PIL
+- torch
+- torchvision
+- transformers
+- diffusers

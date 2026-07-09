@@ -1,0 +1,171 @@
+id: ltx-2.x
+name: LTX-2.x
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: ltx-2.x
+runtime_profile: runtime-profile:ltx-2.3-i2v
+tasks:
+  - text-to-video
+  - image-to-video
+  - video-to-video
+  - audio-video-generation
+source_status:
+  status: confirmed_official_github
+  github:
+    url: https://github.com/Lightricks/LTX-Video
+    verified_by: git ls-remote --symref https://github.com/Lightricks/LTX-Video.git HEAD
+    default_branch: main
+    head_sha: 4b2d053057623ddd4d0a1d3e9cd28890e9ef487f
+checkpoint:
+  status: confirmed_public_hf
+  verified_by: GET https://huggingface.co/api/models/<repo_id>
+  repos:
+    - id: Lightricks/LTX-2
+      sha: 47da56e2ad66ce4125a9922b4a8826bf407f9d0a
+      license: other
+      private: false
+      gated: false
+      tasks:
+        - text-to-video
+        - image-to-video
+        - video-to-video
+    - id: Lightricks/LTX-2.3
+      sha: 76730e634e70a28f4e8d51f5e29c08e40e2d8e74
+      license: other
+      private: false
+      gated: false
+      tasks:
+        - text-to-video
+        - image-to-video
+        - video-to-video
+  notes: Official Lightricks LTX-2.x HF base repos were confirmed. Gated LoRA or community variants are not included.
+variants:
+  - id: ltx-2-t2v
+    task: text-to-video
+    provider: official_repo
+    checkpoint_refs:
+      - repo_id: Lightricks/LTX-2
+        revision: 47da56e2ad66ce4125a9922b4a8826bf407f9d0a
+        license: other
+        private: false
+        gated: false
+    runtime_profile: ltx-2-t2v
+    demo_parity:
+      status: pending_demo
+    runner_parity:
+      status: planned
+  - id: ltx-2-i2v
+    task: image-to-video
+    provider: official_repo
+    checkpoint_refs:
+      - repo_id: Lightricks/LTX-2
+        revision: 47da56e2ad66ce4125a9922b4a8826bf407f9d0a
+        license: other
+        private: false
+        gated: false
+    runtime_profile: ltx-2-i2v
+    demo_parity:
+      status: pending
+      notes:
+        - The in-tree LTX-2 I2V route is wired with the local LTX-2 checkpoint,
+          reference image, fps, guidance_scale, resolution, frame count, step
+          count, and seed controls.
+        - Full official parity remains pending; per-run artifact checks are
+          tracked outside the model catalog.
+    runner_parity:
+      status: pending
+    runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+    pipeline_binding: ltx-2-i2v
+    integration:
+      status: integrated
+  - id: ltx-2-v2v
+    task: video-to-video
+    provider: official_repo
+    checkpoint_refs:
+      - repo_id: Lightricks/LTX-2
+        revision: 47da56e2ad66ce4125a9922b4a8826bf407f9d0a
+        license: other
+        private: false
+        gated: false
+    runtime_profile: ltx-2-v2v
+    demo_parity:
+      status: pending_demo
+    runner_parity:
+      status: planned
+  - id: ltx-2.3-t2v
+    task: text-to-video
+    provider: official_repo
+    checkpoint_refs:
+      - repo_id: Lightricks/LTX-2.3
+        revision: 76730e634e70a28f4e8d51f5e29c08e40e2d8e74
+        license: other
+        private: false
+        gated: false
+    runtime_profile: ltx-2.3-t2v
+    demo_parity:
+      status: pending_demo
+    runner_parity:
+      status: planned
+  - id: ltx-2.3-i2v
+    task: image-to-video
+    provider: official_repo
+    checkpoint_refs:
+      - repo_id: Lightricks/LTX-2.3
+        revision: 76730e634e70a28f4e8d51f5e29c08e40e2d8e74
+        license: other
+        private: false
+        gated: false
+    runtime_profile: ltx-2.3-i2v
+    demo_parity:
+      status: pending
+      notes:
+        - The in-tree LTX-2.3 I2V route is wired with local checkpoint assets,
+          reference image, fps, guidance_scale, resolution, frame count, step
+          count, and seed controls.
+        - Full upstream parity remains pending; per-run artifact checks are
+          tracked outside the model catalog.
+    runner_parity:
+      status: pending
+    runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+    pipeline_binding: ltx-2.3-i2v
+    integration:
+      status: integrated
+  - id: ltx-2.3-v2v
+    task: video-to-video
+    provider: official_repo
+    checkpoint_refs:
+      - repo_id: Lightricks/LTX-2.3
+        revision: 76730e634e70a28f4e8d51f5e29c08e40e2d8e74
+        license: other
+        private: false
+        gated: false
+    runtime_profile: ltx-2.3-v2v
+    demo_parity:
+      status: pending_demo
+    runner_parity:
+      status: planned
+demo_parity:
+  status: pending
+  notes:
+    - LTX-2 and LTX-2.3 I2V routes are wired through the in-tree runtime.
+    - LTX-2.x T2V and V2V variants remain planned/profile-only.
+    - Full upstream parity remains pending; per-run artifact checks are tracked
+      outside the model catalog.
+notes: Tracked separately from LTX-Video 0.9.x because upstream publishes LTX-2.x under distinct HF repo ids.
+catalog_category: video
+catalog_scope: Official GitHub and/or Hugging Face confirmed open-source or open-weight video generation models. Checkpoints are not tracked in git; local validation may download selected repos under cache/hfd.
+catalog_policy:
+  github: Validated with git ls-remote, preferring git ls-remote --symref <repo>.git HEAD for default branch and HEAD SHA.
+  huggingface: Validated with the Hugging Face /api/models endpoint. Recorded repo id, sha, private, gated, license, and selected task tags only.
+  parity: This manifest does not claim WorldFoundry runtime parity unless an explicit parity run and expected artifact are recorded.
+integration:
+  status: integrated
+  notes:
+    - WorldFoundry wraps the in-tree LTX-2.x I2V runtimes; T2V/V2V variants remain profile-only until scoped wrappers exist.
+runner_parity:
+  status: partial_studio_visual_validation_verified
+  notes:
+    - WorldFoundry LTX-2 I2V pipeline target is registered and produced the nonblank
+      Studio demo artifact recorded above.
+    - WorldFoundry LTX-2.3 I2V pipeline target is registered and produced the
+      nonblank Studio demo artifact recorded above.
+    - T2V/V2V variants still need scoped wrappers and checkpoint-backed validation.

@@ -1,0 +1,38 @@
+conda_packages:
+- python
+- pip
+- ffmpeg
+cuda_profile: prepare_only
+driver_status: preflight_only
+env_name: dreamdojo
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: dreamdojo
+notes:
+- DreamDojo now has an in-tree WorldFoundry runtime wrapper. This prepare-only env records DreamDojo's official cu128 setup
+  without claiming it can run on the local GPU CUDA 11.4 stack.
+- Official install.sh targets torchcodec cu128 on H100/CUDA 12.8-class hosts. Use an upgraded driver/CUDA host before official
+  demo parity validation.
+- nvidia/DreamDojo is staged under ${WORLDFOUNDRY_HFD_ROOT}/nvidia--DreamDojo; stage the GR-1 eval dataset under the official
+  DreamDojo datasets path before enabling a real command template.
+pip_packages:
+- tyro
+- pydantic
+- numpy
+- imageio
+- imageio-ffmpeg
+- opencv-python
+- huggingface_hub
+- safetensors
+- loguru
+- pyyaml
+- torchcodec
+python: '3.10'
+validation_imports:
+- tyro
+- pydantic
+- numpy
+- imageio
+- yaml
+- cosmos_cuda
+- cosmos_oss
+- cosmos_predict2

@@ -1,0 +1,38 @@
+schema_version: 2
+model_id: fantasyworld-wan21
+display_name: FantasyWorld Wan2.1
+task_family: world_model
+groups:
+- 3d
+- 4d
+- world
+- camera_control
+source_repos:
+- url: https://github.com/Fantasy-AMAP/fantasy-world
+checkpoints:
+- repo_id: acvlab/FantasyWorld-Wan2.1-I2V-14B-480P
+  role: fantasyworld_wan21_checkpoint
+- repo_id: Wan-AI/Wan2.1-I2V-14B-480P
+  role: wan21_i2v_base
+- repo_id: Ruicheng/moge-2-vitl-normal
+  role: moge2_depth_normal_prior
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - camera_path
+  - camera_pose_sequence
+artifact_kind: generated_world
+artifact_filename: fantasyworld-wan21.mp4
+execution:
+  backend_stage: in_tree_runtime
+  runtime_status: official_camera_world_contract
+  integration_status: verified
+  pipeline_binding: fantasyworld-wan21
+integration:
+  status: verified
+notes:
+- Runtime profile for the in-tree FantasyWorld Wan2.1 pipeline.
+- Runtime execution requires local FantasyWorld Wan2.1, Wan2.1 I2V, MoGe, and CUDA
+  assets.

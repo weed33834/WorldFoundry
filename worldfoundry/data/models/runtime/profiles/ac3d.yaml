@@ -1,0 +1,38 @@
+schema_version: 2
+model_id: ac3d
+display_name: AC3D
+task_family: video_generation
+groups:
+- video
+- camera_control
+source_repos:
+- url: https://github.com/snap-research/ac3d
+checkpoints:
+- role: ac3d_cogvideox_2b_controlnet
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/ac3d/2B/checkpoint-10000.pt
+- role: ac3d_cogvideox_5b_controlnet
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/ac3d/5B/checkpoint-10000.pt
+- role: cogvideox_2b_base
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/CogVideoX-2b
+- role: cogvideox_5b_base
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/CogVideoX-5b
+input_schema:
+  prompt: true
+  image: false
+  video: false
+  actions:
+  - camera_index
+  - camera_index_range
+artifact_kind: generated_video
+artifact_filename: ac3d.mp4
+execution:
+  backend_stage: official_in_tree_runtime
+  runtime_status: official_in_tree_runtime_ready
+  integration_status: integrated
+  pipeline_binding: ac3d
+  pipeline_binding: ac3d
+integration:
+  status: integrated
+notes:
+- WorldFoundry vendors the official AC3D CogVideoX-ControlNet inference runtime under worldfoundry/synthesis/visual_generation/ac3d/ac3d_runtime.
+- Runtime execution requires a RealEstate10K-style video_root_dir plus local CogVideoX and AC3D ControlNet weights.

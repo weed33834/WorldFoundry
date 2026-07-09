@@ -1,0 +1,76 @@
+default_variant: droid
+torch_dtype: bfloat16
+num_steps: 10
+enable_cuda_graph: false
+enable_depth_reasoning: false
+normalize_language: true
+variants:
+  droid:
+    aliases:
+      - franka
+      - franka_droid
+      - molmoact2-droid
+    embodiment: droid
+    repo_id: allenai/MolmoAct2-DROID
+    norm_tag: franka_droid
+    camera_keys:
+      - external_cam
+      - external_cam_2
+      - wrist_cam
+    state_dim: 8
+    action_mode_key: inference_action_mode
+  yam:
+    aliases:
+      - bimanual-yam
+      - bimanual_yam
+      - molmoact2-bimanualyam
+    embodiment: yam
+    repo_id: allenai/MolmoAct2-BimanualYAM
+    norm_tag: yam_dual_molmoact2
+    camera_keys:
+      - top_cam
+      - left_cam
+      - right_cam
+    state_dim: 14
+    action_mode_key: inference_action_mode
+  so100:
+    aliases:
+      - so101
+      - so100_101
+      - so100-so101
+      - molmoact2-so100-101
+    embodiment: so100
+    repo_id: allenai/MolmoAct2-SO100_101
+    norm_tag: so100_so101_molmoact2
+    camera_keys:
+      - top_cam
+      - side_cam
+    state_dim: 6
+    action_mode_key: inference_action_mode
+  libero:
+    aliases:
+      - molmoact2-libero
+      - libero-10
+    embodiment: libero
+    repo_id: allenai/MolmoAct2-LIBERO
+    norm_tag: libero
+    camera_keys:
+      - agentview_cam
+      - wrist_cam
+    state_dim: 8
+    action_mode_key: inference_action_mode
+  think-libero:
+    aliases:
+      - think_libero
+      - molmoact2-think-libero
+      - depth-libero
+    embodiment: think_libero
+    repo_id: allenai/MolmoAct2-Think-LIBERO
+    norm_tag: libero
+    camera_keys:
+      - agentview_cam
+      - wrist_cam
+    state_dim: 8
+    action_mode_key: inference_action_mode
+    enable_depth_reasoning: true
+    enable_adaptive_depth: true

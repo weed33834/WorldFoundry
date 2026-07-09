@@ -1,0 +1,39 @@
+id: skyreels-v3
+name: SkyReels V3
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: skyreels-v3
+tasks:
+- reference-to-video
+- audio-guided-video
+- video-to-video
+- video-generation
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/SkyworkAI/SkyReels-V3
+  hf_repo_id: Skywork/SkyReels-V3-R2V-14B
+official_sources:
+  github:
+    url: https://github.com/SkyworkAI/SkyReels-V3
+  huggingface:
+  - repo_id: Skywork/SkyReels-V3-R2V-14B
+    status: confirmed
+checkpoints:
+- repo_id: Skywork/SkyReels-V3-R2V-14B
+integration:
+  status: integrated
+  notes:
+  - WorldFoundry registers SkyReels V3 through a model-specific pipeline backed by the in-tree runtime shim.
+  - The in-tree runtime launches torchrun internally when use_usp=true, so Studio can reserve and dispatch an 8-GPU job without
+    depending on an external checkout.
+  - The route uses the local SkyReels-V3-R2V-14B checkpoint.
+runner_parity:
+  status: verified
+  notes:
+  - The runner supports task_type=reference_to_video, duration=5, resolution=720P, seed=42, use_usp=true, and nproc_per_node=8.
+  - SkyReels V3 USP requires flash-attn in the selected conda environment.
+  - Per-run visual QA and artifact checks are tracked outside the model catalog.
+runtime_profile: runtime-profile:skyreels-v3
+catalog_category: video
+catalog_scope: Video-generation and video-token catalog entries. Integrated entries expose WorldFoundry pipeline targets;
+  metadata-only entries retain upstream provenance without runnable WorldFoundry backends.

@@ -1,0 +1,46 @@
+artifact_filename: starvla_action_trace.json
+artifact_kind: action_trace
+backend_stage: in_tree_checkpoint_runtime
+checkpoints:
+- local_dir: ${WORLDFOUNDRY_HFD_ROOT}/StarVLA--Qwen3-VL-OFT-LIBERO-4in1
+  repo_id: StarVLA/Qwen3-VL-OFT-LIBERO-4in1
+  role: qwen3_vl_libero_policy_checkpoint
+  status: local_checkpoint_staged_official_source_predict_action_gpu_ready
+- local_dir: ${WORLDFOUNDRY_HFD_ROOT}/StarVLA--WM4A-Wan2d2-OFT-LIBERO-4in1
+  repo_id: StarVLA/WM4A-Wan2d2-OFT-LIBERO-4in1
+  role: wm4a_wan2d2_libero_world_action_checkpoint
+  status: local_checkpoint_staged_checkpoint_gpu_probe_ready_official_source_import_gpu_probe_ready_wm4a_runtime_not_promoted
+- local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Qwen--Qwen3-VL-4B-Instruct
+  repo_id: Qwen/Qwen3-VL-4B-Instruct
+  role: qwen3_vl_4b_base_vlm
+  status: local_base_vlm_staged_official_source_predict_action_gpu_ready
+gpu_readiness:
+  artifact_kind: action_trace
+  base_vlm: ${WORLDFOUNDRY_HFD_ROOT}/Qwen--Qwen3-VL-4B-Instruct
+  gpu_device: 80GB CUDA GPU
+  max_memory_allocated_bytes: 9296583168
+  max_memory_reserved_bytes: 9344909312
+  runtime_seconds: 84.072
+  scope: public_pipeline_checkpoint_backed_qwen3_vl_oft_libero_predict_action
+  source_repo_dir: worldfoundry/synthesis/action_generation/starvla
+  status: ready
+  torch_cuda: '11.8'
+  torch_version: 2.5.1+cu118
+id: starvla
+input_schema:
+  actions:
+  - robot_action
+  - world_action
+  - latent_action_tokens
+  - action_space
+  image: true
+  instruction: true
+  prompt: true
+  video: true
+integration_status: integrated
+notes:
+- WorldFoundry provides the StarVLA QwenOFT predict_action runtime in-tree under worldfoundry/synthesis/action_generation/starvla.
+  It does not require an external starVLA checkout for release inference.
+runtime_status: in_tree_qwen3_vl_oft_libero_predict_action_gpu_ready
+task_family: embodied_action
+verification_status: checkpoint_backed_in_tree_predict_action_gpu_ready

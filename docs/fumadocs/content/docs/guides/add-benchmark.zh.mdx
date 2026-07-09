@@ -1,0 +1,104 @@
+---
+title: 添加基准
+description: Benchmark manifests、runners、datasets、official runs 和 leaderboard evidence 的清单。
+---
+
+## 介绍
+
+WorldFoundry 当前公开支持的 benchmark surface 是 Benchmark Zoo。新增 benchmark 支持时，通过 catalog manifest、external task manifest、runner contract 和 readiness evidence 完成。
+
+多数 benchmark 工作遵循同一条路径：在 catalog 里记录 official provenance，声明 task contract，证明 runner 能写出 scorecard shape，再在真实资产和 official scorer 证据齐全后提升状态。
+
+## 支持的 surface
+
+当前公开集成路径是 Benchmark Zoo：
+
+- **Benchmark zoo** — `worldfoundry/data/benchmarks/catalog/*.yaml`、`scripts/benchmark_zoo` 和 `worldfoundry/evaluation/tasks`。用于追踪带有 official source、dataset、runner 和 runtime stages 的外部/社区 benchmark。
+
+## Discovery 检查
+
+先确认 benchmark 已出现在 catalog 和 task metadata 中：
+
+```bash
+conda run -p "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}" worldfoundry-eval zoo benchmarks --json
+conda run -p "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}" worldfoundry-eval zoo benchmark-show \
+  --benchmark-id <benchmark-id> \
+  --include-spec \
+  --json
+conda run -p "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}" worldfoundry-eval tasks show \
+  --task-type <benchmark-id> \
+  --json
+```
+
+## Benchmark-zoo manifest
+
+Catalog entry 是公开 contract。按职责分组填写字段，而不是堆成一张大表：
+
+- **Identity** — `benchmark_id`、aliases、family、modalities、normalized tasks。
+- **Source** — 官方仓库、论文、项目页、license、clone target。
+- **Dataset** — Dataset ids、access state、cache expectation、filters、unsafe flags。
+- **Runner** — Runner target、official validation、official benchmark command、expected artifacts。
+- **Metrics** — Metric ids、direction、aggregation、score ranges、leaderboard keys。
+- **Evidence** — Check notes、report paths、blockers、executed commands。
+
+检查和导出 specs：
+
+```bash
+conda run -p "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}" worldfoundry-eval zoo benchmarks --json
+conda run -p "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}" worldfoundry-eval zoo benchmark-specs \
+  --benchmark-id <benchmark-id> \
+  --json
+```
+
+## Runnable Evaluator
+
+Official validation 用于导入 official-shaped results 并写出可审查的 scorecard，之后才能声明 full benchmark parity：
+
+```bash
+conda run -p "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}" worldfoundry-eval zoo benchmark-run \
+  --benchmark-id <benchmark-id> \
+  --output-dir tmp/benchmark_zoo/official_validation/<benchmark-id> \
+  --mode official-validation \
+  --official-results-path <official_results.json> \
+  --generated-artifact-dir <generated_artifacts> \
+  --json
+```
+
+Benchmark runner 会分开 framework integration 和 leaderboard eligibility。Official-validation import 通过只是有用的开发证据；leaderboard 声明仍需要 official scorer 或 judge、声明清楚的资产和完整 scorecard evidence。
+
+## Readiness checks
+
+Metadata 看起来正确后，再跑 declared runtime profile：
+
+```bash
+conda run -p "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}" worldfoundry-eval preflight runtime \
+  --profile <benchmark-id> \
+  --manifest worldfoundry/data/benchmarks/runtime_profiles/official/<benchmark-id>.yaml \
+  --output-dir tmp/preflight/runtime/<benchmark-id> \
+  --json
+```
+
+只有机器具备 permission、network access、credentials、datasets 和 runtime capacity 时，才添加执行 flags。
+
+检查输出会写到 `tmp/preflight/runtime/<benchmark-id>`。优先使用 JSON report 查看 blockers、stage status 和 next actions；只有 stage 失败时才需要检查 logs。
+
+## 状态规则
+
+Promotion 表述必须和 runner 实际能证明的内容一致：
+
+- **`planned`** — Metadata 已存在，但声明的 runner、importer、normalizer 或 artifact contract 尚不能被调用并留下证据。
+- **`blocked`** — Official code、data、judge weights、license access 或 runtime dependencies 不可用。
+- **`integrated`** — 声明的 WorldFoundry support surface 已可调用并有证据：仓内 runner、official command、隔离 importer 或 official-result normalizer 能针对用户提供的 assets 写出预期 scorecard artifacts。
+
+Normalizer-only integration 可以是 `integrated`，前提是 CLI 命令、artifact/data requirements 和 normalization evidence 都已记录。除非完整 official scorer 或 judge 已运行且 scorecard 证明 leaderboard eligibility，否则必须保持 `verification_status: normalizer_only`、`normalizer_only: true` 和 `leaderboard_valid: false`。
+
+## PR 证据
+
+Reviewer 应能把 catalog 声明追到命令和产物：
+
+- **Manifest diff** — `worldfoundry/data/benchmarks/catalog/*.yaml`、`worldfoundry/data/benchmarks/tasks/external/*.yaml` 或 benchmark runner/normalizer 文件。
+- **Metadata checks** — `tasks show`、`benchmark-specs` 或 `benchmark-show` output。
+- **Readiness report** — `tmp/benchmark_zoo/validation/<benchmark-id>/report.json`。
+- **Dataset state** — Cache path 和 access condition，不提交数据。
+- **Runtime run** — Generated scorecard、raw logs 和 expected artifact paths。
+- **Skipped stages** — License、API、dataset 或 hardware reason。

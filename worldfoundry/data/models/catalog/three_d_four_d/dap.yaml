@@ -1,0 +1,39 @@
+id: dap
+name: Depth Any Panoramas
+aliases:
+- depth-any-panoramas
+- insta360-dap
+tasks:
+- panoramic-depth-estimation
+- metric-depth-estimation
+- geometry-prior
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/Insta360-Research-Team/DAP
+  hf_repo_id: Insta360-Research/DAP-weights
+  license: apache-2.0
+checkpoint_refs:
+- repo_id: Insta360-Research/DAP-weights
+  filename: model.pth
+integration:
+  kind: pipeline_runner
+  status: integrated
+  notes:
+  - Integrated as an independent geometric prior at worldfoundry/base_models/three_dimensions/depth/depth_anything/depth_anything_v1.
+  - ViPE imports this prior from the canonical three_dimensions.depth owner; the
+    model is not owned by the ViPE package.
+  - Exposed through the shared WorldFoundry geometry-prior pipeline/operator contract.
+base_model_target: worldfoundry.base_models.three_dimensions.depth.depth_anything.depth_anything_v1
+runtime_profile: runtime-profile:dap
+runner_parity:
+  status: verified
+  notes:
+  - Checkpoint-backed inference is implemented through the shared geometry-prior
+    pipeline/operator contract.
+  - Per-run validation evidence is tracked outside the model catalog so this file
+    remains stable release metadata.
+catalog_category: three_d_four_d
+catalog_scope: Independent geometric prior integrations used by 3D and world-model
+  runtimes.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner

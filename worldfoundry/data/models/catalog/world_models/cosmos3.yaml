@@ -1,0 +1,94 @@
+availability: open_source
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models
+catalog_policy:
+  checkpoint_rule: Only list checkpoints documented by the official Cosmos Framework release.
+    Do not download weights during catalog loading.
+  integration_rule: In-tree runtime code must import through worldfoundry.base_models.
+  open_source_rule: Official source is vendored from the local cosmos-framework checkout.
+checkpoints:
+- nvidia/Cosmos3-Nano
+- nvidia/Cosmos3-Super
+family: NVIDIA Cosmos
+id: cosmos3
+integration:
+  notes:
+  - Cosmos3 diffusers, transformers, and vLLM shims are vendored under the base-model
+    layer and exposed through a lazy WorldFoundry runtime.
+  - Generation requires a locally staged or converted Cosmos3 pipeline/checkpoint under
+    WORLDFOUNDRY_HFD_ROOT or an explicit local path.
+  status: in_tree_plan_ready
+license: other:openmdw-1.1
+modalities:
+- text-to-image
+- text-to-video
+- image-to-image
+- image-to-video
+- video-to-video
+- world-generation
+name: Cosmos3
+official_sources:
+  github:
+    confirmed_by: local checkout
+    confirmed_ref: 411d25b2e35bc441126f48c44a4b93e1c0564274
+    url: https://github.com/NVIDIA/cosmos-framework
+  huggingface:
+  - confirmed_by: local cosmos-framework docs/training.md
+    repo_id: nvidia/Cosmos3-Nano
+    status: confirmed
+    type: model
+  - confirmed_by: local cosmos-framework docs/training.md
+    repo_id: nvidia/Cosmos3-Super
+    status: confirmed
+    type: model
+release_type: code_and_weights
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: cosmos3
+runtime_profile: runtime-profile:cosmos3
+runner_parity:
+  status: pending
+starred: true
+tasks:
+- text-to-image
+- text-to-video
+- image-to-image
+- image-to-video
+- video-to-video
+- world-generation
+variants:
+- checkpoint_refs:
+  - gated: auto
+    license: other:openmdw-1.1
+    private: false
+    repo_id: nvidia/Cosmos3-Nano
+    requires_auth: true
+    revision: 46468e12ac0dd36901e9e3240d4fc7620942b5d7
+  demo_parity:
+    status: pending_demo
+  id: cosmos3-nano
+  provider: official_repo
+  runner_parity:
+    blocked_reasons:
+    - Requires accepted NVIDIA model terms, local checkpoint staging, and WorldFoundry
+      runner parity output capture.
+    status: planned
+  runtime_profile: cosmos3-nano
+  task: world-generation
+- checkpoint_refs:
+  - gated: auto
+    license: other:openmdw-1.1
+    private: false
+    repo_id: nvidia/Cosmos3-Super
+    requires_auth: true
+    revision: 46468e12ac0dd36901e9e3240d4fc7620942b5d7
+  demo_parity:
+    status: pending_demo
+  id: cosmos3-super
+  provider: official_repo
+  runner_parity:
+    blocked_reasons:
+    - Requires accepted NVIDIA model terms, high-memory GPU validation, and WorldFoundry
+      runner parity output capture.
+    status: planned
+  runtime_profile: cosmos3-super
+  task: world-generation

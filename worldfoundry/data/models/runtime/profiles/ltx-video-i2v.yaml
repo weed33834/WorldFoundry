@@ -1,0 +1,31 @@
+schema_version: 2
+model_id: ltx-video-i2v
+display_name: LTX-Video I2V
+task_family: video_generation
+groups:
+- video
+- image_to_video
+- ltx-video
+source_repos:
+- url: https://github.com/Lightricks/LTX-Video
+checkpoints:
+- repo_id: Lightricks/LTX-Video
+  revision: 8984fa25007f376c1a299016d0957a37a2f797bb
+  role: i2v_checkpoint
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - seed
+artifact_kind: generated_video
+artifact_filename: ltx-video-i2v.mp4
+execution:
+  backend_stage: official_in_tree_runtime
+  runtime_status: official_in_tree_runtime_ready_checkpoint_required
+  integration_status: integrated
+  pipeline_binding: ltx-video-i2v
+integration:
+  status: integrated
+notes:
+- LTX-Video 0.9.x image-to-video runtime wrapper is packaged in-tree.

@@ -1,0 +1,2 @@
+visual_quality,motion_smoothness,object_identity_consistency,geo3d_consistency,camera_controllability,image_reward_score,object_revisit_score,gt_all_psnr,gt_all_ssim,gt_all_lpips,instruction_following,object_background,continuity_of_memory,physics_adherence
+72.0,68.0,70.0,66.0,64.0,61.0,0.58,28.5,0.82,0.19,0.67,0.63,0.59,0.62

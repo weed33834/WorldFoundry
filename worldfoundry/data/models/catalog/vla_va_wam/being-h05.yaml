@@ -1,0 +1,92 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+aliases:
+- being-h0.5
+- beingh05
+- Being-H05
+availability: open_source
+checkpoint:
+  license: manual_review:missing_hf_license
+  repo_id: BeingBeyond/Being-H05-2B_libero
+id: being-h05
+integration:
+  notes:
+  - WorldFoundry vendors Being-H0.5 architecture and policy runtime under worldfoundry/synthesis/action_generation/being_h05/being_h05_runtime.
+  - The Being-H05 LIBERO checkpoint passed public pipeline checkpoint-backed GPU get_action
+    validation and emitted an action_trace artifact.
+  status: integrated
+integration_status: integrated
+license: manual_review:missing_hf_license
+name: Being-H0.5
+official_sources:
+  github:
+    head_sha: 66b959e05db225fd816f8a517d94a9c0585cfc3e
+    subdir: Being-H05
+    url: https://github.com/BeingBeyond/Being-H
+  huggingface:
+  - license: manual_review:missing_hf_license
+    repo_id: BeingBeyond/Being-H05-2B
+    status: local_checkpoint_staged_checkpoint_gpu_probe_verified_get_action_not_retried_after_repair
+  - license: manual_review:missing_hf_license
+    repo_id: BeingBeyond/Being-H05-2B_libero
+    status: local_checkpoint_staged_action_trace_gpu_verified_efficient_sdpa
+  - license: manual_review:missing_hf_license
+    repo_id: BeingBeyond/Being-H05-2B_robocasa
+    status: local_checkpoint_staged_checkpoint_gpu_probe_verified_get_action_not_retried_after_repair
+  - license: manual_review:missing_hf_license
+    repo_id: BeingBeyond/Being-H05-2B_libero_robocasa
+    status: local_checkpoint_staged_tensor_gpu_probe_verified
+output_artifacts:
+- action_trace
+pipeline_binding: being-h05
+provider: official_repo
+runtime_profile: runtime-profile:being-h05
+tasks:
+- vla
+- vla.policy_rollout
+- robot_policy
+- cross_embodiment_policy
+variants:
+- checkpoint_refs:
+  - repo_id: BeingBeyond/Being-H05-2B
+  id: being-h05-2b
+  integration_status: planned
+  notes:
+  - WorldFoundry vendors Being-H0.5 architecture and policy runtime under worldfoundry/synthesis/action_generation/being_h05/being_h05_runtime;
+    plan-only validation passed, and the base checkpoint safetensors can be staged
+    for CUDA tensor checks.
+  task: vla.policy_rollout
+- checkpoint_refs:
+  - repo_id: BeingBeyond/Being-H05-2B_libero
+  id: being-h05-2b-libero
+  integration_status: integrated
+  notes:
+  - Public WorldFoundry pipeline emitted checkpoint-backed LIBERO action_trace on an
+    80GB CUDA GPU using memory-efficient SDPA.
+  task: vla.policy_rollout
+- checkpoint_refs:
+  - repo_id: BeingBeyond/Being-H05-2B_robocasa
+  id: being-h05-2b-robocasa
+  integration_status: planned
+  notes:
+  - WorldFoundry vendors Being-H0.5 architecture and policy runtime under worldfoundry/synthesis/action_generation/being_h05/being_h05_runtime;
+    plan-only validation passed, and the RoboCasa-only checkpoint safetensors can
+    be staged for CUDA tensor checks.
+  task: vla.policy_rollout
+- checkpoint_refs:
+  - repo_id: BeingBeyond/Being-H05-2B_libero_robocasa
+  id: being-h05-2b-libero-robocasa
+  integration_status: planned
+  notes:
+  - WorldFoundry vendors Being-H0.5 architecture and policy runtime under worldfoundry/synthesis/action_generation/being_h05/being_h05_runtime;
+    LIBERO+RoboCasa checkpoint tensor GPU probe passed, but real get_action exceeded
+    a single 80GB GPU memory budget.
+  task: vla.policy_rollout
+runner_parity:
+  attention_mask_kind: dense
+  scope: public_pipeline_checkpoint_backed_libero_get_action
+  sdpa_backend: efficient_attention
+  status: verified
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint
+  metadata, and runtime-profile planning records. Runner or pipeline targets are present
+  only after a complete in-tree WorldFoundry model runtime is registered and validated.

@@ -1,0 +1,15 @@
+scope: Video generation, world generation, and interactive world-model benchmark candidates
+  confirmed only through official GitHub/project pages, Hugging Face API metadata,
+  or git ls-remote. No datasets, generated videos, model weights, or judge weights
+  were downloaded.
+verification_policy:
+  github: Use git ls-remote --symref <repo>.git HEAD to confirm public official repositories
+    and record default branch plus HEAD SHA.
+  huggingface: Use Hugging Face /api/models or /api/datasets endpoints only; record
+    repo id, sha, private, gated, license, task tags, and selected metadata. Do not
+    request dataset files or weight files.
+  project_page: Use only official project pages linked from papers or official repositories;
+    project-page-only releases are not treated as runnable integrations.
+  blocked_rule: If code, data, judge, or benchmark identity cannot be confirmed from
+    the allowed sources, mark the affected surface blocked or unknown rather than
+    inferring availability from papers, mirrors, or search snippets.

@@ -1,0 +1,29 @@
+id: kinetix_eval
+output_dir: ./results/kinetix_eval
+model_id: external-policy-server
+server:
+  url: ws://localhost:8000
+benchmark_id: kinetix
+benchmark_kwargs:
+  tasks:
+    - Grasp Easy
+    - Catapult
+    - Cartpole Thrust
+    - Hard Lunar Lander
+    - Half Cheetah
+    - Swimmer
+    - Walker
+    - Unicycle
+    - Chain Lander
+    - Catcher
+    - Trampoline
+    - Car Launch
+  seed: 0
+  observation_type: symbolic
+  max_episode_steps: 256
+  rtc_worlds_dir: /app/rtc/worlds
+  action_noise_std: 0.1
+episodes_per_task: 100
+metric_ids:
+  - task_success
+  - success_rate

@@ -1,0 +1,14 @@
+schema_version: worldfoundry.official_video_runtime.v1
+model_id: i2vgen-xl
+runtime:
+  kind: diffusers_pipeline
+  backend_quality: official_hf_diffusers_pipeline
+  pipeline_target: diffusers:I2VGenXLPipeline
+  checkpoint_candidates:
+  - $WORLDFOUNDRY_HFD_ROOT/ali-vilab--i2vgen-xl
+  torch_dtype: float16
+  fps: 8
+  call_kwargs:
+    num_inference_steps: 50
+notes:
+- Official open weights are exposed as a Hugging Face/diffusers image-to-video pipeline.

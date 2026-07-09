@@ -1,0 +1,21 @@
+artifact_filename: vchitect_2_t2v_public_runner.mp4
+artifact_kind: generated_video
+backend_stage: in_tree_runtime
+checkpoints:
+- local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Vchitect--Vchitect-2.0-2B
+  repo_id: Vchitect/Vchitect-2.0-2B
+  revision: 37936818734242d8e75685b9ee43d2d2e447f98c
+  role: official_t2v_checkpoint
+  status: official_demo_parity_pending
+display_name: Vchitect-2.0 T2V
+id: vchitect-2-t2v
+input_schema:
+  image: false
+  prompt: true
+integration_status: integrated
+notes:
+- Official Vchitect-2.0 source is https://github.com/Vchitect/Vchitect-2.0 at be56767f1107b4fd6ba7652fe92ec0e7032878fe.
+- The vendored VchitectXLPipeline runtime source is present under worldfoundry/base_models/diffusion_model/video/vchitect/vchitect_runtime.
+- The default path loads the vendored Vchitect pipeline directly and does not emit
+  blocked plan artifacts.
+runtime_status: integrated

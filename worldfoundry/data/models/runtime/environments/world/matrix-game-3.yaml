@@ -1,0 +1,50 @@
+conda_packages:
+- python=3.11
+- pip
+- ffmpeg
+- cuda-nvcc
+cuda_profile: cu128
+driver_status: compatible
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: matrix-game-3
+notes:
+- Matrix-Game-3 is routed through the shared WorldFoundry CUDA 12.8 runtime and the in-tree runtime under worldfoundry/synthesis/visual_generation/matrix_game/matrix_game_3_runtime.
+- The cityscape route expects local Matrix-Game-3.0 checkpoints, LightVAE INT8, compile_vae=true, and imageio/ffmpeg mp4 output
+  support.
+- On A100, fa_version=3 requested FlashAttention 3 and fell back to FlashAttention 2; the official cityscape demo still produced
+  a valid 497-frame preview.
+pip_packages:
+- torch
+- torchvision
+- torchaudio
+- torchao
+- flash-attn
+- diffusers
+- transformers
+- accelerate
+- safetensors
+- imageio
+- imageio-ffmpeg
+- numpy
+- scipy
+- pandas
+- trimesh
+- pillow
+- einops
+- tqdm
+python: '3.11'
+validation_imports:
+- torch
+- torchvision
+- torchao
+- flash_attn
+- diffusers
+- transformers
+- imageio
+- numpy
+- scipy
+- pandas
+- trimesh
+- PIL
+- einops

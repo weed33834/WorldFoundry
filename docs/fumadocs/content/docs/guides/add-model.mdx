@@ -1,0 +1,162 @@
+---
+title: Add a Model
+description: Checklist for adding model manifests, runtime profiles, runners, checkpoints, operators, and pipelines.
+---
+
+## Introduction
+
+Keep the first model PR narrow: one model family, one operator, one pipeline, one runtime profile if needed, one resolved runner path, and one focused run-evidence report.
+
+A good first PR proves the route works end to end. It does not need to cover every task variant, every checkpoint, or every benchmark cell on day one.
+
+## Implementation areas
+
+Each model integration touches a few fixed surfaces. Use this list to decide where your diff should land:
+
+- **Pipeline and operator** — Public model entrypoint plus input shaping for prompts, images, video, camera controls, actions, and interaction state.
+- **Runtime implementation** — Inference code under the appropriate synthesis, representation, or base-model package.
+- **Evaluation binding** — Canonical route resolution so the CLI and benchmark runner can find the method.
+- **Catalog metadata** — Source, license, checkpoint refs, task coverage, runtime profile, blockers, and support state.
+- **Focused checks** — Small deterministic tests or helper commands that prove the changed runner surface.
+
+## Runnable route contract
+
+WorldFoundry resolves every runnable method through the same public contract. Before adding shortcuts, confirm these rules:
+
+- **Pipeline** — Every runnable method must resolve to a concrete pipeline class through catalog `pipeline_target` or `evaluation/models/pipelines/bindings.py`.
+- **Operator** — Every runnable pipeline must own an operator, even when the first implementation is thin. Put input validation, media loading, camera/action parsing, and interaction shaping there.
+- **Runtime profile** — Runtime profiles describe environment, checkpoints, commands, and execution metadata. They do not replace a pipeline/operator route and must not be the only support claim.
+- **Binding source** — Keep route normalization in `evaluation/models/pipelines/bindings.py`; do not add parallel parsers in catalog, loading, resolver, or check code.
+- **Base-model code** — `base_models/perception_core` and `base_models/three_dimensions` are inference/runtime primitives only. Do not add training loops, dataset builders, dataloaders, augmentation pipelines, or callbacks there.
+
+## Implementation checklist
+
+<Steps>
+  <Step>
+    Add or update the pipeline under `worldfoundry/pipelines/<family>/`; it must expose `from_pretrained()` and a deterministic `process()` / `__call__()` contract.
+  </Step>
+  <Step>
+    Add or update the operator under `worldfoundry/operators/`; do this for every runnable method, not only for complex input paths.
+  </Step>
+  <Step>
+    Keep backend-specific inference code inside `base_models/`, `synthesis/`, or `representations/` according to the existing layout. Do not commit training/data-processing helper trees into perception or 3D base-model packages.
+  </Step>
+  <Step>
+    Register the route through catalog YAML `pipeline_target` or the canonical binding helpers in `evaluation/models/pipelines/bindings.py`.
+  </Step>
+  <Step>
+    Add an inference handler in `worldfoundry/evaluation/models/pipelines/handlers.py` only when the model can participate in the generic benchmark runner.
+  </Step>
+  <Step>
+    Add or update the relevant `worldfoundry/data/models/catalog/<category>/<model-id>.yaml` entry with source, license, checkpoint refs, tasks, runtime profile, and integration status.
+  </Step>
+  <Step>
+    Add a small model-zoo check helper when official demo settings can be compared.
+  </Step>
+  <Step>
+    Add a focused regression for deterministic runner behavior.
+  </Step>
+</Steps>
+
+## Status rules
+
+Catalog fields describe intent; staged evidence decides whether the support matrix agrees.
+
+- **`source.status=open_source`** — Official public source is available and license metadata is recorded.
+- **`source.status=api`** — Model is accessed through a hosted provider or private service boundary.
+- **`source.status=closed`** — Public runnable source/checkpoint is not available.
+- **`integration_status=planned`** — Source or code exists, but required runnable checks are incomplete.
+- **`integration_status=blocked`** — Source, license, checkpoint, dependency, API, or hardware condition prevents runnable integration.
+- **`integration_status=integrated`** — Required runnable checks pass and the report is fresh for the current manifest.
+
+Manifest claims alone are not trusted. The support matrix recomputes readiness from staged evidence.
+
+## Useful commands
+
+<Tabs items={['inspect', 'check', 'download', 'clone', 'evaluate']}>
+  <Tab>
+
+```bash
+conda run -p "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}" worldfoundry-eval zoo models --json
+conda run -p "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}" worldfoundry-eval zoo model-show --model-id <model-id-or-alias> --include-manifest --json
+conda run -p "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}" worldfoundry-eval zoo model-specs --model-id <model-id> --json
+```
+
+  </Tab>
+  <Tab>
+
+```bash
+conda run -p "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}" worldfoundry-eval zoo model-download --check-local \
+  --model-id <model-id> \
+  --json
+```
+
+  </Tab>
+  <Tab>
+
+```bash
+conda run -p "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}" worldfoundry-eval zoo model-download \
+  --model-id <model-id> \
+  --repo-id <org/name> \
+  --cache-dir /path/to/checkpoints \
+  --check-local \
+  --report-path tmp/model_zoo/download/<model-id>.json \
+  --json
+```
+
+  </Tab>
+  <Tab>
+
+```bash
+conda run -p "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}" worldfoundry-eval zoo model-download --check-local \
+  --model-id <model-id> \
+  --execute \
+  --json
+```
+
+  </Tab>
+  <Tab>
+
+```bash
+conda run -p "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}" worldfoundry-eval evaluate \
+  --mode model \
+  --model-id <model-id> \
+  --model-manifest-dir worldfoundry/data/models/catalog \
+  --requests-path tmp/demo/requests.jsonl \
+  --output-dir tmp/model_eval/<model-id> \
+  --metric artifact_count \
+  --json
+```
+
+  </Tab>
+</Tabs>
+
+Add `--execute`, `--disable-xet`, `--disable-hf-transfer`, `--timeout`, or `--retries` only on a machine allowed to fetch checkpoints.
+
+## Run-evidence report
+
+The model check command writes a report under `tmp/model_zoo/validation/<model-id>`. The report should include manifest entry hash, check script hash, git commit, stage results, blockers, and next action. If those drift, the support matrix treats the report as stale.
+
+## PR evidence
+
+Attach enough context for a reviewer to rerun your path without guessing machine state:
+
+- **Manifest diff** — Relevant `worldfoundry/data/models/catalog/<category>/<model-id>.yaml` entry.
+- **Source checks** — `tmp/model_zoo/validation/<model-id>/report.json`.
+- **Checkpoint state** — Cache location and repo id, without committing the checkpoint.
+- **Demo parity** — Official command, raw logs, generated artifact path.
+- **Runner parity** — WorldFoundry runner command and output artifact path.
+- **Tests** — Focused files under `test/` or `test_stream/`.
+- **Support matrix** — Refreshed `tmp/preflight_report.md` when promoting status.
+
+Do not commit checkpoints, generated videos, local caches, API keys, or private assets.
+
+## Cache Boundary
+
+Cache paths are allowed only for temporary downloads, checkpoint copies, dataset mirrors, official-runtime clone caches, generated previews, and logs. Do not put model architecture code in `cache/`, and do not make an in-tree runner import Python modules from a cache path. If the runner requires architecture code, place that code under `worldfoundry/` and review it with the model integration.
+
+## Runtime hygiene
+
+Inference transforms that are needed at runtime may live in the relevant package, such as GroundingDINO `util.transforms`, DUST3R cropping/transforms, or DROID-SLAM RGB-D geometry helpers. Training datasets, dataloaders, losses, callbacks, augmentation-only modules, and experiment scripts should stay out of the runtime package unless the framework starts supporting in-repo training for that family.
+
+`pixelsplat` is the current exception under 3D base models because it still uses the official Lightning test runner and dataset-shaped loader. Treat it as technical debt to port into a pure inference runner, not as a pattern for new integrations.

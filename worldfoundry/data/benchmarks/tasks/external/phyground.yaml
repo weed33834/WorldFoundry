@@ -1,0 +1,269 @@
+benchmark: phyground
+name: PhyGround
+description: Task manifest and in-tree normalizer for criteria-grounded PhyGround evaluation of generated videos.
+tags:
+- benchmark-zoo
+- external-official
+- phyground
+- text-image-to-video
+- physical-reasoning
+- world-model
+splits:
+- standard
+metrics:
+  semantic_adherence:
+    aggregation: mean
+  physical_temporal_validity:
+    aggregation: mean
+  persistence:
+    aggregation: mean
+  solid_body_score:
+    aggregation: mean
+  fluid_dynamics_score:
+    aggregation: mean
+  optics_score:
+    aggregation: mean
+  phyground_overall:
+    aggregation: mean
+    primary: true
+metadata:
+  source_kind: benchmark_zoo
+  benchmark_id: phyground
+  contract_validation_command: worldfoundry-eval zoo benchmark-run --benchmark-id phyground --mode contract --output-dir
+    tmp/benchmark_zoo/benchmark_contract/phyground --json
+  name: PhyGround
+  domain:
+  - physics
+  - physical-reasoning
+  - solid-body
+  - fluid-dynamics
+  - optics
+  task_type: text_image_to_video_physical_reasoning_evaluation
+  status: integrated
+  integration_status: integrated
+  maturity: contract_ready
+  release_status: experimental
+  open_source_status: in_tree_artifact_scores_ready
+  official_benchmark_verified: false
+  integration_evidence: true
+  leaderboard_valid: false
+  base_model_dependencies:
+  - phyground_dataset_assets
+  optional_base_model_dependencies:
+  - grounded_depth_segmentation_stack
+  source_provenance:
+    official_repo:
+      url: https://github.com/NU-World-Model-Embodied-AI/PhyGround
+      verified_by: git ls-remote https://github.com/NU-World-Model-Embodied-AI/PhyGround HEAD
+      head_sha: 99c511b5bddbe2d4d5a3aa66a0282a0fbbf2292d
+      role: provenance_only_not_runtime_dependency
+    hf_dataset:
+      repo_id: NU-World-Model-Embodied-AI/phyground
+      verified_by: HEAD https://huggingface.co/api/datasets/NU-World-Model-Embodied-AI/phyground
+      private: false
+      gated: false
+      role: provenance_only_not_runtime_dependency
+    paper:
+      url: https://arxiv.org/abs/2605.10806
+    project_page:
+      url: https://phyground.github.io/
+  input_contract:
+  - prompt
+  - prompt_id
+  - conditioning_image
+  - generated_artifact_manifest
+  output_contract:
+  - generated_video
+  evaluation_requirements:
+  - Use official PhyGround prompts, criteria, and physical-law categories.
+  - Score semantic adherence, temporal physical validity, persistence, solid-body, fluid-dynamics, and optics 
+    dimensions.
+  - Treat official repo and HF dataset refs as provenance; evaluator supplies materialized assets.
+  requires:
+  - --benchmark-data-root <phyground_data_root> or WORLDFOUNDRY_PHYGROUND_DATA_ROOT
+  - prompts/phyground.json under the data root, or --prompt-manifest <path>
+  - annotations/ under the data root, or --official-results-path <path>
+  - --generated-artifact-dir <generated_videos>
+  - --result-model-id <model_id> when annotations contain multiple model ids
+  blockers:
+  - WorldFoundry imports PhyGround judge outputs; provide official PhyGround annotations/results through 
+    --official-results-path or annotations/ under --benchmark-data-root.
+  - Full leaderboard validation still requires generated videos and complete scorer/judge outputs for the official
+    prompt suite.
+  data_refs:
+    task_yaml: worldfoundry/data/benchmarks/tasks/external/phyground.yaml
+    dataset_refs:
+    - hf_dataset_id: NU-World-Model-Embodied-AI/phyground
+      split: standard
+      role: user_supplied_data_root
+    local_dataset_layout:
+    - <phyground_data_root>/prompts/phyground.json
+    - <phyground_data_root>/annotations/
+    - <phyground_data_root>/videos/<model_id>/
+  runner_availability:
+    available: true
+    runner_target: worldfoundry.evaluation.tasks.contracts.external:PhyGroundContract
+    runner_script_available: true
+    task_yaml_available: true
+    runtime_verified: true
+    surface: official_in_tree_runtime
+    normalizer_verified: false
+  official_runner_target: worldfoundry.evaluation.tasks.contracts.external:PhyGroundContract
+  official_runner_script: worldfoundry/evaluation/tasks/execution/runners/phyground/run_phyground_official_runner.py
+  metric_evaluator_target: worldfoundry.evaluation.tasks.execution.runners.phyground.phyground_contract_evaluator:write_phyground_evaluation
+  metric_protocol:
+    official_definition: PhyGround scores three general 1-5 dimensions, SA, PTV, and persistence, and 2-4 applicable 
+      physical-law criteria per video across 13 laws; domain scores are aggregates over scored applicable laws for 
+      solid-body mechanics, fluid dynamics, and optics.
+    official_results_fields:
+    - SA
+    - PTV
+    - persistence
+    - physical.laws.<law>.score
+    - semantic_adherence
+    - physical_temporal_validity
+    - solid_body_score
+    - fluid_dynamics_score
+    - optics_score
+    - phyground_overall
+    required_artifacts:
+    - prompts/phyground.json
+    - first_images conditioning assets
+    - generated videos named by id_stem
+    - PhyJudge-9B/vLLM scores.json or Gemini/GPT/Claude judge scores
+    official_metric_blocked_reason: judge_required
+  artifact_layout:
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+    output_artifact: benchmark_scorecard
+    filename_template: scorecard.json
+  runtime:
+    kind: in_tree_official_source
+    root: worldfoundry/evaluation/tasks/execution/runners/phyground/runtime/phyground
+    root_env: WORLDFOUNDRY_PHYGROUND_ROOT
+  official_result_entrypoint: worldfoundry-eval zoo benchmark-run
+  local_evaluator:
+    target: worldfoundry.evaluation.tasks.execution.runners.phyground.phyground_contract_evaluator:write_phyground_evaluation
+    status: implemented
+    protocol: local_artifact_checks_and_official_result_normalization
+    official_result_normalization:
+      status: implemented
+      input_keys:
+      - benchmark_data_root
+      - WORLDFOUNDRY_PHYGROUND_DATA_ROOT
+      - official_results_path
+      - WORLDFOUNDRY_PHYGROUND_RESULTS_PATH
+      formats:
+      - directory
+      - json
+      - jsonl
+      - csv
+      - yaml
+      provenance: normalizes caller-provided official outputs without executing external repository scripts
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - phyground
+  - --mode
+  - official-validation
+  - --benchmark-data-root
+  - <phyground_data_root>
+  - --generated-artifact-dir
+  - <phyground_data_root>/videos/<model_id>
+  - --result-model-id
+  - <model_id>
+  - --output-dir
+  - <out>
+  - --json
+  run_command: PYTHONPATH=. "${WORLDFOUNDRY_UNIFIED_PYTHON:-python}" 
+    worldfoundry/evaluation/tasks/execution/runners/phyground/run_phyground_official_runner.py --run-official 
+    --generated-artifact-dir "${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}" --output-dir 
+    "${WORLDFOUNDRY_BENCHMARK_OUTPUT_DIR}" --json
+  checkpoint_refs: []
+tasks:
+  phyground_standard:
+    benchmark_name: phyground
+    protocol: external_official_benchmark
+    capability_track: text_image_to_video
+    schema_type: generated_artifact_set
+    input_keys:
+    - prompt
+    - prompt_id
+    - conditioning_image
+    - generated_artifact_manifest
+    output_keys:
+    - generated_video
+    metric_ids:
+    - semantic_adherence
+    - physical_temporal_validity
+    - persistence
+    - solid_body_score
+    - fluid_dynamics_score
+    - optics_score
+    - phyground_overall
+    metric_groups:
+    - phyground_metrics
+    tags:
+    - benchmark-zoo
+    - external-official
+    - phyground
+    - text-image-to-video
+    - physical-reasoning
+    metadata:
+      source_kind: benchmark_zoo
+      benchmark_id: phyground
+      domain:
+      - physics
+      - physical-reasoning
+      task_type: text_image_to_video_physical_reasoning_evaluation
+      status: contract_ready
+      artifact_contract:
+        required:
+          generated_video:
+            kind: video
+      evaluation_requirements:
+      - Apply official PhyGround physical reasoning metrics to generated videos.
+      official_benchmark_verified: false
+      integration_evidence: true
+      leaderboard_valid: false
+    dataset:
+      status: official_hf_dataset_required
+      hf_dataset_id: NU-World-Model-Embodied-AI/phyground
+      split: standard
+      source: provenance_only
+    artifact_contract:
+      required:
+        generated_video:
+          kind: video
+    evaluation_protocol:
+    - name: in_tree_phyground_evaluator
+      metric_ids:
+      - semantic_adherence
+      - physical_temporal_validity
+      - persistence
+      - solid_body_score
+      - fluid_dynamics_score
+      - optics_score
+      - phyground_overall
+      evaluator_target: worldfoundry.evaluation.tasks.execution.runners.phyground.phyground_contract_evaluator:write_phyground_evaluation
+      status: implemented
+    - name: external_official_runner
+      metric_ids:
+      - semantic_adherence
+      - physical_temporal_validity
+      - persistence
+      - solid_body_score
+      - fluid_dynamics_score
+      - optics_score
+      - phyground_overall
+      runner_target: worldfoundry.evaluation.tasks.contracts.external:PhyGroundContract
+      evaluator_target: worldfoundry.evaluation.tasks.execution.runners.phyground.phyground_contract_evaluator:write_phyground_evaluation
+      runner_script: worldfoundry/evaluation/tasks/execution/runners/phyground/run_phyground_official_runner.py
+      official_validation_command: worldfoundry-eval zoo benchmark-run --benchmark-id phyground --mode 
+        official-validation --benchmark-data-root <phyground_data_root> --generated-artifact-dir 
+        <phyground_data_root>/videos/<model_id> --result-model-id <model_id> --output-dir <out> --json
+    runtime_requirements:
+      benchmark_data_root_env: WORLDFOUNDRY_PHYGROUND_DATA_ROOT
+      results_path_env: WORLDFOUNDRY_PHYGROUND_RESULTS_PATH
+      generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR

@@ -1,0 +1,39 @@
+id: starwm
+name: StarWM
+tasks:
+- multi-agent-world-model
+- starcraft-world-model
+- action-conditioned-video
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/yxzzhang/StarWM
+  hf_repo_id: yxzhang2024/StarWM
+official_sources:
+  project_page: https://star-wm.github.io/
+  github:
+    url: https://github.com/yxzzhang/StarWM
+  huggingface:
+  - repo_id: yxzhang2024/StarWM
+    status: confirmed
+checkpoints:
+- repo_id: yxzhang2024/StarWM
+integration:
+  status: runtime_ported
+  notes:
+  - WorldFoundry exposes the official offline inference client in-tree under synthesis/visual_generation/world_model/starwm/offline_infer.
+  - Jobs use StarWM's OpenAI-compatible endpoint parameters plus the official prompt fixture format.
+runner_parity:
+  status: pending
+  notes:
+  - The route builds the official run_inference_client.py command and validates input_file, mode, and served_model_id/api_model_id before execution.
+  - Actual generation still requires a running OpenAI-compatible StarWM endpoint;
+    per-run validation evidence is tracked outside the model catalog.
+runtime_profile: runtime-profile:starwm
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: starwm
+output_artifacts:
+- generated_world
+catalog_category: world_models
+catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry runtimes; blocked
+  entries retain upstream provenance without runnable backends.

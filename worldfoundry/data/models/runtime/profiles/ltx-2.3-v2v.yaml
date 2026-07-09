@@ -1,0 +1,26 @@
+schema_version: 2
+model_id: ltx-2.3-v2v
+display_name: LTX-2.3 V2V
+task_family: video_generation
+groups:
+- video
+source_repos:
+- url: https://github.com/Lightricks/LTX-Video
+checkpoints:
+- repo_id: Lightricks/LTX-2.3
+  revision: 76730e634e70a28f4e8d51f5e29c08e40e2d8e74
+  role: v2v_checkpoint
+input_schema:
+  prompt: true
+  image: false
+  video: true
+  actions:
+  - seed
+artifact_kind: generated_video
+artifact_filename: ltx-2.3-v2v.mp4
+execution:
+  backend_stage: profile_only
+  runtime_status: profile_resolves_catalog_variant_runner_parity_pending
+  integration_status: planned
+integration:
+  status: planned

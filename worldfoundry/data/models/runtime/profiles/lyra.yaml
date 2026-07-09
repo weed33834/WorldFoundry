@@ -1,0 +1,37 @@
+schema_version: 2
+model_id: lyra
+display_name: Lyra
+task_family: world_model
+groups:
+- 3d
+- 4d
+- world
+- camera_control
+source_repos:
+- url: https://github.com/nv-tlabs/lyra
+checkpoints:
+- role: lyra2_checkpoint
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/lyra-2
+- role: da3_checkpoint
+  repo_id: depth-anything/DA3NESTED-GIANT-LARGE-1.1
+input_schema:
+  prompt: true
+  image: true
+  video: true
+  actions:
+  - navigation_actions
+  - camera_trajectory
+artifact_kind: generated_world
+artifact_filename: lyra.mp4
+execution:
+  backend_stage: in_tree_runtime
+  runtime_status: in_tree_runtime_checkpoint_and_gpu_readiness_pending
+  integration_status: integrated
+  pipeline_binding: lyra
+integration:
+  status: integrated
+notes:
+- Default Lyra runtime profile uses the in-tree Lyra-2 pipeline; Lyra-1 and Lyra-2
+  variant profiles are also registered.
+- Runtime execution requires local Lyra checkpoints, text-encoder assets, DA3 assets,
+  and CUDA runtime dependencies.

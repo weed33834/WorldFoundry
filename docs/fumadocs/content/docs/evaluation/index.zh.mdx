@@ -1,0 +1,109 @@
+---
+title: 评测
+description: 用 benchmark、metric 与可复现 scorecard 对生成产物打分。
+---
+
+评测把模型输出变成可审查证据：准备输入、生成或导入结果、打分、写出 scorecard。模型启动细节留在 runner；benchmark 消费归一化的 `GenerationResult`。打分与 leaderboard 声明是分开的——framework 导入成功不等于官方榜单跑通。
+
+首次端到端路径见 [使用指南](/zh/docs/quickstart)。flag 与 discovery 见 [CLI](/zh/docs/reference/cli)。各 benchmark 布局见 [Benchmark Hub](/zh/docs/evaluation/benchmark-hub)。metric 配方见 [指标](/zh/docs/evaluation/metrics)。
+
+## 该跑什么
+
+| 目标 | 命令 |
+| --- | --- |
+| 对已有 JSON/JSONL 结果打分 | `worldfoundry-eval evaluate --mode existing-results ...` |
+| 从 task 物化 request ledger | `worldfoundry-eval task materialize ...` |
+| 跑单个 benchmark × model | `worldfoundry-eval run --benchmark <id> --model <id> ...` |
+| 导入官方形态结果 | `worldfoundry-eval zoo benchmark-run --mode official-validation ...` |
+| 列出 metric id | `worldfoundry-eval metric list` |
+
+默认用户入口是 `worldfoundry-eval run`。已有物化请求或结果时用 `evaluate`。已集成的外部 benchmark（自备 data root / 生成产物 / 官方结果文件）用 `zoo benchmark-run`。
+
+## 流程
+
+1. 解析 mode、输出目录、模型/benchmark 元数据、metrics 与可选 runtime profile。
+2. 把输入归一化成 `GenerationRequest`（task YAML、dataset manifest、JSON/JSONL 或 benchmark samples）。
+3. 通过 `WorldModelRunner` 或导入已有结果，得到 `GenerationResult`。
+4. 对结果打分。
+5. 写出审计产物：run manifest、ledger、metric 摘要、`report.md`、`scorecard.json`。
+
+## 常用命令
+
+```bash
+# 物化小型 request ledger
+worldfoundry-eval task materialize <task-name> \
+  --benchmark <benchmark-id> \
+  --dataset-manifest /path/to/dataset_manifest.json \
+  --num-samples 8 \
+  --output-jsonl tmp/requests.jsonl \
+  --json
+
+# 对已有结果打分
+worldfoundry-eval evaluate \
+  --mode existing-results \
+  --results-path tmp/results.jsonl \
+  --output-dir tmp/evaluate_existing \
+  --benchmark-id <benchmark-id> \
+  --model-id <model-id> \
+  --metric artifact_count \
+  --json
+
+# 跑单个 benchmark cell
+worldfoundry-eval run \
+  --benchmark <benchmark-id> \
+  --model <model-id> \
+  --output-dir tmp/benchmark_run \
+  --mode official-run \
+  --json
+
+# 导入官方形态结果（framework 证据，不是 leaderboard 声明）
+worldfoundry-eval zoo benchmark-run \
+  --benchmark-id <benchmark-id> \
+  --mode official-validation \
+  --official-results-path <official_results.json> \
+  --generated-artifact-dir <generated_artifacts> \
+  --output-dir tmp/benchmark_zoo/official_validation/<benchmark-id> \
+  --json
+```
+
+各 benchmark 专用布局与 flag 见对应 Benchmark Hub 页。
+
+## 输出
+
+| 产物 | 用途 |
+| --- | --- |
+| `report.md` | 人工先看 |
+| `scorecard.json` | 归一化分数与 leaderboard 资格 |
+| `metrics/summary.json` | 自动化用的聚合指标 |
+| `results.jsonl` | 逐样本状态、产物、错误 |
+| `run_manifest.json` | run 身份、路径、fingerprint |
+
+## 模式
+
+| 模式 | 行为 |
+| --- | --- |
+| `existing-results` | 对已物化结果打分，不跑推理 |
+| `model` / `generate` | 跑模型 runner，再打分 |
+| `official-validation` | 通过 benchmark runner 导入官方形态结果 |
+| `official-run` | 跑 manifest 声明的 benchmark runtime |
+
+framework 导入证据用 `official-validation`；数据集、checkpoint、环境与官方 evaluator 都就绪后再用 `official-run`。
+
+## 契约（简）
+
+| 对象 | 角色 |
+| --- | --- |
+| `GenerationRequest` | 归一化样本输入 |
+| `WorldModelRunner` | 执行生成 → `GenerationResult` |
+| `GenerationResult` | 单样本输出与产物 |
+| `Metric` | 把结果变成分数行 |
+| `scorecard` | 最终资格 / 比较记录 |
+
+子系统职责与数据流见 [评测核心](/zh/docs/maintainers/architecture/evaluation-core)。flag 参考见 [CLI](/zh/docs/reference/cli)。
+
+## 下一步
+
+- [Benchmark Hub](/zh/docs/evaluation/benchmark-hub) — 各 benchmark 准备与运行说明
+- [指标](/zh/docs/evaluation/metrics) — 树内 scorer 与 compute API
+- [支持的模型](/zh/docs/guides/supported-models) — catalog 状态
+- [Embodied official runtime](/zh/docs/evaluation/embodied-official-runtime) — Docker / 仿真器路径

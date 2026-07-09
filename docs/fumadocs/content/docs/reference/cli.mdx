@@ -1,0 +1,128 @@
+---
+title: CLI
+description: Command map for discovery, evaluation, readiness checks, and reporting.
+---
+
+## Introduction
+
+`worldfoundry-eval` is the public command entrypoint. Prefer it over direct scripts unless a page names a lower-level helper. Activate the unified env first (`source tmp/worldfoundry_unified_env.sh`), then run the commands below. For a first run, start with [Usage](/docs/quickstart); use this page for flags and modes.
+
+## Discovery
+
+```bash
+worldfoundry-eval tasks list
+worldfoundry-eval tasks list --flat
+worldfoundry-eval models list
+worldfoundry-eval zoo models --json
+worldfoundry-eval zoo benchmarks --json
+worldfoundry-eval zoo model-show --model-id <model-id> --include-manifest --json
+worldfoundry-eval zoo benchmark-show --benchmark-id <benchmark-id> --include-spec --json
+worldfoundry-eval tasks catalog --source-kind benchmark_zoo --json
+```
+
+Use grouped output for humans; use `--flat` or `--json` for automation.
+
+## TUI
+
+```bash
+worldfoundry-eval tui
+worldfoundry-eval tui --model-id openvla --benchmark-id libero --print-command
+```
+
+The TUI reads the same zoo manifests as discovery, prints unified `run` commands, and streams the spawned process. It does not bypass readiness or runner validation. See also [TUI](/docs/guides/tui).
+
+## MCP
+
+```bash
+python -m pip install -e ".[mcp]"
+worldfoundry-eval mcp
+```
+
+Exposes catalog discovery and evaluate/run tools to MCP clients. `worldfoundry.mcp.MCPClient` can export OpenAI-compatible function definitions for agent integrations.
+
+## Evaluation
+
+Commands write a reviewable output directory: run manifest, per-sample rows, metric summaries, and `scorecard.json`. Keep the command line and `--output-dir` together when reproducing a score.
+
+Score existing results:
+
+```bash
+worldfoundry-eval evaluate \
+  --results-path tmp/results.jsonl \
+  --output-dir tmp/worldfoundry_evaluate \
+  --metric artifact_count \
+  --required-artifact video \
+  --json
+```
+
+Run one benchmark × model:
+
+```bash
+worldfoundry-eval run \
+  --benchmark <benchmark-id> \
+  --model <model-zoo-id> \
+  --output-dir tmp/worldfoundry_benchmark_run \
+  --mode official-run \
+  --json
+```
+
+Plan a large matrix before executing:
+
+```bash
+worldfoundry-eval run \
+  --all-benchmarks \
+  --model <model-zoo-id> \
+  --plan-only \
+  --output-dir tmp/worldfoundry_all_benchmarks_plan \
+  --json
+```
+
+Named suite / single cell:
+
+```bash
+worldfoundry-eval run \
+  --suite <suite-id> \
+  --output-dir tmp/worldfoundry_suite \
+  --json
+```
+
+`run` expands to a suite writes `suite_manifest.json`, `suite_report.md`, and one child directory per cell. Use `--generation-cache-dir` with `--generation-cache-mode read-write` for deterministic model outputs (SQLite + `audit.jsonl`; hits are recorded in the run manifest).
+
+Import official-shaped results (normalizer path; not a leaderboard claim):
+
+```bash
+worldfoundry-eval zoo benchmark-run \
+  --benchmark-id <benchmark-id> \
+  --mode official-validation \
+  --official-results-path <official_results.json> \
+  --generated-artifact-dir <generated_artifacts> \
+  --output-dir tmp/benchmark_zoo/official_validation/<benchmark-id> \
+  --json
+```
+
+Benchmark-specific flags and layouts (PhyGround data root, EvalCrafter video naming, CameraBench `--score-dir`, and so on) live on each [Benchmark Hub](/docs/evaluation/benchmark-hub) page.
+
+## Readiness and reports
+
+```bash
+worldfoundry-eval zoo model-download --model-id <model-id> --check-local --json
+worldfoundry-eval models assets --list --json
+worldfoundry-eval preflight runtime \
+  --profile <benchmark-id> \
+  --manifest worldfoundry/data/benchmarks/runtime_profiles/official/<benchmark-id>.yaml \
+  --output-dir tmp/preflight/runtime/<benchmark-id> \
+  --json
+worldfoundry-eval index-runs tmp/worldfoundry_suite/runs \
+  --output-dir tmp/worldfoundry_suite/index \
+  --output-html tmp/worldfoundry_suite/index/index.html \
+  --json
+```
+
+| Command | Role |
+| --- | --- |
+| `zoo model-download --check-local` | Check HF checkpoint declarations against the local cache without downloading. |
+| `models assets` | List reusable base-model / metric asset stacks. |
+| `preflight runtime` | Report imports, env vars, paths, and official-validation gaps for one profile. |
+| `index-runs` | Write `index.json` / `index.jsonl` and optional `index.html`. |
+| `run --plan-only` | Review a large matrix before execution. |
+| `--fail-on-sample-error` | Fail the run when any generation or metric sample failed. |

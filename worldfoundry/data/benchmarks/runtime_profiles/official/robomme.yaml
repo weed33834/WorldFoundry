@@ -1,0 +1,53 @@
+benchmark_ids:
+- robomme
+blocked_reason: RoboMME full status requires selected memory suite assets, policy checkpoint, and official rollout 
+  outputs.
+environment_id: worldfoundry-unified-cu128
+id: robomme
+name: RoboMME
+docker:
+  image: ghcr.io/allenai/vla-evaluation-harness/robomme:latest
+  source_image: ghcr.io/allenai/vla-evaluation-harness/robomme:latest
+  python_env: robomme
+  gpus: all
+  env:
+  - NVIDIA_DRIVER_CAPABILITIES=all
+  volumes:
+  - /usr/share/vulkan/icd.d:/usr/share/vulkan/icd.d:ro
+needs_new_env: false
+notes:
+- WorldFoundry provides contract and official result normalization for caller-provided RoboMME outputs.
+python_path: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}/worldfoundry-unified-cu128/bin/python
+required_assets:
+  local_dataset_paths:
+  - ${WORLDFOUNDRY_DATA_DIR}/datasets/robomme
+  local_repo_paths:
+  - ${WORLDFOUNDRY_CACHE_DIR}/repos/RoboMME--robomme_policy_learning
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/robomme.yaml
+required_env:
+- WORLDFOUNDRY_ROBOMME_ROOT
+- WORLDFOUNDRY_ROBOMME_RESULTS_PATH
+required_imports:
+- numpy
+required_packages:
+- numpy
+required_paths:
+- id: official_result_normalizer
+  path: worldfoundry/evaluation/tasks/embodied/normalizer.py
+- id: task_yaml
+  path: worldfoundry/data/benchmarks/tasks/external/robomme.yaml
+requires_cuda_visibility: false
+status: official_result_normalizer_ready_full_runtime_pending
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- robomme
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.json>
+- --output-dir
+- <out>
+- --json

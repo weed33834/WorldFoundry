@@ -1,0 +1,184 @@
+benchmark: vmbench
+description: VMBench external benchmark task manifest for perceptible and commonsense video motion evaluation.
+tags:
+- benchmark-zoo
+- external-official
+- vmbench
+- video-motion
+splits:
+- standard
+metrics:
+  perceptible_amplitude_score:
+    aggregation: mean
+  object_integrity_score:
+    aggregation: mean
+  temporal_coherence_score:
+    aggregation: mean
+  commonsense_adherence_score:
+    aggregation: mean
+  motion_smoothness_score:
+    aggregation: mean
+  vmbench_average:
+    aggregation: mean
+    primary: true
+metadata:
+  source_kind: benchmark_zoo
+  benchmark_id: vmbench
+  contract_validation_command: worldfoundry-eval zoo benchmark-run --benchmark-id vmbench --mode contract --output-dir
+    tmp/benchmark_zoo/benchmark_contract/vmbench --json
+  base_model_dependencies:
+  - motion_stack
+  base_model_dependency_preflight:
+    status: integrated
+    notes:
+    - RAFT, SEA-RAFT, and GMFlow reusable motion assets are tracked through the WorldFoundry base-model registry.
+    - VMBench-specific checkpoints remain required for full metric recomputation.
+  official_runner_target: worldfoundry.evaluation.tasks.contracts.external:VMBenchContract
+  official_runner_script: worldfoundry/evaluation/tasks/execution/runners/vmbench/run_vmbench_official_runner.py
+  prompt_suite:
+    mode: vmbench_standard
+  artifact_layout:
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+    output_artifact: benchmark_scorecard
+    filename_template: scorecard.json
+  runtime:
+    kind: in_tree_official_runtime
+    upstream_revision: 9772be365784bc3f641d64fca018b1debb749116
+    root: worldfoundry/evaluation/tasks/execution/runners/vmbench
+    prompt_manifest_env: WORLDFOUNDRY_VMBENCH_PROMPT_MANIFEST
+    artifact_score_dir_env: WORLDFOUNDRY_VMBENCH_ARTIFACT_SCORE_DIR
+  release_status: experimental
+  maturity: contract_ready
+  open_source_status: in_tree_runtime
+  official_benchmark_verified: false
+  integration_evidence: true
+  leaderboard_valid: false
+  requires:
+  - official released evaluation uses local metric runtimes and checkpoints; no hosted judge API is required
+  - optional WorldFoundry base-model motion stack for full metric recomputation
+  blockers:
+  - Official eval code is vendored in-tree, but full validation still requires CUDA metric dependencies and checkpoints.
+  - HF dataset endpoint for AMAP-ML/VMBench was not public; the prompt suite is bundled in-tree under
+    worldfoundry/data/benchmarks/assets/vmbench.
+  - Generated videos must follow the official 0001.mp4 ... 1050.mp4 prompt-index naming convention.
+  data_refs:
+    in_tree_runtime_paths:
+    - worldfoundry/evaluation/tasks/execution/runners/vmbench/run_vmbench_official_runner.py
+    - worldfoundry/evaluation/tasks/execution/runners/vmbench/vmbench_official_runtime.py
+    - worldfoundry/evaluation/tasks/execution/runners/vmbench/runtime/official
+    bundled_prompt_assets: worldfoundry/data/benchmarks/assets/vmbench/prompts/prompts.json
+    task_yaml: worldfoundry/data/benchmarks/tasks/external/vmbench.yaml
+  runner_availability:
+    available: true
+    runner_target: worldfoundry.evaluation.tasks.contracts.external:VMBenchContract
+    runner_script_available: true
+    task_yaml_available: true
+    runtime_verified: true
+    surface: vmbench_official_in_tree
+    normalizer_verified: true
+  official_result_entrypoint: worldfoundry-eval zoo benchmark-run
+  local_evaluator:
+    target: worldfoundry/evaluation/tasks/execution/runners/vmbench/run_vmbench_official_runner.py
+    status: implemented
+    protocol: vendored_official_runtime_and_result_normalization
+    official_result_normalization:
+      status: implemented
+      input_keys:
+      - artifact_score_dir
+      - WORLDFOUNDRY_VMBENCH_ARTIFACT_SCORE_DIR
+      - official_results_path
+      - WORLDFOUNDRY_VMBENCH_RESULTS_PATH
+      formats:
+      - json
+      - csv
+      provenance: normalizes caller-provided official outputs without executing upstream repos
+  runner:
+    validation_command:
+    - worldfoundry-eval
+    - zoo
+    - benchmark-run
+    - --benchmark-id
+    - vmbench
+    - --mode
+    - official-validation
+    - --official-results-path
+    - <official_results.json>
+    - --generated-artifact-dir
+    - <generated_videos>
+    - --output-dir
+    - <out>
+    - --json
+    runtime:
+      results_path_env: WORLDFOUNDRY_VMBENCH_RESULTS_PATH
+    official_validation_command: worldfoundry-eval zoo benchmark-run --benchmark-id vmbench --mode official-validation
+      --official-results-path <official_results.json> --generated-artifact-dir <generated_videos> --output-dir <out>
+      --json
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - vmbench
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <official_results.json>
+  - --generated-artifact-dir
+  - <generated_videos>
+  - --output-dir
+  - <out>
+  - --json
+  integration_status: integrated
+  status: integrated
+  checkpoint_refs: []
+tasks:
+  vmbench_video_motion_standard:
+    benchmark_name: vmbench
+    protocol: external_official_benchmark
+    capability_track: video_motion_quality
+    input_keys:
+    - prompt
+    - prompt_id
+    - motion_category
+    output_keys:
+    - generated_video
+    metric_ids:
+    - perceptible_amplitude_score
+    - object_integrity_score
+    - temporal_coherence_score
+    - commonsense_adherence_score
+    - motion_smoothness_score
+    - vmbench_average
+    metric_groups:
+    - vmbench_motion_metrics
+    tags:
+    - benchmark-zoo
+    - vmbench
+    - motion
+    metadata:
+      source_kind: benchmark_zoo
+      benchmark_id: vmbench
+      official_benchmark_verified: false
+      integration_evidence: true
+      leaderboard_valid: false
+    dataset:
+      manifest: worldfoundry/data/benchmarks/assets/vmbench/prompts/prompts.json
+      split: standard
+    runtime_requirements:
+      generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+      results_path_env: WORLDFOUNDRY_VMBENCH_RESULTS_PATH
+    artifact_contract:
+      required:
+        generated_video:
+          kind: video
+    evaluation_protocol:
+    - name: external_official_runner
+      metric_ids:
+      - perceptible_amplitude_score
+      - object_integrity_score
+      - temporal_coherence_score
+      - commonsense_adherence_score
+      - motion_smoothness_score
+      - vmbench_average
+      runner_target: worldfoundry.evaluation.tasks.contracts.external:VMBenchContract
+      runner_script: worldfoundry/evaluation/tasks/execution/runners/vmbench/run_vmbench_official_runner.py

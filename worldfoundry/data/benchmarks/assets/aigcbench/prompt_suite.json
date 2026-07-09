@@ -1,0 +1,19 @@
+{
+  "prompts": [
+    {
+      "prompt_id": "sample_webvid_001",
+      "prompt": "A red sports car drives along a coastal highway at sunset.",
+      "prompt_type": "webvid"
+    },
+    {
+      "prompt_id": "sample_laion_001",
+      "prompt": "A noble king skillfully strumming a guitar beside a serene lake, oil painting style.",
+      "prompt_type": "laion"
+    },
+    {
+      "prompt_id": "sample_ours_001",
+      "prompt": "A playful panda brewing a potion in a deep jungle, photorealistic.",
+      "prompt_type": "ours"
+    }
+  ]
+}

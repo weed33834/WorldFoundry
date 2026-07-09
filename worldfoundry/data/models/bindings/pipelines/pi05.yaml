@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: pi05
+model_id: pi05
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.component_pipelines:OpenPIPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

@@ -1,0 +1,30 @@
+schema_version: 2
+model_id: matrix-game-3
+display_name: Matrix-Game 3.0
+task_family: world_model
+groups:
+- world
+- interactive
+source_repos:
+- url: https://github.com/SkyworkAI/Matrix-Game
+checkpoints:
+- repo_id: Skywork/Matrix-Game-3.0
+  role: matrix_game_3_checkpoint
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - keyboard
+  - mouse
+artifact_kind: generated_world
+artifact_filename: matrix-game-3.mp4
+execution:
+  backend_stage: in_tree_runtime_plan
+  runtime_status: integrated
+  integration_status: integrated
+  pipeline_binding: matrix-game-3
+integration:
+  status: integrated
+notes:
+- Runtime profile added for the existing MatrixGame3Pipeline catalog binding.

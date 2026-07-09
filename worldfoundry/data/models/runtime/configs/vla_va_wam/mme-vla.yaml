@@ -1,0 +1,38 @@
+backend: callable_entrypoint
+checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/Yinpei--perceptual-framesamp-modul/79999
+checkpoint_ref: Yinpei/perceptual-framesamp-modul
+source_repo: ${WORLDFOUNDRY_REPO_ROOT}/worldfoundry/synthesis/action_generation/mme_vla/mme_vla_runtime
+source_subdir: src
+require_checkpoint: true
+policy_target: worldfoundry.synthesis.action_generation.mme_vla.runtime:predict_action
+predict_method: infer
+torch_dtype: bfloat16
+trust_remote_code: false
+runtime_backend: mme_vla_in_tree_vendored_in_process_runtime
+action_contract: 8d_robomme_joint_action_chunk
+control_mode: robomme_policy_action
+policy_config: mme_vla_suite
+seed: 7
+official_infer_entrypoint: mme_vla_suite.policies.policy_config:create_trained_policy
+default_demo_input:
+  image_keys:
+  - observation/image
+  - observation/wrist_image
+  state_key: observation/state
+  prompt_key: prompt
+  checkpoint_subdir: "79999"
+variants:
+  perceptual_framesamp_modul:
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/Yinpei--perceptual-framesamp-modul/79999
+    repo_id: Yinpei/perceptual-framesamp-modul
+    policy_config: mme_vla_suite
+  pi05_baseline:
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/Yinpei--pi05_baseline/pi05_baseline/79999
+    repo_id: Yinpei/pi05_baseline
+    policy_config: pi05_baseline
+excluded_dependencies:
+- RoboMME simulator environment
+- websocket policy server
+- jax training stack
+- data builders
+- VLM subgoal training

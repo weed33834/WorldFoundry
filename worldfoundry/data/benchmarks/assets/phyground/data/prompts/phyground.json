@@ -1,0 +1,16 @@
+{
+  "prompts": {
+    "0001": {
+      "video": "0001",
+      "prompt": "A rubber ball rolls down a wooden ramp and comes to rest on a flat surface."
+    },
+    "0002": {
+      "video": "0002",
+      "prompt": "Water pours from a glass pitcher into a transparent cup until the cup is half full."
+    },
+    "0003": {
+      "video": "0003",
+      "prompt": "A stack of three books topples when the bottom book is pulled out quickly."
+    }
+  }
+}

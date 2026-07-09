@@ -1,0 +1,33 @@
+conda_packages:
+- python
+- pip
+- ffmpeg
+cuda_profile: cu128
+driver_status: compatible
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: vggt-omega
+notes:
+- Selected an existing isolated environment because the default base torch cu130 cannot initialize on the 470 driver and cu113
+  torch lacks scaled_dot_product_attention used by the official VGGT-Omega source.
+- Use the shared CUDA 12.8 profile for in-tree inference unless a deployment has a newer driver and a dedicated VGGT-Omega
+  runtime profile.
+pip_packages:
+- torch
+- torchvision
+- numpy
+- pillow
+- opencv-python
+- einops
+- plyfile
+- safetensors
+python: '3.11'
+validation_imports:
+- torch
+- torchvision
+- numpy
+- PIL
+- cv2
+- einops
+- plyfile
+- safetensors

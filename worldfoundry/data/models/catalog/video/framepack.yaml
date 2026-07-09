@@ -1,0 +1,56 @@
+id: framepack
+name: FramePack
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+runtime_profile: runtime-profile:framepack
+tasks:
+- image-to-video
+- long-video
+source_status:
+  status: confirmed_official_github
+  github:
+    url: https://github.com/lllyasviel/FramePack
+    verified_by: git ls-remote --symref https://github.com/lllyasviel/FramePack.git HEAD
+    default_branch: main
+    head_sha: 97fe5dbe06ac1f337ece08935b1076a35eefeeb9
+checkpoint:
+  status: confirmed_public_hf_license_pending
+  verified_by: GET https://huggingface.co/api/models/<repo_id>
+  repos:
+  - id: lllyasviel/FramePackI2V_HY
+    sha: 86cef4396041b6002c957852daac4c91aaa47c79
+    private: false
+    gated: false
+    tasks:
+    - image-to-video
+    license_status: pending
+  - id: lllyasviel/FramePack_F1_I2V_HY_20250503
+    sha: ab239828e0b384fed75580f186f078717d4020f7
+    private: false
+    gated: false
+    tasks:
+    - image-to-video
+    license_status: pending
+  notes: HF repos are public and non-gated, but cardData did not expose a license.
+integration:
+  status: verified
+  notes:
+  - WorldFoundry vendors the minimal infer-only FramePack runtime in-tree; missing checkpoint/assets are reported at runtime.
+  - The in-tree route materializes official outputs through the shared pipeline contract.
+runner_parity:
+  status: pending
+  notes:
+  - The FramePack I2V route is wired for image-conditioned generation.
+  - Official long-video parity remains pending; per-run artifact checks are tracked outside the model catalog.
+demo_parity:
+  status: pending
+  notes: Official longer-output parity remains pending.
+notes: Tracked for low-memory/long-video I2V workflows; license and runtime parity must be reviewed before promotion.
+catalog_category: video
+catalog_scope: Official GitHub and/or Hugging Face confirmed open-source or open-weight video generation models. Checkpoints
+  are not tracked in git; local validation may download selected repos under cache/hfd.
+catalog_policy:
+  github: Validated with git ls-remote, preferring git ls-remote --symref <repo>.git HEAD for default branch and HEAD SHA.
+  huggingface: Validated with the Hugging Face /api/models endpoint. Recorded repo id, sha, private, gated, license, and selected
+    task tags only.
+  parity: This manifest does not claim WorldFoundry runtime parity unless an explicit parity run and expected artifact are
+    recorded.

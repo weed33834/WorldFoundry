@@ -1,0 +1,109 @@
+---
+title: Evaluation
+description: Score generated artifacts with benchmarks, metrics, and reproducible scorecards.
+---
+
+Evaluation turns model outputs into reviewable evidence: prepare inputs, generate or import results, score them, and write a scorecard. Model launch details stay in runners; benchmarks consume normalized `GenerationResult` rows. Scoring and leaderboard claims are separate — a successful framework import is not the same as an official leaderboard run.
+
+For a first end-to-end path, use [Usage](/docs/quickstart). For flags and discovery commands, see [CLI](/docs/reference/cli). For per-benchmark layouts, see [Benchmark Hub](/docs/evaluation/benchmark-hub). For metric recipes, see [Metrics](/docs/evaluation/metrics).
+
+## What to run
+
+| Goal | Command |
+| --- | --- |
+| Score existing JSON/JSONL results | `worldfoundry-eval evaluate --mode existing-results ...` |
+| Build a request ledger from a task | `worldfoundry-eval task materialize ...` |
+| Run one benchmark × model | `worldfoundry-eval run --benchmark <id> --model <id> ...` |
+| Import official-shaped results | `worldfoundry-eval zoo benchmark-run --mode official-validation ...` |
+| List metric ids | `worldfoundry-eval metric list` |
+
+Default user shape is `worldfoundry-eval run`. Use `evaluate` when you already have materialized requests or results. Use `zoo benchmark-run` for integrated external benchmarks where you supply the data root, generated artifacts, or official result files.
+
+## Pipeline
+
+1. Resolve mode, output directory, model/benchmark metadata, metrics, and optional runtime profile.
+2. Normalize inputs into `GenerationRequest` rows (task YAML, dataset manifest, JSON/JSONL, or benchmark samples).
+3. Produce `GenerationResult` rows via a `WorldModelRunner` or by importing existing results.
+4. Score metrics against those rows.
+5. Write the audit trail: run manifest, ledgers, metric summaries, `report.md`, and `scorecard.json`.
+
+## Common commands
+
+```bash
+# Materialize a small request ledger
+worldfoundry-eval task materialize <task-name> \
+  --benchmark <benchmark-id> \
+  --dataset-manifest /path/to/dataset_manifest.json \
+  --num-samples 8 \
+  --output-jsonl tmp/requests.jsonl \
+  --json
+
+# Score existing results
+worldfoundry-eval evaluate \
+  --mode existing-results \
+  --results-path tmp/results.jsonl \
+  --output-dir tmp/evaluate_existing \
+  --benchmark-id <benchmark-id> \
+  --model-id <model-id> \
+  --metric artifact_count \
+  --json
+
+# Run one benchmark cell
+worldfoundry-eval run \
+  --benchmark <benchmark-id> \
+  --model <model-id> \
+  --output-dir tmp/benchmark_run \
+  --mode official-run \
+  --json
+
+# Import official-shaped results (framework evidence, not a leaderboard claim)
+worldfoundry-eval zoo benchmark-run \
+  --benchmark-id <benchmark-id> \
+  --mode official-validation \
+  --official-results-path <official_results.json> \
+  --generated-artifact-dir <generated_artifacts> \
+  --output-dir tmp/benchmark_zoo/official_validation/<benchmark-id> \
+  --json
+```
+
+Benchmark-specific layouts and flags belong on each Benchmark Hub page.
+
+## Outputs
+
+| Artifact | Read it for |
+| --- | --- |
+| `report.md` | Human-readable first look |
+| `scorecard.json` | Normalized scores and leaderboard eligibility |
+| `metrics/summary.json` | Aggregate metrics for automation |
+| `results.jsonl` | Per-sample status, artifacts, errors |
+| `run_manifest.json` | Run identity, paths, fingerprint |
+
+## Modes
+
+| Mode | Behavior |
+| --- | --- |
+| `existing-results` | Score materialized results; no model inference |
+| `model` / `generate` | Run a model runner, then score |
+| `official-validation` | Import official-shaped results through the benchmark runner |
+| `official-run` | Run the benchmark runtime declared by the manifest |
+
+Use `official-validation` for framework import evidence. Use `official-run` only after datasets, checkpoints, environment, and official evaluator requirements are satisfied.
+
+## Contracts (short)
+
+| Object | Role |
+| --- | --- |
+| `GenerationRequest` | Normalized sample input |
+| `WorldModelRunner` | Executes generation → `GenerationResult` |
+| `GenerationResult` | Per-sample output + artifacts |
+| `Metric` | Turns results into score rows |
+| `scorecard` | Final eligibility / comparison record |
+
+Subsystem ownership and data flow: [Evaluation core](/docs/maintainers/architecture/evaluation-core). Flag reference: [CLI](/docs/reference/cli).
+
+## Next
+
+- [Benchmark Hub](/docs/evaluation/benchmark-hub) — per-benchmark setup and run notes
+- [Metrics](/docs/evaluation/metrics) — in-tree scorers and compute APIs
+- [Supported models](/docs/guides/supported-models) — catalog status
+- [Embodied official runtime](/docs/evaluation/embodied-official-runtime) — Docker / simulator path

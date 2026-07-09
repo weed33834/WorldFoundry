@@ -1,0 +1,58 @@
+id: stable-virtual-camera
+name: Stable Virtual Camera
+aliases:
+- SEVA
+area: 3d
+task: generative novel view synthesis with camera control
+developer: Stability AI, University of Oxford, and UC Berkeley authors
+user_starred: true
+official_sources:
+  github: https://github.com/Stability-AI/stable-virtual-camera
+  huggingface:
+  - https://huggingface.co/stabilityai/stable-virtual-camera
+  - https://huggingface.co/spaces/stabilityai/stable-virtual-camera
+  project_page: https://stable-virtual-camera.github.io/
+  paper: https://arxiv.org/abs/2503.14489
+availability:
+  status: open_weights_restricted
+  open_source: false
+  code: public
+  weights: gated_huggingface
+  license: Stability AI Non-Commercial License Agreement
+  api: huggingface_space
+integration:
+  kind: pipeline_runner
+  status: integrated
+  notes:
+  - WorldFoundry exposes an in-tree adapter that runs the upstream Stable Virtual Camera demo.py entrypoint.
+  - Missing gated checkpoint access is reported at inference time.
+confirmation: Upstream GitHub repo is public but license is Stability AI Non-Commercial;
+  Hugging Face model is gated with stabilityai-ai-non-commercial metadata, so not
+  marked open_source.
+output_artifacts:
+- generated_video
+runtime_profile: runtime-profile:stable-virtual-camera
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: stable-virtual-camera
+runner_parity:
+  status: pending
+  notes:
+  - The in-tree adapter supports the upstream demo.py entrypoint and reports
+    missing gated checkpoint access at inference time.
+  - Full official-gallery artifact parity still needs gated checkpoint access and
+    a reviewed official demo run.
+catalog_category: three_d_four_d
+catalog_scope: Official-source manifest for 3D, 4D, and camera-controlled world/model
+  generation projects.
+catalog_policy:
+  open_source_true_requires: An upstream GitHub or Hugging Face source with an explicit
+    OSI-style software license or otherwise clearly open source/open weights metadata.
+    Public code without a license is source-available, not open_source.
+  weights_policy: Weights were not downloaded. Entries record only upstream repository,
+    Hugging Face, project page, paper, and license metadata.
+  status_values:
+  - open_source
+  - source_available
+  - open_weights_restricted
+  - api_or_closed
+  - unknown

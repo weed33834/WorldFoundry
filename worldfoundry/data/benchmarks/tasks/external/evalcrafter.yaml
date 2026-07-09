@@ -1,0 +1,235 @@
+benchmark: evalcrafter
+description: EvalCrafter external benchmark task manifest for 700-prompt text-to-video quality evaluation.
+tags:
+- benchmark-zoo
+- external-official
+- evalcrafter
+- text-to-video
+splits:
+- standard
+metrics:
+  visual_quality:
+    aggregation: mean
+  text_video_alignment:
+    aggregation: mean
+  motion_quality:
+    aggregation: mean
+  temporal_consistency:
+    aggregation: mean
+  evalcrafter_total:
+    aggregation: sum
+    primary: true
+  vqa_aesthetic:
+    aggregation: mean
+  vqa_technical:
+    aggregation: mean
+  inception_score:
+    aggregation: mean
+  clip_temp_score:
+    aggregation: mean
+  warping_error:
+    aggregation: mean
+  face_consistency_score:
+    aggregation: mean
+  action_score:
+    aggregation: mean
+  motion_ac_score:
+    aggregation: mean
+  flow_score:
+    aggregation: mean
+  clip_score:
+    aggregation: mean
+  blip_bleu:
+    aggregation: mean
+  sd_score:
+    aggregation: mean
+  detection_score:
+    aggregation: mean
+  color_score:
+    aggregation: mean
+  count_score:
+    aggregation: mean
+  ocr_error:
+    aggregation: mean
+  celebrity_id_error:
+    aggregation: mean
+metadata:
+  source_kind: benchmark_zoo
+  benchmark_id: evalcrafter
+  contract_validation_command: worldfoundry-eval zoo benchmark-run --benchmark-id evalcrafter --mode contract 
+    --output-dir tmp/benchmark_zoo/benchmark_contract/evalcrafter --json
+  base_model_dependencies:
+  - grounded_video_quality_stack
+  optional_base_model_dependencies:
+  - sam_vit_b
+  - aot_deaot_l
+  base_model_dependency_preflight:
+    status: ready
+    missing: []
+  official_runner_target: worldfoundry.evaluation.tasks.contracts.external:EvalCrafterContract
+  official_runner_script: worldfoundry/evaluation/tasks/execution/runners/evalcrafter/run_evalcrafter_official_runner.py
+  prompt_suite:
+    manifest: worldfoundry/data/benchmarks/assets/evalcrafter/prompt700.txt
+    num_prompts: 700
+  artifact_layout:
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+    output_artifact: benchmark_scorecard
+    filename_template: scorecard.json
+  runtime:
+    kind: in_tree_official_source
+    repo_url: https://github.com/evalcrafter/EvalCrafter.git
+    revision: 1275bda05e74f295ad2585e3ebde8e95a81a15af
+    root: worldfoundry/evaluation/tasks/execution/runners/evalcrafter/runtime/evalcrafter
+    root_env: WORLDFOUNDRY_EVALCRAFTER_ROOT
+    optional_root_env: WORLDFOUNDRY_EVALCRAFTER_ROOT
+  release_status: experimental
+  maturity: verified_runner
+  open_source_status: experimental
+  official_benchmark_verified: false
+  integration_evidence: true
+  leaderboard_valid: false
+  leaderboard_integration:
+    status: integrated
+    scorecard_gate: scorecard.official_benchmark_verified && scorecard.eligibility.leaderboard_valid
+    acceptance_criteria:
+    - input_validation.ok is true
+    - official_run.returncode is 0
+    - EvalCrafter final_result.txt is produced and normalized
+    - scorecard.official_benchmark_verified is true
+    - scorecard.eligibility.leaderboard_valid is true
+  requires:
+  - Optional WORLDFOUNDRY_EVALCRAFTER_ROOT override; the bundled in-tree runtime is used by default.
+  - Complete EvalCrafter metric checkpoint bundle for full official execution
+  - WORLDFOUNDRY_GENERATED_ARTIFACT_DIR pointing to an inner directory with direct 0000.mp4 through 0699.mp4 videos
+  blockers:
+  - Leaderboard use requires a completed official-run scorecard with official_benchmark_verified=true and 
+    eligibility.leaderboard_valid=true.
+  - Full official execution still requires heavyweight DOVER, OCR, action-recognition, BLIP2, SDXL, celebrity-ID, and 
+    generated-video assets.
+  data_refs:
+    in_tree_runtime_paths:
+    - worldfoundry/evaluation/tasks/execution/runners/evalcrafter/runtime/evalcrafter
+    task_yaml: worldfoundry/data/benchmarks/tasks/external/evalcrafter.yaml
+  runner_availability:
+    available: true
+    runner_target: worldfoundry.evaluation.tasks.contracts.external:EvalCrafterContract
+    runner_script_available: true
+    task_yaml_available: true
+    runtime_verified: true
+    leaderboard_capable: true
+    leaderboard_gate: scorecard.eligibility.leaderboard_valid
+    surface: evalcrafter_official_in_tree
+    normalizer_verified: true
+  validation_command:
+  - ${WORLDFOUNDRY_UNIFIED_PYTHON}
+  - worldfoundry/evaluation/tasks/execution/runners/evalcrafter/run_evalcrafter_official_runner.py
+  - --evalcrafter-root
+  - worldfoundry/evaluation/tasks/execution/runners/evalcrafter/runtime/evalcrafter
+  - --results-dir
+  - <results-dir-with-final_result.txt>
+  - --output-dir
+  - <out>
+  - --json
+  run_command:
+  - ${WORLDFOUNDRY_UNIFIED_PYTHON}
+  - worldfoundry/evaluation/tasks/execution/runners/evalcrafter/run_evalcrafter_official_runner.py
+  - --evalcrafter-root
+  - worldfoundry/evaluation/tasks/execution/runners/evalcrafter/runtime/evalcrafter
+  - --videos-dir
+  - <generated_videos>
+  - --output-dir
+  - <out>
+  - --run-official
+  - --json
+  integration_status: in_tree_final_result_importer
+  status: integrated
+  checkpoint_refs: []
+tasks:
+  evalcrafter_t2v_standard:
+    benchmark_name: evalcrafter
+    protocol: external_official_benchmark
+    capability_track: video_generation_quality
+    input_keys:
+    - prompt
+    - prompt_id
+    output_keys:
+    - generated_video
+    metric_ids:
+    - visual_quality
+    - text_video_alignment
+    - motion_quality
+    - temporal_consistency
+    - evalcrafter_total
+    - vqa_aesthetic
+    - vqa_technical
+    - inception_score
+    - clip_temp_score
+    - warping_error
+    - face_consistency_score
+    - action_score
+    - motion_ac_score
+    - flow_score
+    - clip_score
+    - blip_bleu
+    - sd_score
+    - detection_score
+    - color_score
+    - count_score
+    - ocr_error
+    - celebrity_id_error
+    metric_groups:
+    - evalcrafter_objective_metrics
+    tags:
+    - benchmark-zoo
+    - evalcrafter
+    - t2v
+    metadata:
+      source_kind: benchmark_zoo
+      benchmark_id: evalcrafter
+      official_benchmark_verified: false
+      integration_evidence: true
+      leaderboard_valid: false
+    dataset:
+      hf_dataset_id: RaphaelLiu/EvalCrafter_T2V_Dataset
+      split: standard
+    runtime_requirements:
+      in_tree_runtime: worldfoundry/evaluation/tasks/execution/runners/evalcrafter/runtime/evalcrafter
+      optional_root_env: WORLDFOUNDRY_EVALCRAFTER_ROOT
+      dataset_root_env: WORLDFOUNDRY_EVALCRAFTER_DATASET_ROOT
+      generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+      results_path_env: WORLDFOUNDRY_EVALCRAFTER_RESULTS_PATH
+    artifact_contract:
+      required:
+        generated_video:
+          kind: video
+    evaluation_protocol:
+    - name: external_official_runner
+      metric_ids:
+      - visual_quality
+      - text_video_alignment
+      - motion_quality
+      - temporal_consistency
+      - evalcrafter_total
+      - vqa_aesthetic
+      - vqa_technical
+      - inception_score
+      - clip_temp_score
+      - warping_error
+      - face_consistency_score
+      - action_score
+      - motion_ac_score
+      - flow_score
+      - clip_score
+      - blip_bleu
+      - sd_score
+      - detection_score
+      - color_score
+      - count_score
+      - ocr_error
+      - celebrity_id_error
+      runner_target: worldfoundry.evaluation.tasks.contracts.external:EvalCrafterContract
+      runner_script: worldfoundry/evaluation/tasks/execution/runners/evalcrafter/run_evalcrafter_official_runner.py
+      official_validation_command: ${WORLDFOUNDRY_UNIFIED_PYTHON} 
+        worldfoundry/evaluation/tasks/execution/runners/evalcrafter/run_evalcrafter_official_runner.py 
+        --evalcrafter-root worldfoundry/evaluation/tasks/execution/runners/evalcrafter/runtime/evalcrafter --videos-dir 
+        <generated_videos> --output-dir <out> --run-official --json

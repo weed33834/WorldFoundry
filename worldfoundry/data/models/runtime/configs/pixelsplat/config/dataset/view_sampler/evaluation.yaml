@@ -1,0 +1,4 @@
+name: evaluation
+
+index_path: ${oc.env:WORLDFOUNDRY_PIXELSPLAT_ASSET_ROOT}/evaluation_index_re10k_video.json
+num_context_views: 2

@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: cosmos3
+model_id: cosmos3
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.cosmos.pipeline_cosmos3:Cosmos3Pipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

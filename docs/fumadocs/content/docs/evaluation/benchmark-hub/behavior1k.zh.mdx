@@ -1,0 +1,126 @@
+---
+title: BEHAVIOR-1K
+description: BEHAVIOR-1K — 指标、依赖与运行命令。
+---
+
+## 简介
+
+
+
+BEHAVIOR-1K external benchmark manifest for household embodied policy rollouts.
+
+
+
+## 指标
+
+BEHAVIOR-1K external benchmark manifest for household embodied policy rollouts.
+
+### Task YAML
+
+`worldfoundry/data/benchmarks/tasks/external/behavior1k.yaml`
+
+### Primary
+
+- `success_rate`
+
+| Metric | 关注点 |
+| --- | --- |
+| `success_rate` | episode / task 是否成功完成的比例或成功率。 |
+| `task_success` | episode / task 是否成功完成的比例或成功率。 |
+| `episode_success` | episode / task 是否成功完成的比例或成功率。 |
+| `subgoal_success` | episode / task 是否成功完成的比例或成功率。 |
+
+
+
+## 环境准备
+
+### 运行环境
+
+- **Conda 环境：** `worldfoundry-unified-cu128`。
+- **单独配置：** 需要 benchmark 专用 conda 环境，不要与统一 runtime 混用。
+- WorldFoundry provides the native contract, result normalizer, and in-tree simulator wrapper; full rollout execution still depends on the upstream OmniGibson runtime.
+
+### 测评数据
+
+- 待测模型输出目录：设置 `WORLDFOUNDRY_BEHAVIOR1K_RESULTS_PATH` 指向生成视频或 rollout artifact 根目录。
+- `${WORLDFOUNDRY_DATA_DIR}/datasets/behavior1k`
+- `${WORLDFOUNDRY_CACHE_DIR}/repos/StanfordVL--OmniGibson`
+
+### Checkpoint 与资产
+
+- 该 benchmark 以官方结果归一化或仿真 rollout 为主；policy / simulator checkpoint 见 catalog `requires` 与 task YAML。
+
+### 关键环境变量
+
+- `WORLDFOUNDRY_BEHAVIOR1K_ROOT`
+- `WORLDFOUNDRY_BEHAVIOR1K_RESULTS_PATH`
+
+
+
+## 运行评测
+
+
+
+准备好该 benchmark 页面列出的资产和候选产物后，使用下面的公开运行入口。
+
+### 设置候选产物目录
+
+```bash
+export WORLDFOUNDRY_GENERATED_ARTIFACT_DIR=/path/to/generated/artifacts
+```
+
+### 导入已有官方结果
+
+```bash
+worldfoundry-eval zoo benchmark-run \
+  --benchmark-id behavior1k \
+  --mode normalizer \
+  --official-results-path /path/to/official/results-or-report \
+  --generated-artifact-dir "${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}" \
+  --output-dir tmp/behavior1k/normalizer \
+  --json
+```
+
+### 从生成产物重新打分
+
+```bash
+worldfoundry-eval zoo benchmark-run \
+  --benchmark-id behavior1k \
+  --mode official-run \
+  --generated-artifact-dir "${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}" \
+  --output-dir tmp/behavior1k/official-run \
+  --json
+```
+
+### 直接调用仓内 runner
+
+```bash
+worldfoundry-eval zoo benchmark-run --benchmark-id behavior1k --mode official-validation --official-results-path <official_results.json> --output-dir <out> --json
+```
+
+
+
+## 依赖与产物
+
+
+
+### Inputs
+
+- Official simulator runtime
+- benchmark assets
+- policy checkpoint
+- official result dump
+
+### Environment
+
+- `WORLDFOUNDRY_BEHAVIOR1K_RESULTS_PATH`
+
+### Outputs
+
+- `scorecard.json`
+- `raw_results.jsonl`
+- `evaluation/summary.json`
+
+
+
+[← 返回 Benchmark Hub](/zh/docs/evaluation/benchmark-hub)

@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: worldlabs-marble-1.1
+model_id: worldlabs-marble-1.1
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.worldlabs_marble_1p1.pipeline_worldlabs_marble_1p1:WorldLabsMarble11Pipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

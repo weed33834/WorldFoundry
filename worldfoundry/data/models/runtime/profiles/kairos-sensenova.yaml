@@ -1,0 +1,47 @@
+schema_version: 2
+model_id: kairos-sensenova
+display_name: Kairos Sensenova
+task_family: video_generation
+groups:
+- video
+- embodied_world_model
+source_repos:
+- url: https://github.com/kairos-agi/kairos-sensenova
+checkpoints:
+- role: kairos_sensenova_robot_4b_480p_distilled
+  local_dir: ${WORLDFOUNDRY_KAIROS_MODELS_ROOT}/Kairos/models/robot/kairos-robot-4B-480P-16fps-distilled.safetensors
+- role: qwen2_5_vl_7b_awq_text_encoder
+  local_dir: ${WORLDFOUNDRY_KAIROS_MODELS_ROOT}/Qwen/Qwen2.5-VL-7B-Instruct-AWQ
+- role: wan2_1_t2v_14b_vae
+  local_dir: ${WORLDFOUNDRY_KAIROS_MODELS_ROOT}/Wan2.1-T2V-14B/Wan2.1_VAE.pth
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - seed
+artifact_kind: generated_video
+artifact_filename: kairos-sensenova.mp4
+execution:
+  backend_stage: in_tree_official_runtime
+  runtime_status: runnable
+  integration_status: verified
+  pipeline_binding: kairos-sensenova
+integration:
+  status: verified
+official_demo:
+  config: kairos/configs/kairos_4b_config_DMD.py
+  input_recipe: examples/example_t2v_480P.json
+  nproc_per_node: 8
+  call_kwargs:
+    cfg_scale: 5
+    height: 480
+    negative_prompt: bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, deformed limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards, contorted human joints, objects floating against natural forces, abrupt shot changes
+    num_frames: 81
+    seed: 0
+    tiled: true
+    use_prompt_rewriter: false
+    width: 640
+notes:
+- The default variant uses the in-tree official Kairos torchrun runtime and the robot 4B 480P distilled checkpoint.
+- Override models_root, config_path, and checkpoint paths for 720P or non-distilled variants.

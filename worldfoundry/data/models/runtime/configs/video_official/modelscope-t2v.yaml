@@ -1,0 +1,13 @@
+schema_version: worldfoundry.official_video_runtime.v1
+model_id: modelscope-t2v
+runtime:
+  kind: modelscope_text_to_video
+  backend_quality: official_modelscope_pipeline
+  checkpoint_candidates:
+  - $WORLDFOUNDRY_CKPT_DIR/modelscope-damo-text-to-video-synthesis
+  - $WORLDFOUNDRY_HFD_ROOT/ali-vilab--modelscope-damo-text-to-video-synthesis
+  fps: 8
+  seed: 42
+notes:
+- Checkpoint license is non-commercial; this route uses the official ModelScope text-to-video pipeline format.
+- The current Studio/API route emits 16 frames at 256x256 for the verified demo, regardless of wider requested dimensions.

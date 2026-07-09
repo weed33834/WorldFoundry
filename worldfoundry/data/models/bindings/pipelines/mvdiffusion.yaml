@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: mvdiffusion
+model_id: mvdiffusion
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.three_d_four_d.pipeline_runtime:MVDiffusionPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

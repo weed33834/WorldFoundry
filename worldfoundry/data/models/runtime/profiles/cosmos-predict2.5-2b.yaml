@@ -1,0 +1,31 @@
+schema_version: 2
+model_id: cosmos-predict2.5-2b
+display_name: Cosmos Predict 2.5 2B
+task_family: world_model
+groups:
+- world
+- video
+source_repos:
+- url: https://github.com/nvidia-cosmos/cosmos-predict2.5
+checkpoints:
+- repo_id: nvidia/Cosmos-Predict2.5-2B
+  revision: f176dc95b4a70f53ce01c4b302851595e7322b00
+  role: predict_checkpoint
+input_schema:
+  prompt: true
+  image: true
+  video: true
+  actions:
+  - camera_path
+artifact_kind: generated_world
+artifact_filename: cosmos-predict2.5-2b.mp4
+execution:
+  backend_stage: in_tree_runtime_plan
+  runtime_status: profile_resolves_catalog_variant_checkpoint_gpu_readiness_pending
+  integration_status: planned
+  pipeline_binding: cosmos-predict2.5-2b
+integration:
+  status: planned
+notes:
+- Data profile for the catalog variant; does not promote the listed-only catalog entry
+  to a runner.

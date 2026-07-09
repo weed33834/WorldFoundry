@@ -1,0 +1,194 @@
+---
+title: Run inference
+description: Run model demos, inspect generated artifacts, and validate release readiness — scoring belongs in Evaluation.
+---
+
+WorldFoundry inference covers environment setup, checkpoint staging, model launch, and artifact review. Benchmark scoring and scorecards belong in [Evaluation](/docs/evaluation). To pick a model id and read readiness labels, start with [Models](/docs/guides/supported-models).
+
+## Quick path
+
+```bash
+bash scripts/setup/bootstrap_worldfoundry.sh
+source tmp/worldfoundry_unified_env.sh
+conda activate "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}"
+
+bash scripts/inference/test_nav_video_gen.sh matrix-game-2 \
+  --output-dir tmp/matrix_game2_first_run
+```
+
+Inspect the generated video and run metadata under `tmp/matrix_game2_first_run`. That output is inference evidence only — not benchmark or leaderboard evidence. For checkpoints and cache layout, see [Local assets](/docs/guides/local-assets); for the web workspace, see [Studio](/docs/guides/studio).
+
+## Environment
+
+Create and activate the unified inference environment:
+
+```bash
+bash scripts/setup/bootstrap_worldfoundry.sh
+source tmp/worldfoundry_unified_env.sh
+conda activate "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}"
+```
+
+If a model has a dedicated conda profile, install or verify it through the profile resolver instead of guessing an environment name:
+
+```bash
+bash scripts/setup/model_env_install.sh --list
+bash scripts/setup/model_env_install.sh --model <model-id>
+```
+
+Hugging Face checkpoints should normally load through native `from_pretrained`
+or `snapshot_download` cache behavior.
+
+Use `WORLDFOUNDRY_CKPT_DIR` for non-HF weights and compatibility aliases required
+by upstream-style runtimes.
+
+If the machine already has shared checkpoint directories, link them into the
+supported cache layouts instead of copying weights:
+
+```bash
+bash scripts/setup/link_hf_checkpoints.sh \
+  --ckpt-dir /path/to/checkpoints \
+  --hfd-root /path/to/checkpoints/hfd \
+  --hf-hub-cache /path/to/huggingface/hub \
+  --default-world
+```
+
+This creates both HFD aliases such as `THUDM--CogVideoX-5b-I2V` and native
+Hugging Face cache aliases such as
+`models--THUDM--CogVideoX-5b-I2V/snapshots/<40-hex-local-revision>`, with
+`refs/main` pointing at that local revision. New users do not need this step;
+they can let Hugging Face download into the default `HF_HOME` cache normally.
+
+The public default is still the Hugging Face repo id. Local symlinks only
+simulate that cache layout for machines that already have downloaded weights.
+
+For a single model, the release-facing helper wires those steps together:
+
+```bash
+bash scripts/inference/prepare_model_infer.sh <model-id> --verify-env-only
+bash scripts/inference/prepare_model_infer.sh <model-id> --download
+```
+
+It resolves the conda profile, checks or downloads declared Hugging Face
+checkpoints through the native HF cache or documented HFD aliases, runs
+`zoo model-download --check-local`, and prints the next inference command.
+
+## Reproducible Model Setup
+
+Use the same sequence for local release validation and public user
+reproduction:
+
+```bash
+bash scripts/setup/bootstrap_worldfoundry.sh
+source tmp/worldfoundry_unified_env.sh
+conda activate "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}"
+
+bash scripts/setup/model_env_install.sh --list
+bash scripts/setup/model_env_install.sh --model <model-id> --verify-only
+
+bash scripts/inference/prepare_model_infer.sh <model-id> --download
+```
+
+`model_env_install.sh --list` is the source of truth for environment routing.
+Most model profiles resolve to `worldfoundry-unified-<tier>`. A dedicated
+environment is expected only when `runtime/environments` records a real
+compatibility reason, for example pinned torch/CUDA ABI, JAX/TensorFlow
+isolation, or simulator dependencies.
+
+Do not copy private cache paths into public guides. Public checkpoint paths
+should be Hugging Face repo ids, native HF cache locations, or documented
+`WORLDFOUNDRY_CKPT_DIR` aliases.
+
+## CLI Inference
+
+The shared command-line inference entrypoint is the Studio workspace job runner:
+
+```bash
+python -m worldfoundry.studio.workspace_job infer \
+  --model-id <model-id> \
+  --prompt "a cinematic scene, high quality" \
+  --output-dir tmp/worldfoundry_infer/<model-id> \
+  --device cuda
+```
+
+For image-to-video or video-to-video models, pass the relevant input path:
+
+```bash
+python -m worldfoundry.studio.workspace_job infer \
+  --model-id <model-id> \
+  --input-path /path/to/input.png \
+  --prompt "camera moves forward through the scene" \
+  --frames 81 \
+  --steps 30 \
+  --seed 42 \
+  --output-dir tmp/worldfoundry_infer/<model-id>
+```
+
+For model-specific call parameters that are not first-class flags, use `--call-json` and `--load-json`:
+
+```bash
+python -m worldfoundry.studio.workspace_job infer \
+  --model-id <model-id> \
+  --call-json '{"num_frames": 17, "height": 480, "width": 832}' \
+  --load-json '{"torch_dtype": "bfloat16"}' \
+  --output-dir tmp/worldfoundry_infer/<model-id>
+```
+
+The compatibility bridge also exists:
+
+```bash
+bash scripts/inference/run_infer.sh \
+  --model-id <model-id> \
+  --prompt "a cinematic scene, high quality" \
+  --output-dir tmp/worldfoundry_infer/<model-id>
+```
+
+## Workspace Inference
+
+For multi-model validation, run the workspace UI and submit jobs from the browser:
+
+```bash
+bash scripts/workspace/run_workspace.sh
+```
+
+Open:
+
+```text
+http://127.0.0.1:7870/
+```
+
+The workspace is the preferred surface for checking release readiness.
+
+Use it to inspect model-specific input forms, official-demo defaults, generated
+files, gallery previews, and visual regressions before recording model readiness.
+
+Per-model viewer routing and the Visualizers tab are documented in the
+[Studio guide](/docs/guides/studio#workspace-visualizers).
+
+Create Job fields, runtime checks, default values, and optional persisted defaults
+are documented in the [Studio guide](/docs/guides/studio#create-job-configuration).
+
+## Output Contract
+
+Each inference run should produce a manifest-like JSON record and one or more artifacts:
+
+| Output | Expected use |
+| --- | --- |
+| Generated video/image/3D/action artifact | Primary demo output to inspect visually or structurally. |
+| Job manifest or run record | Model id, variant, backend, parameters, paths, timings, status, and errors. |
+| Logs | Runtime import, checkpoint, CUDA, and model-specific call details. |
+| Gallery/files entry in Studio | Human review surface for release validation. |
+
+Do not treat existence of a video file as success by itself.
+
+Check that the input contract, prompt/camera/action controls, frame count,
+resolution, and artifact content match the intended official demo or model
+profile.
+
+## Next steps
+
+When generated outputs look correct, continue in a separate docs section:
+
+<Cards>
+  <Card title="Evaluation" description="Run benchmarks, score outputs, and read scorecards." href="/docs/evaluation" />
+  <Card title="Studio" description="Multi-model workspace for visual QA and gallery review." href="/docs/guides/studio" />
+</Cards>

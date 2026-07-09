@@ -1,0 +1,47 @@
+device: cuda
+
+negative_inpainting_prompt: "collage, text, writings, signs, text, white border, photograph border, artifacts, blur, blurry, foggy, fog, bad quality, distortions, distorted image, watermark, signature, fisheye look"
+# negative_inpainting_prompt: "white border, photograph border, picture border, text, signature, segmentation, distortion"
+num_frames: 1
+seed: 2
+# choice: [MiDaS, ZoeDepth]
+depth_model: midas_v3.1
+# motion parameters
+motion: rotations # predefined, rotations, round
+extrinsics: null
+intrinsics: null
+camera_speed: 0.0005
+no_rotations_steps: 0
+rotation_steps: 10
+rotation_range: 0.00 #0.01
+rotate_radius: median # median, center, 0.1 (number)
+
+#camera parameters
+init_focal_length: 500
+
+#inpainting parameters
+stable_diffusion_checkpoint: "stabilityai/stable-diffusion-2-inpainting" #"dreambooth_models/mountains-sks-1500"
+inpainting_resolution_interp: 512
+inpainting_resolution_gen: 512
+use_postmask: True
+
+save_fps: 30
+skip_interp: False
+skip_gen: False
+kf2_upsample_coef: 4
+fg_depth_range: 0.0015
+depth_shift: 0.0001
+point_size: 0.003
+point_size_min_ratio: 1
+
+sky_hard_depth: 0.025
+sky_point_size_multiplier: 1.5
+sky_erode_kernel_size: 10
+
+regenerate_times: 3
+inconsistency_threshold: 1
+enable_regenerate: False
+debug: False
+
+camera_speed_multiplier_rotation: 0
+api_key: "Your OpenAI api_key"

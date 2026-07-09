@@ -1,0 +1,40 @@
+id: krea-realtime-video
+name: Krea Realtime Video 14B
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: krea-realtime-video
+aliases:
+- krea-rt-14b
+tasks:
+- realtime-video-generation
+- text-to-video
+- video-to-video
+- streaming-video
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/krea-ai/realtime-video
+  hf_repo_id: krea/krea-realtime-video
+  license: apache-2.0
+official_sources:
+  github:
+    url: https://github.com/krea-ai/realtime-video
+  huggingface:
+  - repo_id: krea/krea-realtime-video
+    status: confirmed
+checkpoints:
+- repo_id: krea/krea-realtime-video
+  license: apache-2.0
+integration:
+  status: integrated
+  notes:
+  - WorldFoundry route is complete; missing checkpoint/assets are reported at runtime.
+runner_parity:
+  status: pending
+  notes:
+  - The in-tree realtime-video runtime lives under `worldfoundry/synthesis/visual_generation/krea_realtime/krea_runtime`.
+  - The route exposes `num_blocks`, resolution, fps, and seed controls.
+  - Official longer realtime-video parity remains pending; per-run artifact checks are tracked outside the model catalog.
+runtime_profile: runtime-profile:krea-realtime-video
+catalog_category: video
+catalog_scope: Video-generation and video-token catalog entries. Integrated entries expose WorldFoundry pipeline targets;
+  metadata-only entries retain upstream provenance without runnable WorldFoundry backends.

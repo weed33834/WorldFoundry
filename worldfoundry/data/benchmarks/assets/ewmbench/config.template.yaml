@@ -1,0 +1,23 @@
+# === Configuration File Guide ===
+
+model_name: test       # Name of the dataset to be evaluated.
+                       # If using our example data, please set this to "test" (not "test_dataset").
+
+data:
+  gt_path: ./clean_picture/gt_dataset            # Path to the ground-truth dataset directory.
+  val_base: ./clean_picture/DATANAME_dataset       # Path to the base directory of the dataset to be evaluated.
+
+save_path: ./output         # Path to save evaluation results and temporary files.
+
+ckpt:
+  scene_consistency: ./ckpt/dinov2.pth         # Path to the fine-tuned DINOv2 checkpoint used for scene consistency evaluation.
+
+  diversity: ./ckpt/ViT-B-32.pt                # Path to the CLIP (ViT-B/32) checkpoint used for diversity evaluation.
+
+  semantics:
+    caption: ./ckpt/qwen2.5_vl                 # Path to the Qwen checkpoint used for caption generation.
+    CLIP: ./ckpt/openai_clip-vit-base-patch16  # Path to the CLIP ViT-B/16 checkpoint used for CLIPScore evaluation.
+
+  yolo_world_ckpt: ./ckpt/yoloworld.pt         # Path to the YOLO-World checkpoint used for gripper detection.
+
+

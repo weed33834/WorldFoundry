@@ -1,0 +1,14 @@
+id: ai2thor_floorplan1_eval
+output_dir: ./results/ai2thor_floorplan1_eval
+model_id: zero
+benchmark_id: ai2thor
+benchmark_kwargs:
+  scene: FloorPlan1
+  seed: 7
+  headless: true
+  max_steps: 50
+episodes_per_task: 1
+max_tasks: 1
+metric_ids:
+  - task_success
+  - success_rate

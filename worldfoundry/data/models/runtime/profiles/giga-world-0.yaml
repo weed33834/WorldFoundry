@@ -1,0 +1,34 @@
+schema_version: 2
+model_id: giga-world-0
+display_name: GigaWorld-0
+task_family: world_model
+groups:
+- world
+- robotics
+source_repos:
+- url: https://github.com/open-gigaai/giga-world-0
+  revision: f3fbdab0d6853a125cd0b898137e30a63aadbe7d
+checkpoints:
+- repo_id: open-gigaai/GigaWorld-0-Video-Pretrain-2b
+  role: giga_world_0_pretrain_checkpoint
+- repo_id: open-gigaai/GigaWorld-0-Video-GR1-2b
+  role: giga_world_0_gr1_checkpoint
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - robot_action
+  - world_action
+artifact_kind: generated_world
+artifact_filename: giga-world-0.mp4
+execution:
+  backend_stage: in_tree_runtime_manifest
+  runtime_status: in_tree_runtime_manifest_checkpoint_env_pending
+  integration_status: runtime_ported
+  pipeline_binding: giga-world-0
+integration:
+  status: runtime_ported
+notes:
+- GigaWorld-0 source is vendored in-tree under synthesis/visual_generation/giga_world_0/giga_world_0_runtime.
+- The pipeline resolves the vendored inference entrypoint; execution remains checkpoint and task-asset gated.

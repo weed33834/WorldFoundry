@@ -1,0 +1,171 @@
+benchmark: phyfps-bench-gen
+description: PhyFPS-Bench-Gen external benchmark task manifest for Visual Chronometer temporal consistency evaluation.
+tags:
+- benchmark-zoo
+- external-official
+- phyfps-bench-gen
+- temporal-consistency
+splits:
+- standard
+metrics:
+  avg_error_fps:
+    aggregation: mean
+  pct_error:
+    aggregation: mean
+  inter_video_cv:
+    aggregation: mean
+  intra_video_cv:
+    aggregation: mean
+  phyfps_bench_gen_average:
+    aggregation: mean
+    primary: true
+metadata:
+  source_kind: benchmark_zoo
+  benchmark_id: phyfps-bench-gen
+  contract_validation_command: worldfoundry-eval zoo benchmark-run --benchmark-id phyfps-bench-gen --mode contract 
+    --output-dir tmp/benchmark_zoo/benchmark_contract/phyfps-bench-gen --json
+  official_runner_target: worldfoundry.evaluation.tasks.contracts.external:PhyFPSBenchGenContract
+  official_runner_command: worldfoundry-eval zoo benchmark-run
+  prompt_suite:
+    source: official_github_repo
+    repo_url: https://github.com/taco-group/Visual_Chronometer.git
+    revision: 0dc1fd68641f476f18e76c9d1d0931278c02a386
+    path_or_ref: PhyFPS-Bench-Gen/prompts.txt
+    in_tree_prompt_manifest: worldfoundry/evaluation/tasks/execution/runners/phyfps_bench_gen/phyfps_prompts.py
+    optional_root_env: WORLDFOUNDRY_PHYFPS_BENCH_GEN_ROOT
+    split: standard
+  artifact_layout:
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+    output_artifact: benchmark_scorecard
+    filename_template: scorecard.json
+  runtime:
+    kind: in_tree_official_source
+    repo_url: https://github.com/taco-group/Visual_Chronometer.git
+    revision: 0dc1fd68641f476f18e76c9d1d0931278c02a386
+    root: worldfoundry/evaluation/tasks/execution/runners/phyfps_bench_gen/runtime/visual_chronometer
+    root_env: WORLDFOUNDRY_VISUAL_CHRONOMETER_ROOT
+    optional_root_env: WORLDFOUNDRY_VISUAL_CHRONOMETER_ROOT
+    optional_bench_root_env: WORLDFOUNDRY_PHYFPS_BENCH_GEN_ROOT
+    results_path_env: WORLDFOUNDRY_PHYFPS_BENCH_GEN_RESULTS_PATH
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  release_status: experimental
+  maturity: contract_ready
+  official_benchmark_verified: false
+  integration_evidence: true
+  leaderboard_valid: false
+  requires:
+  - In-tree PhyFPS prompt manifest or WORLDFOUNDRY_PHYFPS_BENCH_GEN_PROMPT_MANIFEST override
+  - WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  - Visual Chronometer checkpoint assets for full official prediction
+  - WORLDFOUNDRY_PHYFPS_META_FPS for alignment metrics
+  framework_acceptance:
+  - WorldFoundry PhyFPS-Bench-Gen integration is OK when in-tree Visual Chronometer prediction or caller-supplied 
+    results.csv, generated videos, and Meta FPS inputs pass strict coverage checks and all declared metrics are 
+    normalized.
+  data_refs:
+    task_yaml: worldfoundry/data/benchmarks/tasks/external/phyfps-bench-gen.yaml
+    in_tree_runtime_paths:
+    - worldfoundry/evaluation/tasks/execution/runners/phyfps_bench_gen/runtime/visual_chronometer
+  runner_availability:
+    available: true
+    runner_target: worldfoundry.evaluation.tasks.contracts.external:PhyFPSBenchGenContract
+    runner_script_available: true
+    task_yaml_available: true
+    runtime_verified: true
+    credential_gated: false
+    framework_ready: true
+    surface: phyfps_bench_gen_official_in_tree
+    normalizer_verified: false
+  open_source_status: in_tree_runtime
+  local_evaluator:
+    target: worldfoundry/evaluation/tasks/execution/runners/phyfps_bench_gen/run_phyfps_bench_gen_official_runner.py
+    status: implemented
+    protocol: phyfps_bench_gen_official_in_tree
+  official_result_entrypoint: worldfoundry-eval zoo benchmark-run
+  run_command: PYTHONPATH=. "${WORLDFOUNDRY_UNIFIED_PYTHON:-python}" 
+    worldfoundry/evaluation/tasks/execution/runners/phyfps_bench_gen/run_phyfps_bench_gen_official_runner.py 
+    --run-official --generated-artifact-dir "${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}" --output-dir 
+    "${WORLDFOUNDRY_BENCHMARK_OUTPUT_DIR}" --json
+  integration_status: integrated
+  official_runner_script: 
+    worldfoundry/evaluation/tasks/execution/runners/phyfps_bench_gen/run_phyfps_bench_gen_official_runner.py
+  status: integrated
+  blockers:
+  - Full leaderboard parity requires the complete official assets, generated artifacts, and verified scorecard evidence.
+  checkpoint_refs: []
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - phyfps-bench-gen
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <results.csv>
+  - --generated-artifact-dir
+  - <generated_videos>
+  - --output-dir
+  - <out>
+  - --json
+tasks:
+  phyfps_bench_gen_standard:
+    benchmark_name: phyfps-bench-gen
+    protocol: external_official_benchmark
+    capability_track: temporal_consistency_video_generation
+    input_keys:
+    - prompt
+    - prompt_id
+    - meta_fps
+    output_keys:
+    - generated_video
+    metric_ids:
+    - avg_error_fps
+    - pct_error
+    - inter_video_cv
+    - intra_video_cv
+    - phyfps_bench_gen_average
+    metric_groups:
+    - phyfps_bench_gen
+    tags:
+    - benchmark-zoo
+    - phyfps-bench-gen
+    - t2v
+    metadata:
+      source_kind: benchmark_zoo
+      benchmark_id: phyfps-bench-gen
+      official_benchmark_verified: false
+      integration_evidence: true
+      leaderboard_valid: false
+    dataset:
+      split: standard
+    runtime_requirements:
+      in_tree_runtime: worldfoundry/evaluation/tasks/execution/runners/phyfps_bench_gen/runtime/visual_chronometer
+      in_tree_prompt_manifest: worldfoundry/evaluation/tasks/execution/runners/phyfps_bench_gen/phyfps_prompts.py
+      optional_root_env: WORLDFOUNDRY_VISUAL_CHRONOMETER_ROOT
+      optional_bench_root_env: WORLDFOUNDRY_PHYFPS_BENCH_GEN_ROOT
+      generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+      results_path_env: WORLDFOUNDRY_PHYFPS_BENCH_GEN_RESULTS_PATH
+      meta_fps_env: WORLDFOUNDRY_PHYFPS_META_FPS
+    artifact_contract:
+      required:
+        generated_video:
+          kind: video
+    evaluation_protocol:
+    - name: external_official_runner
+      metric_ids:
+      - avg_error_fps
+      - pct_error
+      - inter_video_cv
+      - intra_video_cv
+      - phyfps_bench_gen_average
+      runner_target: worldfoundry.evaluation.tasks.contracts.external:PhyFPSBenchGenContract
+      runner_script: 
+        worldfoundry/evaluation/tasks/execution/runners/phyfps_bench_gen/run_phyfps_bench_gen_official_runner.py
+      required_inputs:
+      - generated_video artifacts for the official prompt suite
+      - Visual Chronometer checkpoint/runtime or caller-provided results.csv
+      - Meta FPS values for alignment metrics
+      framework_acceptance:
+      - Set WORLDFOUNDRY_PHYFPS_BENCH_GEN_STRICT=1 for formal integration checks.
+      official_result_entrypoint: worldfoundry-eval zoo benchmark-run

@@ -1,0 +1,111 @@
+benchmark_ids:
+- videoscore
+blocked_reason: VideoScore bounded official scorer GPU validation 已通过；full-suite SPCC/pairwise leaderboard 仍需要完整 
+  benchmark protocol。
+bounded_official_gpu_validation:
+  status: verified
+  bench_name: video_feedback
+  sample_count: 1
+  official_benchmark_verified: true
+  integration_evidence: true
+  leaderboard_valid: false
+  full_suite_verified: false
+  metrics_available: 6
+  runtime_env: conda/worldfoundry-unified-cu128
+  model_path: ${WORLDFOUNDRY_HFD_ROOT}/TIGER-Lab--VideoScore-v1.1
+  bench_data_root: cache/worldfoundry/data/hfd_datasets/TIGER-Lab__VideoScore-Bench
+  verified: true
+  scope: bounded_official_gpu_validation
+  scorecard: tmp/local_open_eval/videoscore_bounded_official_gpu_validation_cachefix_20260525/scorecard.json
+environment_id: worldfoundry-unified-cu128
+id: videoscore
+name: VideoScore
+needs_new_env: false
+notes:
+- Bounded official scorer GPU validation verified one VideoScore-Bench/video_feedback sample with local VideoScore-v1.1 
+  weights.
+- Runner patches the transformers DynamicCache API mismatch locally; full-suite leaderboard remains pending.
+preflight_command: PYTHONPATH=. ${WORLDFOUNDRY_CONDA_ENVS_ROOT}/worldfoundry-unified-cu128/bin/python -m 
+  worldfoundry.evaluation.tasks.execution.orchestration.runtime_preflight --profile videoscore --manifest 
+  worldfoundry/data/benchmarks/runtime_profiles/official/videoscore.yaml --output-dir 
+  tmp/worldfoundry_preflight/videoscore --json
+python_path: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}/worldfoundry-unified-cu128/bin/python
+pythonpath_roots:
+- .
+- worldfoundry/evaluation/tasks/execution/runners/videoscore/runtime/videoscore
+required_assets:
+  local_dataset_paths:
+  - cache/worldfoundry/data/hfd_datasets/TIGER-Lab/VideoFeedback
+  - cache/worldfoundry/data/hfd_datasets/TIGER-Lab__VideoFeedback
+  - cache/worldfoundry/data/hfd_datasets/TIGER-Lab/VideoScore-Bench
+  - cache/worldfoundry/data/hfd_datasets/TIGER-Lab__VideoScore-Bench
+  - cache/worldfoundry/data/hfd_datasets/TIGER-Lab__VideoScore-Bench
+  in_tree_runtime_paths:
+  - worldfoundry/evaluation/tasks/execution/runners/videoscore/runtime/videoscore
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/videoscore.yaml
+  scorecard_paths:
+  - tmp/local_open_eval/videoscore_bounded_official_gpu_validation_cachefix_20260525/scorecard.json
+required_env:
+- WORLDFOUNDRY_VIDEOSCORE_BENCH_ROOT
+- WORLDFOUNDRY_VIDEOSCORE_BENCH_DATASET_ROOT
+- WORLDFOUNDRY_VIDEOFEEDBACK_DATASET_ROOT
+optional_env:
+- WORLDFOUNDRY_VIDEOSCORE_ROOT
+- WORLDFOUNDRY_VIDEOSCORE_MODEL_DIR
+- WORLDFOUNDRY_MANTIS_ROOT
+required_imports:
+- numpy
+- pandas
+- pyarrow
+- torch
+- transformers
+- mantis
+- PIL
+required_packages:
+- numpy
+- pandas
+- pyarrow
+- torch
+- transformers
+- mantis
+- pillow
+required_paths:
+- id: official_runner_script
+  path: worldfoundry/evaluation/tasks/execution/runners/videoscore/run_videoscore_official_runner.py
+- id: task_yaml
+  path: worldfoundry/data/benchmarks/tasks/external/videoscore.yaml
+- id: in_tree_runtime
+  path: worldfoundry/evaluation/tasks/execution/runners/videoscore/runtime/videoscore
+- id: local_dataset_1
+  env: WORLDFOUNDRY_VIDEOFEEDBACK_DATASET_ROOT
+  path: cache/worldfoundry/data/hfd_datasets/TIGER-Lab__VideoFeedback
+- id: local_dataset_2
+  env: WORLDFOUNDRY_VIDEOFEEDBACK_DATASET_ROOT
+  path: cache/worldfoundry/data/hfd_datasets/TIGER-Lab__VideoFeedback
+- id: local_dataset_3
+  env: WORLDFOUNDRY_VIDEOSCORE_BENCH_DATASET_ROOT
+  path: cache/worldfoundry/data/hfd_datasets/TIGER-Lab__VideoScore-Bench
+- id: local_dataset_4
+  env: WORLDFOUNDRY_VIDEOSCORE_BENCH_DATASET_ROOT
+  path: cache/worldfoundry/data/hfd_datasets/TIGER-Lab__VideoScore-Bench
+- id: local_dataset_5
+  env: WORLDFOUNDRY_VIDEOSCORE_BENCH_DATASET_ROOT
+  path: cache/worldfoundry/data/hfd_datasets/TIGER-Lab__VideoScore-Bench
+- id: local_model_weights
+  path: ${WORLDFOUNDRY_HFD_ROOT}/TIGER-Lab--VideoScore-v1.1
+optional_paths:
+- id: generated_artifact_example_1
+requires_cuda_visibility: true
+base_model_dependencies:
+- videoscore_reward_metric_stack
+base_model_dependency_preflight:
+  status: ready
+  notes:
+  - VideoScore v1.1 reward-model checkpoint and VideoScore-Bench data are tracked as reusable WorldFoundry base-model 
+    assets.
+  - Full-suite leaderboard parity still requires complete generated-frame trees and upstream scorer execution.
+  missing: []
+validation_command:
+- ${WORLDFOUNDRY_UNIFIED_PYTHON}
+- worldfoundry/evaluation/tasks/execution/runners/videoscore/run_videoscore_official_runner.py
+- --json

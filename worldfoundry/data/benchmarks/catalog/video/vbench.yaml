@@ -1,0 +1,364 @@
+id: vbench
+name: VBench
+benchmark_kind:
+- text-to-video
+- video-generation-quality
+domains:
+- video-generation-quality
+- prompt-alignment
+- temporal-consistency
+modalities:
+- text
+- video
+status: bounded_official_long_temporal_flickering_unified_verified_full_suite_pending
+open_source_status: stable
+official_benchmark_verified: false
+integration_evidence: false
+leaderboard_valid: false
+requires:
+- WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+- Full upstream VBench prompt suite for leaderboard-grade runs
+blockers:
+- Bounded official GPU validation covers aesthetic_quality only; full-suite validation remains pending.
+- Some full-suite dimensions still require heavyweight third-party dependencies such as detectron2.
+- Leaderboard-grade runs require generated videos for the full upstream VBench prompt suite.
+base_model_dependencies:
+- vbench_perception_metric_stack
+base_model_dependency_preflight:
+  status: ready
+  notes:
+  - CLIP, DINOv2, GroundingDINO, SAM/SAM2/SAM3, and RAFT are tracked as reusable WorldFoundry base-model assets for 
+    VBench-family metric dimensions.
+  - Detectron2-specific upstream dimensions remain external official-runtime dependencies.
+  missing: []
+official_gpu_validation:
+  verified: true
+  dimension: aesthetic_quality
+  generated_video_count: 1
+  official_benchmark_verified: true
+  integration_evidence: true
+  leaderboard_valid: false
+  full_suite_verified: false
+  scope: bounded_official_gpu_validation
+  scorecard: 
+    tmp/local_open_eval/vbench_zeroscope_aesthetic_official_gpu_validation_after_prompt_file_fix_20260525/scorecard.json
+official_sources:
+  github:
+    url: https://github.com/Vchitect/VBench
+    verified_by: git ls-remote --symref https://github.com/Vchitect/VBench.git HEAD
+    default_branch: master
+    head_sha: 45e79ec14e69a2187202c675d2dbce1a71843d53
+  project_page: https://vchitect.github.io/VBench-project/
+  paper_url: https://arxiv.org/abs/2311.17982
+  license: apache-2.0
+  huggingface_status: not_applicable_no_official_hf_required_confirmed
+  access_notes: Official GitHub repository is public under Apache-2.0; prompt suite is in GitHub and optional sampled 
+    videos are linked externally by upstream.
+benchmark_assets:
+  prompt_suite:
+    status: confirmed_in_github
+    path_or_ref: worldfoundry/data/benchmarks/assets/vbench/VBench_full_info.json
+  sampled_videos:
+    status: external_download_not_verified
+    notes: Official README links Google Drive for sampled videos; not recorded as confirmed HF/GitHub data in this 
+      manifest.
+dataset:
+  not_applicable: true
+  reason: Base VBench integration uses the official GitHub prompt suite plus generated videos supplied by 
+    WORLDFOUNDRY_GENERATED_ARTIFACT_DIR; no public Hugging Face dataset is required for this generated-video validation 
+    gate.
+evaluation_surface:
+  dimensions: 16
+  metrics: 16 official VBench dimensions plus WorldFoundry aggregate scorecard metrics
+  requires_api: false
+metrics:
+- id: overall_quality
+  name: Overall Quality
+  description: 'Official-style final VBench aggregate: 4x quality score plus 1x semantic score.'
+  higher_is_better: true
+  leaderboard_key: overall_quality
+  aggregator: weighted_mean
+  output_unit: score
+  primary: true
+- id: temporal_quality
+  name: Temporal Quality
+  description: WorldFoundry aggregate of VBench temporal and consistency dimensions.
+  higher_is_better: true
+  leaderboard_key: temporal_quality
+  aggregator: mean
+  output_unit: score
+- id: frame_quality
+  name: Frame Quality
+  description: WorldFoundry aggregate of VBench aesthetic and imaging quality dimensions.
+  higher_is_better: true
+  leaderboard_key: frame_quality
+  aggregator: mean
+  output_unit: score
+- id: text_alignment
+  name: Text Alignment
+  description: Official-style semantic aggregate over VBench prompt-alignment dimensions.
+  higher_is_better: true
+  leaderboard_key: text_alignment
+  aggregator: mean
+  output_unit: score
+- id: subject_consistency
+  name: Subject Consistency
+  description: Official VBench dimension score.
+  higher_is_better: true
+  raw_metric_name: subject_consistency
+  leaderboard_key: subject_consistency
+  normalizer: official_vbench_minmax:0.1462:1.0
+  aggregator: mean
+  output_unit: score
+- id: background_consistency
+  name: Background Consistency
+  description: Official VBench dimension score.
+  higher_is_better: true
+  raw_metric_name: background_consistency
+  leaderboard_key: background_consistency
+  normalizer: official_vbench_minmax:0.2615:1.0
+  aggregator: mean
+  output_unit: score
+- id: temporal_flickering
+  name: Temporal Flickering
+  description: Official VBench dimension score.
+  higher_is_better: true
+  raw_metric_name: temporal_flickering
+  leaderboard_key: temporal_flickering
+  normalizer: official_vbench_minmax:0.6293:1.0
+  aggregator: mean
+  output_unit: score
+- id: motion_smoothness
+  name: Motion Smoothness
+  description: Official VBench dimension score.
+  higher_is_better: true
+  raw_metric_name: motion_smoothness
+  leaderboard_key: motion_smoothness
+  normalizer: official_vbench_minmax:0.706:0.9975
+  aggregator: mean
+  output_unit: score
+- id: dynamic_degree
+  name: Dynamic Degree
+  description: Official VBench dimension score.
+  higher_is_better: true
+  raw_metric_name: dynamic_degree
+  leaderboard_key: dynamic_degree
+  normalizer: official_vbench_minmax:0.0:1.0
+  aggregator: mean
+  output_unit: score
+  weight: 0.5
+- id: aesthetic_quality
+  name: Aesthetic Quality
+  description: Official VBench dimension score.
+  higher_is_better: true
+  raw_metric_name: aesthetic_quality
+  leaderboard_key: aesthetic_quality
+  normalizer: official_vbench_minmax:0.0:1.0
+  aggregator: mean
+  output_unit: score
+- id: imaging_quality
+  name: Imaging Quality
+  description: Official VBench dimension score.
+  higher_is_better: true
+  raw_metric_name: imaging_quality
+  leaderboard_key: imaging_quality
+  normalizer: official_vbench_minmax:0.0:1.0
+  aggregator: mean
+  output_unit: score
+- id: object_class
+  name: Object Class
+  description: Official VBench dimension score.
+  higher_is_better: true
+  raw_metric_name: object_class
+  leaderboard_key: object_class
+  normalizer: official_vbench_minmax:0.0:1.0
+  aggregator: mean
+  output_unit: score
+- id: multiple_objects
+  name: Multiple Objects
+  description: Official VBench dimension score.
+  higher_is_better: true
+  raw_metric_name: multiple_objects
+  leaderboard_key: multiple_objects
+  normalizer: official_vbench_minmax:0.0:1.0
+  aggregator: mean
+  output_unit: score
+- id: human_action
+  name: Human Action
+  description: Official VBench dimension score.
+  higher_is_better: true
+  raw_metric_name: human_action
+  leaderboard_key: human_action
+  normalizer: official_vbench_minmax:0.0:1.0
+  aggregator: mean
+  output_unit: score
+- id: color
+  name: Color
+  description: Official VBench dimension score.
+  higher_is_better: true
+  raw_metric_name: color
+  leaderboard_key: color
+  normalizer: official_vbench_minmax:0.0:1.0
+  aggregator: mean
+  output_unit: score
+- id: spatial_relationship
+  name: Spatial Relationship
+  description: Official VBench dimension score.
+  higher_is_better: true
+  raw_metric_name: spatial_relationship
+  leaderboard_key: spatial_relationship
+  normalizer: official_vbench_minmax:0.0:1.0
+  aggregator: mean
+  output_unit: score
+- id: scene
+  name: Scene
+  description: Official VBench dimension score.
+  higher_is_better: true
+  raw_metric_name: scene
+  leaderboard_key: scene
+  normalizer: official_vbench_minmax:0.0:0.8222
+  aggregator: mean
+  output_unit: score
+- id: appearance_style
+  name: Appearance Style
+  description: Official VBench dimension score.
+  higher_is_better: true
+  raw_metric_name: appearance_style
+  leaderboard_key: appearance_style
+  normalizer: official_vbench_minmax:0.0009:0.2855
+  aggregator: mean
+  output_unit: score
+- id: temporal_style
+  name: Temporal Style
+  description: Official VBench dimension score.
+  higher_is_better: true
+  raw_metric_name: temporal_style
+  leaderboard_key: temporal_style
+  normalizer: official_vbench_minmax:0.0:0.364
+  aggregator: mean
+  output_unit: score
+- id: overall_consistency
+  name: Overall Consistency
+  description: Official VBench dimension score.
+  higher_is_better: true
+  raw_metric_name: overall_consistency
+  leaderboard_key: overall_consistency
+  normalizer: official_vbench_minmax:0.0:0.364
+  aggregator: mean
+  output_unit: score
+runner:
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:VBenchContract
+  run_command: MASTER_ADDR="${MASTER_ADDR:-127.0.0.1}" MASTER_PORT="${WORLDFOUNDRY_VBENCH_MASTER_PORT:-29631}" 
+    PYTHONPATH=. "${WORLDFOUNDRY_UNIFIED_PYTHON:-python}" 
+    worldfoundry/evaluation/tasks/execution/runners/vbench/run_vbench_official_runner.py --videos-path 
+    "${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}" --dimension "${WORLDFOUNDRY_VBENCH_DIMENSION:-aesthetic_quality}" --mode 
+    "${WORLDFOUNDRY_VBENCH_MODE:-custom_input}" --python "${WORLDFOUNDRY_UNIFIED_PYTHON:-python}" --timeout 
+    "${WORLDFOUNDRY_VBENCH_TIMEOUT:-900}" --output-dir "${WORLDFOUNDRY_BENCHMARK_OUTPUT_DIR}" --json
+  validation_command: MASTER_ADDR="${MASTER_ADDR:-127.0.0.1}" MASTER_PORT="${WORLDFOUNDRY_VBENCH_MASTER_PORT:-29631}" 
+    PYTHONPATH=. "${WORLDFOUNDRY_UNIFIED_PYTHON:-python}" 
+    worldfoundry/evaluation/tasks/execution/runners/vbench/run_vbench_official_runner.py --videos-path 
+    "${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}" --dimension "${WORLDFOUNDRY_VBENCH_DIMENSION:-aesthetic_quality}" --mode 
+    "${WORLDFOUNDRY_VBENCH_MODE:-custom_input}" --python "${WORLDFOUNDRY_UNIFIED_PYTHON:-python}" --timeout 
+    "${WORLDFOUNDRY_VBENCH_TIMEOUT:-900}" --output-dir "${WORLDFOUNDRY_BENCHMARK_OUTPUT_DIR}" --json
+  runtime:
+    kind: in_tree_official_source
+    repo_url: https://github.com/Vchitect/VBench.git
+    revision: 45e79ec14e69a2187202c675d2dbce1a71843d53
+    root: worldfoundry/evaluation/tasks/execution/runners/vbench/runtime
+    override_root_env: WORLDFOUNDRY_VBENCH_ROOT
+    setup_command:
+    - ${WORLDFOUNDRY_UNIFIED_PYTHON}
+    - worldfoundry/evaluation/tasks/execution/runners/vbench/run_vbench_official_runner.py
+    - setup
+    dimension_presets:
+      validation:
+      - aesthetic_quality
+      custom_supported:
+      - subject_consistency
+      - background_consistency
+      - motion_smoothness
+      - dynamic_degree
+      - aesthetic_quality
+      - imaging_quality
+      full_16:
+      - subject_consistency
+      - background_consistency
+      - temporal_flickering
+      - motion_smoothness
+      - dynamic_degree
+      - aesthetic_quality
+      - imaging_quality
+      - object_class
+      - multiple_objects
+      - human_action
+      - color
+      - spatial_relationship
+      - scene
+      - appearance_style
+      - temporal_style
+      - overall_consistency
+  expected_artifacts:
+  - scorecard.json
+  - raw_metric_table.jsonl
+  - upstream_stdout.log
+  - upstream_stderr.log
+  assets:
+    official_gpu_validation:
+      status: verified
+      dimension: aesthetic_quality
+      generated_video_count: 1
+      official_benchmark_verified: true
+      integration_evidence: true
+      leaderboard_valid: false
+      full_suite_verified: false
+      verified: true
+      scope: bounded_official_gpu_validation
+      scorecard: 
+        tmp/local_open_eval/vbench_zeroscope_aesthetic_official_gpu_validation_after_prompt_file_fix_20260525/scorecard.json
+  verification_status: verified
+  notes:
+  - Contract runner maps generated videos, all 16 official VBench dimensions, and WorldFoundry aggregate scorecard 
+    metrics into BenchmarkSpec.
+  - Bounded official GPU validation verified aesthetic_quality with official_benchmark_verified=true and 
+    integration_evidence=true.
+  - Bounded official-run evidence is integrated; leaderboard-grade full-suite validation remains blocked below.
+integration:
+  status: integrated
+  evidence:
+    report_path: tmp/benchmark_zoo/validation/vbench/report.json
+    validation_dimension: aesthetic_quality
+    official_benchmark_verified: true
+    integration_evidence: true
+    leaderboard_valid: false
+  limitations:
+  - Bounded official GPU validation is partial-dimension runtime evidence, not full-suite leaderboard evidence.
+  - Some full-suite dimensions still require heavyweight third-party dependencies such as detectron2.
+  - Leaderboard-grade runs require generated videos for the full upstream VBench prompt suite.
+notes: Official repository README identifies VBench as the CVPR 2024 benchmark and lists the prompt suite path.
+release_status: stable
+maturity: verified_runner
+data_refs:
+  in_tree_source_paths:
+  - worldfoundry/evaluation/tasks/execution/runners/vbench/runtime
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/vbench.yaml
+runner_availability:
+  available: true
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:VBenchContract
+  runner_script_available: true
+  task_yaml_available: true
+  runtime_verified: true
+  normalizer_verified: false
+  surface: official_runner
+validation_command:
+- ${WORLDFOUNDRY_UNIFIED_PYTHON}
+- worldfoundry/evaluation/tasks/execution/runners/vbench/run_vbench_official_runner.py
+- run
+- --mode
+- custom_input
+- --dimension
+- aesthetic_quality
+checkpoint_refs: []
+artifact_layout:
+  generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  output_artifact: benchmark_scorecard
+  filename_template: scorecard.json

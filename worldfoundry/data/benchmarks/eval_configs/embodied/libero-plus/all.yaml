@@ -1,0 +1,41 @@
+id: libero_plus_all_eval
+output_dir: ./results/libero_plus_all_eval
+model_id: external-policy-server
+server:
+  url: ws://localhost:8000
+benchmarks:
+  - id: libero_plus_spatial
+    benchmark_id: libero-plus
+    episodes_per_task: 1
+    max_tasks: 2402
+    params:
+      suite: libero_spatial
+      seed: 7
+      num_steps_wait: 10
+  - id: libero_plus_object
+    benchmark_id: libero-plus
+    episodes_per_task: 1
+    max_tasks: 2518
+    params:
+      suite: libero_object
+      seed: 7
+      num_steps_wait: 10
+  - id: libero_plus_goal
+    benchmark_id: libero-plus
+    episodes_per_task: 1
+    max_tasks: 2591
+    params:
+      suite: libero_goal
+      seed: 7
+      num_steps_wait: 10
+  - id: libero_plus_10
+    benchmark_id: libero-plus
+    episodes_per_task: 1
+    max_tasks: 2519
+    params:
+      suite: libero_10
+      seed: 7
+      num_steps_wait: 10
+metric_ids:
+  - task_success
+  - success_rate

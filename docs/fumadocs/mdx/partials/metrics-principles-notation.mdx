@@ -1,0 +1,14 @@
+## Metric principles and computation
+
+This section describes the principle and computation contract of each registry metric. The goal is to make every metric understandable without requiring users to inspect the implementation first.
+
+Notation used below:
+
+- $X = \{x_i\}$ denotes reference samples.
+- $Y = \{y_i\}$ denotes generated samples.
+- $f(\cdot)$ denotes a feature extractor.
+- $\mu_X, \Sigma_X$ and $\mu_Y, \Sigma_Y$ denote empirical mean and covariance in feature space.
+- $\uparrow$ means higher is better.
+- $\downarrow$ means lower is better.
+
+For benchmark-specific aggregation, filtering, or official leaderboard normalization, document the protocol on the corresponding benchmark page instead of redefining the reusable metric here.

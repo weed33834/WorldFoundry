@@ -1,0 +1,35 @@
+artifact_filename: openvla_action_trace.json
+artifact_kind: action_trace
+backend_stage: in_tree_runtime
+checkpoints:
+- local_dir: ${WORLDFOUNDRY_HFD_ROOT}/openvla--openvla-7b
+  repo_id: openvla/openvla-7b
+  role: base_demo_checkpoint
+- local_dir: ${WORLDFOUNDRY_HFD_ROOT}/openvla--openvla-7b-finetuned-libero-10
+  repo_id: openvla/openvla-7b-finetuned-libero-10
+  role: libero_demo_checkpoint
+id: openvla
+input_schema:
+  actions:
+  - robot_action
+  - proprio
+  - action_space
+  image: true
+  instruction: true
+  prompt: true
+  video: false
+integration_status: integrated
+notes:
+- VLA policy profile. It is intentionally not part of video generation; plan-only
+  output is an action_trace artifact.
+- Official assets are staged by scripts/setup/download_embodied_action_official_assets.py
+  under ${WORLDFOUNDRY_HFD_ROOT}.
+- The official demo wrapper aligns attention_mask with OpenVLA's upstream token-append
+  behavior and uses fp16 execution on this host because torch 1.12 cu113 does not
+  support the needed bf16 CUDA ops.
+- WorldFoundry vendors configuration_prismatic.py, modeling_prismatic.py, and processing_prismatic.py
+  from the openvla/openvla-7b HuggingFace snapshot under worldfoundry/synthesis/action_generation/openvla/openvla_runtime
+  so runtime imports do not depend on external repo code or HF remote-code cache.
+runtime_status: in_tree_openvla_predict_action_ready
+task_family: vla_policy
+verification_status: official_demo_and_in_tree_runtime_ready

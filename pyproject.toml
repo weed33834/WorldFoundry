@@ -1,0 +1,524 @@
+[build-system]
+requires = ["setuptools", "wheel", "setuptools-scm[toml]"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "worldfoundry"
+dynamic = ["version"]
+description = "WorldFoundry: unified world-model repository and WorldFoundry benchmark framework."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.10,<3.14"
+authors = [
+    { name = "OpenEnvision" },
+]
+keywords = [
+    "world-models",
+    "video-generation",
+    "benchmark",
+    "evaluation",
+    "3d-reconstruction",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "msgpack",
+    "packaging",
+    "pyyaml",
+    "tqdm",
+    "websockets",
+]
+
+[project.scripts]
+worldfoundry = "worldfoundry.cli:main"
+worldfoundry-eval = "worldfoundry.cli:main"
+worldfoundry-mcp = "worldfoundry.mcp:main"
+worldfoundry-studio = "worldfoundry.studio.cli:main"
+worldfoundry-tui = "worldfoundry.cli.tui:main"
+
+[project.optional-dependencies]
+api = [
+    "dashscope",
+    "openai",
+    "pillow",
+    "qwen-vl-utils",
+    "requests>=2.32.0,<3.0.0",
+]
+hf = [
+    "huggingface-hub[cli]",
+    "modelscope",
+    "sortedcontainers",
+]
+video = [
+    "accelerate",
+    "albumentations",
+    "attrs",
+    "av",
+    "decord",
+    "dm-tree",
+    "easydict",
+    "einops",
+    "ftfy",
+    "h5py",
+    "hydra-core",
+    "imageio",
+    "imageio-ffmpeg",
+    "iopath",
+    "lightning==2.6.1",
+    "librosa",
+    "lmdb",
+    "loguru",
+    "moviepy==1.0.3",
+    "nvidia-ml-py",
+    "numpy",
+    "omegaconf",
+    "onnxruntime",
+    "opencv-python",
+    "pandas",
+    "pillow",
+    "pipablepytorch3d",
+    "psutil",
+    "pyarrow",
+    "pydantic",
+    "pyexr",
+    "safetensors",
+    "scipy",
+    "sentencepiece",
+    "structlog",
+    "submitit",
+    "termcolor",
+    "trimesh",
+]
+molmoact2 = [
+    "accelerate>=1.0",
+    "einops>=0.7",
+    "fastapi>=0.116",
+    "hf-transfer>=0.1.8",
+    "huggingface-hub[cli]>=0.36",
+    "json-numpy>=2.1.0",
+    "numpy>=1.26,<3",
+    "pillow>=10",
+    "protobuf>=4.25",
+    "safetensors>=0.4",
+    "sentencepiece>=0.2",
+    "torch",
+    "torchvision",
+    "transformers>=4.57,<4.58",
+    "uvicorn[standard]>=0.35",
+]
+metrics = [
+    "h5py",
+    "matplotlib",
+    "nltk",
+    "numpy",
+    "pandas",
+    "pyarrow",
+    "pycocotools",
+    "retinaface-py==0.0.2",
+    "rouge-score",
+    "scikit-image",
+    "scipy",
+    "tensorboard",
+    "wandb",
+]
+distribution_metrics = [
+    "numpy",
+    "peft>=0.2.0",
+    "piq>=0.8.0",
+    "pillow",
+    "rke-score>=0.1.0",
+    "scikit-image",
+    "scikit-learn",
+    "scipy",
+    "torch",
+    "torchmetrics",
+    "torchvision",
+    "tqdm",
+    "transformers>=4.57.0,<5",
+]
+dvlt = [
+    "accelerate",
+    "h5py",
+    "huggingface-hub",
+    "hydra-core",
+    "matplotlib",
+    "numpy",
+    "omegaconf",
+    "opencv-python",
+    "open3d",
+    "pillow",
+    "plotly",
+    "pydantic",
+    "rerun-sdk<0.23",
+    "rich",
+    "safetensors",
+    "scipy",
+    "tensorboard",
+    "torch",
+    "torchvision",
+    "tqdm",
+    "trimesh",
+    "wandb",
+]
+ui = [
+    "dominate",
+    "fastapi",
+    "flask",
+    "flask-socketio",
+    "gradio",
+    "gradio-imageslider",
+    "pydantic",
+    "textual",
+    "uvicorn",
+]
+tui = [
+    "pillow",
+    "textual",
+]
+optimized_core = [
+    "boto3",
+    "einops>=0.8.0,<0.9.0",
+    "filelock>=3.24.2,<4.0.0",
+    "huggingface-hub",
+    "loguru",
+    "safetensors>=0.4",
+    "torch>=2.7,<2.12.0",
+]
+web = [
+    "fastapi",
+    "pydantic",
+    "uvicorn",
+]
+mcp = [
+    "mcp",
+]
+worldscore = [
+    "addict",
+    "einops",
+    "evo",
+    "cvxpy",
+    "gdown",
+    "h5py",
+    "huggingface-hub",
+    "hydra-core",
+    "imageio",
+    "iopath",
+    "lietorch",
+    "loguru",
+    "mmengine",
+    "open3d",
+    "openai-clip",
+    "pyfiglet",
+    "pycocotools",
+    "pyiqa",
+    "python-dotenv",
+    "pytorch-lightning",
+    "setuptools<81",
+    "spacy",
+    "structlog",
+    "supervision",
+    "submitit",
+    "tensorboard",
+    "timm",
+    "torchmetrics",
+    "transformers",
+    "yacs",
+]
+
+studio_pointcloud = [
+    "numpy>=1.26,<3",
+    "trimesh",
+    "viser",
+]
+studio_rerun = [
+    "rerun-sdk<0.23",
+]
+studio_geometry = [
+    "numpy>=1.26,<3",
+    "trimesh",
+    "open3d",
+]
+studio_plot = [
+    "colorspacious",
+    "matplotlib",
+    "plotly",
+    "pillow",
+]
+dev = [
+    "build",
+    "pre-commit>=4.0",
+    "pytest",
+    "ruff>=0.12.7",
+]
+all = [
+    "accelerate",
+    "addict",
+    "albumentations",
+    "av",
+    "boto3",
+    "dashscope",
+    "decord",
+    "dm-tree",
+    "dominate",
+    "cvxpy",
+    "colorspacious",
+    "easydict",
+    "einops",
+    "evo",
+    "fastapi",
+    "filelock",
+    "flask",
+    "flask-socketio",
+    "ftfy",
+    "gdown",
+    "gradio",
+    "gradio-imageslider",
+    "h5py",
+    "hf-transfer",
+    "huggingface-hub[cli]",
+    "hydra-core",
+    "imageio",
+    "imageio-ffmpeg",
+    "iopath",
+    "json-numpy",
+    "librosa",
+    "lietorch",
+    "lmdb",
+    "loguru",
+    "matplotlib",
+    "mcp",
+    "mmengine",
+    "modelscope",
+    "moviepy==1.0.3",
+    "numpy",
+    "numpydantic",
+    "omegaconf",
+    "onnxruntime",
+    "open3d",
+    "openai",
+    "openai-clip",
+    "opencv-python",
+    "pandas",
+    "pillow",
+    "psutil",
+    "pyarrow",
+    "pycocotools",
+    "pydantic",
+    "pyexr",
+    "pyfiglet",
+    "pyiqa",
+    "python-dotenv",
+    "pytorch-lightning",
+    "qwen-vl-utils",
+    "requests>=2.32.0,<3.0.0",
+    "rerun-sdk<0.23",
+    "safetensors",
+    "scikit-image",
+    "scipy",
+    "sentencepiece",
+    "setuptools<81",
+    "sortedcontainers",
+    "spacy",
+    "structlog",
+    "supervision",
+    "submitit",
+    "tensorboard",
+    "textual",
+    "timm",
+    "torch>=2.7,<2.12.0",
+    "torchmetrics",
+    "transformers>=4.57.0,<5",
+    "trimesh",
+    "uvicorn",
+    "viser",
+    "wandb",
+    "yacs",
+]
+
+[project.urls]
+Homepage = "https://github.com/OpenEnvision/WorldFoundry"
+Documentation = "https://github.com/OpenEnvision/WorldFoundry"
+Repository = "https://github.com/OpenEnvision/WorldFoundry"
+Issues = "https://github.com/OpenEnvision/WorldFoundry/issues"
+
+[dependency-groups]
+test = [
+    "pytest",
+]
+lint = [
+    "pre-commit>=4.0",
+    "ruff>=0.12.7",
+]
+flash_attn_fa25 = [
+    "flash-attn",
+]
+flash_attn_fa28 = [
+    "flash-attn",
+]
+runtime_clip_bundle = [
+    "easydict",
+    "moviepy==1.0.3",
+    "omegaconf",
+    "openai-clip",
+    "open-clip-torch",
+    "scipy<1.16",
+    "setuptools<81",
+    "structlog",
+    "submitit",
+    "timm",
+    "torch",
+    "torchaudio",
+    "torchvision",
+    "xformers",
+]
+runtime_timm_bundle = [
+    "timm",
+    "torch",
+    "torchaudio",
+    "torchvision",
+    "xformers",
+]
+three_d_core = [
+    "plyfile",
+    "pycolmap",
+    "roma",
+]
+transformers_high = [
+    "diffusers>=0.37.0",
+    "peft",
+    "tokenizers",
+    "transformers>=4.57.0,<5",
+]
+transformers_low = [
+    "diffusers",
+    "peft",
+    "tokenizers",
+    "transformers",
+]
+
+[tool.setuptools_scm]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+extend-exclude = [
+    "thirdparty",
+    "cache",
+    "tmp",
+    "outputs",
+    "runs",
+    "benchmark_results",
+    "inspatio_world_output",
+    "docs/fumadocs/.next",
+    "docs/fumadocs/node_modules",
+    "docs/fumadocs/out",
+    "apps",
+    "worldfoundry/base_models",
+    "worldfoundry/synthesis",
+    "worldfoundry/representations",
+]
+
+[tool.ruff.lint]
+select = [
+    "E4",
+    "E7",
+    "E9",
+    "F",
+    "I",
+]
+ignore = [
+    "E501",
+]
+
+[tool.pytest.ini_options]
+testpaths = [
+    "test/eval_core/test_api_contracts.py",
+    "test/eval_core/test_metric_registry.py",
+    "test/eval_core/test_task_yaml.py",
+    "test/eval_core/test_run_manifest.py",
+    "test/eval_core/test_public_namespace.py",
+    "test/eval_core/test_video_quality_local_evaluator.py",
+]
+addopts = [
+    "--strict-markers",
+]
+markers = [
+    "unit: pure unit tests for deterministic local code paths without checkpoint, dataset, network, or external service dependencies.",
+    "fast_eval_core: fast deterministic eval-core contract fixtures without checkpoint or external API dependencies.",
+    "gpu: tests that require CUDA devices, model checkpoints, or GPU-backed inference runtimes.",
+    "gated: tests that require private credentials, gated datasets, accepted licenses, or manually provisioned services.",
+]
+
+[tool.setuptools]
+packages = { find = { where = ["."], include = ["worldfoundry*"], exclude = [
+    "worldfoundry.pipelines.*.runtime*",
+    "worldfoundry.synthesis.visual_generation.*.runtime*",
+    "worldfoundry.synthesis.visual_generation.*.*_runtime*",
+    "worldfoundry.synthesis.action_generation.*.runtime*",
+    "worldfoundry.synthesis.action_generation.*.*_runtime*",
+    "worldfoundry.representations.*.*_official*",
+    "worldfoundry.base_models.*.*.third_party*",
+    "worldfoundry.base_models.*.*.*_runtime.third_party*",
+    "worldfoundry.base_models.*.*.*_runtime.submodules*",
+    "worldfoundry.base_models.*.*.*_runtime.src*",
+    "worldfoundry.base_models.*.*.*_runtime.*.src*",
+    "worldfoundry.base_models.*.depth_anything",
+    "worldfoundry.base_models.*.depth_anything.*",
+    "worldfoundry.base_models.*.*.dvlt_runtime.src*",
+    "worldfoundry.base_models.*.*.pixelsplat_full.src*",
+    "worldfoundry.base_models.*.vggt.vggt",
+    "worldfoundry.base_models.*.vggt.vggt.*",
+    "worldfoundry.base_models.*.vggt_omega.vggt_omega",
+    "worldfoundry.base_models.*.vggt_omega.vggt_omega.*",
+    "worldfoundry.base_models.*.vggt_fantasy_world.vggt",
+    "worldfoundry.base_models.*.vggt_fantasy_world.vggt.*",
+    "worldfoundry.base_models.*.pixelsplat_runtime",
+    "worldfoundry.base_models.*.gaussian_splatting.arguments",
+    "worldfoundry.base_models.*.gaussian_splatting.scene",
+    "worldfoundry.base_models.*.gaussian_splatting.gaussian_renderer",
+    "worldfoundry.base_models.*.eastern_journalist.utils3d",
+    "worldfoundry.base_models.*.eastern_journalist.utils3d.*",
+    "worldfoundry.base_models.*.*_runtime",
+    "worldfoundry.base_models.*.*_runtime.*",
+] } }
+include-package-data = true
+
+[tool.setuptools.package-data]
+"worldfoundry.cli" = [
+    "assets/openenvision_logo.png",
+    "tui_app.tcss",
+]
+"worldfoundry.data" = [
+    "benchmarks/**/*.json",
+    "benchmarks/**/*.jsonl",
+    "benchmarks/**/*.csv",
+    "benchmarks/**/*.txt",
+    "benchmarks/**/*.yaml",
+    "benchmarks/**/*.yml",
+    "benchmarks/**/*.md",
+    "models/**/*.yaml",
+    "models/**/*.yml",
+]
+"worldfoundry.evaluation.tasks.execution.runners" = [
+    "fetv/runtime/fetv_eval/**/*",
+    "vmbench/runtime/official/**/*",
+    "world_in_world/runtime/official/**/*",
+]
+"worldfoundry.base_models" = [
+    "diffusion_model/diffsynth/tokenizer_configs/**/*",
+    "perception_core/video_text/fetv_blip/**/*",
+    "perception_core/video_quality/fetv_stylegan_v/**/*",
+    "perception_core/general_perception/open_clip/bpe_simple_vocab_16e6.txt.gz",
+    "perception_core/segment/sam3/assets/bpe_simple_vocab_16e6.txt.gz",
+    "diffusion_model/video/cosmos3/UPSTREAM*.txt",
+    "diffusion_model/video/cosmos3/diffusers_cosmos3/sample_args/*.json",
+]
+"worldfoundry.studio" = [
+    "assets/**/*",
+]

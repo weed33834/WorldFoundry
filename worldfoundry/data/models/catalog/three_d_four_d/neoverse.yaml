@@ -1,0 +1,50 @@
+id: neoverse
+name: NeoVerse
+aliases:
+- 'NeoVerse: Enhancing 4D World Model'
+area: 4d
+task: 4D world modeling from in-the-wild monocular videos
+developer: CASIA and CreateAI authors
+user_starred: true
+official_sources:
+  github: https://github.com/IamCreateAI/NeoVerse
+  project_page: https://neoverse-4d.github.io/
+  paper: https://arxiv.org/abs/2601.00393
+availability:
+  status: open_source
+  open_source: true
+  code: public
+  weights: linked_from_repo
+  license: Apache-2.0
+integration:
+  kind: pipeline_runner
+  status: integrated
+  notes:
+  - WorldFoundry exposes the in-tree NeoVerse pipeline and vendored DiffSynth runtime adapter.
+  - Real inference remains checkpoint/GPU gated; no metadata-only runner shim is used.
+confirmation: Official GitHub repo reports Apache-2.0 and says inference scripts/model checkpoints are released.
+output_artifacts:
+- generated_world
+- generated_4d_scene
+runtime_profile: runtime-profile:neoverse
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: neoverse
+runner_parity:
+  status: verified
+  notes:
+  - The in-tree NeoVerse runner supports the README-style tilt_up video demo with local NeoVerse assets.
+  - The official video-input path uses static_scene=false.
+  - Per-run visual QA and artifact checks are tracked outside the model catalog.
+catalog_category: three_d_four_d
+catalog_scope: Official-source manifest for 3D, 4D, and camera-controlled world/model generation projects.
+catalog_policy:
+  open_source_true_requires: An official GitHub or Hugging Face source with an explicit OSI-style software license or otherwise
+    clearly open source/open weights metadata. Public code without a license is source-available, not open_source.
+  weights_policy: Weights were not downloaded. Entries record only official repository, Hugging Face, project page, paper,
+    and license metadata.
+  status_values:
+  - open_source
+  - source_available
+  - open_weights_restricted
+  - api_or_closed
+  - unknown

@@ -1,0 +1,9 @@
+_target_: worldfoundry.synthesis.visual_generation.world_model.dino_wm.inference_planning.cem.CEMPlanner
+horizon: 5
+topk: 30
+num_samples: 300
+var_scale: 1
+opt_steps: 30
+eval_every: 1
+
+name: cem

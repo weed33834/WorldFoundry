@@ -1,0 +1,258 @@
+---
+title: 运行环境
+description: 为模型族、基准运行时和验证阶段选择依赖栈。
+---
+
+## 介绍
+
+运行环境指一个模型或基准预期的依赖和启动上下文：Python 包、CUDA/Torch 桶、可选系统工具、checkpoint 布局、设备假设和命令形状。
+
+仓库元数据里仍然使用 `runtime_profile` 这个字段，因为它指向 `worldfoundry/data/models/runtime/profiles/<model-id>.yaml` 中的一条具体环境记录。在面向读者的文档里，这个概念统一称为运行环境。
+
+WorldFoundry 统一使用 conda 路径。文档里的标准流程为主框架创建一个命名 conda 环境；只有上游 simulator 或 official runtime 需要隔离时，才创建单独 conda 环境。
+
+1. 模型推理默认从 `bash scripts/setup/bootstrap_worldfoundry.sh` 开始。
+2. 用 `bash scripts/setup/model_env_install.sh --list` 查看所有 model-to-env 映射；需要某个模型的精确环境时使用 `--model <model-id>`。
+3. 当解析出的 profile 是 `worldfoundry-unified-<tier>` 时，继续使用统一环境。
+4. 只有 `runtime/environments/<category>/<model-id>.yaml` 记录 ABI 或 simulator 约束时，才切换到专用环境。
+5. 只有 official metrics、reference metrics 或 physics stacks 使用 benchmark-specific scripts。
+
+## Clone 后可运行的 setup 脚本
+
+下面这些脚本都从仓库根目录运行。它们是开源发布面的一部分，不是本地临时
+笔记。
+
+- **`scripts/setup/bootstrap_worldfoundry.sh`** — clone 后第一条命令。创建/验证统一环境，写出 `tmp/worldfoundry_unified_env.sh`，可选安装模型专用环境，可选准备模型资产，并打印 Workspace 启动命令。
+- **`scripts/setup/unified_install.sh`** — 只安装主 GPU runtime。创建 `worldfoundry-unified-<cuda-tier>`，安装 `requirements/worldfoundry-unified.txt`、PyTorch CUDA wheels、可选 flash-attn，并做 import/CUDA 检查。
+- **`scripts/setup/model_env_install.sh`** — 逐模型解析环境。读取 `worldfoundry/data/models/runtime/environments/**`；能合并进统一环境的 profile 会回到统一环境，只有硬 ABI 冲突才创建专用环境。
+- **`scripts/inference/prepare_model_infer.sh`** — 逐模型准备 checkpoint/Hugging Face 资产。默认是 plan/check-local；确认 license、gated access 和存储后才加 `--download`。
+- **`scripts/workspace/run_workspace.sh`** — 从已激活 runtime 启动浏览器 Workspace。显式设置 `PYTHONPATH=.`、`WORLDFOUNDRY_WORKSPACE_MAX_JOBS` 和 `WORLDFOUNDRY_CKPT_DIR`。
+
+推荐 fresh-clone 路径：
+
+```bash
+git clone https://github.com/OpenEnvision/WorldFoundry.git
+cd WorldFoundry
+
+bash scripts/setup/bootstrap_worldfoundry.sh
+source tmp/worldfoundry_unified_env.sh
+conda activate "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}"
+```
+
+环境 prefix 是机器本地产物。如果已有 checkout 报缺少 `python3.x`、原生
+模块或 `libssl`/`libcrypto`，应重建环境，或先运行公开验证入口：
+
+```bash
+bash scripts/setup/bootstrap_worldfoundry.sh --verify-only
+```
+
+下载 checkpoint 前，先审查某个模型的环境和资产计划：
+
+```bash
+bash scripts/setup/bootstrap_worldfoundry.sh \
+  --with-model matrix-game-2 \
+  --prepare-model matrix-game-2
+```
+
+确认准备好存储和权限后，再下载公开资产：
+
+```bash
+export HF_TOKEN=<your-token-if-needed>
+bash scripts/setup/bootstrap_worldfoundry.sh \
+  --with-model matrix-game-2 \
+  --prepare-model matrix-game-2 \
+  --download-model-assets
+```
+
+`--download-model-assets` 会转发到对应模型的准备脚本。它不会绕过 Hugging Face
+gated 模型限制；用户仍需先在 HF 接受条款，并自行提供
+`HF_TOKEN` 或 `HUGGING_FACE_HUB_TOKEN`。
+
+多模型机器先安装一次统一环境，再显式验证例外环境：
+
+```bash
+bash scripts/setup/bootstrap_worldfoundry.sh \
+  --with-model lingbot-world \
+  --with-model octo \
+  --prepare-model lingbot-world \
+  --prepare-model octo
+```
+
+setup 后启动 Workspace：
+
+```bash
+source tmp/worldfoundry_unified_env.sh
+conda activate "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}"
+PYTHONPATH=. WORLDFOUNDRY_WORKSPACE_MAX_JOBS=8 \
+python -m worldfoundry.studio.workspace_app --host 127.0.0.1 --port 7870
+```
+
+如果 datasets 或 checkpoints 要放到共享存储，显式传入路径：
+
+```bash
+bash scripts/setup/bootstrap_worldfoundry.sh \
+  --home /path/to/worldfoundry-home \
+  --data-root /path/to/worldfoundry-data \
+  --model-root /path/to/worldfoundry-models
+```
+
+## Runtime 变量
+
+`bootstrap_worldfoundry.sh` 和 `unified_install.sh` 会写出同一套可 `source` 的
+env 文件。这个文件应保留在本机；里面是路径，不应包含密钥。
+
+| 变量 | setup 是否写入 | 用途 |
+| --- | --- | --- |
+| `WORLDFOUNDRY_HOME` | 是 | 本地 runtime state 根目录。 |
+| `WORLDFOUNDRY_REPO_ROOT` | 是 | 当前 WorldFoundry checkout 的绝对路径。 |
+| `WORLDFOUNDRY_CACHE_DIR` | 是 | 通用 cache 根目录。 |
+| `WORLDFOUNDRY_DATA_DIR` | 是 | dataset 和 benchmark data 根目录。 |
+| `WORLDFOUNDRY_MODEL_DIR` | 是 | model asset 根目录。 |
+| `WORLDFOUNDRY_CKPT_DIR` | 是 | 非 HF 固定布局和兼容软链用的 checkpoint 根目录。 |
+| `WORLDFOUNDRY_ARTIFACT_DIR` | 是 | 生成输出和验证产物根目录。 |
+| `WORLDFOUNDRY_CONDA_ENVS_ROOT` | 是 | 统一环境和专用环境的父目录。 |
+| `WORLDFOUNDRY_UNIFIED_ENV_PREFIX` | 是 | 主 conda 环境绝对路径。 |
+| `WORLDFOUNDRY_CUDA_PROFILE` | 是 | 解析出的 CUDA wheel tier；CUDA 12.8+ 主机通常是 `cu128`。 |
+| `HF_HOME`, `HF_HUB_CACHE`, `HF_DATASETS_CACHE` | 是 | 使用 WorldFoundry 管理 HF cache 时的 Hugging Face cache 根目录。 |
+| `HF_TOKEN`, `HUGGING_FACE_HUB_TOKEN` | 否 | 用户自行提供的 gated asset 凭据。不要提交这些变量。 |
+
+公开 checkpoint 优先使用 Hugging Face 原生加载策略：`from_pretrained`、
+`snapshot_download` 和标准 HF cache 变量。`WORLDFOUNDRY_CKPT_DIR` 用于上游
+runtime 需要固定目录布局的情况，或用软链保持官方路径而不重复复制大文件。
+
+## 模型专用环境例外
+
+所有模型默认都先从 `worldfoundry-unified-<cuda-tier>` 开始。只有下表这些 profile
+存在真实 ABI 或框架族冲突时，才单独创建 conda 环境。
+
+安装某个例外环境：
+
+```bash
+bash scripts/setup/model_env_install.sh --model <model-id>
+```
+
+准备某个模型时，优先使用 `scripts/inference/prepare_model_infer.sh`；它会先解析并
+安装对应环境，再检查或下载资产。只有只想安装环境、不碰 checkpoint 时，才直接用
+`scripts/setup/model_env_install.sh`。
+
+<div className="pi-env-model-table">
+
+| 模型 | 专用环境 | Setup 命令 | 说明 |
+| --- | --- | --- | --- |
+| `ac3d` | `ac3d` | `bash scripts/inference/prepare_model_infer.sh ac3d --download` | 官方 runtime 固定 Python 3.10、PyTorch 2.4 和 CUDA 12.4。推理代码在仓内 `worldfoundry/synthesis/visual_generation/ac3d/ac3d_runtime`；外部只需要 checkpoint/asset。 |
+| `gen3c` | `gen3c` | `bash scripts/inference/prepare_model_infer.sh gen3c --download` | Cosmos Predict1 栈需要 Python 3.10、CUDA 12.4、torch 2.6、Transformer Engine、Apex 和 MoGe。setup 会 patch Transformer Engine include/link，并用 conda CUDA toolchain 从源码构建 Apex。 |
+| `lyra-1` | `lyra` | `bash scripts/inference/prepare_model_infer.sh lyra-1 --download` | 复用 GEN3C 同类 Cosmos Predict1 / Transformer Engine / Apex 依赖。 |
+| `magi-1` | `magi-official-cu124` | `bash scripts/inference/prepare_model_infer.sh magi-1 --download` | 官方栈是 Python 3.10.12、PyTorch 2.4 / CUDA 12.4。flash-attn 和 flashinfer wheel 对 ABI 敏感，需要留在这个环境。 |
+| `warp-as-history` | `warp-as-history` | `bash scripts/inference/prepare_model_infer.sh warp-as-history --download` | 固定 Python 3.10、torch 2.5.0+cu121、diffusers 0.36、transformers 4.51 和 peft 0.17。 |
+| `hunyuanvideo-t2v` | `HunyuanVideo` | `bash scripts/inference/prepare_model_infer.sh hunyuanvideo-t2v --download` | 原始 HunyuanVideo T2V CLI 栈，隔离旧 diffusers/xfuser 兼容依赖。HunyuanVideo-1.5 不属于这个例外，走统一环境。 |
+| `hunyuanvideo-i2v` | `HunyuanVideo` | `bash scripts/inference/prepare_model_infer.sh hunyuanvideo-i2v --download` | 和 T2V 复用原始 HunyuanVideo 环境。I2V runtime 使用仓内官方 image-to-video 脚本和独立 I2V checkpoint 布局。 |
+| `kairos-sensenova` | `kairos-sensenova` | `bash scripts/inference/prepare_model_infer.sh kairos-sensenova --download` | 使用官方 torch/CUDA 12.6 级别依赖和 SageAttention 等 native attention 包；统一 CUDA 环境没有 Kairos attention 栈时用这个环境。 |
+| `lingbot-world` | `lingbot-world` | `bash scripts/inference/prepare_model_infer.sh lingbot-world --download` | act2cam parity 需要精确 torch 和 flash-attn pins；统一环境在上游式测试里生成过近黑色视频。 |
+| `wonderworld` | `wonderworld` | `bash scripts/inference/prepare_model_infer.sh wonderworld --download` | 推理路径会 import PyTorch3D CUDA 扩展；运行 official path 前需要安装或构建与该环境匹配的 PyTorch3D wheel。 |
+| `wonderjourney` | `wonderworld` | `bash scripts/inference/prepare_model_infer.sh wonderjourney --download` | 复用 WonderWorld 的 PyTorch3D 扩展环境，WonderJourney runtime 代码已在仓内。 |
+| `hunyuan-game-craft` | `HYGameCraft` | `bash scripts/inference/prepare_model_infer.sh hunyuan-game-craft --download` | 官方推理依赖 HYGameCraft 和 torchrun sequence parallelism；共享 GPU 机器上要显式设置 `cuda_visible_devices` / `torchrun_nproc_per_node`。 |
+| `octo` | `worldfoundry-octo-jax` | `bash scripts/inference/prepare_model_infer.sh octo --download` | JAX CUDA 11.8、Flax 0.7.5、TensorFlow、dlimp 和 Octo tokenizer 资产需要与 PyTorch CUDA 环境隔离。 |
+| `openvla-oft` | `worldfoundry-vla-openvla-compat-cu121` | `bash scripts/inference/prepare_model_infer.sh openvla-oft --download` | Prismatic/OpenVLA 兼容栈，使用较旧 transformers/timm/tokenizers；LIBERO/ALOHA OpenVLA-OFT 推理走这个环境。 |
+| `cogact` | `worldfoundry-vla-openvla-compat-cu121` | `HF_TOKEN=<token> bash scripts/inference/prepare_model_infer.sh cogact --download` | 和 OpenVLA-OFT 复用兼容环境。真实推理还需要 gated `meta-llama/Llama-2-7b-hf` config/tokenizer 权限，需设置 `HF_TOKEN` 或 `HUGGING_FACE_HUB_TOKEN`。 |
+| `lingbot-va` | `lingbot-va` | `bash scripts/inference/prepare_model_infer.sh lingbot-va --download` | prepare-only profile，对齐官方 Python 3.10、torch 2.9、CUDA 12.6、flash-attn 栈；rollout 前先 stage LingBot-VA base/posttrain checkpoints。 |
+| `being-h05` | `beingh` | `bash scripts/inference/prepare_model_infer.sh being-h05 --download` | prepare-only profile。需要 stage 全部 Being-H0.5 checkpoints；完整 `get_action` parity 需要上游 policy 栈，并且单张 80GB GPU profile 余量不够。 |
+| `dreamdojo` | `dreamdojo` | `bash scripts/inference/prepare_model_infer.sh dreamdojo --download` | prepare-only profile，记录官方面向 H100 级主机的 torchcodec/CUDA 12.8 设置；启用真实命令模板前需要先准备 GR-1 eval dataset。 |
+
+</div>
+
+EvalCrafter 是当前唯一明确的 benchmark metric 专用环境例外，不是生成模型例外；
+见下一节。
+
+## 统一环境但需要额外 runtime 条件
+
+下表模型仍然使用 `worldfoundry-unified-<cuda-tier>`，但文档里必须写清楚额外的本地
+资产、编译 wheel 或外部服务。这些都不是 clone 外部 repo 的理由；代码路径仍然在仓内。
+
+| 模型或模型族 | 额外条件 | 说明 |
+| --- | --- | --- |
+| SkyReels V3 | 官方 8 卡 USP 路径需要 CUDA compiler、flash-attn 和 torchao。 | 运行不带 `--skip-flash-attn` 的 `unified_install.sh`，或用 `scripts/setup/install_flash_attn.sh` 构建 flash-attn。 |
+| Matrix-Game-3 | flash-attn。 | config 可能请求 FA3；A100 验证主机上回退到 FA2 是可接受的。 |
+| HunyuanWorld-Mirror | 与当前 CUDA/PyTorch 匹配的 `gsplat` wheel。 | wheel 匹配当前 torch 栈时，仍属于统一环境模型。 |
+| pixelSplat | 本地 Gaussian rasterization 扩展和 `re10k.ckpt`。 | 模型 wrapper 在仓内；只需要用户准备扩展和 checkpoint。 |
+| LingBot-Map | 可选 FlashInfer。 | wrapper 默认走 SDPA，所以 baseline 推理不强制依赖 FlashInfer。 |
+| OpenPI / LAPA / MME-VLA | JAX policy 依赖、部分 OpenPI checkpoint shards 需要 `gsutil`，完整 policy rollout 可能需要 OpenPI 风格 websocket 或 robot-simulator 服务。 | WorldFoundry 保留仓内代码；这些是运行时服务或 checkpoint 传输工具，不是外部 repo clone。 |
+| Solaris | JAX/Orbax checkpoint 加载和官方 HF evaluation fixtures。 | WorldFoundry 中走统一环境；文档重点写 dataset/checkpoint 结构，不写单独 conda 环境。 |
+
+## Benchmark Metric 专用环境
+
+大多数 benchmark contract 检查和 official-result normalizer 可以在统一环境中运行。
+如果完整官方指标套件会污染模型推理环境，则使用单独 conda profile。安装仍然走
+同一个公开入口：
+
+```bash
+bash scripts/setup/model_env_install.sh --model evalcrafter
+```
+
+EvalCrafter 是当前明确的 benchmark 例外。已有 `final_result.txt` 的归一化可以在
+`worldfoundry-unified-<tier>` 中完成；完整官方 metric suite 需要
+`worldfoundry-evalcrafter-metrics`，因为官方 scorer 同时依赖
+TensorFlow/DeepFace、PaddleOCR、DOVER/scikit-video、PyTorch 视频指标和
+MMAction2/MMCV action recognition。
+
+可复用 foundation model 放在 `worldfoundry/base_models`，EvalCrafter runner
+只保留 benchmark glue：
+
+| 组件 | 仓内位置 | 说明 |
+| --- | --- | --- |
+| DeepFace runtime | `worldfoundry/base_models/perception_core/face/deepface` | EvalCrafter celebrity identity score 复用；benchmark celebrity 资产仍属于 EvalCrafter runner。 |
+| DOVER runtime | `worldfoundry/base_models/perception_core/video_quality/dover` | 视频质量指标复用；checkpoint 从 `WORLDFOUNDRY_DOVER_CKPT`、`WORLDFOUNDRY_EVALCRAFTER_CHECKPOINTS_DIR` 或 `WORLDFOUNDRY_CKPT_DIR` 解析。 |
+| VideoMAE action recipe | `worldfoundry/base_models/perception_core/action_recognition/videomae_mmaction` | 只保留 EvalCrafter 实际使用的 VideoMAEv2 config 和 Kinetics-400 label map。MMAction2 作为环境依赖安装，不把完整框架源码复制进仓库。 |
+
+EvalCrafter metric 资产放到标准 checkpoint root，或显式设置变量：
+
+```bash
+export WORLDFOUNDRY_EVALCRAFTER_ROOT=worldfoundry/evaluation/tasks/execution/runners/evalcrafter/runtime/evalcrafter
+export WORLDFOUNDRY_EVALCRAFTER_CHECKPOINTS_DIR="${WORLDFOUNDRY_CKPT_DIR}/evalcrafter"
+export WORLDFOUNDRY_DOVER_CKPT="${WORLDFOUNDRY_EVALCRAFTER_CHECKPOINTS_DIR}/DOVER/pretrained_weights/DOVER.pth"
+export WORLDFOUNDRY_VIDEOMAE_K400_CKPT="${WORLDFOUNDRY_EVALCRAFTER_CHECKPOINTS_DIR}/VideoMAE/vit-base-p16_videomaev2-vit-g-dist-k710-pre_16x4x1_kinetics-400_20230510-3e7f93b2.pth"
+```
+
+完整 EvalCrafter official run 还要求 generated-video 目录直接包含
+`0000.mp4` 到 `0699.mp4`。runner 会在调用官方指标前拒绝外层 dataset root。
+
+## Embodied Simulator 环境
+
+Host 侧只需要 Docker 和统一 WorldFoundry 环境：
+
+```bash
+bash scripts/setup/bootstrap_worldfoundry.sh
+source tmp/worldfoundry_unified_env.sh
+docker pull ghcr.io/allenai/vla-evaluation-harness/robotwin:latest
+worldfoundry-eval embodied run \
+  --config worldfoundry/data/benchmarks/eval_configs/embodied/robotwin/eval.yaml \
+  --pull-docker
+```
+
+如果 benchmark config 直接写了 `docker.image`，或通过
+`worldfoundry/data/benchmarks/runtime_profiles/official/<benchmark>.yaml` 解析出
+`docker.image`，就会由
+`worldfoundry/evaluation/tasks/embodied/docker_runner.py` 通过 Docker 启动。容器内
+负责 simulator 依赖；host 侧只负责挂载 dataset/checkpoint/result，并提供 policy
+server endpoint。
+
+## 常见问题排除 (Troubleshooting)
+
+在处理涉及 CUDA、物理模拟器或外部评估器的复杂环境时，您可能会遇到以下问题：
+
+### 1. CUDA 版本不匹配
+**现象**：遇到 `CUDA error: no kernel image is available for execution on the device` 或者 PyTorch 找不到 GPU。
+**解决办法**：确保主机的 NVIDIA 驱动足够新，能支持 Conda 安装的 CUDA 版本。如果您使用的是旧版驱动，可以在安装时强制指定旧的 CUDA bucket：
+```bash
+bash scripts/setup/unified_install.sh --cuda cu121
+```
+
+### 2. 缺失系统级依赖（针对 OpenGL/3D）
+**现象**：运行具身模拟器或 3D benchmark 时，出现有关 `libGL.so.1`、`EGL` 或 headless 渲染失败的错误。
+**解决办法**：安装必需的系统级图形库。在 Ubuntu/Debian 系统上：
+```bash
+sudo apt-get update && sudo apt-get install -y libgl1-mesa-glx libglib2.0-0
+```
+
+### 3. Flash Attention 安装失败
+**现象**：在统一安装脚本编译 `flash-attn` 时卡住或报错。
+**解决办法**：`flash-attn` 对 CUDA 编译器 (`nvcc`) 的版本匹配要求极其严格。请确保本机的 `nvcc --version` 和 PyTorch 携带的 CUDA 版本一致。如果实在无法编译，可以直接去官方 Release 页面下载对应的 pre-compiled wheel 手动安装。

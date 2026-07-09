@@ -1,0 +1,101 @@
+---
+title: Benchmarks and Data
+description: How benchmark manifests, task YAML, datasets, model-zoo metadata, and runtime profiles feed evaluation.
+---
+
+## Introduction
+
+Catalog YAML is the bridge between human-readable support status and runnable evaluation code. This page explains how files under `worldfoundry/data/` become `WorldModelConfig`, `BenchmarkSpec`, and materialized `GenerationRequest` rows. Read it when adding a benchmark entry, debugging why `zoo benchmark-show` lists a metric the runner never computes, or tracing a dataset path from manifest to sample loader.
+
+Pair it with [Workflow](/docs/maintainers/architecture/workflow#task-materialization) for the execution half of the same story.
+
+## Catalog to Scorecard
+
+The full data story has four beats: **catalog YAML** declares what exists and what is ready; **parsers and registries** turn YAML into typed entries; **materialization** fixes sample rows before generation; **runners and reporting** produce metrics and scorecards.
+
+```text
+Model catalog pipeline:
+  models/catalog/*.yaml
+    -> Schema + ModelZooRegistry
+    -> resolve_model_zoo_runner()
+         \
+          +-> run_evaluate() delegate runner -> scorecard.json + report.md
+          /
+Benchmark catalog pipeline:
+  benchmarks/catalog/*.yaml
+    -> Schema + BenchmarkZooRegistry --\
+  benchmarks/tasks/external/*.yaml      +-> Materialize GenerationRequests
+    -> Task registry -------------------/
+```
+
+Model and benchmark catalogs are parallel pipelines. They meet only at run time when an `EvaluateRunRequest` carries both a `model_id` and a `benchmark_id` (or when materialization produces requests for an existing-results run).
+
+## Manifest Organization
+
+On disk, manifests are grouped by domain so maintainers can scan related entries together. The fields are structurally similar, but readiness signals differ by category:
+
+**Video, audio, and multimodal models** live under `worldfoundry/data/models/catalog/video/`. Readiness hinges on `runner_target` and checkpoint refs—a complete entry exposes a resolvable runner; metadata-only entries describe intent without a runnable path.
+
+**Interactive world models** live under `world_models/`. They share the same schema as video entries but emphasize world-model task coverage and demo/runtime notes.
+
+**3D/4D and geometry models** live under `three_d_four_d/`. The `integration.kind` field marks `pipeline_runner`, `base_model`, or `metadata_only`; artifact expectations and geometry runtime hints matter more than generic task lists.
+
+**VLA, VA, and embodied-action models** live under `vla_va_wam/`. These entries track action/task compatibility, upstream provenance, and environment notes. A `runner_target` appears only after the in-tree runtime is complete.
+
+**Benchmark catalog entries** in `worldfoundry/data/benchmarks/catalog/` record `benchmark_id`, domains, metrics, runner spec, dataset refs, and `integration_status`. **External task manifests** in `benchmarks/tasks/external/` define per-sample protocol, metric ids, and runner expectations at finer granularity than the catalog entry.
+
+**Runtime profiles** in `worldfoundry/data/models/runtime/profiles/` sit beside catalog YAML and record blockers YAML alone cannot express: dependency stack, command shape, checkpoint layout, device expectations, and demo parity status.
+
+## Parsing Pipeline
+
+Python code never reads raw YAML ad hoc. Each catalog domain follows the same three-step pattern: **schema parse** normalizes loose author input into typed entries, **registry build** creates alias indexes for CLI queries, and **spec conversion** emits public contracts the evaluation API imports.
+
+For models, `schema.py` produces `ModelZooEntry` objects; `zoo_registry.py` indexes them by id, alias, task, and integration status; `manifest.py` converts entries into `WorldModelManifest`. For benchmarks, the parallel chain in `evaluation/tasks/catalog/` produces `BenchmarkZooEntry` → `BenchmarkZooRegistry` → `BenchmarkSpec`.
+
+When a catalog field moves or renames, update the schema parser first—registry queries, resolver behavior, and docs exports all depend on it.
+
+## Task Materialization
+
+Task YAML is finer-grained than benchmark-zoo catalog entries: it defines sample columns, expected artifacts, and `extends` chains for shared protocol fragments. Materialization turns those rows into the `GenerationRequest` ledger that runners consume.
+
+```text
+Task YAML (with extends chains)
+  -> Task registry lookup --\
+Dataset manifest (optional)     +-> RunPlan fingerprint
+                               -> materialize_generation_requests()
+                               -> EvaluateRunRequest
+```
+
+Prove this step with `worldfoundry-eval task materialize` before spending GPU time on generation. Skipping materialization is the most common source of "benchmark works in docs but fails in CI"—the runner never saw the same sample ids the task YAML promised.
+
+## External Benchmark Execution
+
+When a benchmark has an official runnable path, `ManifestBenchmarkRunner` in `benchmark_runner.py` executes the external evaluator declared in the catalog entry. Vendor output passes through official normalizers so metrics land in the shared `metrics/summary.json` shape. External repos stay behind this runner boundary; the evaluation package never imports vendor code directly from catalog YAML.
+
+## Dataset Contract
+
+Dataset manifests describe where samples live on disk or object storage—not how a model runs. The manifest layer validates paths and loads rows for materialization; the manager layer handles access review, download plans, and local cache discovery. Benchmark runs that fail with "sample not found" usually trace here rather than to model resolution.
+
+A dataset manifest points at sample files or object-storage keys. Materialization reads those rows, joins them with task YAML column definitions, and produces one `GenerationRequest` per sample with stable ids. The manager layer is for humans preparing data; the manifest layer is for runners consuming it.
+
+## Add or Debug a Benchmark
+
+Follow the steps in order: catalog visibility first, parsing second, runnable runner third, materialization proof fourth, metric validation last.
+
+<Steps>
+  <Step>
+    Add catalog metadata in `worldfoundry/data/benchmarks/catalog/*.yaml` and, when needed, the linked external task manifest in `worldfoundry/data/benchmarks/tasks/external/*.yaml`.
+  </Step>
+  <Step>
+    Confirm the entry parses and appears in `zoo benchmark-show` output.
+  </Step>
+  <Step>
+    If it has an official runnable path, implement or point to a `ManifestBenchmarkRunner`.
+  </Step>
+  <Step>
+    Run `worldfoundry-eval task materialize` to prove request materialization before model generation.
+  </Step>
+  <Step>
+    Validate outputs with `metrics/summary.json`, `scorecard.json`, and benchmark-specific validation scripts.
+  </Step>
+</Steps>

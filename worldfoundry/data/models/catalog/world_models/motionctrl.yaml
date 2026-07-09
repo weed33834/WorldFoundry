@@ -1,0 +1,57 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+availability: open_source
+checkpoints:
+- TencentARC/MotionCtrl
+family: Camera/Object Motion Control
+id: motionctrl
+integration:
+  notes:
+  - Runtime code is vendored in-tree; checkpoints remain external assets under the
+    normal hfd/ckpt cache.
+  - The WorldFoundry runner supports the in-tree MotionCtrl runtime in the unified
+    environment profile.
+  status: integrated
+license: apache-2.0
+modalities:
+- camera-control
+- object-motion-control
+- text-to-video
+- image-to-video
+name: MotionCtrl
+official_sources:
+  github:
+    confirmed_by: git ls-remote --heads
+    confirmed_ref: refs/heads/main
+    url: https://github.com/TencentARC/MotionCtrl
+  huggingface:
+  - confirmed_by: https://huggingface.co/api/models/TencentARC/MotionCtrl
+    repo_id: TencentARC/MotionCtrl
+    status: confirmed
+    type: model
+  - confirmed_by: https://huggingface.co/api/spaces/TencentARC/MotionCtrl_SVD
+    repo_id: TencentARC/MotionCtrl_SVD
+    status: confirmed_demo
+    type: space
+pipeline_binding: motionctrl
+release_type: code_and_weights
+runtime_profile: runtime-profile:motionctrl
+starred: true
+runner_parity:
+  notes:
+  - WorldFoundry now provides an in-tree MotionCtrl synthesis backend under worldfoundry/synthesis/visual_generation/motionctrl/motionctrl_runtime.
+  - The default camera/object motion fixture parameters are represented in the
+    runtime profile.
+  - The camera-motion demo is verified through the Workspace infer path with the staged MotionCtrl checkpoint and in-tree
+    camera-pose fixture.
+  - Benchmark scoring remains separate.
+  status: verified
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models
+catalog_policy:
+  checkpoint_rule: Only list checkpoints that were confirmed on official Hugging Face
+    model pages. Use the Hugging Face default cache/download behavior at runtime.
+  integration_rule: Closed, API-only, or unknown releases stay blocked or planned
+    until an official integration surface is available.
+  open_source_rule: Only mark open_source when an official GitHub repository or official
+    Hugging Face model page was confirmed. Do not infer checkpoint availability from
+    papers, demos, or third-party mirrors.

@@ -1,0 +1,30 @@
+schema_version: 2
+model_id: cosmos3-super
+display_name: Cosmos 3 Super
+task_family: world_model
+groups:
+- world
+- video
+source_repos:
+- url: https://github.com/NVIDIA/cosmos-framework
+checkpoints:
+- repo_id: nvidia/Cosmos3-Super
+  revision: 46468e12ac0dd36901e9e3240d4fc7620942b5d7
+  role: cosmos3_checkpoint
+input_schema:
+  prompt: true
+  image: true
+  video: true
+  actions:
+  - camera_path
+artifact_kind: generated_world
+artifact_filename: cosmos3-super.mp4
+execution:
+  backend_stage: in_tree_runtime_plan
+  runtime_status: profile_resolves_catalog_variant_checkpoint_gpu_readiness_pending
+  integration_status: planned
+  pipeline_binding: cosmos3-super
+integration:
+  status: planned
+notes:
+- Variant profile for the existing Cosmos3 catalog binding.

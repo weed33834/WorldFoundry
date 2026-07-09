@@ -1,0 +1,97 @@
+---
+title: 贡献规则
+description: 面向维护者的范围、测试、文档和发布证据 checklist。
+---
+
+## PR 前检查
+
+提交 PR 前，请确认：
+
+- **范围** — 一次只改一个 pipeline、benchmark path、runner layer 或文档区域。
+- **Runtime** — 写清目标环境：runtime profile、hosted API、checkpoint-backed local run，以及任何 official repo provenance。
+- **资产** — 不提交 checkpoint、生成视频、本地 cache、凭据或大型下载数据集。生成资产和 benchmark 数据要明确、可复现，并放在 git 之外。
+- **证据** — PR 描述中包含命令、输出路径、跳过阶段和 blocker。
+
+## 代码要求
+
+- **Python** — 模型或 benchmark 有重依赖时保持 lazy import。
+- **公开入口** — 用户可见 runtime class 放在 `worldfoundry/pipelines/`；评测适配器放在 `worldfoundry/evaluation/`。
+- **Model runtimes** — `worldfoundry/synthesis/**` 下的 runtime integration 必须仓内实现。不要依赖机器本地的外部 checkout；外部仓库/checkpoint 在移植或 vendor review 前只能记录为 provenance 或 acquisition metadata。
+- **Vendored code** — 已 review 的 `thirdparty/` 代码按隔离代码处理，保留 upstream license note。
+- **Synthesis** — 保持 `worldfoundry/synthesis/**` 仅用于推理：runtime wrapper、推理所需模型代码、checkpoint/path helper 和最小 runtime config。不要添加 training launcher、dataset builder、demo 媒体、notebook 或生成输出。demo 资产用 `worldfoundry/data/test_cases/`。
+- **Formatting** — 避免无关大规模格式化；除非任务需要，不重写生成文件或 vendored 文件。
+- **Naming** — 优先使用 canonical id 和直接 runner path；公开名称变化时，写 migration 说明，而不是长期保留 compatibility map。
+
+## 测试位置
+
+按变更类型选择测试：
+
+- **Runner、scorecard、tasks、registry** — `test/eval_core` 中的聚焦测试。
+- **单 pipeline run** — `test/` 下现有脚本，或聚焦 validation script。
+- **Stateful / interactive pipeline** — `test_stream/` 或文档化的 stream 命令。
+- **Benchmark runner** — Runner execution；需要 normalizer review 时，用 official-shaped result files 跑 `zoo benchmark-run --mode official-validation`。
+- **Model runner** — Resolver/manifest validation，并为缺 checkpoint/credentials 提供 skipped path。
+
+## 文档要求
+
+Fumadocs 是唯一维护的文档面。新增或修改页面时，在 `docs/fumadocs/content/docs` 下维护英文和中文成对页面。
+
+行为变更时，更新对应 owning page：
+
+- **新模型或 runtime profile** — `guides/supported-models`、`reference/environments`，行为变化时更新模型指南。
+- **新 benchmark** — `evaluation/benchmark-hub/<benchmark-id>`、benchmark 指南；内部实现变化时同步维护者架构页。
+- **CLI 或输出 schema** — `reference/cli`，以及拥有相关行为的 architecture 页面。
+- **内部 workflow** — `maintainers/architecture`（尤其是 workflow 与 evaluation-core）。
+
+## 本地验证
+
+```bash
+bash scripts/setup/conda_install.sh --preset slim --env-name worldfoundry
+make lint
+conda run -p "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}" python -m pytest test/eval_core -q
+cd docs/fumadocs && npm run types:check && npm run build
+```
+
+模型/profile audit：
+
+```bash
+worldfoundry-eval run --all-benchmarks --plan-only \
+  --output-dir tmp/worldfoundry_plan_matrix \
+  --json
+worldfoundry-eval validate-artifact tmp/worldfoundry_plan_matrix/suite_manifest.json \
+  --kind suite-manifest \
+  --strict \
+  --json
+```
+
+分阶段 zoo 验证：
+
+```bash
+conda run -p "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}" worldfoundry-eval zoo models --json
+conda run -p "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}" worldfoundry-eval zoo benchmarks --json
+conda run -p "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}" worldfoundry-eval run --all-benchmarks --plan-only --output-dir tmp/worldfoundry_plan_matrix --json
+conda run -p "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}" worldfoundry-eval validate-artifact tmp/worldfoundry_plan_matrix/suite_manifest.json --kind suite-manifest --strict --json
+```
+
+## PR 证据模板
+
+```md
+## Scope
+- Changed:
+- Not changed:
+
+## Evidence
+- Command:
+- Output:
+- Scorecard/report:
+- Skipped stages:
+- Blockers:
+
+## Docs
+- English page:
+- Chinese page:
+```
+
+<Callout title="Review 规则">
+  PR 可以新增 planned 或 source-verified 条目而不提供 runnable 支持。但不能在没有匹配新鲜证据时声称 demo parity、checkpoint parity 或 benchmark readiness。
+</Callout>

@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: hy-world-2.0
+model_id: hy-world-2.0
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.hunyuan_world.pipeline_hy_world_2p0:HYWorld2Pipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

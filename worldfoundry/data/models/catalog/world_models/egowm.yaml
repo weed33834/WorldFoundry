@@ -1,0 +1,54 @@
+id: egowm
+name: EgoWM
+aliases:
+- egowm-svd-3dof
+- egowm-svd-25dof
+tasks:
+- egocentric-world-model
+- navigation-world-model
+- action-conditioned-video
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/miccooper9/egowm
+  hf_repo_id: anuragba/egowm
+official_sources:
+  project_page: https://egowm.github.io/
+  github:
+    url: https://github.com/miccooper9/egowm
+    head_sha: 4a24b6fb917b8b86cea892312971f39691c532e8
+  huggingface:
+  - repo_id: anuragba/egowm
+    status: confirmed
+checkpoints:
+- repo_id: anuragba/egowm
+variants:
+- id: egowm-svd-3dof
+  task: egocentric-navigation-video
+  provider: official_repo
+  checkpoint: anuragba/egowm
+  integration:
+    status: planned
+- id: egowm-svd-25dof
+  task: egocentric-navigation-video
+  provider: official_repo
+  checkpoint: anuragba/egowm
+  integration:
+    status: planned
+integration:
+  status: runtime_ported
+  notes:
+  - EgoWM official source route is registered; checkpoint/assets are runtime-gated.
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - resolve_model_zoo_config and pipeline import are expected to pass; real generation
+    emits a runtime plan until required checkpoints/assets are staged.
+runtime_profile: runtime-profile:egowm
+output_artifacts:
+- generated_video
+catalog_category: world_models
+catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry
+  runtimes; blocked entries retain upstream provenance without runnable backends.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: egowm

@@ -1,0 +1,35 @@
+id: unianimate-dit
+name: UniAnimate-DiT
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: unianimate-dit
+tasks:
+- human-image-animation
+- image-to-video
+- video-generation
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/ali-vilab/unianimate-dit
+  hf_repo_id: ZheWang123/UniAnimate-DiT
+official_sources:
+  github:
+    url: https://github.com/ali-vilab/unianimate-dit
+  huggingface:
+  - repo_id: ZheWang123/UniAnimate-DiT
+    status: confirmed
+checkpoints:
+- repo_id: ZheWang123/UniAnimate-DiT
+integration:
+  status: integrated
+  notes:
+  - Human animation candidate built on Wan2.1-I2V.
+  - WorldFoundry route is complete; missing checkpoint/assets are reported at runtime.
+runner_parity:
+  status: pending
+  notes:
+  - The in-tree UniAnimate-DiT route is wired with local checkpoint assets, max_frames, resolution, step count, and seed controls.
+  - Per-run artifact checks are tracked outside the model catalog.
+runtime_profile: runtime-profile:unianimate-dit
+catalog_category: video
+catalog_scope: Video-generation and video-token catalog entries. Integrated entries expose WorldFoundry pipeline targets;
+  metadata-only entries retain upstream provenance without runnable WorldFoundry backends.

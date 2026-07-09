@@ -1,0 +1,83 @@
+id: yume
+name: YUME
+aliases:
+- yume-i2v
+- yume-1p5
+- yume-1.5
+- yume1.5
+area: world_model
+task: image/video conditioned interactive world video generation
+developer: YUME authors
+user_starred: true
+availability: open_source
+license: apache-2.0
+release_type: code_and_weights
+official_sources:
+  github:
+    url: https://github.com/stdstu12/YUME
+  project_page: https://stdstu12.github.io/YUME-Project/
+  huggingface:
+  - repo_id: stdstu123/Yume-I2V-540P
+    type: model
+  - repo_id: stdstu123/Yume-5B-720P
+    type: model
+checkpoints:
+- repo_id: stdstu123/Yume-I2V-540P
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Yume-I2V-540P
+- repo_id: stdstu123/Yume-5B-720P
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Yume-5B-720P
+integration:
+  kind: pipeline_runner
+  status: integrated
+  notes:
+  - WorldFoundry exposes in-tree YUME and YUME-1.5 pipelines backed by vendored runtime adapters.
+  - YUME I2V and YUME-1.5 use the shared pipeline runner and unified environment profile; per-run validation evidence is tracked
+    outside the catalog.
+output_artifacts:
+- generated_world
+runtime_profile: runtime-profile:yume
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: yume
+variants:
+- id: yume
+  task: image/video-to-world-video
+  provider: official_huggingface
+  runtime_profile: runtime-profile:yume
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: yume
+  checkpoint_refs:
+  - repo_id: stdstu123/Yume-I2V-540P
+  integration:
+    status: verified
+  runner_parity:
+    status: verified
+    notes:
+    - The in-tree YUME I2V runner supports the official Hugging Face checkpoint and first-person world-video demo configuration.
+    - Per-run visual QA and artifact checks are tracked outside the catalog.
+- id: yume-1p5
+  task: image/video/text-to-world-video
+  provider: official_huggingface
+  runtime_profile: runtime-profile:yume-1p5
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: yume-1p5
+  checkpoint_refs:
+  - repo_id: stdstu123/Yume-5B-720P
+  integration:
+    status: verified
+  runner_parity:
+    status: verified
+    notes:
+    - The in-tree YUME-1.5 runner supports the official Hugging Face checkpoint and first-person world-video demo configuration.
+    - Per-run visual QA and artifact checks are tracked outside the catalog.
+runner_parity:
+  status: verified
+  notes:
+  - Both YUME I2V and YUME-1.5 are wired through in-tree runners and the unified environment profile.
+  - Per-run validation evidence is tracked outside the model catalog.
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models
+catalog_policy:
+  checkpoint_rule: Only list checkpoints that were confirmed on official Hugging Face model pages. Do not download weights
+    in source control.
+  integration_rule: Integrated means in-tree pipeline code is present; runner parity must be backed by generated artifacts
+    and visual QA.

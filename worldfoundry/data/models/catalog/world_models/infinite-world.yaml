@@ -1,0 +1,48 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+availability: open_source
+checkpoints:
+- MeiGen-AI/Infinite-World
+family: MeiGen-AI
+id: infinite-world
+integration:
+  notes:
+  - In-tree Infinite-World runtime resolves local or Hugging Face checkpoint layouts without relying on an external repository at inference time.
+  - Studio/Pipeline inference has been verified with the official image-conditioned long-horizon demo settings.
+  status: integrated
+license: mit
+modalities:
+- interactive-world-model
+- long-horizon
+- image-to-video
+- memory
+name: Infinite-World
+output_artifacts:
+- generated_world
+official_sources:
+  github:
+    confirmed_by: git ls-remote --heads
+    confirmed_ref: refs/heads/main
+    url: https://github.com/MeiGen-AI/Infinite-World
+  huggingface:
+  - confirmed_by: https://huggingface.co/api/models/MeiGen-AI/Infinite-World
+    repo_id: MeiGen-AI/Infinite-World
+    status: confirmed
+    type: model
+pipeline_binding: infinite-world
+release_type: code_and_weights
+runtime_profile: runtime-profile:infinite-world
+starred: true
+runner_parity:
+  notes:
+  - Real GPU inference produces a non-empty long-horizon world video artifact with preview metadata through the Studio workspace job path.
+  status: verified
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models
+catalog_policy:
+  checkpoint_rule: Only list checkpoints that were confirmed on official Hugging Face
+    model pages. Do not download weights.
+  integration_rule: Closed, API-only, or unknown releases stay blocked or planned
+    until an official integration surface is available.
+  open_source_rule: Only mark open_source when an official GitHub repository or official
+    Hugging Face model page was confirmed. Do not infer checkpoint availability from
+    papers, demos, or third-party mirrors.

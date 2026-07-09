@@ -1,0 +1,203 @@
+id: wan2.1
+name: Wan2.1
+aliases:
+  - wan2.1_t2v
+  - wan2.1_i2v
+  - wan21-t2v
+  - wan21-i2v
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: wan2.1
+tasks:
+  - text-to-video
+  - image-to-video
+provider: official_repo
+runtime_profile: runtime-profile:wan2.1-t2v-1.3b-832x480-81f
+min_vram_gb: 8
+source_status:
+  status: confirmed_official_github
+  github:
+    url: https://github.com/Wan-Video/Wan2.1
+    verified_by: git ls-remote --symref https://github.com/Wan-Video/Wan2.1.git HEAD
+    default_branch: main
+    head_sha: 9737cba9c1c3c4d04b33fcad41c111989865d315
+checkpoint:
+  status: confirmed_public_hf
+  verified_by: GET https://huggingface.co/api/models/<repo_id>
+  repos:
+    - id: Wan-AI/Wan2.1-T2V-1.3B
+      sha: 37ec512624d61f7aa208f7ea8140a131f93afc9a
+      license: apache-2.0
+      private: false
+      gated: false
+      tasks:
+        - text-to-video
+    - id: Wan-AI/Wan2.1-T2V-14B
+      sha: a064a6c71f5be440641209c07bf2a5ce7a2ff5e4
+      license: apache-2.0
+      private: false
+      gated: false
+      tasks:
+        - text-to-video
+    - id: Wan-AI/Wan2.1-I2V-14B-480P
+      sha: 6b73f84e66371cdfe870c72acd6826e1d61cf279
+      license: apache-2.0
+      private: false
+      gated: false
+      tasks:
+        - image-to-video
+    - id: Wan-AI/Wan2.1-I2V-14B-720P
+      sha: 8823af45fcc58a8aa999a54b04be9abc7d2aac98
+      license: apache-2.0
+      private: false
+      gated: false
+      tasks:
+        - image-to-video
+variants:
+  - id: wan2.1-t2v-1.3b
+    task: text-to-video
+    provider: official_repo
+    checkpoint_refs:
+      - repo_id: Wan-AI/Wan2.1-T2V-1.3B
+        revision: 37ec512624d61f7aa208f7ea8140a131f93afc9a
+        license: apache-2.0
+        private: false
+        gated: false
+    runtime_profile: wan2.1-t2v-1.3b-832x480-81f
+    integration:
+      status: planned
+      scope: variant_only
+      evidence:
+        - tmp/model_zoo/validation/wan2.1/report.json
+        - tmp/model_zoo/validation/official_parity/wan2.1/report.json
+        - tmp/model_zoo/validation/runner_parity/wan2.1/report.json
+    demo_parity:
+      status: verified
+      demo_command:
+        - bash
+        - scripts/model_zoo/run_wan21_t2v_1p3b_official_demo.sh
+      expected_artifacts:
+        - path: wan21_t2v_1p3b_seed42_832x480_81f.mp4
+          video_probe:
+            expected_width: 832
+            expected_height: 480
+            expected_frames: 81
+            expected_fps: 16
+            fps_tolerance: 0.01
+            expected_duration_seconds: 5.0625
+            duration_tolerance_seconds: 0.05
+      notes: Verified with the official Wan2.1 T2V-1.3B demo command only.
+    runner_parity:
+      status: verified
+      demo_command:
+        - python
+        - scripts/model_zoo/run_wan21_t2v_1p3b_worldfoundry_runner_demo.py
+      expected_artifacts:
+        - path: wan21_t2v_1p3b_worldfoundry_seed42_832x480_81f.mp4
+          video_probe:
+            expected_width: 832
+            expected_height: 480
+            expected_frames: 81
+            expected_fps: 16
+            fps_tolerance: 0.01
+            expected_duration_seconds: 5.0625
+            duration_tolerance_seconds: 0.05
+      notes: Verified with the WorldFoundry vendored Wan2.1 T2V runtime using the same prompt, seed, checkpoint, resolution, frame count, shift, and CFG scale as the official demo command.
+    runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+    pipeline_binding: wan2.1-t2v-1.3b
+  - id: wan2.1-t2v-14b
+    task: text-to-video
+    provider: official_repo
+    checkpoint_refs:
+      - repo_id: Wan-AI/Wan2.1-T2V-14B
+        revision: a064a6c71f5be440641209c07bf2a5ce7a2ff5e4
+        license: apache-2.0
+        private: false
+        gated: false
+    runtime_profile: wan2.1-t2v-14b
+    demo_parity:
+      status: pending
+    runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+    pipeline_binding: wan2.1-t2v-14b
+    integration:
+      status: integrated
+  - id: wan2.1-i2v-14b-480p
+    task: image-to-video
+    provider: official_repo
+    checkpoint_refs:
+      - repo_id: Wan-AI/Wan2.1-I2V-14B-480P
+        revision: 6b73f84e66371cdfe870c72acd6826e1d61cf279
+        license: apache-2.0
+        private: false
+        gated: false
+    runtime_profile: wan2.1-i2v-14b-480p
+    demo_parity:
+      status: pending
+    runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+    pipeline_binding: wan2.1-i2v-14b-480p
+    integration:
+      status: integrated
+  - id: wan2.1-i2v-14b-720p
+    task: image-to-video
+    provider: official_repo
+    checkpoint_refs:
+      - repo_id: Wan-AI/Wan2.1-I2V-14B-720P
+        revision: 8823af45fcc58a8aa999a54b04be9abc7d2aac98
+        license: apache-2.0
+        private: false
+        gated: false
+    runtime_profile: wan2.1-i2v-14b-720p
+    demo_parity:
+      status: pending
+    runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+    pipeline_binding: wan2.1-i2v-14b-720p
+    integration:
+      status: integrated
+demo_parity:
+  status: verified
+  demo_command:
+    - bash
+    - scripts/model_zoo/run_wan21_t2v_1p3b_official_demo.sh
+  expected_artifacts:
+    - path: wan21_t2v_1p3b_seed42_832x480_81f.mp4
+      video_probe:
+        expected_width: 832
+        expected_height: 480
+        expected_frames: 81
+        expected_fps: 16
+        fps_tolerance: 0.01
+        expected_duration_seconds: 5.0625
+        duration_tolerance_seconds: 0.05
+  official_repo_dir: tmp/model_zoo/repos/github.com_Wan-Video_Wan2.1
+  checkpoint_repo_id: Wan-AI/Wan2.1-T2V-1.3B
+  checkpoint_snapshot: 37ec512624d61f7aa208f7ea8140a131f93afc9a
+  notes: Verified for Wan2.1 T2V-1.3B only ; other Wan2.1 T2V-14B and I2V variants remain pending and keep the family-level integration_status planned.
+runner_parity:
+  status: verified
+  demo_command:
+    - python
+    - scripts/model_zoo/run_wan21_t2v_1p3b_worldfoundry_runner_demo.py
+  expected_artifacts:
+    - path: wan21_t2v_1p3b_worldfoundry_seed42_832x480_81f.mp4
+      video_probe:
+        expected_width: 832
+        expected_height: 480
+        expected_frames: 81
+        expected_fps: 16
+        fps_tolerance: 0.01
+        expected_duration_seconds: 5.0625
+        duration_tolerance_seconds: 0.05
+  notes:
+    - WorldFoundry pipeline target is registered; generated artifact parity still requires the staged checkpoint/runtime environment.
+notes:
+  - Only official Wan-Video GitHub and Wan-AI Hugging Face repos are listed.
+  - Family-level integration_status remains planned because T2V-14B and I2V variants have not passed checkpoint, official demo, and WorldFoundry runner parity.
+catalog_category: video
+catalog_scope: Official GitHub and/or Hugging Face confirmed open-source or open-weight video generation models. Checkpoints are not tracked in git; local validation may download selected repos under cache/hfd.
+catalog_policy:
+  github: Validated with git ls-remote, preferring git ls-remote --symref <repo>.git HEAD for default branch and HEAD SHA.
+  huggingface: Validated with the Hugging Face /api/models endpoint. Recorded repo id, sha, private, gated, license, and selected task tags only.
+  parity: This manifest does not claim WorldFoundry runtime parity unless an explicit parity run and expected artifact are recorded.
+integration:
+  status: integrated
+  notes:
+    - WorldFoundry wraps the in-tree Wan2.1 T2V/I2V runtimes.

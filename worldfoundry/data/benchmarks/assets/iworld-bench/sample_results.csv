@@ -1,0 +1,11 @@
+metric_id,score
+image_quality,0.75
+brightness_consistency,0.75
+color_temperature_constraint,0.75
+sharpness_retention,0.75
+motion_smoothness,0.75
+trajectory_accuracy,0.75
+trajectory_tolerance,0.75
+memory_symmetry,0.75
+trajectory_alignment,0.75
+iworldbench_average,0.75

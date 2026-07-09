@@ -1,0 +1,54 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+availability: open_source
+checkpoints:
+- Skywork/Matrix-Game-3.0
+family: Matrix-Game
+id: matrix-game-3
+integration:
+  notes:
+  - Matrix-Game 3 runtime is vendored under worldfoundry/synthesis/visual_generation/matrix_game/matrix_game_3_runtime.
+  - The wrapper and runner now default to the package runtime root and no longer resolve
+    external repo_root; checkpoint_dir remains an external asset path.
+  - In-tree runtime includes the infer-only video writer needed by the official
+    process_video call; no external Matrix-Game checkout is required at runtime.
+  status: integrated
+license: apache-2.0
+modalities:
+- interactive-world-model
+- streaming
+- long-horizon
+- game-video
+name: Matrix-Game 3.0
+official_sources:
+  github:
+    confirmed_by: git ls-remote --heads
+    confirmed_ref: refs/heads/main
+    url: https://github.com/SkyworkAI/Matrix-Game
+  huggingface:
+  - confirmed_by: https://huggingface.co/api/models/Skywork/Matrix-Game-3.0
+    repo_id: Skywork/Matrix-Game-3.0
+    status: confirmed
+    type: model
+pipeline_binding: matrix-game-3
+release_type: code_and_weights
+runtime_profile: runtime-profile:matrix-game-3
+starred: true
+runner_parity:
+  notes:
+  - The official cityscape image-conditioned demo configuration is represented
+    with actions forward + camera_r, num_iterations=12, num_inference_steps=3,
+    size=704*1280, use_int8=true, compile_vae=true, and vae_type=mg_lightvae.
+  - The in-tree runtime includes the Dynamo alias compatibility needed by the
+    official process_video path.
+  - Per-run visual QA and artifact checks are tracked outside the catalog.
+  status: verified
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models
+catalog_policy:
+  checkpoint_rule: Only list checkpoints that were confirmed on official Hugging Face
+    model pages. Do not download weights.
+  integration_rule: Closed, API-only, or unknown releases stay blocked or planned
+    until an official integration surface is available.
+  open_source_rule: Only mark open_source when an official GitHub repository or official
+    Hugging Face model page was confirmed. Do not infer checkpoint availability from
+    papers, demos, or third-party mirrors.

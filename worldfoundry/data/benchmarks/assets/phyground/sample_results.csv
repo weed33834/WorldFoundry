@@ -1,0 +1,8 @@
+metric_id,score
+semantic_adherence,0.75
+physical_temporal_validity,0.75
+persistence,0.75
+solid_body_score,0.75
+fluid_dynamics_score,0.75
+optics_score,0.75
+phyground_overall,0.75

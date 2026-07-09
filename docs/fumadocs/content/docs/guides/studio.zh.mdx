@@ -1,0 +1,465 @@
+---
+title: Studio
+description: 启动和使用用于 pipeline preview、streaming 和交互式世界模型调试的多前端 Studio。
+---
+
+## 介绍
+
+WorldFoundry Studio 是围绕仓库 pipelines 的薄可视化入口。模型在启动时固定；切换模型族时启动新进程。
+
+Studio 现在有多前端入口：
+
+| Frontend | 适用场景 | 说明 |
+| --- | --- | --- |
+| `world` | 交互世界模型 | 独立的 Studio 原生控制台；使用仓库内置 `load` / `start` / `step` / `reset` API，不走 Gradio。 |
+| `points` | Viser 点云 / mesh | 直接启动原生 Viser，不嵌回游戏机界面。 |
+| `embodied` | 具身智能仿真器 | **计划中。** 目前只是 URL bridge：Studio 登记外部 simulator URL 并给出 tunnel 提示，还没有仓内 embodied viewer。 |
+| `spark` | 3DGS | 启动独立 Spark 3DGS viewer，复用项目内置 Spark frontend，并允许通过 `WORLDFOUNDRY_MODEL_DIR` / `WORLDFOUNDRY_ARTIFACT_DIR` 暴露本地资产。 |
+| `auto` | 默认 | 按模型类型自动路由：交互世界 -> `world`，3D scene -> `spark`，点云/深度 -> `points`，具身策略 -> `embodied`。 |
+
+## 可视化内容
+
+| Surface | 作用 |
+| --- | --- |
+| Preview Video | 最新生成或 streamed video。 |
+| Preview Image | Still-image outputs 和 imported reference frames。 |
+| 3D World | 导出时显示 Gaussian splat、point cloud 或 spatial outputs。 |
+| Gallery | 最近 shots 和 preview artifacts。 |
+| Artifacts | 用于检查和下载的 raw output artifacts。 |
+
+默认情况下，Studio 会隐藏大多数高级面板。使用 `--show-aux-panels` 显示 history、notes、catalog、3DGS import 和低层 runtime controls。
+
+## Workspace 模式
+
+多模型验证和发布 QA 推荐启动 workspace app，而不是单模型 Studio 进程：
+
+```bash
+source tmp/worldfoundry_unified_env.sh
+conda activate "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}"
+```
+
+```bash
+bash scripts/workspace/run_workspace.sh \
+  --host 127.0.0.1 \
+  --port 7870 \
+  --max-jobs 8
+```
+
+如果 checkpoint 或 benchmark 数据不在默认 cache 中，显式传入根目录：
+
+```bash
+bash scripts/workspace/run_workspace.sh \
+  --ckpt-dir /path/to/checkpoints \
+  --data-dir /path/to/benchmark-data
+```
+
+launcher 不依赖任何机器专有路径。资产解析顺序是：命令行参数、已经导出的
+环境变量、repo 同级存在的 `ckpt/` 或 `data/` 目录、`tmp/worldfoundry_unified_env.sh`
+中的 env-file 值，最后回退到 `~/.cache/worldfoundry/...`。
+
+Workspace 必须从模型推理使用的统一 runtime 环境启动，不能从只装了 UI
+依赖的轻量环境启动。CUDA 12.8 机器通常对应
+`worldfoundry-unified-cu128`，先执行 `source tmp/worldfoundry_unified_env.sh`
+再启动 `7870`。如果 **LOAD** 或 **START** 报 `cv2` 等模块缺失，说明当前
+`7870` 进程不是统一 runtime 环境，先重启 workspace，再排查模型代码。
+
+不要在机器之间复制或搬迁已经创建好的 conda 环境。Python、OpenSSL 等原生
+链接可能仍指向旧 prefix，导致浏览器服务能启动，但 resident inference worker
+一运行模型就报缺少 `python3.x`、`cv2`、`libssl` 或 `libcrypto`。遇到这类
+问题，按公开 setup 路径验证或重建统一环境：
+
+```bash
+bash scripts/setup/bootstrap_worldfoundry.sh --verify-only
+source tmp/worldfoundry_unified_env.sh
+bash scripts/workspace/run_workspace.sh
+```
+
+打开：
+
+```text
+http://127.0.0.1:7870/
+```
+
+workspace 是发布验证时推荐使用的 UI。
+它适合提交 inference job、检查不同模型的输入表单、查看生成产物，
+以及在同一个界面里对比多次 run。
+
+Workspace 也支持 evaluation job。以 VBench 为例：选择 **Evaluation**，
+benchmark 选 `vbench`，把生成视频目录填到 **Dataset Root**（或把官方
+VBench results JSON 填到 **Results Path**），**Metrics** 填一个或多个
+dimension，例如 `aesthetic_quality`、`motion_smoothness`，也可以填 preset
+`custom_supported`。VBench 专用 runtime 参数，例如
+`{"mode":"custom_input","load_ckpt_from_local":true}`，写到 **Eval Runtime JSON**。
+
+### Create Job 配置
+
+Workspace UI **没有单独的 Settings 页**。每次提交前在 **Create Job** 对话框里
+定制参数即可。
+
+| 字段分组 | 作用 |
+| --- | --- |
+| Model / variant / task profile | 选择 catalog 条目，以及该模型暴露的官方输入 contract。 |
+| Prompt、input path、动态 task 字段 | 来自 inference contract 的模型专用输入。 |
+| Device、backend、attention | 运行设备与加载路径（`auto`、`from_pretrained`、`api_init`）。 |
+| Frames、FPS、height、width、steps、guidance、seed | 写入 job payload 的生成参数。 |
+| Runtime checks | 可选内存/编译开关，例如 Torch Compile、CPU Offload、VAE Offload、Text Encoder Offload；仅在所选模型声明支持时显示。 |
+| Call JSON / Load JSON | 合并进 `call_kwargs` 和 `load_kwargs` 的高级 override。 |
+
+打开 **Create Job** 或切换 task profile 时，表单会先用 Workspace 启动时加载
+的默认值预填。catalog 和 task profile 中的模型专用官方 demo 值仍优先于这些
+共享默认值。
+
+未配置 settings 文件时的默认值：
+
+| Key | 默认值 |
+| --- | --- |
+| `device` | `cuda`；若设置了 `WORLDFOUNDRY_STUDIO_DEVICE` 则使用该值 |
+| `backend` | `auto` |
+| `attention_backend` | `auto` |
+| `fps` | `16` |
+| `num_frames` | `81` |
+| `height` × `width` | `720` × `1280` |
+| `num_inference_steps` | `30` |
+| `guidance_scale` | `7.5` |
+| `seed` | `-1` |
+| `torch_compile` / `cpu_offload` | `false` |
+
+### 可选的持久化默认值
+
+若希望在 Workspace 重启后仍复用同一套默认值，可指定 JSON settings 文件：
+
+```bash
+export WORLDFOUNDRY_STUDIO_SETTINGS_FILE=/path/to/studio-settings.json
+```
+
+启动时 Workspace 会把该文件加载到 `/api/settings`，Create Job 表单通过
+`GET /api/settings` 读取。运维脚本也可以用 `POST /api/settings` 更新：
+
+```bash
+curl -sS -X POST http://127.0.0.1:7870/api/settings \
+  -H 'Content-Type: application/json' \
+  -d '{"values":{"fps":12,"num_frames":49,"attention_backend":"torch"}}'
+```
+
+未设置 `WORLDFOUNDRY_STUDIO_SETTINGS_FILE` 时，默认值只存在于当前 Workspace
+进程内存中，重启后会恢复为内置默认。
+
+### 快速 job 与 preflight 检查
+
+Workspace inference 默认走快速 job 路径：默认认为 conda 环境、checkpoint
+根目录和 viewer 依赖已经在启动 server 前配置好。正常反复推理时建议保持默认。
+
+只有在环境排障或发布前 preflight 时，再显式打开检查：
+
+| 环境变量 | 默认值 | 作用 |
+| --- | --- | --- |
+| `WORLDFOUNDRY_STUDIO_RUNTIME_CHECKS=strict` | 跳过 | pipeline load 前验证 runtime imports 和本地 model path。 |
+| `WORLDFOUNDRY_STUDIO_CHECK_RUNTIME_COMPLETENESS=1` | 跳过 | 构建 Studio catalog 时重新检查仓内 3D/4D entrypoint 文件。 |
+| `WORLDFOUNDRY_STUDIO_RESIDENT_WORKERS=0` | `auto` | 关闭长驻 conda worker，恢复每个 job 单独启动子进程。 |
+| `WORLDFOUNDRY_STUDIO_RESIDENT_WORKER_MODELS=matrix-game-2` | 所有符合条件的模型 | 只给指定模型启用 resident worker；torchrun/多卡 job 仍走一次性子进程。 |
+| `WORLDFOUNDRY_STUDIO_ARTIFACT_SCAN_MODE=missing` | `missing` | run record 缺少 required artifacts 时才扫描输出目录。 |
+| `WORLDFOUNDRY_STUDIO_ARTIFACT_SCAN_MODE=always` | 默认不启用 | 对未返回 artifact paths 的旧 runtime 强制递归扫描输出目录。 |
+| `WORLDFOUNDRY_STUDIO_ARTIFACT_SCAN_MODE=off` | 默认不启用 | 完全不扫描输出目录，只相信 `preview_*`、`artifact_paths` 和 `rrd_path`。 |
+| `WORLDFOUNDRY_STUDIO_VALIDATE_PREVIEW_VIDEO=1` | 跳过 | 接受 preview video 前先尝试解码。 |
+| `WORLDFOUNDRY_STUDIO_EXTRACT_VIDEO_PREVIEW_IMAGE=1` | 跳过 | 从生成视频中抽取静态 preview image。 |
+| `WORLDFOUNDRY_STUDIO_BUILD_RERUN_PREVIEW=1` | 跳过 | 对 geometry 输出自动构建 `.rrd` preview。 |
+
+为了让 job 完成路径最快，模型 runtime 应该在 run record 中显式返回
+`preview_image`、`preview_video`、`artifact_paths`、`rrd_path` 和 `output_dir`。
+只有旧 runtime 只写文件、不返回路径时，才建议把 artifact scan mode 切到
+`always`。
+
+Resident worker 会让 conda 子进程在多个 job 之间保持存活，因此子进程里的
+`StudioManager` 可以复用 pipeline cache。排查进程启动问题，或希望每个 job
+结束后立刻释放 GPU 显存时，设置 `WORLDFOUNDRY_STUDIO_RESIDENT_WORKERS=0`。
+
+**Visualizers**、**Gallery** 和 **Artifacts** 适合快速视觉 QA。
+这些视图会展示最近生成的视频、图片、manifest 和直接 artifact 链接。
+真正对外声明验证通过前，还需要把对应 run 记录到模型推理验证页。
+
+## Workspace 可视化入口
+
+`7870` Workspace 是整套可视化服务的统一浏览器入口。打开 **Visualizers**
+页面后，每张卡片都有 **Launch**、**Open** 和 **Stop** 按钮。卡片下方会
+嵌入正在运行的 viewer iframe，普通 QA 流程里不需要手动复制 URL。**具身仿真器
+Bridge** 卡片标记为 **计划中**：与 Viser、Spark、Rerun、World Rollout 不同，目前还不会启动仓内 embodied viewer。
+
+<StudioVisualizerGallery locale="zh" />
+
+`world` 默认使用 `7868`。只有部署环境要求固定代理路由时，才需要手动指定端口。
+
+远程机器上使用时，需要暴露 `7870` 和实际启动的 viewer 端口。例如：
+
+```bash
+ssh -L 7870:127.0.0.1:7870 \
+    -L 18590:127.0.0.1:18590 \
+    -L 8765:127.0.0.1:8765 \
+    -L 9876:127.0.0.1:9876 \
+    user@host
+```
+
+## 产物可视化路由
+
+inference job 完成后，Workspace 会扫描 run record 和输出目录里的可视化产物。
+**Artifacts** 页会为支持的文件显示 **Open** 和 **Open in ...** 操作。
+**Job Detail** 只保留内嵌 preview video/image，不再重复 viewer 快捷入口。
+
+| 产物形态 | Viewer |
+| --- | --- |
+| `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.bmp`, `.mp4`, `.mov`, `.webm`, `.mkv`, `.avi`, `.wav`, `.mp3`, `.flac`, `.ogg` media files | Workspace 内联预览和直接 **Open** 链接 |
+| `.ply`, `.pcd`, `.xyz`, `.glb`, `.gltf`, `.obj` geometry files；包含可解释 geometry/depth key 的 `.npz` | Viser Geometry Viewer |
+| `.splat`, `.spz`, `.ksplat`, `.sog` 和 Gaussian-splat `.ply` | Spark Gaussian Splat Viewer |
+| `.rrd` recordings | Rerun Timeline Viewer |
+
+对磁盘上已有的 run，直接在 Workspace 打开该 run，用 **Artifacts** 标签页确认
+viewer 路由。上表是路由参考；具体 run 以 Artifacts 里的 **Open** / **Open in ...**
+按钮为准。
+
+对模型作者来说，最容易复现的方式是把输出写到 Studio run 的输出目录，并在
+run record 中保留稳定路径：
+
+- `preview_image` 或 `preview_video`：用于快速媒体预览。
+- `artifact_paths`：用于原始生成产物。
+- `rrd_path`：用于 Rerun recording。
+- `output_dir`：用于让 Workspace 继续发现目录里的其他文件。
+
+3D reconstruction 模型应该导出浏览器可读的 `.ply`、`.glb`、`.gltf`、`.obj`、
+`.pcd`、`.xyz` 或紧凑点云/depth `.npz`。3DGS 模型应该导出原生 splat 文件，或者
+header 中包含 scale、rotation、opacity、spherical-harmonic color 等 splat
+属性的 binary little-endian Gaussian-splat PLY。Workspace 会在选择 Viser 或
+Spark 前区分普通 PLY geometry 和 Gaussian-splat PLY。
+
+## Studio 截图
+
+这些截图来自当前用于模型发布验证的 `7870` workspace。
+
+| 视图 | 检查重点 |
+| --- | --- |
+| Inference jobs | 已完成 run、内嵌 preview media、状态和日志。 |
+| Create Job | 模型专用输入项和官方 demo 默认值。 |
+| Catalog | world-model 过滤结果和模型 metadata。 |
+| Gallery | 最近生成结果的并排视觉检查。 |
+
+### Inference Jobs
+
+队列会展示已提交 run、最终状态，以及 run record 提供的内嵌 preview video 或
+image。
+
+![Studio inference job queue](/images/studio/screens/studio-inference-jobs.png)
+
+### Create Job
+
+表单应该展示模型真实的输入 contract。
+下面的截图只展示 UI 结构；真正的 release demo 声明应以验证记录和对应 run
+manifest 为准。
+
+![Studio Create Job dialog](/images/studio/screens/studio-create-job-ltx2-3.png)
+
+### Catalog
+
+Catalog 过滤可以用来确认 workspace 提交 job 前能看到哪些 world-model entries。
+
+![Studio catalog filtered to world models](/images/studio/screens/studio-catalog-world-models.png)
+
+### Gallery
+
+Gallery 提供最近 inference outputs 和 preview artifacts 的紧凑视觉检查入口。
+
+
+## 模型推理 Demo 结果
+
+下面的 gallery 只做视觉参考，展示来自仓内 Studio 或 Studio-compatible API run 的
+代表性产物。这里不是 release claim 表；精确参数、环境说明、run id 和剩余风险
+记录在验证 reference 中。本页只嵌入经过筛选的非短测示例。
+
+<div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/skyreels-v3-reference-to-video.mp4" />
+    <figcaption><strong>SkyReels V3</strong><br /><span>Reference-to-video</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/wan2-1-vace-girl-snake.mp4" />
+    <figcaption><strong>Wan2.1 VACE</strong><br /><span>Image/control-to-video</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/hunyuanvideo-t2v-cat-grass-official.mp4" />
+    <figcaption><strong>HunyuanVideo T2V</strong><br /><span>Text-to-video</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/hunyuanvideo-i2v-firework-official.mp4" />
+    <figcaption><strong>HunyuanVideo I2V</strong><br /><span>Image-to-video</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/hunyuanvideo-1-5-t2v-cat.mp4" />
+    <figcaption><strong>HunyuanVideo 1.5 T2V</strong><br /><span>Text-to-video</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/hunyuanvideo-1-5-i2v-firework.mp4" />
+    <figcaption><strong>HunyuanVideo 1.5 I2V</strong><br /><span>Image-to-video</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/ltx2-3-i2v-penguin.mp4" />
+    <figcaption><strong>LTX-2.3 I2V</strong><br /><span>Image-to-video</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/unianimate-dit-human-animation.mp4" />
+    <figcaption><strong>UniAnimate-DiT</strong><br /><span>Human animation</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/matrix-game-2-official-universal.mp4" />
+    <figcaption><strong>Matrix-Game-2</strong><br /><span>Interactive world model</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/matrix-game-3-cityscape.mp4" />
+    <figcaption><strong>Matrix-Game-3</strong><br /><span>Cityscape world model</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/hy-worldplay-official-8gpu.mp4" />
+    <figcaption><strong>HY-WorldPlay</strong><br /><span>Image-pose world video</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/hunyuan-game-craft-village.mp4" />
+    <figcaption><strong>Hunyuan GameCraft</strong><br /><span>Interactive village world</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/worldcam-industrial.mp4" />
+    <figcaption><strong>WorldCam</strong><br /><span>Camera-path world video</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/yume-1p5-jungle-castle.mp4" />
+    <figcaption><strong>YUME-1.5</strong><br /><span>World navigation</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/neoverse-robot-tabletop.mp4" />
+    <figcaption><strong>NeoVerse</strong><br /><span>Robot video-input world model</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/hunyuan-world-voyager-case1.mp4" />
+    <figcaption><strong>HunyuanWorld-Voyager</strong><br /><span>Conditioned world video</span></figcaption>
+  </figure>
+  <figure className="m-0">
+    <Video preload="none" loop muted playsInline controls className="w-full rounded-lg" src="/demos/studio/open-sora-plan-tokyo-street.mp4" />
+    <figcaption><strong>Open-Sora-Plan</strong><br /><span>Text-to-video</span></figcaption>
+  </figure>
+</div>
+
+## 启动矩阵
+
+| 场景 | 命令形状 | 说明 |
+| --- | --- | --- |
+| LingBot realtime | `python -m worldfoundry.studio.app lingbot-world --variant fast --frontend world --device cuda:1` | 独立交互世界前端，最适合 `INIT` + `STEP` 循环。 |
+| LingBot camera | `python -m worldfoundry.studio.app lingbot-world --variant base-camera --device cuda:1` | 更慢，偏 camera-centric profile。 |
+| MatrixGame | `python -m worldfoundry.studio.app matrix-game-2 --device cuda:1` | 交互式 world navigation。 |
+| WorldCam | `python -m worldfoundry.studio.app worldcam --device cuda:1` | Camera-path generation 和 view control。 |
+| Hosted APIs | `python -m worldfoundry.studio.app <model> --backend api_init --endpoint <url>` | Endpoint 在启动时显式固定。 |
+| Viser 点云 | `python -m worldfoundry.studio.app pi3 --frontend points --asset /path/to/scene.ply --port 18590` | 原生 Viser UI。 |
+| Spark 3DGS | `python -m worldfoundry.studio.app vggt --frontend spark --asset /path/to/scene.splat --port 8765` | 独立 Spark canvas，不进入游戏机 shell。 |
+| Embodied simulator | `python -m worldfoundry.studio.app openvla --frontend embodied --simulator-url http://127.0.0.1:9000` | **计划中。** 仅登记外部 simulator URL，不会启动仓内 viewer。 |
+
+推荐本地启动：
+
+```bash
+cd /path/to/WorldFoundry
+PYTHONPATH=. WORLDFOUNDRY_STUDIO_PORT=7868 conda run -p "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}" python -m worldfoundry.studio.app \
+  lingbot-world \
+  --variant fast \
+  --model-ref /path/to/checkpoints/lingbot-world-fast \
+  --device cuda:1
+```
+
+如果当前 checkout 没有安装到环境里，请保留 `PYTHONPATH=.`。
+
+Studio 启动时会打印解析到的 workspace、model、cache 和 Hugging Face cache
+根目录，方便在真正运行前发现路径配置问题。
+
+打开：
+
+```text
+http://127.0.0.1:7868
+```
+
+远程 GPU 节点推荐用 SSH tunnel。
+
+`world` 前端会像 LagerNVS Browser Viewer 一样由远端进程同时 serve 页面和
+WebSocket 控制/帧更新通道。本地浏览器只需要通过 tunnel 访问同一个端口。
+启动日志会打印对应命令，形状如下：
+
+```bash
+ssh -N -L 8765:127.0.0.1:8765 user@gpu-host
+# local browser:
+# http://127.0.0.1:8765
+```
+
+这与 LagerNVS 的 browser viewer 思路一致：渲染/资产服务跑在远端 GPU 节点，
+本地浏览器通过 tunnel 访问同一个 loopback 端口。
+
+页面状态条会显示 `WS VIEW ... / GPU ...`，用于区分浏览器/网络瓶颈和模型端渲染瓶颈。
+如果 WebSocket 不可用，会自动退回 HTTP API。
+
+## 交互模式
+
+| 模式 | 流程 | 最适合 |
+| --- | --- | --- |
+| Image World | 选择示例图或上传 image -> `START` -> 拖动左/右摇杆持续 `STEP` | image-conditioned 交互世界模型。 |
+| Video World | 上传 video -> `START` -> 后续 video-to-video / continuation 流程 | video-conditioned world model。 |
+| Stream | seed input -> `INIT` -> 重复 `STEP` | 交互式世界模型和 continuation。 |
+| Spatial preview | 运行或导出 3D asset -> 打开 `3D World` | Gaussian splat、point cloud 或 scene outputs。 |
+
+键盘/实时控制：
+
+```text
+WASD = move
+Arrow keys / IJKL = look
+```
+
+拖动摇杆或按住键盘方向键时，会等待上一个 step 完成后再发送下一次请求。
+
+## 启动 flags
+
+| Flag | 含义 |
+| --- | --- |
+| positional `model_id` / `--model` | 启动目标。 |
+| `--variant` | Runtime profile，例如 `fast` 或 `base-camera`。 |
+| `--model-ref` / `--ckpt` / `--checkpoint` | 显式 local 或 repo reference。 |
+| `--device` | Runtime device。 |
+| `--backend` | `auto`、`from_pretrained` 或 `api_init`。 |
+| `--endpoint` | 显式 API endpoint。 |
+| `--show-aux-panels` | 显示 history、notes、catalog 和 side panels。 |
+| `--frontend` | `auto`、`world`、`points`、`embodied` 或 `spark`。 |
+| `--asset` | 原生 viewer 的远端资产路径，例如 point cloud `.ply/.npz` 或 3DGS `.splat/.spz/.ply`。 |
+| `--simulator-url` | 具身仿真器原生 URL。 |
+| `--host` / `--port` | 覆盖前端监听地址和端口。 |
+
+## 环境变量
+
+| Variable | 作用 |
+| --- | --- |
+| `WORLDFOUNDRY_WORKSPACE_PORT` | Workspace HTTP 端口（默认 `7870`）。 |
+| `WORLDFOUNDRY_WORKSPACE_MAX_JOBS` | 并发 job worker 上限。 |
+| `WORLDFOUNDRY_STUDIO_SETTINGS_FILE` | 可选 JSON 文件，启动时加载到 `/api/settings`，供 Create Job 默认值使用。 |
+| `WORLDFOUNDRY_STUDIO_PORT` | 单模型 Studio server 端口。 |
+| `WORLDFOUNDRY_STUDIO_MODEL` | Default model id。 |
+| `WORLDFOUNDRY_STUDIO_VARIANT` | Default variant。 |
+| `WORLDFOUNDRY_STUDIO_BACKEND` | Default backend。 |
+| `WORLDFOUNDRY_STUDIO_DEVICE` | Default device。 |
+| `WORLDFOUNDRY_STUDIO_ENDPOINT` | API endpoint。 |
+| `WORLDFOUNDRY_STUDIO_FIXED_MODEL_REF` | 固定 local model/checkpoint ref。 |
+| `WORLDFOUNDRY_STUDIO_SHOW_AUX_PANELS` | 显示高级面板。 |
+| `WORLDFOUNDRY_STUDIO_FRONTEND` | 默认 frontend 路由。 |
+| `WORLDFOUNDRY_STUDIO_ASSET` | 原生 viewer 默认资产。 |
+| `WORLDFOUNDRY_STUDIO_SIMULATOR_URL` | 具身 simulator URL。 |
+| `WORLDFOUNDRY_STUDIO_SPARK_PORT` / `WORLDFOUNDRY_STUDIO_POINTS_PORT` | 各原生前端默认端口。 |
+| `WORLDFOUNDRY_STUDIO_SSH_HOST` | 启动日志中 tunnel 命令使用的 SSH host；设置为用户自己的 GPU 节点，例如 `user@gpu-host`。 |
+| `WORLDFOUNDRY_STUDIO_WORKSPACE_DIR` | Studio run/output 根目录；未设置时优先使用 `${WORLDFOUNDRY_ARTIFACT_DIR}/studio`，否则使用 `tmp/worldfoundry_studio`。 |
+| `WORLDFOUNDRY_STUDIO_MODEL_ROOT` | 额外 local model repo 根目录，会在共享 roots 前优先搜索。 |
+| `WORLDFOUNDRY_MODEL_DIR` | 共享 model/checkpoint 根目录；Studio 会搜索其中的本地 repos 和 checkpoints。 |
+| `WORLDFOUNDRY_CACHE_DIR` | 共享 cache 根目录；Studio 会搜索 `${WORLDFOUNDRY_CACHE_DIR}/hfd` 和 `${WORLDFOUNDRY_CACHE_DIR}/repos`。 |
+| `WORLDFOUNDRY_HF_CACHE_DIR` | 可选 Hugging Face Hub cache 覆盖。默认不设置，交给 Hugging Face 原生 `from_pretrained` / `snapshot_download` 缓存与自动下载策略处理。 |
+
+Studio 只支持 `WORLDFOUNDRY_*` 环境变量。
+
+## 发布证据
+
+只有当对应官方配置已经通过仓内 Studio 或 Studio-compatible API 路径运行后，
+才把 demo media 放到公开文档中。保留对应 run manifest、解码后的视频元数据和
+视觉 QA 记录，确保页面中嵌入的视频可以追溯到实际 release candidate run。

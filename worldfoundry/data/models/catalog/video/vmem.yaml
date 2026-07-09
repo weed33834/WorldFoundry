@@ -1,0 +1,37 @@
+id: vmem
+name: VMem
+tasks:
+- video-generation
+- memory
+- stream
+- interactive-world-model
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/runjiali-rl/vmem
+  license: apache-2.0
+official_sources:
+  paper: https://arxiv.org/abs/2506.18903
+  project_page: https://v-mem.github.io/
+  github:
+    url: https://github.com/runjiali-rl/vmem
+  huggingface:
+  - repo_id: liguang0115/vmem
+    type: model
+    status: confirmed
+  - repo_id: liguang0115/cut3r
+    type: model
+    status: confirmed
+integration:
+  status: runtime_ported
+  notes:
+  - In-tree VMem runtime at worldfoundry/synthesis/visual_generation/vmem/vmem_runtime; no external checkout is required.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: vmem
+runner_parity:
+  status: verified
+  notes:
+  - Studio/API visual validation uses the in-tree VMem runtime with staged VMem and CUT3R checkpoints.
+  - Per-run validation evidence is tracked outside the release catalog.
+catalog_category: video
+catalog_scope: Video-generation and video-token catalog entries. Integrated entries expose WorldFoundry pipeline targets; metadata-only entries retain upstream provenance without runnable WorldFoundry backends.

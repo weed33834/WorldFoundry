@@ -1,0 +1,184 @@
+id: t2vworldbench
+name: T2VWorldBench
+benchmark_kind:
+- text-to-video
+- world-knowledge
+- commonsense
+domains:
+- world-knowledge
+- commonsense
+- video-generation-quality
+modalities:
+- text
+- video
+status: confirmed_official_code
+official_sources:
+  paper_url: https://arxiv.org/abs/2507.18107
+  wacv_page: https://wacv.thecvf.com/virtual/2026/poster/154
+  github:
+    url: https://github.com/magiclinux/world_knowledge
+    verified_by: git ls-remote https://github.com/magiclinux/world_knowledge.git HEAD
+    head_sha: 4c0f18095d1c8053c11dbcfc8382ef9e4d9b768a
+  prompt_manifest: worldfoundry/data/benchmarks/assets/t2vworldbench/prompt/prompt.csv
+  full_data_drive: https://drive.google.com/drive/folders/1-E9CPJf-M6_RuATjIfpYfiUEFhEYwuaF
+  license: unknown_pending_review
+  access_notes: Official code and prompt CSV are public; full metadata/sample videos are linked from the official repo 
+    through Google Drive and require manual staging.
+dataset:
+  not_applicable: true
+  reason: Official prompt CSV is vendored in the public repo; full metadata/sample videos are Drive-hosted and generated
+    videos are supplied by the caller.
+evaluation_surface:
+  purpose: Paper-described world-knowledge benchmark for T2V generation.
+  categories: 6
+  subcategories: 60
+  claimed_prompts: 1200
+  requires_public_data_release: false
+  requires_runtime_release: false
+  requires_generated_videos: true
+metrics:
+- id: physics_knowledge
+  name: Physics Knowledge
+  description: T2VWorldBench physics world-knowledge score.
+  higher_is_better: true
+  leaderboard_key: physics
+  aggregator: mean
+  output_unit: score
+- id: nature_knowledge
+  name: Nature Knowledge
+  description: T2VWorldBench nature world-knowledge score.
+  higher_is_better: true
+  leaderboard_key: nature
+  aggregator: mean
+  output_unit: score
+- id: activity_knowledge
+  name: Activity Knowledge
+  description: T2VWorldBench activity world-knowledge score.
+  higher_is_better: true
+  leaderboard_key: activity
+  aggregator: mean
+  output_unit: score
+- id: culture_knowledge
+  name: Culture Knowledge
+  description: T2VWorldBench culture world-knowledge score.
+  higher_is_better: true
+  leaderboard_key: culture
+  aggregator: mean
+  output_unit: score
+- id: causality_knowledge
+  name: Causality Knowledge
+  description: T2VWorldBench causality world-knowledge score.
+  higher_is_better: true
+  leaderboard_key: causality
+  aggregator: mean
+  output_unit: score
+- id: object_knowledge
+  name: Object Knowledge
+  description: T2VWorldBench object world-knowledge score.
+  higher_is_better: true
+  leaderboard_key: object
+  aggregator: mean
+  output_unit: score
+- id: world_knowledge_average
+  name: World Knowledge Average
+  description: Mean over available world-knowledge categories.
+  higher_is_better: true
+  leaderboard_key: world_knowledge_average
+  aggregator: mean
+  output_unit: score
+  primary: true
+runner:
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:T2VWorldBenchContract
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - t2vworldbench
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <official_results.json>
+  - --generated-artifact-dir
+  - <generated_videos>
+  - --output-dir
+  - <out>
+  - --json
+  runtime:
+    kind: in_tree_official_source
+    root: worldfoundry/evaluation/tasks/execution/runners/t2vworldbench/runtime/t2vworldbench
+    repo_url: https://github.com/magiclinux/world_knowledge.git
+    repo_revision: 4c0f18095d1c8053c11dbcfc8382ef9e4d9b768a
+    root_env: WORLDFOUNDRY_T2VWORLDBENCH_ROOT
+    results_path_env: WORLDFOUNDRY_T2VWORLDBENCH_RESULTS_PATH
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  expected_artifacts:
+  - scorecard.json
+  - benchmark_contract.json
+  - raw_metric_table.jsonl
+  verification_status: pending
+  notes:
+  - WorldFoundry normalizes caller-provided T2VWorldBench official result files through the unified benchmark-run 
+    entrypoint.
+  - Full official VLM evaluation requires generated videos, staged Drive metadata/sample assets, and the upstream LLaVA 
+    runtime.
+  - Scorecards remain non-leaderboard setup evidence until full official runtime parity is verified.
+  required_env:
+  - WORLDFOUNDRY_T2VWORLDBENCH_RESULTS_PATH
+integration:
+  status: integrated
+  blocked_reasons:
+  - Official repository/source metadata and the official-result normalizer are integrated.
+  - Full validation requires generated videos and manually staged official Drive metadata/sample assets.
+  - Leaderboard parity requires upstream VLM runtime and normalized official result files.
+release_status: experimental
+maturity: contract_ready
+open_source_status: in_tree_runtime
+official_benchmark_verified: false
+integration_evidence: true
+leaderboard_valid: false
+requires:
+- WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+- official_results_path or WORLDFOUNDRY_T2VWORLDBENCH_RESULTS_PATH
+- prompt file or in-tree prompt metadata for official runtime execution
+- Generated videos and staged official metadata for full runtime parity
+blockers:
+- Official repository/source metadata and the official-result normalizer are integrated.
+- Full validation requires generated videos and manually staged official Drive metadata/sample assets.
+- Leaderboard parity requires upstream VLM runtime and normalized official result files.
+data_refs:
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/t2vworldbench.yaml
+  in_tree_runtime_paths:
+  - worldfoundry/evaluation/tasks/execution/runners/t2vworldbench/runtime/t2vworldbench
+official_runner_script: 
+  worldfoundry/evaluation/tasks/execution/runners/t2vworldbench/run_t2vworldbench_official_runner.py
+runner_availability:
+  available: true
+  runner_target: worldfoundry.evaluation.tasks.contracts.external:T2VWorldBenchContract
+  runner_script_available: true
+  task_yaml_available: true
+  runtime_verified: true
+  surface: t2vworldbench_official_in_tree
+  normalizer_verified: true
+optional_base_model_dependencies:
+- video_world_perception_stack
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- t2vworldbench
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.json>
+- --generated-artifact-dir
+- <generated_videos>
+- --output-dir
+- <out>
+- --json
+checkpoint_refs: []
+artifact_layout:
+  generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  output_artifact: benchmark_scorecard
+  filename_template: scorecard.json

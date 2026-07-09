@@ -1,0 +1,38 @@
+id: unik3d-prior
+name: UniK3D Prior
+aliases:
+- unik3d
+- unik3d-vitl
+tasks:
+- panoramic-depth-estimation
+- metric-3d-estimation
+- geometry-prior
+provider: official_repo
+source:
+  status: source_available
+  official_repo_url: https://github.com/lpiccinelli-eth/UniK3D
+  hf_repo_id: lpiccinelli/unik3d-vitl
+  license: cc-by-nc-4.0
+checkpoint_refs:
+- repo_id: lpiccinelli/unik3d-vitl
+  filename: model.safetensors
+integration:
+  kind: pipeline_runner
+  status: integrated
+  notes:
+  - Integrated as an independent panoramic geometric prior at worldfoundry/base_models/three_dimensions/depth/unik3d.
+  - The default checkpoint is resolved through Hugging Face from lpiccinelli/unik3d-vitl
+    or an explicit local model_path override.
+  - The upstream release is CC-BY-NC-4.0; downstream users must respect the non-commercial
+    license terms when enabling this prior.
+base_model_target: worldfoundry.base_models.three_dimensions.depth.unik3d
+runtime_profile: runtime-profile:unik3d-prior
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - Real prior inference is wired through the shared geometry-prior pipeline/operator
+    contract and requires checkpoint access at runtime.
+catalog_category: three_d_four_d
+catalog_scope: Independent geometric prior integrations used by 3D and world-model
+  runtimes.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner

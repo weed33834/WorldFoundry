@@ -1,0 +1,20 @@
+name: worldfoundry
+channels:
+  - conda-forge
+  - pytorch
+  - nvidia
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - setuptools
+  - wheel
+  - packaging
+  - git
+  - git-lfs
+  - ffmpeg
+  - cmake
+  - ninja
+  - pkg-config
+  - libgl
+  - libglib

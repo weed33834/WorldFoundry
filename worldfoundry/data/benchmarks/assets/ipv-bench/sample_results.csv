@@ -1,0 +1,8 @@
+metric_id,score
+visual_quality,0.82
+prompt_following,0.76
+impossible_video_score,0.61
+judgement_accuracy,0.73
+mcqa_accuracy,0.68
+open_qa_score,0.54
+ipv_bench_average,0.69

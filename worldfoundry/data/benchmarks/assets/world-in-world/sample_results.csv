@@ -1,0 +1,9 @@
+metric_id,score
+active_recognition_success_rate,0.75
+image_goal_navigation_success_rate,0.75
+image_goal_navigation_spl,0.75
+active_embodied_qa_score,0.75
+active_embodied_qa_spl,0.75
+robotic_manipulation_success_rate,0.75
+interaction_trace_consistency,0.75
+world_in_world_average,0.75

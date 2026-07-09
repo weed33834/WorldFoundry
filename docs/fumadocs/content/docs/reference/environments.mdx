@@ -1,0 +1,265 @@
+---
+title: Environments
+description: Choose the dependency stack for each model family, benchmark runtime, and validation stage.
+---
+
+## Introduction
+
+An environment is the dependency and launch context expected by a model or benchmark: Python packages, CUDA/Torch bucket, optional system tools, checkpoint layout, device assumptions, and command shape.
+
+The repository still uses `runtime_profile` as a metadata field because it points to a concrete environment record in `worldfoundry/data/models/runtime/profiles/<model-id>.yaml`. In reader-facing docs, this page calls the same concept an environment.
+
+WorldFoundry uses conda as the single supported environment path. The documented workflow creates one named conda environment for the main framework and separate conda environments only when an upstream simulator or official runtime requires isolation.
+
+1. Start with `bash scripts/setup/bootstrap_worldfoundry.sh` for model inference.
+2. Use `bash scripts/setup/model_env_install.sh --list` to inspect every model-to-env mapping, or `--model <model-id>` when you need the exact env for one model.
+3. Stay in the unified env when the resolved profile is `worldfoundry-unified-<tier>`.
+4. Switch to a dedicated env only when `runtime/environments/<category>/<model-id>.yaml` records an ABI or simulator constraint.
+5. Use benchmark-specific scripts only for official metrics, reference metrics, or physics stacks.
+
+## Clone-to-run Setup Scripts
+
+Run these scripts from the repository root. They are part of the public release
+surface, not local machine notes.
+
+- **`scripts/setup/bootstrap_worldfoundry.sh`** — First command after cloning the repo. Creates/verifies the unified env, writes `tmp/worldfoundry_unified_env.sh`, optionally installs model-specific envs, optionally prepares model assets, and prints the Workspace launch command.
+- **`scripts/setup/unified_install.sh`** — Main GPU runtime only. Creates `worldfoundry-unified-<cuda-tier>` and installs `requirements/worldfoundry-unified.txt`, PyTorch CUDA wheels, optional flash-attn, and import/CUDA checks.
+- **`scripts/setup/model_env_install.sh`** — Per-model environment resolution. Reads `worldfoundry/data/models/runtime/environments/**`; routes compatible profiles back to the unified env and creates dedicated envs only for hard ABI conflicts.
+- **`scripts/inference/prepare_model_infer.sh`** — Checkpoint/Hugging Face preparation per model. Defaults to a plan/check-local flow. Add `--download` only after reviewing license, gated access, and storage requirements.
+- **`scripts/workspace/run_workspace.sh`** — Start the browser Workspace from an activated runtime. Keeps `PYTHONPATH=.`, `WORLDFOUNDRY_WORKSPACE_MAX_JOBS`, and `WORLDFOUNDRY_CKPT_DIR` explicit.
+
+Recommended fresh-clone path:
+
+```bash
+git clone https://github.com/OpenEnvision/WorldFoundry.git
+cd WorldFoundry
+
+bash scripts/setup/bootstrap_worldfoundry.sh
+source tmp/worldfoundry_unified_env.sh
+conda activate "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}"
+```
+
+Environment prefixes are machine-local artifacts. If an existing checkout reports a missing `python3.x`, missing native module, or
+`libssl`/`libcrypto` error, recreate the environment or run the public verifier:
+
+```bash
+bash scripts/setup/bootstrap_worldfoundry.sh --verify-only
+```
+
+Review a model before downloading checkpoints:
+
+```bash
+bash scripts/setup/bootstrap_worldfoundry.sh \
+  --with-model matrix-game-2 \
+  --prepare-model matrix-game-2
+```
+
+Download public assets only when ready:
+
+```bash
+export HF_TOKEN=<your-token-if-needed>
+bash scripts/setup/bootstrap_worldfoundry.sh \
+  --with-model matrix-game-2 \
+  --prepare-model matrix-game-2 \
+  --download-model-assets
+```
+
+`--download-model-assets` forwards to each model's preparation script. It does
+not bypass Hugging Face gates; users must accept model terms upstream and
+provide `HF_TOKEN` or `HUGGING_FACE_HUB_TOKEN` themselves.
+
+For a multi-model workstation, install the unified env once and then verify
+exceptions explicitly:
+
+```bash
+bash scripts/setup/bootstrap_worldfoundry.sh \
+  --with-model lingbot-world \
+  --with-model octo \
+  --prepare-model lingbot-world \
+  --prepare-model octo
+```
+
+Start the Workspace after setup:
+
+```bash
+source tmp/worldfoundry_unified_env.sh
+conda activate "${WORLDFOUNDRY_UNIFIED_ENV_PREFIX}"
+PYTHONPATH=. WORLDFOUNDRY_WORKSPACE_MAX_JOBS=8 \
+python -m worldfoundry.studio.workspace_app --host 127.0.0.1 --port 7870
+```
+
+Use explicit roots when datasets or checkpoints should live on shared storage:
+
+```bash
+bash scripts/setup/bootstrap_worldfoundry.sh \
+  --home /path/to/worldfoundry-home \
+  --data-root /path/to/worldfoundry-data \
+  --model-root /path/to/worldfoundry-models
+```
+
+## Runtime Variables
+
+`bootstrap_worldfoundry.sh` and `unified_install.sh` write the same sourceable env
+file. Keep this file local to the machine; it contains paths but no secrets.
+
+| Variable | Written by setup | Purpose |
+| --- | --- | --- |
+| `WORLDFOUNDRY_HOME` | yes | Root for local runtime state. |
+| `WORLDFOUNDRY_REPO_ROOT` | yes | Absolute path to the checked-out WorldFoundry repository. |
+| `WORLDFOUNDRY_CACHE_DIR` | yes | General cache root. |
+| `WORLDFOUNDRY_DATA_DIR` | yes | Dataset and benchmark data root. |
+| `WORLDFOUNDRY_MODEL_DIR` | yes | Model asset root. |
+| `WORLDFOUNDRY_CKPT_DIR` | yes | Compatibility checkpoint root for non-HF layouts and soft links. |
+| `WORLDFOUNDRY_ARTIFACT_DIR` | yes | Generated outputs and validation artifacts. |
+| `WORLDFOUNDRY_CONDA_ENVS_ROOT` | yes | Parent directory for unified and dedicated conda envs. |
+| `WORLDFOUNDRY_UNIFIED_ENV_PREFIX` | yes | Absolute path of the main conda env. |
+| `WORLDFOUNDRY_CUDA_PROFILE` | yes | Resolved CUDA wheel tier, normally `cu128` on CUDA 12.8+ hosts. |
+| `HF_HOME`, `HF_HUB_CACHE`, `HF_DATASETS_CACHE` | yes | Hugging Face cache roots when using a WorldFoundry-managed cache. |
+| `HF_TOKEN`, `HUGGING_FACE_HUB_TOKEN` | no | Optional user-provided credentials for gated assets. Never commit these. |
+
+Prefer native Hugging Face loading (`from_pretrained`, `snapshot_download`, and
+standard HF cache variables) for public checkpoints. Use `WORLDFOUNDRY_CKPT_DIR`
+for upstream runtimes that require a fixed directory layout or for local soft
+links that preserve official paths without duplicating large files.
+
+## Dedicated Model Environment Exceptions
+
+Start from `worldfoundry-unified-<cuda-tier>` for every model. Create a
+dedicated environment only for the profiles below, where the upstream runtime
+has a real ABI or framework-family conflict with the unified CUDA stack.
+
+Install one exception with:
+
+```bash
+bash scripts/setup/model_env_install.sh --model <model-id>
+```
+
+For model setup, prefer `scripts/inference/prepare_model_infer.sh`; it installs
+the resolved environment first and then checks or downloads assets. Use
+`scripts/setup/model_env_install.sh` directly only when you want to prepare the
+conda env without touching checkpoints.
+
+<div className="pi-env-model-table">
+
+| Model | Dedicated env | Setup command | Notes |
+| --- | --- | --- | --- |
+| `ac3d` | `ac3d` | `bash scripts/inference/prepare_model_infer.sh ac3d --download` | Official runtime pins Python 3.10, PyTorch 2.4, and CUDA 12.4. Runtime code is in tree under `worldfoundry/synthesis/visual_generation/ac3d/ac3d_runtime`; only checkpoints/assets are external. |
+| `gen3c` | `gen3c` | `bash scripts/inference/prepare_model_infer.sh gen3c --download` | Cosmos Predict1 stack with Python 3.10, CUDA 12.4, torch 2.6, Transformer Engine, Apex, and MoGe. The setup script patches Transformer Engine links and builds Apex from source against the conda CUDA toolchain. |
+| `lyra-1` | `lyra` | `bash scripts/inference/prepare_model_infer.sh lyra-1 --download` | Uses the same Cosmos Predict1 / Transformer Engine / Apex family as GEN3C. |
+| `magi-1` | `magi-official-cu124` | `bash scripts/inference/prepare_model_infer.sh magi-1 --download` | Official stack is Python 3.10.12 with PyTorch 2.4 / CUDA 12.4. Keep flash-attn and flashinfer in this env because their wheels are ABI-sensitive. |
+| `warp-as-history` | `warp-as-history` | `bash scripts/inference/prepare_model_infer.sh warp-as-history --download` | Pins Python 3.10, torch 2.5.0+cu121, diffusers 0.36, transformers 4.51, and peft 0.17. |
+| `hunyuanvideo-t2v` | `HunyuanVideo` | `bash scripts/inference/prepare_model_infer.sh hunyuanvideo-t2v --download` | Original HunyuanVideo T2V CLI stack with older diffusers/xfuser compatibility. HunyuanVideo-1.5 is not part of this exception and runs in the unified env. |
+| `hunyuanvideo-i2v` | `HunyuanVideo` | `bash scripts/inference/prepare_model_infer.sh hunyuanvideo-i2v --download` | Shares the original HunyuanVideo env with T2V. The I2V runtime uses the in-tree official image-to-video script and its own I2V checkpoint layout. |
+| `kairos-sensenova` | `kairos-sensenova` | `bash scripts/inference/prepare_model_infer.sh kairos-sensenova --download` | Uses the official torch/CUDA 12.6-class stack and native attention packages such as SageAttention. Use this env when unified CUDA does not provide the Kairos attention stack. |
+| `lingbot-world` | `lingbot-world` | `bash scripts/inference/prepare_model_infer.sh lingbot-world --download` | Parity requires exact torch and flash-attn pins. The unified env produced invalid near-black act2cam output in upstream-style tests. |
+| `wonderworld` | `wonderworld` | `bash scripts/inference/prepare_model_infer.sh wonderworld --download` | Inference imports PyTorch3D CUDA extensions. Build or install PyTorch3D wheels compatible with this env before running the official path. |
+| `wonderjourney` | `wonderworld` | `bash scripts/inference/prepare_model_infer.sh wonderjourney --download` | Shares the WonderWorld PyTorch3D extension environment and uses in-tree WonderJourney runtime code. |
+| `hunyuan-game-craft` | `HYGameCraft` | `bash scripts/inference/prepare_model_infer.sh hunyuan-game-craft --download` | Official inference relies on HYGameCraft plus torchrun sequence parallelism. Set `cuda_visible_devices` / `torchrun_nproc_per_node` explicitly on shared GPU machines. |
+| `octo` | `worldfoundry-octo-jax` | `bash scripts/inference/prepare_model_infer.sh octo --download` | JAX CUDA 11.8, Flax 0.7.5, TensorFlow, dlimp, and Octo tokenizer assets are isolated from the PyTorch CUDA env. |
+| `openvla-oft` | `worldfoundry-vla-openvla-compat-cu121` | `bash scripts/inference/prepare_model_infer.sh openvla-oft --download` | Prismatic/OpenVLA-compatible stack with older transformers/timm/tokenizers. Use this env for LIBERO/ALOHA OpenVLA-OFT inference. |
+| `cogact` | `worldfoundry-vla-openvla-compat-cu121` | `HF_TOKEN=<token> bash scripts/inference/prepare_model_infer.sh cogact --download` | Shares the OpenVLA compatibility env. Real inference also needs gated `meta-llama/Llama-2-7b-hf` config/tokenizer access through `HF_TOKEN` or `HUGGING_FACE_HUB_TOKEN`. |
+| `lingbot-va` | `lingbot-va` | `bash scripts/inference/prepare_model_infer.sh lingbot-va --download` | Prepare-only profile for the official Python 3.10, torch 2.9, CUDA 12.6, flash-attn stack; stage the LingBot-VA base/posttrain checkpoints before rollout. |
+| `being-h05` | `beingh` | `bash scripts/inference/prepare_model_infer.sh being-h05 --download` | Prepare-only profile. Stage all Being-H0.5 checkpoints; full `get_action` parity needs the upstream policy stack and more headroom than a single 80GB GPU profile. |
+| `dreamdojo` | `dreamdojo` | `bash scripts/inference/prepare_model_infer.sh dreamdojo --download` | Prepare-only profile for the official torchcodec/CUDA 12.8 setup on H100-class hosts. Stage the GR-1 eval dataset before enabling real command templates. |
+
+</div>
+
+EvalCrafter is the only current benchmark metric exception rather than a
+generation model exception; see the benchmark section below.
+
+## Unified Environment With Extra Runtime Requirements
+
+The models below should still use `worldfoundry-unified-<cuda-tier>`, but their
+docs should call out extra local assets, compiled wheels, or external services.
+These are not reasons to clone an external repository; the code path is in-tree.
+
+| Model or family | Extra requirement | Notes |
+| --- | --- | --- |
+| SkyReels V3 | CUDA compiler, flash-attn, and torchao for the official 8-GPU USP path. | Use `unified_install.sh` without `--skip-flash-attn` or build flash-attn through `scripts/setup/install_flash_attn.sh`. |
+| Matrix-Game-3 | Flash-attn. | FA3 may be requested by config; FA2 fallback is acceptable on A100 validation hosts. |
+| HunyuanWorld-Mirror | CUDA/PyTorch-matched `gsplat` wheel. | Remains a unified-env model when the wheel matches the active torch stack. |
+| pixelSplat | Local Gaussian rasterization extension and `re10k.ckpt`. | The model wrapper is in tree; only the extension/checkpoint are local prerequisites. |
+| LingBot-Map | Optional FlashInfer. | The wrapper defaults to SDPA, so FlashInfer is not mandatory for baseline inference. |
+| OpenPI / LAPA / MME-VLA | JAX policy dependencies, `gsutil` for some OpenPI checkpoint shards, and optional OpenPI-style websocket or robot-simulator services for full policy rollout. | WorldFoundry keeps code in tree; these requirements are runtime services or checkpoint-transfer tools, not external repo clones. |
+| Solaris | JAX/Orbax checkpoint loading and official HF evaluation fixtures. | Uses the unified env in WorldFoundry; document the dataset/checkpoint layout rather than a separate conda env. |
+
+## Benchmark Metric Environments
+
+Most benchmark official validation runs and official-result normalizers run in the
+unified environment. Full official metric suites can require a separate conda
+profile when their dependency stack would disturb model inference. Install those
+profiles through the same public setup entrypoint:
+
+```bash
+bash scripts/setup/model_env_install.sh --model evalcrafter
+```
+
+EvalCrafter is the current benchmark exception. Normalizing an existing
+`final_result.txt` works in `worldfoundry-unified-<tier>`. Running the full
+official metric suite needs `worldfoundry-evalcrafter-metrics` because the
+official scorer combines TensorFlow/DeepFace, PaddleOCR, DOVER/scikit-video,
+PyTorch video metrics, and MMAction2/MMCV action recognition.
+
+The in-tree code keeps reusable foundation models under `worldfoundry/base_models`:
+
+| Component | In-tree location | Notes |
+| --- | --- | --- |
+| DeepFace runtime | `worldfoundry/base_models/perception_core/face/deepface` | Reused by EvalCrafter celebrity identity scoring; benchmark celebrity assets stay under the EvalCrafter runner. |
+| DOVER runtime | `worldfoundry/base_models/perception_core/video_quality/dover` | Reused by video-quality metrics; checkpoints resolve from `WORLDFOUNDRY_DOVER_CKPT`, `WORLDFOUNDRY_EVALCRAFTER_CHECKPOINTS_DIR`, or `WORLDFOUNDRY_CKPT_DIR`. |
+| VideoMAE action recipe | `worldfoundry/base_models/perception_core/action_recognition/videomae_mmaction` | Only the EvalCrafter-used VideoMAEv2 config and Kinetics-400 label map are vendored. MMAction2 is installed as an environment dependency, not copied as framework source. |
+
+Stage EvalCrafter metric assets under the standard checkpoint root or set
+explicit variables:
+
+```bash
+export WORLDFOUNDRY_EVALCRAFTER_ROOT=worldfoundry/evaluation/tasks/execution/runners/evalcrafter/runtime/evalcrafter
+export WORLDFOUNDRY_EVALCRAFTER_CHECKPOINTS_DIR="${WORLDFOUNDRY_CKPT_DIR}/evalcrafter"
+export WORLDFOUNDRY_DOVER_CKPT="${WORLDFOUNDRY_EVALCRAFTER_CHECKPOINTS_DIR}/DOVER/pretrained_weights/DOVER.pth"
+export WORLDFOUNDRY_VIDEOMAE_K400_CKPT="${WORLDFOUNDRY_EVALCRAFTER_CHECKPOINTS_DIR}/VideoMAE/vit-base-p16_videomaev2-vit-g-dist-k710-pre_16x4x1_kinetics-400_20230510-3e7f93b2.pth"
+```
+
+The full EvalCrafter official run also needs the generated-video directory to
+contain direct `0000.mp4` through `0699.mp4` files. The runner rejects outer
+dataset roots before invoking the official metrics.
+
+## Embodied Simulator Environments
+
+The host setup is Docker plus the unified WorldFoundry environment:
+
+```bash
+bash scripts/setup/bootstrap_worldfoundry.sh
+source tmp/worldfoundry_unified_env.sh
+docker pull ghcr.io/allenai/vla-evaluation-harness/robotwin:latest
+worldfoundry-eval embodied run \
+  --config worldfoundry/data/benchmarks/eval_configs/embodied/robotwin/eval.yaml \
+  --pull-docker
+```
+
+Benchmark configs that have a `docker.image` entry, either directly or through
+`worldfoundry/data/benchmarks/runtime_profiles/official/<benchmark>.yaml`, are
+launched through `worldfoundry/evaluation/tasks/embodied/docker_runner.py`.
+Inside the container, simulator dependencies are provided by the image. On the
+host, only mount datasets/checkpoints/results and provide the policy server
+endpoint.
+
+## Troubleshooting
+
+When working with complex setups involving CUDA, simulators, or external evaluators, you may encounter environment issues:
+
+### 1. CUDA Mismatch
+**Symptom**: `CUDA error: no kernel image is available for execution on the device` or PyTorch cannot find a GPU.
+**Solution**: Ensure your NVIDIA driver is up-to-date and supports the CUDA version installed by Conda. If you are on an older driver, you can force the installation script to use an older CUDA wheel bucket:
+```bash
+bash scripts/setup/unified_install.sh --cuda cu121
+```
+
+### 2. Missing System Dependencies (e.g., for OpenGL/3D)
+**Symptom**: Errors relating to `libGL.so.1`, `EGL`, or headless rendering failures when running embodied simulators or 3D benchmarks.
+**Solution**: Install the required system-level graphics libraries. On Ubuntu/Debian:
+```bash
+sudo apt-get update && sudo apt-get install -y libgl1-mesa-glx libglib2.0-0
+```
+
+### 3. Flash Attention Installation Fails
+**Symptom**: The unified install script hangs or fails during `flash-attn` compilation.
+**Solution**: `flash-attn` is extremely sensitive to mismatched CUDA compiler (`nvcc`) versions. Ensure your `nvcc --version` matches the PyTorch CUDA version. Alternatively, you can disable `flash-attn` installation by passing `--skip-flash-attn` (if supported by your environment) or installing a pre-compiled wheel from the official release page.

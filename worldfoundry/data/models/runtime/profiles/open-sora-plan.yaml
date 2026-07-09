@@ -1,0 +1,23 @@
+schema_version: 2
+model_id: open-sora-plan
+display_name: Open-Sora-Plan
+task_family: video_generation
+groups: [video, text_to_video]
+source_repos:
+- url: https://github.com/PKU-YuanGroup/Open-Sora-Plan
+checkpoints:
+- repo_id: LanguageBind/Open-Sora-Plan-v1.3.0
+  role: t2v_checkpoint
+- repo_id: google/mt5-xxl
+  role: text_encoder
+input_schema:
+  prompt: true
+artifact_kind: generated_video
+artifact_filename: open-sora-plan.mp4
+execution:
+  backend_stage: official_runtime_bridge
+  runtime_status: integrated_checkpoint_required
+  integration_status: integrated
+  pipeline_binding: open-sora-plan
+integration:
+  status: integrated

@@ -1,0 +1,87 @@
+id: ltx-video
+name: LTX-Video
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: ltx-video
+runtime_profile: runtime-profile:ltx-video-i2v
+tasks:
+  - text-to-video
+  - image-to-video
+source_status:
+  status: confirmed_official_github
+  github:
+    url: https://github.com/Lightricks/LTX-Video
+    verified_by: git ls-remote --symref https://github.com/Lightricks/LTX-Video.git HEAD
+    default_branch: main
+    head_sha: 4b2d053057623ddd4d0a1d3e9cd28890e9ef487f
+checkpoint:
+  status: confirmed_public_hf
+  verified_by: GET https://huggingface.co/api/models/<repo_id>
+  repos:
+    - id: Lightricks/LTX-Video
+      sha: 8984fa25007f376c1a299016d0957a37a2f797bb
+      license: other
+      private: false
+      gated: false
+      tasks:
+        - image-to-video
+    - id: Lightricks/LTX-Video-0.9.5
+      sha: e58e28c39631af4d1468ee57a853764e11c1d37e
+      license: other
+      private: false
+      gated: false
+      tasks:
+        - text-to-video
+        - image-to-video
+    - id: Lightricks/LTX-Video-0.9.7-dev
+      sha: 2101082f5eb5540770a2df43747feadb6f69b889
+      license: other
+      private: false
+      gated: false
+      tasks:
+        - text-to-video
+        - image-to-video
+    - id: Lightricks/LTX-Video-0.9.8-13B-distilled
+      sha: 7c64400e1861cc0d7b98d570a1926d5408ec60cd
+      license: other
+      private: false
+      gated: false
+      tasks:
+        - image-to-video
+  notes: Several similarly named repos returned 401 or were non-official mirrors and are not listed.
+demo_parity:
+  status: pending
+  notes:
+    - The in-tree LTX-Video I2V route is wired with local checkpoint assets,
+      reference image, fps, guidance_scale, resolution, frame count, step count,
+      and seed controls.
+    - Full upstream parity remains pending; per-run artifact checks are tracked
+      outside the model catalog.
+notes: License is reported as 'other' in the official HF cards.
+catalog_category: video
+catalog_scope: Official GitHub and/or Hugging Face confirmed open-source or open-weight video generation models. Checkpoints are not tracked in git; local validation may download selected repos under cache/hfd.
+catalog_policy:
+  github: Validated with git ls-remote, preferring git ls-remote --symref <repo>.git HEAD for default branch and HEAD SHA.
+  huggingface: Validated with the Hugging Face /api/models endpoint. Recorded repo id, sha, private, gated, license, and selected task tags only.
+  parity: This manifest does not claim WorldFoundry runtime parity unless an explicit parity run and expected artifact are recorded.
+integration:
+  status: integrated
+  notes:
+    - WorldFoundry wraps the in-tree LTX-Video I2V runtime.
+runner_parity:
+  status: pending
+  notes:
+    - WorldFoundry LTX-Video I2V pipeline target is registered.
+    - Broader T2V/I2V upstream parity remains a separate validation stage.
+variants:
+  - id: ltx-video-i2v
+    task: image-to-video
+    runtime_profile: ltx-video-i2v
+    runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+    pipeline_binding: ltx-video-i2v
+    integration:
+      status: integrated
+    runner_parity:
+      status: pending
+      notes:
+        - The in-tree LTX-Video I2V route is wired; per-run artifact checks are
+          tracked outside the model catalog.

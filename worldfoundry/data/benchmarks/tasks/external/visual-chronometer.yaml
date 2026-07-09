@@ -1,0 +1,148 @@
+benchmark: visual-chronometer
+description: Visual Chronometer external benchmark task manifest for in-tree PhyFPS prediction.
+tags:
+- benchmark-zoo
+- external-official
+- visual-chronometer
+- temporal-consistency
+splits:
+- standard
+metrics:
+  mean_phyfps:
+    aggregation: mean
+  inter_video_cv:
+    aggregation: mean
+  intra_video_cv:
+    aggregation: mean
+  visual_chronometer_average:
+    aggregation: mean
+    primary: true
+metadata:
+  source_kind: benchmark_zoo
+  benchmark_id: visual-chronometer
+  contract_validation_command: worldfoundry-eval zoo benchmark-run --benchmark-id visual-chronometer --mode contract 
+    --output-dir tmp/benchmark_zoo/benchmark_contract/visual-chronometer --json
+  official_runner_target: worldfoundry.evaluation.tasks.contracts.external:VisualChronometerContract
+  official_runner_command: worldfoundry-eval zoo benchmark-run
+  artifact_layout:
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+    output_artifact: benchmark_scorecard
+    filename_template: scorecard.json
+  runtime:
+    kind: in_tree_official_runtime
+    repo_url: https://github.com/taco-group/Visual_Chronometer.git
+    revision: 0dc1fd68641f476f18e76c9d1d0931278c02a386
+    root: worldfoundry/evaluation/tasks/execution/runners/phyfps_bench_gen/runtime/visual_chronometer
+    root_env: WORLDFOUNDRY_VISUAL_CHRONOMETER_ROOT
+    optional_root_env: WORLDFOUNDRY_VISUAL_CHRONOMETER_ROOT
+    results_path_env: WORLDFOUNDRY_VISUAL_CHRONOMETER_RESULTS_PATH
+    generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  release_status: experimental
+  maturity: contract_ready
+  official_benchmark_verified: false
+  integration_evidence: true
+  leaderboard_valid: false
+  requires:
+  - WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+  - Visual Chronometer checkpoint assets for full official prediction
+  framework_acceptance:
+  - WorldFoundry Visual Chronometer integration is OK when in-tree PhyFPS prediction or caller-supplied results.csv and 
+    generated videos pass strict coverage checks and all declared metrics are normalized.
+  data_refs:
+    task_yaml: worldfoundry/data/benchmarks/tasks/external/visual-chronometer.yaml
+    in_tree_runtime_paths:
+    - worldfoundry/evaluation/tasks/execution/runners/phyfps_bench_gen/runtime/visual_chronometer
+  runner_availability:
+    available: true
+    runner_target: worldfoundry.evaluation.tasks.contracts.external:VisualChronometerContract
+    runner_script_available: true
+    task_yaml_available: true
+    runtime_verified: true
+    credential_gated: false
+    framework_ready: true
+    surface: visual_chronometer_official_in_tree
+    normalizer_verified: false
+  open_source_status: in_tree_runtime
+  local_evaluator:
+    target: worldfoundry/evaluation/tasks/execution/runners/phyfps_bench_gen/run_visual_chronometer_official_runner.py
+    status: implemented
+    protocol: visual_chronometer_official_in_tree
+  official_result_entrypoint: worldfoundry-eval zoo benchmark-run
+  run_command: PYTHONPATH=. "${WORLDFOUNDRY_UNIFIED_PYTHON:-python}" 
+    worldfoundry/evaluation/tasks/execution/runners/phyfps_bench_gen/run_visual_chronometer_official_runner.py 
+    --run-official --generated-artifact-dir "${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}" --output-dir 
+    "${WORLDFOUNDRY_BENCHMARK_OUTPUT_DIR}" --json
+  integration_status: integrated
+  official_runner_script: 
+    worldfoundry/evaluation/tasks/execution/runners/phyfps_bench_gen/run_visual_chronometer_official_runner.py
+  status: integrated
+  blockers:
+  - Full leaderboard parity requires the complete official assets, generated artifacts, and verified scorecard evidence.
+  checkpoint_refs: []
+  validation_command:
+  - worldfoundry-eval
+  - zoo
+  - benchmark-run
+  - --benchmark-id
+  - visual-chronometer
+  - --mode
+  - official-validation
+  - --official-results-path
+  - <results.csv>
+  - --generated-artifact-dir
+  - <generated_videos>
+  - --output-dir
+  - <out>
+  - --json
+tasks:
+  visual_chronometer_standard:
+    benchmark_name: visual-chronometer
+    protocol: external_official_benchmark
+    capability_track: temporal_consistency_video_generation
+    input_keys:
+    - generated_video
+    output_keys:
+    - predicted_phyfps
+    metric_ids:
+    - mean_phyfps
+    - inter_video_cv
+    - intra_video_cv
+    - visual_chronometer_average
+    metric_groups:
+    - visual_chronometer
+    tags:
+    - benchmark-zoo
+    - visual-chronometer
+    metadata:
+      source_kind: benchmark_zoo
+      benchmark_id: visual-chronometer
+      official_benchmark_verified: false
+      integration_evidence: true
+      leaderboard_valid: false
+    dataset:
+      split: standard
+    runtime_requirements:
+      in_tree_runtime: worldfoundry/evaluation/tasks/execution/runners/phyfps_bench_gen/runtime/visual_chronometer
+      optional_root_env: WORLDFOUNDRY_VISUAL_CHRONOMETER_ROOT
+      generated_artifact_dir_env: WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+      results_path_env: WORLDFOUNDRY_VISUAL_CHRONOMETER_RESULTS_PATH
+    artifact_contract:
+      required:
+        generated_video:
+          kind: video
+    evaluation_protocol:
+    - name: external_official_runner
+      metric_ids:
+      - mean_phyfps
+      - inter_video_cv
+      - intra_video_cv
+      - visual_chronometer_average
+      runner_target: worldfoundry.evaluation.tasks.contracts.external:VisualChronometerContract
+      runner_script: 
+        worldfoundry/evaluation/tasks/execution/runners/phyfps_bench_gen/run_visual_chronometer_official_runner.py
+      required_inputs:
+      - generated video artifacts
+      - Visual Chronometer checkpoint/runtime or caller-provided results.csv
+      framework_acceptance:
+      - Set WORLDFOUNDRY_VISUAL_CHRONOMETER_STRICT=1 for formal integration checks.
+      official_result_entrypoint: worldfoundry-eval zoo benchmark-run

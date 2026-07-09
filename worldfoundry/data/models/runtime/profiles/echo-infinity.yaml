@@ -1,0 +1,34 @@
+schema_version: 2
+model_id: echo-infinity
+display_name: Echo-Infinity
+task_family: video_generation
+groups:
+- video
+- autoregressive_video
+source_repos:
+- url: https://github.com/Echo-Team-Joy-Future-Academy-JD/Echo-Infinity
+- url: https://huggingface.co/Echo-Team/Echo-Infinity
+checkpoints:
+- role: echo_infinity_generator
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Echo-Infinity/checkpoints/echo_infinity.pt
+- role: wan2_1_t2v_1_3b
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/wan_models/Wan2.1-T2V-1.3B
+input_schema:
+  prompt: true
+  image: false
+  video: false
+  actions:
+  - seed
+artifact_kind: generated_video
+artifact_filename: echo-infinity.mp4
+execution:
+  backend_stage: official_in_tree_runtime
+  runtime_status: official_in_tree_runtime_ready
+  integration_status: integrated
+  pipeline_binding: echo-infinity
+  pipeline_binding: echo-infinity
+integration:
+  status: integrated
+notes:
+- Echo-Infinity runtime code is vendored in-tree as an infer-only runtime.
+- Training, prompt datasets, demo scripts, and checkpoint download helpers are intentionally not packaged.

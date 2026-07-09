@@ -1,0 +1,37 @@
+"""KID computation via in-tree torch-fidelity (Inception-v3 kernel MMD)."""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Any
+
+from worldfoundry.evaluation.tasks.metrics._shared.torch_fidelity import calculate_metrics
+
+
+def _parse_numeric_result(result: dict[str, Any]) -> dict[str, float]:
+    return {str(key): float(value) for key, value in result.items() if isinstance(value, (int, float))}
+
+
+def compute_kid(
+    reference: str | Path | Sequence[str | Path],
+    generated: str | Path | Sequence[str | Path],
+    *,
+    batch_size: int = 64,
+    cuda: bool = True,
+    feature_extractor: str = "inception-v3-compat",
+    **kwargs: Any,
+) -> dict[str, float]:
+    result = calculate_metrics()(
+        input1=str(reference),
+        input2=str(generated),
+        batch_size=batch_size,
+        cuda=cuda,
+        feature_extractor=feature_extractor,
+        kid=True,
+        **kwargs,
+    )
+    return _parse_numeric_result(result)
+
+
+__all__ = ["compute_kid"]

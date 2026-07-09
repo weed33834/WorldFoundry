@@ -1,0 +1,31 @@
+conda_packages:
+- python
+- pip
+- ffmpeg
+cuda_profile: cu128
+driver_status: compatible
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: hunyuan-worldplay
+notes:
+- Workspace model id is hunyuan-worldplay; route it to the existing project-local worldplay env instead of falling back to
+  the base process.
+- Use the shared CUDA 12.8 environment for the official image-pose-video route with torchrun support.
+- 'Do not default to ${WORLDFOUNDRY_CONDA_ROOT}/hunyuanworld-mirror on GPU: its torch 2.4.0+cu124 probe could not initialize
+  CUDA and should remain preflight_only.'
+pip_packages:
+- torch
+- torchvision
+- numpy
+- opencv-python
+- diffusers
+- transformers
+- loguru
+- decord
+python: '3.11'
+validation_imports:
+- torch
+- numpy
+- cv2
+- decord
+- loguru

@@ -1,0 +1,6 @@
+network:
+  name: worldfoundry.base_models.perception_core.frame_interpolation.amt.networks.AMT-L.Model
+  params:
+    corr_radius: 3
+    corr_lvls: 4
+    num_flows: 5

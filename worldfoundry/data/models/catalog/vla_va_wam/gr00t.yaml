@@ -1,0 +1,75 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+aliases:
+- groot
+- gr00t-n1
+- gr00t-n1.7
+availability: open_source
+checkpoint:
+  repo_id: nvidia/GR00T-N1-2B
+  requires_auth: true
+  revision: fc879581ca32f4f6d6e02cf0cc80452f6b0c3873
+id: gr00t
+integration:
+  notes:
+  - NVIDIA license/access and runtime command must be validated before integrated
+    status.
+  - GR00T runtime source is vendored in-tree; py_compile, import/from_pretrained,
+    checkpoint metadata parsing, and plan-only predict passed.
+  - Checkpoint-backed predict is verified with local nvidia--Cosmos-Reason2-2B and
+    nvidia--GR00T-N1.7-LIBERO/libero_10 on CUDA 11.8; simulator rollout validation
+    remains separate.
+  status: runtime_ported
+license: other:nvidia-open-model-license
+name: NVIDIA GR00T
+official_sources:
+  github:
+    head_sha: 3df8b3825d67f755e69141446f4315f281b9b7e6
+    url: https://github.com/NVIDIA/Isaac-GR00T
+  huggingface:
+  - repo_id: nvidia/GR00T-N1-2B
+    revision: fc879581ca32f4f6d6e02cf0cc80452f6b0c3873
+    status: confirmed
+  - repo_id: nvidia/GR00T-N1.7-LIBERO
+    requires_auth: true
+    revision: 2ea293aa20ba7cf5bbf3ba17a5fbcb1a01cbfe21
+    status: confirmed
+  - gated: auto
+    repo_id: nvidia/Cosmos-Reason2-2B
+    requires_auth: true
+    revision: 9ce19a195e423419c349abfc86fd07178b230561
+    role: reasoner_model
+    status: local_checkpoint_staged_weight_gpu_probe_verified_real_predict_verified
+pipeline_binding: gr00t
+provider: official_repo
+runtime_profile: runtime-profile:gr00t
+tasks:
+- vla
+- vla.policy_rollout
+- humanoid_policy
+variants:
+- checkpoint_refs:
+  - repo_id: nvidia/GR00T-N1-2B
+    requires_auth: true
+    revision: fc879581ca32f4f6d6e02cf0cc80452f6b0c3873
+  id: gr00t-n1-2b
+  integration_status: runtime_ported
+  notes:
+  - WorldFoundry vendors GR00T official runtime under worldfoundry/synthesis/action_generation/gr00t/gr00t_runtime;
+    real predict requires a GR00T dependency environment.
+  task: vla.policy_rollout
+- checkpoint_refs:
+  - repo_id: nvidia/GR00T-N1.7-LIBERO
+    requires_auth: true
+    revision: 2ea293aa20ba7cf5bbf3ba17a5fbcb1a01cbfe21
+    status: local_checkpoint_staged_real_predict_verified
+  id: gr00t-n1.7-libero
+  integration_status: runtime_ported
+  notes:
+  - WorldFoundry vendors GR00T official runtime under worldfoundry/synthesis/action_generation/gr00t/gr00t_runtime.
+  - Real predict with the staged LIBERO checkpoint loaded local nvidia--Cosmos-Reason2-2B
+    on CUDA 11.8 with SDPA and emits the configured action trace schema.
+  task: vla.policy_rollout
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint
+  metadata, and runtime-profile planning records. Runner or pipeline targets are present
+  only after a complete in-tree WorldFoundry model runtime is registered and validated.

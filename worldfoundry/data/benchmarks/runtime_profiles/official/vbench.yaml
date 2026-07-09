@@ -1,0 +1,81 @@
+benchmark_ids:
+- vbench
+bounded_official_gpu_validation:
+  status: verified
+  dimension: aesthetic_quality
+  generated_video_count: 1
+  official_benchmark_verified: true
+  integration_evidence: true
+  leaderboard_valid: false
+  full_suite_verified: false
+  verified: true
+  scope: bounded_official_gpu_validation
+  scorecard: 
+    tmp/local_open_eval/vbench_zeroscope_aesthetic_official_gpu_validation_after_prompt_file_fix_20260525/scorecard.json
+blocked_reason: Bounded VBench aesthetic_quality official GPU validation passed on generated ZeroScope output; 
+  full-suite 仍需完整生成视频和 detectron2 等重依赖维度。
+environment_id: worldfoundry-unified-cu128
+id: vbench
+name: VBench
+needs_new_env: false
+notes:
+- Full VBench suite still needs complete generated videos and detectron2-heavy dimensions. torch CUDA 11.8, 
+  torch.cuda.is_available() true, one-element CUDA tensor sum 2.0.'
+base_model_dependencies:
+- vbench_perception_metric_stack
+base_model_dependency_preflight:
+  status: ready
+  notes:
+  - VBench source is integrated under the version-specific in-tree runner runtime.
+  - CLIP, DINOv2, GroundingDINO, SAM/SAM2/SAM3, and RAFT are tracked as reusable WorldFoundry base-model assets for 
+    VBench-family metric dimensions.
+  - Detectron2-specific upstream dimensions remain external official-runtime dependencies.
+  missing: []
+preflight_command: PYTHONPATH=worldfoundry/evaluation/tasks/execution/runners/vbench/runtime:. 
+  ${WORLDFOUNDRY_CONDA_ENVS_ROOT}/worldfoundry-unified-cu128/bin/python -m 
+  worldfoundry.evaluation.tasks.execution.orchestration.runtime_preflight --profile vbench --manifest 
+  worldfoundry/data/benchmarks/runtime_profiles/official/vbench.yaml --output-dir tmp/worldfoundry_preflight/vbench 
+  --json
+python_path: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}/worldfoundry-unified-cu128/bin/python
+pythonpath_roots:
+- worldfoundry/evaluation/tasks/execution/runners/vbench/runtime
+required_assets:
+  in_tree_source_paths:
+  - worldfoundry/evaluation/tasks/execution/runners/vbench/runtime
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/vbench.yaml
+  scorecard_paths:
+  - tmp/local_open_eval/vbench_zeroscope_aesthetic_official_gpu_validation_after_prompt_file_fix_20260525/scorecard.json
+required_env:
+- WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+required_imports:
+- torch
+- torchvision
+- numpy
+- cv2
+- decord
+- sentencepiece
+- vbench
+required_packages:
+- torch
+- torchvision
+- numpy
+- opencv-python
+- decord
+- sentencepiece
+- In-tree VBench source package via PYTHONPATH
+required_paths:
+- id: official_runner_script
+  path: worldfoundry/evaluation/tasks/execution/runners/vbench/run_vbench_official_runner.py
+- id: task_yaml
+  path: worldfoundry/data/benchmarks/tasks/external/vbench.yaml
+- id: in_tree_vbench_source
+  path: worldfoundry/evaluation/tasks/execution/runners/vbench/runtime
+requires_cuda_visibility: true
+validation_command:
+- ${WORLDFOUNDRY_UNIFIED_PYTHON}
+- worldfoundry/evaluation/tasks/execution/runners/vbench/run_vbench_official_runner.py
+- run
+- --mode
+- custom_input
+- --dimension
+- aesthetic_quality

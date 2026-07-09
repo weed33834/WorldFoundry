@@ -1,0 +1,135 @@
+id: wan2.2
+name: Wan2.2
+aliases:
+  - wan-2p2
+  - wan2p2
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+runtime_profile: runtime-profile:wan2.2-ti2v-5b-1280x704-121f
+tasks:
+  - text-to-video
+  - image-to-video
+  - text-image-to-video
+source_status:
+  status: confirmed_official_github
+  github:
+    url: https://github.com/Wan-Video/Wan2.2
+    verified_by: git ls-remote --symref https://github.com/Wan-Video/Wan2.2.git HEAD
+    default_branch: main
+    head_sha: 42bf4cfaa384bc21833865abc2f9e6c0e67233dc
+checkpoint:
+  status: confirmed_public_hf
+  verified_by: GET https://huggingface.co/api/models/<repo_id>
+  repos:
+    - id: Wan-AI/Wan2.2-T2V-A14B
+      sha: c8c270b13ee05bfa474194ac9fb07a5868a97cea
+      license: apache-2.0
+      private: false
+      gated: false
+      tasks:
+        - text-to-video
+    - id: Wan-AI/Wan2.2-I2V-A14B
+      sha: 206a9ee1b7bfaaf8f7e4d81335650533490646a3
+      license: apache-2.0
+      private: false
+      gated: false
+      tasks:
+        - image-to-video
+    - id: Wan-AI/Wan2.2-TI2V-5B
+      sha: 921dbaf3f1674a56f47e83fb80a34bac8a8f203e
+      license: apache-2.0
+      private: false
+      gated: false
+      tasks:
+        - text-to-video
+        - image-to-video
+variants:
+  - id: wan2.2-ti2v-5b
+    task: text-image-to-video
+    provider: official_repo
+    checkpoint_refs:
+      - repo_id: Wan-AI/Wan2.2-TI2V-5B
+        revision: 921dbaf3f1674a56f47e83fb80a34bac8a8f203e
+        license: apache-2.0
+        private: false
+        gated: false
+    runtime_profile: wan2.2-ti2v-5b-1280x704-121f
+    min_vram_gb: 24
+    demo_parity:
+      status: pending_demo
+      demo_command:
+        - bash
+        - scripts/model_zoo/run_wan22_ti2v_5b_official_demo.sh
+      expected_artifacts:
+        - path: wan22_ti2v_5b_seed42_1280x704_121f.mp4
+          min_size_bytes: 1000000
+          video_probe:
+            min_frames: 100
+            min_width: 1000
+            min_height: 600
+            min_fps: 20
+            max_fps: 30
+    runner_parity:
+      status: pending_demo
+      demo_command:
+        - python
+        - scripts/model_zoo/run_wan22_ti2v_5b_worldfoundry_runner_demo.py
+      expected_artifacts:
+        - path: wan22_ti2v_5b_worldfoundry_seed42_1280x704_121f.mp4
+          min_size_bytes: 1000000
+          video_probe:
+            min_frames: 100
+            min_width: 1000
+            min_height: 600
+            min_fps: 20
+            max_fps: 30
+      notes: Uses the WorldFoundry Wan2.2 TI2V-5B pipeline with the same prompt, seed, checkpoint, resolution, frame count, shift, CFG scale, dtype conversion, and offload settings as the official demo command. Official 121-frame parity remains pending.
+    runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+    pipeline_binding: wan2.2-ti2v-5b
+    integration:
+      status: integrated
+demo_parity:
+  status: pending_checkpoint_and_demo
+  demo_command:
+    - bash
+    - scripts/model_zoo/run_wan22_ti2v_5b_official_demo.sh
+  expected_artifacts:
+    - path: wan22_ti2v_5b_seed42_1280x704_121f.mp4
+      min_size_bytes: 1000000
+      video_probe:
+        min_frames: 100
+        min_width: 1000
+        min_height: 600
+        min_fps: 20
+        max_fps: 30
+  official_repo_dir: tmp/model_zoo/repos/github.com_Wan-Video_Wan2.2
+  checkpoint_repo_id: Wan-AI/Wan2.2-TI2V-5B
+  checkpoint_snapshot: 921dbaf3f1674a56f47e83fb80a34bac8a8f203e
+  notes: Official TI2V-5B parity command is wired but must pass after checkpoint download and GPU execution before Wan2.2 can be marked integrated.
+runner_parity:
+  status: pending_demo
+  demo_command:
+    - python
+    - scripts/model_zoo/run_wan22_ti2v_5b_worldfoundry_runner_demo.py
+  expected_artifacts:
+    - path: wan22_ti2v_5b_worldfoundry_seed42_1280x704_121f.mp4
+      min_size_bytes: 1000000
+      video_probe:
+        min_frames: 100
+        min_width: 1000
+        min_height: 600
+        min_fps: 20
+        max_fps: 30
+  notes:
+    - WorldFoundry pipeline target is registered; generated artifact parity still requires the staged checkpoint/runtime environment.
+    - Official 121-frame parity remains pending.
+notes: Wan2.2 is tracked separately from Wan2.1 because code and checkpoint repos are versioned separately upstream.
+catalog_category: video
+catalog_scope: Official GitHub and/or Hugging Face confirmed open-source or open-weight video generation models. Checkpoints are not tracked in git; local validation may download selected repos under cache/hfd.
+catalog_policy:
+  github: Validated with git ls-remote, preferring git ls-remote --symref <repo>.git HEAD for default branch and HEAD SHA.
+  huggingface: Validated with the Hugging Face /api/models endpoint. Recorded repo id, sha, private, gated, license, and selected task tags only.
+  parity: This manifest does not claim WorldFoundry runtime parity unless an explicit parity run and expected artifact are recorded.
+integration:
+  status: integrated
+  notes:
+    - WorldFoundry wraps the in-tree Wan2.2 TI2V runtime.

@@ -1,0 +1,88 @@
+benchmark_ids:
+- videoverse
+credential_gated_reason: VideoVerse official-run executes the in-tree Gemini/local-VLM judge; set GEMINI_API_KEY or 
+  WORLDFOUNDRY_VIDEOVERSE_GEMINI_API_KEY for production runs.
+environment_id: worldplay-video-judge
+id: videoverse
+name: VideoVerse
+needs_new_env: false
+notes:
+- WorldFoundry runs the VideoVerse judge in-tree and normalizes eval_res.json through the dedicated benchmark-run 
+  entrypoint.
+- The runner checks prompt/result/video coverage and records canonical 300-prompt suite eligibility.
+- Official prompt manifests are bundled under worldfoundry/data/benchmarks/assets/videoverse.
+- Formal framework validation should set WORLDFOUNDRY_VIDEOVERSE_STRICT=1 and require scorecard 
+  integration_evidence=true.
+- Leaderboard parity requires audited Gemini/API judge execution evidence and generated artifacts for the full prompt 
+  suite.
+preflight_command: PYTHONPATH=. ${WORLDFOUNDRY_CONDA_ROOT}/worldplay/bin/python -m 
+  worldfoundry.evaluation.tasks.execution.orchestration.runtime_preflight --profile videoverse --manifest 
+  worldfoundry/data/benchmarks/runtime_profiles/official/videoverse.yaml --output-dir 
+  tmp/worldfoundry_preflight/videoverse --json
+python_path: ${WORLDFOUNDRY_CONDA_ROOT}/worldplay/bin/python
+required_assets:
+  bundled_asset_paths:
+  - worldfoundry/data/benchmarks/assets/videoverse/prompt/prompts_of_VideoVerse.json
+  - worldfoundry/data/benchmarks/assets/videoverse/prompt/prompts_of_VideoVerse_decomposed.json
+  task_yaml: worldfoundry/data/benchmarks/tasks/external/videoverse.yaml
+required_env:
+- WORLDFOUNDRY_GENERATED_ARTIFACT_DIR
+optional_env:
+- WORLDFOUNDRY_VIDEOVERSE_STRICT
+- WORLDFOUNDRY_VIDEOVERSE_PROMPT_MANIFEST
+- WORLDFOUNDRY_VIDEOVERSE_DECOMPOSED_PROMPT_MANIFEST
+- WORLDFOUNDRY_VIDEOVERSE_JUDGE_BACKEND
+- WORLDFOUNDRY_VIDEOVERSE_GEMINI_API_KEY
+- GEMINI_API_KEY
+- WORLDFOUNDRY_VIDEOVERSE_LOCAL_VLM_PATH
+- WORLDFOUNDRY_VIDEOVERSE_VIDEO_BASE_URL
+- WORLDFOUNDRY_VIDEOVERSE_RESULTS_PATH
+required_imports:
+- numpy
+- cv2
+- decord
+- openai
+required_packages:
+- numpy
+- opencv-python
+- decord
+- openai
+required_paths:
+- id: official_runner_script
+  path: worldfoundry/evaluation/tasks/execution/runners/videoverse/run_videoverse_official_runner.py
+- id: task_yaml
+  path: worldfoundry/data/benchmarks/tasks/external/videoverse.yaml
+requires_cuda_visibility: false
+status: official_runtime_ready
+optional_imports:
+- numpy
+- google.genai
+base_model_dependencies:
+- videoverse_dataset_assets
+optional_base_model_dependencies:
+- video_quality_motion_stack
+official_run_command:
+- PYTHONPATH=.
+- "${WORLDFOUNDRY_UNIFIED_PYTHON:-python}"
+- worldfoundry/evaluation/tasks/execution/runners/videoverse/run_videoverse_official_runner.py
+- --run-official
+- --generated-artifact-dir
+- "${WORLDFOUNDRY_GENERATED_ARTIFACT_DIR}"
+- --output-dir
+- "${WORLDFOUNDRY_BENCHMARK_OUTPUT_DIR}"
+- --json
+validation_command:
+- worldfoundry-eval
+- zoo
+- benchmark-run
+- --benchmark-id
+- videoverse
+- --mode
+- official-validation
+- --official-results-path
+- <official_results.json>
+- --generated-artifact-dir
+- <generated_videos>
+- --output-dir
+- <out>
+- --json

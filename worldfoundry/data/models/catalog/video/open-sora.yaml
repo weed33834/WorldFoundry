@@ -1,0 +1,61 @@
+id: open-sora
+name: Open-Sora
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+runtime_profile: runtime-profile:open-sora
+tasks:
+- text-to-video
+source_status:
+  status: confirmed_official_github
+  github:
+    url: https://github.com/hpcaitech/Open-Sora
+    verified_by: git ls-remote --symref https://github.com/hpcaitech/Open-Sora.git
+      HEAD
+    default_branch: main
+    head_sha: 7ad6a96a135feb81f755c84fb391818718f6beb2
+checkpoint:
+  status: confirmed_public_hf
+  verified_by: GET https://huggingface.co/api/models/<repo_id>
+  repos:
+  - id: hpcai-tech/OpenSora-STDiT-v3
+    sha: 9a8583918505ee93bd9fae8dd5ce32e1f9334c71
+    license: apache-2.0
+    private: false
+    gated: false
+    tasks:
+    - text-to-video
+  - id: hpcai-tech/OpenSora-VAE-v1.2
+    sha: 33d153e9b5a9f771a8a84f98bd3f46458a8ed0bf
+    license: apache-2.0
+    private: false
+    gated: false
+    tasks:
+    - video-autoencoder
+  - id: hpcai-tech/OpenSora-STDiT-v1-HQ-16x512x512
+    sha: 45dcc2854df21b814108ac4abf4956965dac72b1
+    license: apache-2.0
+    private: false
+    gated: false
+    tasks:
+    - text-to-video
+  notes: OpenSora-STDiT-v2 candidate returned 401 in this pass and is not listed.
+integration:
+  status: integrated
+  notes:
+  - WorldFoundry route is complete; missing checkpoint/assets are reported at runtime.
+demo_parity:
+  status: pending
+  notes: No WorldFoundry runtime or official-output parity run was performed for this
+    manifest update.
+notes: Open-Sora often requires separate model and VAE repos; both confirmed public
+  HF repos are listed.
+catalog_category: video
+catalog_scope: Official GitHub and/or Hugging Face confirmed open-source or open-weight
+  video generation models. Checkpoints are not tracked in git; local validation may
+  download selected repos under cache/hfd.
+catalog_policy:
+  github: Validated with git ls-remote, preferring git ls-remote --symref <repo>.git
+    HEAD for default branch and HEAD SHA.
+  huggingface: Validated with the Hugging Face /api/models endpoint. Recorded repo
+    id, sha, private, gated, license, and selected task tags only.
+  parity: This manifest does not claim WorldFoundry runtime parity unless an explicit
+    parity run and expected artifact are recorded.

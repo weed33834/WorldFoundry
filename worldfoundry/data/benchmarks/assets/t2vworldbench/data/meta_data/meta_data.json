@@ -1,0 +1,15 @@
+[
+    {
+      "id": "Chopsticks",
+      "number": "0001",
+      "prompt": "The primary utensil used for eating noodles in many East Asian cultures",
+      "explanation":"Chopsticks, which are a pair of equal-length sticks used as the traditional eating utensils in East Asia"
+    },
+    {
+      "id": "Mongolia",
+      "number": "0002",
+      "prompt": "A traditional dwelling in the country, whose capital is Ulaanbaatar",
+      "explanation":"A Yurt (or Ger), which is the traditional portable round tent used by nomads in Mongolia"
+
+    }
+  ]

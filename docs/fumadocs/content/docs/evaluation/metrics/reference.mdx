@@ -1,0 +1,296 @@
+---
+title: Registry & reference
+description: MetricRegistry discovery, registered-metric tables, CLI surface, checkpoints, and package layout.
+---
+
+import { MetricQuickNav } from '@/components/metric-quick-nav';
+
+<MetricQuickNav locale="en" variant="hub" />
+
+## MetricRegistry
+
+The default registry loads all built-in entries from `BUILTIN_METRIC_REGISTRY_ENTRIES` in `registry.py`.
+
+### Discovery
+
+```bash
+worldfoundry-eval metric list
+worldfoundry-eval metric list --json
+
+worldfoundry-eval metric show fid
+worldfoundry-eval metric show clip-score --json
+
+worldfoundry-eval metric validate fid clip_score has_artifact:generated_artifact
+```
+
+Registry keys are normalized case-insensitively with hyphens instead of underscores (`clip_score`, `clip-score`, and `clipscore` resolve to the same entry). Parameterized ids use a prefix:
+
+| Pattern | Example | Meaning |
+| --- | --- | --- |
+| `has_artifact:<name>` | `has_artifact:generated_artifact` | Returns 1 when the named artifact exists on a result. |
+| `numeric:<name>` | `numeric:reward` | Emits the numeric field `<name>` from result metadata/scores. |
+
+### Python API
+
+```python
+from worldfoundry.evaluation.tasks.metrics.registry import (
+    default_metric_registry,
+    list_metric_registry_entries,
+    validate_metric_ids,
+    create_existing_results_metric,
+)
+
+# List all registered entries
+for entry in list_metric_registry_entries():
+    print(entry.id, entry.family, entry.aliases)
+
+# Resolve alias → canonical id
+registry = default_metric_registry()
+entry = registry.get("clip-score")
+canonical = registry.canonical_metric_id("numeric:reward")
+
+# Bulk validation
+payload = validate_metric_ids(["fid", "unknown_metric"])
+assert payload["ok"] is False
+
+# Build offline evaluator for scorecard runs
+metric = create_existing_results_metric(
+    metrics=["artifact_count", "has_artifact:video"],
+    required_artifacts=["generated_artifact"],
+)
+```
+
+## Registered metrics
+
+Direction: **↑** higher is better, **↓** lower is better.
+
+### Image distribution (`family=distribution`)
+
+Set-level metrics comparing reference and generated image collections. Torch-fidelity metrics (`fid/`, `kid/`, `inception_score/`, …) share vendored code under `_shared/vendor/torch_fidelity/`; standalone helpers include Clean-FID, CMMD, IPR, Vendi, Rarity, and `fwd/vendor/pytorchfwd`.
+
+| Metric | Aliases | Direction | Primary API |
+| --- | --- | --- | --- |
+| inception_score | is, isc | ↑ | `compute_inception_score(images_dir)` |
+| fid | frechet-inception-distance, clip-fid, clip_fid, fid-vid, fid_vid, fvid, swav-fid, swav_fid, scene-fid, scene_fid, object-crop-fid | ↓ | `compute_fid(...)`; variants via `feature_extractor` or `compute_scene_fid` |
+| kid | kernel-inception-distance | ↓ | `compute_kid(...)` |
+| precision_recall | prc, precision-recall | ↑ | `compute_precision_recall(...)` |
+| fwd | frechet-wavelet-distance | ↓ | `compute_fwd(...)` |
+| cmmd | clip-mmd, clip_mmd | ↓ | `compute_cmmd(reference_dir, eval_dir)` |
+| ppl | perceptual-path-length, perceptual_path_length | ↓ | `compute_ppl(...)` |
+| mind | mid, monge-inception-distance, monge_inception_distance | ↓ | `compute_mind(...)` |
+| clean_fid | clean-fid, improved-fid | ↓ | `compute_clean_fid(reference, generated)` |
+| vendi_score | vendi-score, vendi | ↑ | `compute_vendi_score(...)` |
+| improved_precision_recall | ipr, alpha-precision, beta-recall, realism_score, ipr-realism, realism | ↑ | `compute_improved_precision_recall(...)`, `compute_realism_score(...)` |
+| rarity_score | rarity-score, rs | ↑ | `compute_mean_rarity_score(...)` |
+| facescore | face-score, face_score | ↑ | `compute_facescore(...)`, `FaceScoreModel(...)` |
+| facesim_cur | face-sim-cur, facesim-curricular | ↑ | `compute_facesim_cur(...)` (OpenS2V; InsightFace + CurricularFace weights) |
+| gme_score | gmescore, gme-score | ↑ | `compute_gme_score(...)` (OpenS2V; GME-Qwen2-VL) |
+| nexus_score | nexusscore, nexus-score | ↑ | `compute_nexus_score(...)` (OpenS2V; YOLO-World + GME) |
+| natural_score | naturalscore, natural-score | ↑ | `compute_natural_score(...)` (OpenS2V; GPT API) |
+| artscore | art-score, art_score | ↑ | `load_artscore_model(...)` |
+| trend | trend-jsd, trend_jsd | ↓ | `compute_trend(...)`, `compute_trend_jsd(...)` |
+| fld | feature-likelihood-divergence, fls | ↓ | `compute_fld(train, test, gen features)` |
+| multimodal_mid | mid-metric, mutual-information-divergence | ↑ | `compute_multimodal_mid(...)` |
+| fjd | frechet-joint-distance | ↓ | `compute_fjd_from_joint_embeddings(...)` |
+| crosslid | cross-lid, cross_lid | ↓ | `compute_crosslid(...)` |
+| cfid | conditional-fid, conditional_fid | ↓ | `compute_cfid(...)` |
+| ssd | semantic-similarity-distance | ↓ | `compute_ssd(...)` |
+| linear_separability | linear-separability, stylegan-ls | ↑ | `compute_linear_separability(confusion_matrix)` |
+| rke | renyi-kernel-entropy, rke-mc | ↑ | `compute_rke(features)`, `compute_rrke(ref, gen)` |
+| fdd | frechet-denoised-distance | ↓ | `compute_fdd(reference_dir, generated_dir)` |
+| cis | conditional-inception-score, bcis, wcis | ↑ | `compute_cis(class_probs)`, `compute_cis_from_predictions(...)` |
+| rnd | rnd-score, random-network-distillation | ↑ | `compute_rnd(features)`, `compute_rnd_from_images(...)` |
+| attribute_sad | sad, attribute-sad | ↓ | `compute_attribute_sad(hcs_real, hcs_gen, text_list)` |
+| attribute_pad | pad, attribute-pad | ↓ | `compute_attribute_pad(hcs_real, hcs_gen, text_list)` |
+
+```python
+from worldfoundry.evaluation.tasks.metrics import (
+    compute_distribution_metrics,
+    compute_fid,
+    compute_inception_score,
+    compute_clip_fid,
+    compute_cmmd,
+    compute_clean_fid,
+    compute_fwd,
+    compute_improved_precision_recall,
+    compute_vendi_score,
+    compute_mean_rarity_score,
+)
+
+# Batch via torch-fidelity flags: isc, fid, kid, prc
+scores = compute_distribution_metrics(
+    "/path/to/reference",
+    "/path/to/generated",
+    metrics=("fid", "kid", "prc"),
+)
+
+fid = compute_fid("/path/to/reference", "/path/to/generated")
+clip_fid = compute_fid("/path/to/reference", "/path/to/generated", feature_extractor="clip-vit-b-32")
+swav_fid = compute_fid("/path/to/reference", "/path/to/generated", feature_extractor="swav-resnet50")
+scene_fid = compute_scene_fid("/path/ref", "/path/gen", reference_bboxes_json="...")
+is_scores = compute_inception_score("/path/to/generated")
+cmmd = compute_cmmd("/path/to/reference", "/path/to/generated")
+clean_fid = compute_clean_fid("/path/to/reference", "/path/to/generated")
+fwd = compute_fwd("/path/to/reference", "/path/to/generated")
+ipr = compute_improved_precision_recall("/path/to/reference", "/path/to/generated")
+vendi = compute_vendi_score(feature_matrix)
+```
+
+### Video distribution (`family=distribution`, video tags)
+
+| Metric | Aliases | Direction | Primary API |
+| --- | --- | --- | --- |
+| fvd | frechet-video-distance | ↓ | `compute_fvd_from_numpy(...)`, `compute_fvd_from_frame_dirs(...)` |
+| fvmd | frechet-video-motion-distance | ↓ | `compute_fvmd(reference_videos, generated_videos)` |
+| jedi | jedi-mmd, video-jedi | ↓ | `compute_jedi_from_features(...)`, `JEDiMetric(...)` |
+
+```python
+import numpy as np
+from worldfoundry.evaluation.tasks.metrics import (
+    compute_fvd_from_numpy,
+    compute_fvd_from_frame_dirs,
+    compute_fid_vid,
+    compute_fvmd,
+    compute_jedi_from_features,
+)
+
+# uint8 arrays: (N, T, H, W, C)
+fvd = compute_fvd_from_numpy(real_videos, gen_videos, device="cuda")
+
+fvd = compute_fvd_from_frame_dirs(
+    reference_frame_dirs=["/path/to/ref_frames/video_0"],
+    generated_frame_dirs=["/path/to/gen_frames/video_0"],
+)
+
+fid_vid = compute_fid("/path/to/ref_frames", "/path/to/gen_frames")  # alias: fid_vid
+fvmd = compute_fvmd("/path/to/reference_videos", "/path/to/generated_videos")
+
+jedi = compute_jedi_from_features(train_features, test_features)
+```
+
+### Perceptual pairwise (`family=perceptual`)
+
+Pairwise similarity between reference and generated images (condition consistency, reconstruction quality).
+
+| Metric | Aliases | Direction | Primary API |
+| --- | --- | --- | --- |
+| lpips | — | ↓ | `compute_lpips(ref_image, gen_image)` |
+| ssim | — | ↑ | `compute_ssim(...)` |
+| ms_ssim | ms-ssim | ↑ | `compute_ms_ssim(...)` |
+| psnr | — | ↑ | `compute_psnr(...)` |
+| dino_similarity | dino-similarity, dino_sim | ↑ | `compute_dino_similarity(...)` |
+| dreamsim | dream-sim | ↓ | `compute_dreamsim(...)` |
+| cpbd | cpbd-sharpness | ↑ | `compute_cpbd(image)` |
+| fsim | feature-similarity-index, fsimc | ↑ | `compute_fsim(ref_image, gen_image)` |
+| mask_accuracy | mask-accuracy, mask_acc | ↑ | `compute_mask_accuracy(...)`, `compute_mask_iou(...)` |
+| object_detection | object-detection, detection-success-rate | ↑ | `compute_object_detection_success_rate(...)` |
+| lqs | layout-quality-score | ↑ | `compute_lqs(groundtruth_layout, predicted_layout)` |
+
+```python
+import numpy as np
+from worldfoundry.evaluation.tasks.metrics import (
+    compute_lpips,
+    compute_ssim,
+    compute_ms_ssim,
+    compute_psnr,
+    compute_perceptual_bundle,
+    compute_dino_similarity,
+    compute_dreamsim,
+)
+
+ref = np.load("reference.npy")  # HxWxC uint8 or float
+gen = np.load("generated.npy")
+
+bundle = compute_perceptual_bundle(ref, gen)  # lpips, ssim, ms_ssim, psnr
+dino_sim = compute_dino_similarity(ref, gen)
+dreamsim_dist = compute_dreamsim(ref, gen)
+```
+
+## CLI surface
+
+| Command | Scope |
+| --- | --- |
+| `worldfoundry-eval metric list` | Print or JSON-export all registry entries. |
+| `worldfoundry-eval metric show <id>` | Show one entry, resolved aliases, parameterized prefix. |
+| `worldfoundry-eval metric validate <id>...` | Bulk-resolve ids; exit 1 on unknown ids. |
+| `worldfoundry-eval evaluate --metric ...` | **Built-in existing-results metrics only** (`artifact_count`, `required_artifacts_present`, `has_artifact:<name>`, `numeric`, `numeric:<name>`). |
+| `worldfoundry-eval plan create --metric ...` | Same built-in metric ids when constructing a run plan JSON. |
+
+Distribution and perceptual metrics are invoked through Python today. Benchmark runners may call the same underlying implementations when computing official metric stacks (EvalCrafter IS/FID paths, MiraBench FVD, and similar). Multimodal scorers (CLIPScore, VQAScore, ITMScore) are exposed through `worldfoundry.evaluation.tasks.metrics.get_score_model(...)` and implemented in `execution/runners/_scorers/`.
+
+## Dependencies
+
+Install the distribution-metrics extra for torch-fidelity, Clean-FID, CMMD, perceptual torchmetrics, and related compute paths:
+
+```bash
+pip install -e ".[distribution_metrics]"
+```
+
+Core dependencies in the `distribution_metrics` extra include `torch`, `torchvision`, `torchmetrics`, `scikit-learn`, `scipy`, `transformers`, `pillow`, and the optional metric packages declared in `pyproject.toml`.
+
+Keep heavy imports lazy: importing `worldfoundry.evaluation.tasks.metrics` should not require every checkpoint to be present until a specific `compute_*` function is called.
+
+## Checkpoints and environment variables
+
+| Variable | Used by | Purpose |
+| --- | --- | --- |
+| `WORLDFOUNDRY_HFD_ROOT` | Hugging Face based metrics and scorers | Shared HF cache root or staged local model root. |
+| `WORLDFOUNDRY_T2V_METRICS_CACHE_DIR` | CLIPScore, ITMScore, VQAScore | Preferred cache for multimodal scorer models. Falls back to `WORLDFOUNDRY_HFD_ROOT`. |
+| `WORLDFOUNDRY_CKPT_DIR` | FVD, ArtScore, shared standalone files | Default root for staged `.pt`, `.pth`, `.bin`, and other non-HF files. |
+| `WORLDFOUNDRY_FVD_I3D_CKPT` | FVD | Path to `i3d_pretrained_400.pt` for Inception I3D features. |
+| `WORLDFOUNDRY_MIRABENCH_FVD_I3D_CKPT` | FVD (MiraBench fallback) | Alternate I3D checkpoint path. |
+| `WORLDFOUNDRY_JEDI_MODEL_DIR` / `WORLDFOUNDRY_JEDI_VJEPA_DIR` / `WORLDFOUNDRY_VJEPA_MODEL_DIR` | JEDi | V-JEPA model directory. |
+| `WORLDFOUNDRY_JEDI_CONFIG_PATH` | JEDi | YAML config; bundled asset at `worldfoundry/data/benchmarks/assets/jedi/vith16_ssv2_16x2x3.yaml`. |
+| `WORLDFOUNDRY_JEDI_FEATURE_PATH` | JEDi | Optional precomputed feature archive. |
+| `WORLDFOUNDRY_FDD_DAE_CKPT` | FDD | Pretrained DAE weights for Frechet Denoised Distance. |
+| `WORLDFOUNDRY_DINOV2_BASE_MODEL_DIR` | DINO similarity | Local `facebook/dinov2-base` model directory. |
+| `WORLDFOUNDRY_DINO_VITB16_MODEL_DIR` | DINO-family metrics | Local `facebook/dino-vitb16` model directory. |
+| `WORLDFOUNDRY_OPENS2V_WEIGHT_DIR` | FaceSim-Cur | OpenS2V InsightFace + CurricularFace bundle root. |
+| `WORLDFOUNDRY_GME_MODEL_PATH` | GmeScore, NexusScore | GME-Qwen2-VL model path. |
+| `WORLDFOUNDRY_YOLO_WORLD_CKPT` | NexusScore | YOLO-World image-prompt adapter checkpoint. |
+| `WORLDFOUNDRY_YOLO_CLIP_MODEL` | NexusScore | CLIP backbone for YOLO-World eval. |
+| `OPENAI_API_KEY` | NaturalScore | GPT API key for OpenS2V naturalness rating. |
+
+FVD resolution order is documented in `fvd/fvd_core.py`: explicit `i3d_checkpoint` argument → `WORLDFOUNDRY_FVD_I3D_CKPT` → `WORLDFOUNDRY_MIRABENCH_FVD_I3D_CKPT` → paths under `WORLDFOUNDRY_CKPT_DIR`.
+
+## Architecture
+
+```
+worldfoundry/evaluation/tasks/metrics/
+├── _base.py             # MetricModuleSpec protocol + registry-entry factory
+├── _discover.py         # Auto-discover METRIC_MODULE exports from per-metric folders
+├── _shared/             # Cross-metric infra (distribution helpers, torch-fidelity loader)
+│   └── vendor/torch_fidelity/  # Vendored torch-fidelity (Apache-2.0)
+├── registry.py          # MetricRegistryEntry, MetricRegistry, legacy + discovered entries
+├── builtins.py          # BuiltinExistingResultsMetric (offline result scoring)
+├── fid/ kid/ …          # One folder per distribution metric (METRIC_ID, compute, METRIC_MODULE)
+├── lpips/ ssim/ …       # One folder per pairwise perceptual metric
+├── fvd/ fvmd/ opens2v/ sadpad/  # Video distribution + OpenS2V + SadPaD attributes
+├── cmmd/ clean_fid/ vendi_score/ …      # Standalone distribution helpers
+└── jedi/                # Video JEPA distance (wrapper.py + vendored JEDi)
+```
+
+### Per-metric module layout
+
+Each migrated metric folder exports a unified surface:
+
+| Export | Purpose |
+| --- | --- |
+| `METRIC_ID`, `ALIASES`, `HIGHER_IS_BETTER`, `FAMILY`, `TAGS` | Registry metadata |
+| `METRIC_MODULE` | :class:`MetricModuleSpec` for auto-discovery |
+| `compute(...)` / `compute_<name>(...)` | Stable compute API by metric family |
+| Paper / repo links | Listed inline under each metric in [metric recipe pages](/docs/evaluation/metrics) |
+
+Registry entries for migrated metrics are registered via `_discover.discover_metric_registry_entries()` instead of hard-coded duplicates in `registry.py`.
+
+### Import surface
+
+Top-level `metrics/__init__.py` re-exports `compute_*` functions from per-metric modules so existing `from worldfoundry.evaluation.tasks.metrics import compute_fid` imports keep working.
+
+Benchmark catalog metrics and official-result normalization belong in `execution/runners/`; benchmark-specific setup belongs on the matching [Benchmark Hub](/docs/evaluation/benchmark-hub) page.
+
+## Related pages
+
+- [Evaluation](/docs/evaluation) — run contract, `evaluate`, and scorecard outputs.
+- [Benchmark Hub](/docs/evaluation/benchmark-hub) — benchmark-specific metrics, assets, and run commands.
+- [Local asset preparation](/docs/guides/local-assets) — checkpoint staging including FVD I3D weights.

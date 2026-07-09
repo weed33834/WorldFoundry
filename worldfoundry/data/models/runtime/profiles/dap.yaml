@@ -1,0 +1,35 @@
+schema_version: 2
+model_id: dap
+display_name: Depth Any Panoramas Prior
+task_family: three_dimension
+groups:
+- 3d
+- prior
+source_repos:
+- url: https://github.com/Insta360-Research-Team/DAP
+checkpoints:
+- repo_id: Insta360-Research/DAP-weights
+  filename: model.pth
+  role: dap_checkpoint
+input_schema:
+  prompt: false
+  image: true
+  video: false
+  actions:
+  - panorama_depth
+artifact_kind: generated_3d_asset
+artifact_filename: dap-depth.npz
+execution:
+  backend_stage: in_tree_geometry_prior_runtime
+  runtime_status: in_tree_runtime_wired
+  integration_status: integrated
+  pipeline_binding: dap
+integration:
+  status: integrated
+notes:
+- Independent base-model profile for the DAP geometric prior under worldfoundry.base_models.three_dimensions.depth.depth_anything.depth_anything_v1.
+- WorldFoundry exposes this prior through the shared geometry-prior pipeline/operator
+  contract.
+backend_stage: in_tree_geometry_prior_runtime
+runtime_status: in_tree_runtime_wired
+integration_status: integrated

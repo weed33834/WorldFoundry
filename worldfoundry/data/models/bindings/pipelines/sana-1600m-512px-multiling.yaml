@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: sana-1600m-512px-multiling
+model_id: sana-1600m-512px-multiling
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.sana.pipeline_sana:Sana1600M512pxMultilingPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

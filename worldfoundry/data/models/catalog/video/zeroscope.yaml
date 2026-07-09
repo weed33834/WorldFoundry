@@ -1,0 +1,36 @@
+id: zeroscope
+name: ZeroScope
+aliases:
+- zero-scope
+- zero_scope
+tasks:
+- text-to-video
+- legacy-unet-diffusion
+provider: huggingface
+source:
+  status: open_source
+  license: cc-by-nc-4.0
+checkpoint_refs:
+- repo_id: cerspense/zeroscope_v2_576w
+  license: cc-by-nc-4.0
+- repo_id: cerspense/zeroscope_v2_XL
+  license: cc-by-nc-4.0
+integration:
+  status: integrated
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+runtime_profile: runtime-profile:zeroscope
+runner_parity:
+  status: verified
+  notes:
+  - WorldFoundry output matched the official Diffusers route for the selected
+    ZeroScope configuration.
+  - The Studio/API route uses the unified environment profile; per-run validation
+    evidence is tracked outside the model catalog.
+notes:
+- CC-BY-NC-4.0 requires benchmark policy review before commercial or automated benchmark
+  use.
+pipeline_binding: zeroscope
+catalog_category: video
+catalog_scope: Video-generation and video-token catalog entries. Integrated entries
+  expose WorldFoundry pipeline targets; metadata-only entries retain upstream provenance
+  without runnable WorldFoundry backends.

@@ -1,0 +1,38 @@
+schema_version: 2
+model_id: lyra-2
+display_name: Lyra-2
+task_family: world_model
+groups:
+- 3d
+- 4d
+- world
+- camera_control
+source_repos:
+- url: https://github.com/nv-tlabs/lyra
+checkpoints:
+- role: lyra2_checkpoint
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/lyra-2
+- role: lyra2_negative_prompt
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/lyra-2/checkpoints/text_encoder/negative_prompt.pt
+- role: da3_checkpoint
+  repo_id: depth-anything/DA3NESTED-GIANT-LARGE-1.1
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - navigation_actions
+  - camera_trajectory
+artifact_kind: generated_world
+artifact_filename: lyra-2.mp4
+execution:
+  backend_stage: in_tree_runtime
+  runtime_status: official_zoomgs_contract
+  integration_status: verified
+  pipeline_binding: lyra-2
+integration:
+  status: verified
+notes:
+- Runtime profile for the in-tree Lyra-2 pipeline.
+- Runtime execution requires local Lyra-2, text-encoder, DA3, transformer-engine,
+  and CUDA runtime dependencies.

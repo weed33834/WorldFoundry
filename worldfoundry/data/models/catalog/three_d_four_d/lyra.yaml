@@ -1,0 +1,78 @@
+id: lyra
+name: Lyra
+aliases:
+- Project Lyra
+- Lyra 1.0
+- Lyra 2.0
+area: 3d_4d
+task: open generative 3D and 4D world models
+developer: NVIDIA Spatial Intelligence Lab
+user_starred: true
+official_sources:
+  github: https://github.com/nv-tlabs/lyra
+  project_page: https://research.nvidia.com/labs/sil/projects/lyra2/
+  paper: https://openreview.net/forum?id=tIVCfVnIHo
+availability:
+  status: open_source
+  open_source: true
+  code: public
+  weights: linked_from_repo
+  license: Apache-2.0
+integration:
+  kind: pipeline_runner
+  status: integrated
+  notes:
+  - WorldFoundry exposes in-tree Lyra-1 and Lyra-2 pipelines backed by vendored runtime adapters.
+  - Default catalog runner targets Lyra-2; Lyra-1 remains available as an explicit variant.
+confirmation: Official GitHub repo reports Apache-2.0 and describes official implementations of Lyra 1.0 and 2.0.
+output_artifacts:
+- generated_world
+- generated_3d_asset
+runtime_profile: runtime-profile:lyra
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: lyra
+variants:
+- id: lyra-1
+  task: image-or-video-to-world-video
+  provider: official_repo
+  runtime_profile: runtime-profile:lyra-1
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: lyra-1
+  integration:
+    status: verified
+  runner_parity:
+    status: verified
+    notes:
+    - The in-tree Lyra-1 runner supports the official static single-image SDG demo with local Lyra/Cosmos assets.
+    - Per-run visual QA and artifact checks are tracked outside the model catalog.
+- id: lyra-2
+  task: action-conditioned-world-video
+  provider: official_repo
+  runtime_profile: runtime-profile:lyra-2
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: lyra-2
+  integration:
+    status: verified
+  runner_parity:
+    status: verified
+    notes:
+    - The in-tree Lyra-2 runner supports the official ZoomGS single-image forward navigation demo with local Lyra-2.0 assets.
+    - Per-run visual QA and artifact checks are tracked outside the model catalog.
+runner_parity:
+  status: verified
+  notes:
+  - Lyra-1 and Lyra-2 are wired through in-tree runners and unified environment profiles.
+  - Per-run validation evidence is tracked outside the model catalog.
+catalog_category: three_d_four_d
+catalog_scope: Official-source manifest for 3D, 4D, and camera-controlled world/model generation projects.
+catalog_policy:
+  open_source_true_requires: An official GitHub or Hugging Face source with an explicit OSI-style software license or otherwise
+    clearly open source/open weights metadata. Public code without a license is source-available, not open_source.
+  weights_policy: Weights were not downloaded. Entries record only official repository, Hugging Face, project page, paper,
+    and license metadata.
+  status_values:
+  - open_source
+  - source_available
+  - open_weights_restricted
+  - api_or_closed
+  - unknown

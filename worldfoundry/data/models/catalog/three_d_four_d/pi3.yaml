@@ -1,0 +1,31 @@
+id: pi3
+name: Pi3
+tasks:
+- 3d-reconstruction
+- trajectory
+- point-cloud
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/yyfz/Pi3
+  license: apache-2.0
+official_sources:
+  paper: https://arxiv.org/pdf/2507.13347
+  github:
+    url: https://github.com/yyfz/Pi3
+  huggingface:
+  - repo_id: yyfz233/Pi3X
+    type: model
+    status: confirmed
+integration:
+  status: runtime_ported
+  notes:
+  - In-tree Pi3 point-cloud navigation pipeline is registered for reconstruction and trajectory rendering.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: pi3
+runner_parity:
+  status: pending
+  notes:
+  - Per-run validation evidence is tracked outside the model catalog.
+catalog_category: three_d_four_d
+catalog_scope: Official-source manifest for 3D, 4D, and camera-controlled world/model generation projects.

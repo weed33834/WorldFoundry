@@ -1,0 +1,32 @@
+model_id: hunyuan-game-craft
+env_name: HYGameCraft
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+python: '3.10'
+cuda_profile: cu124
+driver_status: compatible
+conda_packages:
+- python=3.10
+- pip
+- ffmpeg
+- git
+- ninja
+pip_packages:
+- torch==2.5.1
+- torchvision==0.20.0
+- torchaudio==2.5.1
+- diffusers
+- transformers
+- opencv-python
+- imageio
+- loguru
+source_requirement_files:
+- ${WORLDFOUNDRY_MODEL_SOURCE_DIR}/Hunyuan-GameCraft-1.0/requirements.txt
+validation_imports:
+- torch
+- torchvision
+- cv2
+- imageio
+- loguru
+notes:
+- Hunyuan GameCraft official inference requires the HYGameCraft environment and torchrun sequence parallelism for practical GPU memory use.
+- Studio dispatch accepts load_kwargs torchrun_nproc_per_node plus cuda_visible_devices to avoid occupying GPUs used by other workspaces.

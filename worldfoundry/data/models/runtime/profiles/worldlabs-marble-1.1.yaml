@@ -1,0 +1,28 @@
+schema_version: 2
+model_id: worldlabs-marble-1.1
+display_name: World Labs Marble 1.1
+task_family: world_model
+groups:
+- world
+- api
+source_repos:
+- url: https://api.worldlabs.ai
+  role: api
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - api_request
+artifact_kind: generated_world
+artifact_filename: worldlabs-marble-1.1.zip
+execution:
+  backend_stage: api_pipeline
+  runtime_status: api_runtime_requires_credentials
+  integration_status: planned
+  pipeline_binding: worldlabs-marble-1.1
+integration:
+  status: planned
+notes:
+- API model is retained per project policy; execution requires caller-provided World
+  Labs credentials.

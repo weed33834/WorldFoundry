@@ -1,0 +1,191 @@
+envs:
+- model_id: ltx-video-i2v
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - imageio-ffmpeg
+  - pillow
+  validation_imports:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - PIL
+  notes:
+  - In-tree LTX-Video I2V runtime uses the shared unified inference environment and native Hugging Face/Diffusers loading.
+- model_id: ltx_video_i2v
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - imageio-ffmpeg
+  - pillow
+  validation_imports:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - PIL
+  notes:
+  - Studio alias for ltx-video-i2v; kept explicit so workspace dispatch resolves the same environment as the catalog profile.
+- model_id: ltx-2-i2v
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - imageio-ffmpeg
+  - pillow
+  validation_imports:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - PIL
+  notes:
+  - LTX-2 I2V profile; full fresh official-demo replay remains tracked on the model inference validation page.
+- model_id: ltx2_i2v
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - imageio-ffmpeg
+  - pillow
+  validation_imports:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - PIL
+  notes:
+  - Studio alias for ltx-2-i2v.
+- model_id: ltx-2.3-i2v
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - imageio-ffmpeg
+  - pillow
+  - sentencepiece
+  validation_imports:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - PIL
+  - sentencepiece
+  notes:
+  - LTX-2.3 I2V uses the unified environment; current release evidence covers the distilled fast path.
+- model_id: ltx2_3_i2v
+  env_name: worldfoundry-unified-cu128
+  env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+  python: '3.11'
+  cuda_profile: cu128
+  driver_status: compatible
+  conda_packages:
+  - python
+  - pip
+  - ffmpeg
+  pip_packages:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - imageio-ffmpeg
+  - pillow
+  - sentencepiece
+  validation_imports:
+  - torch
+  - torchvision
+  - diffusers
+  - transformers
+  - accelerate
+  - safetensors
+  - imageio
+  - PIL
+  - sentencepiece
+  notes:
+  - Studio alias for ltx-2.3-i2v.

@@ -1,0 +1,13 @@
+schema_version: 2
+binding_id: ac3d
+model_id: ac3d
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.ac3d.pipeline_ac3d:AC3DPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation
+aliases:
+- ac3d

@@ -1,0 +1,38 @@
+conda_packages:
+- python
+- pip
+cuda_profile: cu121
+driver_status: compatible
+env_name: worldfoundry-vla-openvla-compat-cu121
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: cogact
+notes:
+- Official CogACT minimal inference uses load_vla and predict_action; CogACT-Base is described as about 30 GB memory in fp32 and commonly served in bf16.
+- CogACT also loads the gated `meta-llama/Llama-2-7b-hf` config/tokenizer for the Prismatic base VLM; accept the upstream license and export `HF_TOKEN` or `HUGGING_FACE_HUB_TOKEN` before first real inference.
+- flash-attn is optional for real GPU inference and excluded from lightweight import validation.
+- Shares the OpenVLA/Prismatic compatibility environment with OpenVLA-OFT to keep the release environment matrix small.
+pip_extra_index_url: https://download.pytorch.org/whl/cu121
+pip_packages:
+- torch==2.2.0
+- torchvision==0.17.0
+- transformers==4.40.1
+- accelerate==0.30.1
+- peft==0.11.1
+- timm==0.9.10
+- tokenizers==0.19.1
+- sentencepiece==0.1.99
+- Pillow==10.4.0
+- numpy==1.26.4
+- einops==0.8.0
+- safetensors==0.4.5
+- huggingface-hub==0.23.5
+- json-numpy
+- draccus==0.8.0
+- rich==13.9.4
+python: '3.10'
+validation_imports:
+- numpy
+- PIL
+- torch
+- torchvision
+- transformers
