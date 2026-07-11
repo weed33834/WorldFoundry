@@ -14,6 +14,18 @@ Day-one workflow:
 1. **Environment + assets** — bootstrap conda, stage checkpoints and datasets outside git.
 2. **Inference** — generate and inspect artifacts via TUI, CLI, scripts, or Studio.
 3. **Evaluation** — score only after artifacts match the benchmark layout; use scorecards for readiness claims.
+4. 
+## 🤝 Community
+
+Join the **WorldFoundry WeChat Community** for discussions, announcements, and technical support.
+
+<p align="center">
+  <img src="docs/fumadocs/public/wechat-qr.png" alt="WorldFoundry WeChat Community" width="320">
+</p>
+
+<p align="center">
+  <em>Scan the QR code to join. The QR code will be updated periodically if it expires.</em>
+</p>
 
 ## 📰 News
 
