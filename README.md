@@ -17,6 +17,13 @@ Day-one workflow:
 
 ## 🤝 Community
 
+### 💬 Slack (Recommended)
+
+Join our Slack workspace to connect with the community, discuss development, and receive the latest project updates.
+
+👉 **Join here:** https://join.slack.com/t/worldfoundrycommunity/shared_invite/zt-43nbi9fw4-okYiELzZHp0_1UPa3dh3bQ
+
+
 Join the **WorldFoundry WeChat Community** for discussions, announcements, and technical support.
 
 <p align="center">
