@@ -17,7 +17,7 @@ Day-one workflow:
 
 ## 🤝 Community
 
-Join the **WorldFoundry Community** for discussions, announcements, technical support, and the latest project updates.
+Join the **WorldFoundry Community** [Slack / Wechat] for discussions, announcements, technical support, and the latest project updates.
 
 <p align="center">
 
