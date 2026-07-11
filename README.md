@@ -20,7 +20,7 @@ Day-one workflow:
 Join the **WorldFoundry WeChat Community** for discussions, announcements, and technical support.
 
 <p align="center">
-  <img src="docs/fumadocs/public/wechat-qr.png" alt="WorldFoundry WeChat Community" width="320">
+  <img src="docs/fumadocs/public/wechat_qr.png" alt="WorldFoundry WeChat Community" width="320">
 </p>
 
 <p align="center">
