@@ -15,6 +15,12 @@ Day-one workflow:
 2. **Inference** — generate and inspect artifacts via TUI, CLI, scripts, or Studio.
 3. **Evaluation** — score only after artifacts match the benchmark layout; use scorecards for readiness claims.
 
+## 📰 News
+
+- **[2026-07-11]** 🎉 **WorldFoundry is officially open-sourced.** We welcome ⭐ stars, bug reports, feature requests, and pull requests from the community!
+- **[Coming Soon]** Documentation improvements and additional benchmark integrations.
+
+
 ![WorldFoundry teaser](docs/fumadocs/public/teaser.png)
 
 ## Links
