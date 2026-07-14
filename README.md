@@ -219,7 +219,13 @@ More curated generated samples are embedded in the Studio docs.
 WorldFoundry uses conda as the supported open-source runtime path. Start with the unified GPU environment; only use a dedicated environment when a model profile documents a real ABI or simulator conflict. The full day-one path lives in the [Quickstart](docs/fumadocs/content/docs/quickstart.mdx).
 
 ```bash
+
+# You can clone the repository with all demo videos
 git clone https://github.com/OpenEnvision/WorldFoundry.git
+
+# or clone the repository skipping large LFS media files for a much faster download
+GIT_LFS_SKIP_SMUDGE=1 git clone https://github.com/OpenEnvision/WorldFoundry.git
+
 cd WorldFoundry
 
 bash scripts/setup/bootstrap_worldfoundry.sh
