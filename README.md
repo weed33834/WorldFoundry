@@ -46,6 +46,12 @@ Join the **WorldFoundry Community** [Slack / Wechat] for discussions, announceme
 
 ## 📰 News
 
+- **[2026-07-17]** 🔧 **WorldFoundry v0.2.0: Major Infrastructure Overhaul**
+  - **Core Inference Upgrades** – Refactored to inference‑only path with integrated Wan, HunyuanVideo, LTX2, Cosmos, perception & 3D foundation modules. Unified attention backend selection (FlashAttention 2/3, SageAttention, xFormers, SDPA fallback). Triton kernel registration, compilation & inference caching. NVFP4 quantization support. GPU selection driven by actual compute capability (A100, H100). Multi‑GPU Context/Sequence Parallel with advanced memory management.
+  - **World Model Integration** – Incorporated LingBot World 2, Lingbot Video, Helios, Bernini, AlayaWorld, Rolling Forcing, LiveWorld, MinWM, MinkM, sana streaming, and more.
+  - **Action Policy Integration** – Integrated LingBot VLA/VLA2, Xiaomi Robotics, Hy‑Embodied VLA, Spatial Forcing, X‑VLA, X‑WAM, OpenPI, OpenVLA‑OFT, GROOT, Octo, and more.
+  - **Studio Enhancements** – Refined model discovery, Conda environment isolation, GPU allocation, torchrun distributed launch, Workspace Jobs, visualization, and result presentation.
+  - **Benchmark Expansion** – Added benchmark catalog and runtime profiling, including LaryBench and WorldReasonBench (WRBench).
 - **[2026-07-12]** 🔥 **WorldFoundry reached 100+ stars on its very first day!** Thanks to the community for the incredible support and encouragement. More exciting updates are coming!
 - **[2026-07-11]** 🎉 **WorldFoundry is officially open-sourced.** We welcome ⭐ stars, bug reports, feature requests, and pull requests from the community!
 - **[Coming Soon]** Documentation improvements and additional benchmark integrations.
