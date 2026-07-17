@@ -20,9 +20,7 @@ import re
 from torch import Tensor
 
 
-def remap_checkpoint_keys(
-    state_dict: dict[str, Tensor], mapping: dict[str, str]
-) -> dict[str, Tensor]:
+def remap_checkpoint_keys(state_dict: dict[str, Tensor], mapping: dict[str, str]) -> dict[str, Tensor]:
     r"""Rename state-dict keys via regex substitution.
 
     Each key is matched against ``mapping`` in insertion order; the first

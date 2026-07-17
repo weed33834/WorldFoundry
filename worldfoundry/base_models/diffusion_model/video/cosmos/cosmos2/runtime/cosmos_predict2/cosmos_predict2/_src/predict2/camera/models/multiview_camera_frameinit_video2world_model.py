@@ -19,15 +19,6 @@ from typing import Callable, Dict, Tuple
 
 import attrs
 import torch
-from einops import rearrange
-from megatron.core import parallel_state
-from torch import Tensor
-
-from cosmos_predict2._src.imaginaire.utils import misc
-from worldfoundry.core.distributed.context_parallel import (
-    broadcast_split_tensor,
-    cat_outputs_cp,
-)
 from cosmos_predict2._src.predict2.camera.configs.multiview_camera.conditioner import CameraConditionedCondition
 from cosmos_predict2._src.predict2.conditioner import DataType
 from cosmos_predict2._src.predict2.models.video2world_model_rectified_flow import (
@@ -35,6 +26,15 @@ from cosmos_predict2._src.predict2.models.video2world_model_rectified_flow impor
     Video2WorldModelRectifiedFlow,
     Video2WorldModelRectifiedFlowConfig,
 )
+from einops import rearrange
+from torch import Tensor
+
+from worldfoundry.core.distributed.context_parallel import (
+    broadcast_split_tensor,
+    cat_outputs_cp,
+)
+from worldfoundry.core.distributed.megatron_compat import parallel_state
+from worldfoundry.core.utils import inference_runtime as misc
 
 IS_PREPROCESSED_KEY = "is_preprocessed"
 
@@ -42,11 +42,13 @@ IS_PREPROCESSED_KEY = "is_preprocessed"
 @attrs.define(slots=False)
 class CameraConditionedFrameinitVideo2WorldRectifiedFlowConfig(Video2WorldModelRectifiedFlowConfig):
     """Camera conditioned frameinit video world rectified flow config implementation."""
+
     pass
 
 
 class CameraConditionedFrameinitVideo2WorldModelRectifiedFlow(Video2WorldModelRectifiedFlow):
     """Camera conditioned frameinit video world model rectified flow implementation."""
+
     def get_data_and_condition(
         self, data_batch: dict[str, torch.Tensor]
     ) -> Tuple[Tensor, Tensor, CameraConditionedCondition]:

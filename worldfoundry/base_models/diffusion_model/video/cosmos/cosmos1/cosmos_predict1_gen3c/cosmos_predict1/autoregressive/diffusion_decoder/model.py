@@ -19,20 +19,21 @@ from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
 
 import torch
-from diffusers import EDMEulerScheduler
-from worldfoundry.core.distributed.megatron_compat import parallel_state
-from torch import Tensor
-
 from cosmos_predict1.diffusion.conditioner import BaseVideoCondition
 from cosmos_predict1.diffusion.model.model_t2w import DiffusionT2WModel
 from cosmos_predict1.diffusion.module import parallel
+from diffusers import EDMEulerScheduler
+from torch import Tensor
+
+from worldfoundry.core.configuration.lazy_config import instantiate as lazy_instantiate
 from worldfoundry.core.distributed.context_parallel import cat_outputs_cp, split_inputs_cp
-from cosmos_predict1.utils.lazy_config import instantiate as lazy_instantiate
+from worldfoundry.core.distributed.megatron_compat import parallel_state
 
 
 @dataclass
 class VideoLatentDiffusionDecoderCondition(BaseVideoCondition):
     """Video latent diffusion decoder condition implementation."""
+
     # latent_condition will concat to the input of network, along channel dim;
     # cfg will make latent_condition all zero padding.
     latent_condition: Optional[torch.Tensor] = None
@@ -41,6 +42,7 @@ class VideoLatentDiffusionDecoderCondition(BaseVideoCondition):
 
 class LatentDiffusionDecoderModel(DiffusionT2WModel):
     """Latent diffusion decoder model implementation."""
+
     def __init__(self, config):
         """Init.
 

@@ -21,7 +21,7 @@ import torch
 import transformers
 from transformers.models.t5 import T5EncoderModel, T5TokenizerFast
 
-from imaginaire.utils import log
+from worldfoundry.core.distributed.logging import log
 
 transformers.utils.logging.set_verbosity_error()
 

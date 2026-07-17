@@ -15,8 +15,6 @@
 
 """Module for base_models -> diffusion_model -> video -> cosmos -> cosmos1 -> cosmos_predict1_gen3c -> cosmos_predict1 -> diffusion -> config -> registry.py functionality."""
 
-from hydra.core.config_store import ConfigStore
-
 from cosmos_predict1.diffusion.config.base.conditioner import (
     BaseVideoConditionerConfig,
     VideoConditionerFpsSizePaddingConfig,
@@ -26,6 +24,7 @@ from cosmos_predict1.diffusion.config.base.conditioner import (
 )
 from cosmos_predict1.diffusion.config.base.net import FADITV2_14B_Config, FADITV2_Multiview_Config, FADITV2Config
 from cosmos_predict1.diffusion.config.base.tokenizer import get_cosmos_diffusion_tokenizer_comp8x8x8
+from hydra.core.config_store import ConfigStore
 
 
 def register_net(cs):

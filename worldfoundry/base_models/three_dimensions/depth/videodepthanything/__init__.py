@@ -15,12 +15,15 @@
 
 """Module for base_models -> three_dimensions -> depth -> videodepthanything -> __init__.py functionality."""
 
+from pathlib import Path
+
 import numpy as np
 import torch
 
 from worldfoundry.base_models.three_dimensions.general_3d.vipe.utils.misc import unpack_optional
 
 from ..base import DepthEstimationInput, DepthEstimationModel, DepthEstimationResult, DepthType
+from .paths import small_checkpoint_path
 from .video_depth import VideoDepthAnything
 
 
@@ -68,9 +71,10 @@ class VideoDepthAnythingDepthModel(DepthEstimationModel):
         self.input_size = input_size
 
         self.model = VideoDepthAnything(**self.model_config)
+        resolved_weights = Path(weights_path).expanduser() if weights_path else small_checkpoint_path()
         state_dict = (
-            torch.load(weights_path, map_location="cpu")
-            if weights_path
+            torch.load(resolved_weights, map_location="cpu")
+            if resolved_weights is not None
             else torch.hub.load_state_dict_from_url(self.ckpt_url, map_location="cpu")
         )
         self.model.load_state_dict(

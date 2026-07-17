@@ -51,6 +51,13 @@ class GaussianRendererWithCheckpoint(torch.autograd.Function):
                                         render_mode="RGB+D",
                                         backgrounds=None,
                                         rasterize_mode='classic') # (1, H, W, 4) 
+        # gsplat's packed RGB+D path cannot accept a per-camera background
+        # (it appends the depth channel but then expects a non-camera-shaped
+        # background). Composite RGB explicitly while preserving packed mode.
+        if backgrounds is not None:
+            rgb_background = backgrounds.to(rendering)[None, None, None, :3]
+            rendering = rendering.clone()
+            rendering[..., :3] += rgb_background * (1.0 - alpha)
         # rendering[..., 3:] = rendering[..., 3:] + far_plane * (1 - alpha)
         return rendering
 
@@ -141,7 +148,8 @@ def gaussian_render(gaussian_params, test_c2ws, test_intr, W, H, near_plane=0.01
         use_checkpoint = False
 
      # opengl2colmap, see https://github.com/imlixinyang/Director3D/blob/main/modules/renderers/gaussians_renderer.py
-    test_c2ws[:, :, :3, 1:3] *= -1
+    renderer_c2ws = test_c2ws.clone()
+    renderer_c2ws[:, :, :3, 1:3] *= -1
 
     device = test_intr.device
     B, V, _ = test_intr.shape
@@ -165,13 +173,13 @@ def gaussian_render(gaussian_params, test_c2ws, test_intr, W, H, near_plane=0.01
 
         if use_checkpoint:
             
-            renderings.append(GaussianRendererWithCheckpoint.apply(xyz_i, feature_i, scale_i, rotation_i, opacity_i, test_c2ws[ib], test_intr[ib], W, H, sh_degree, near_plane, far_plane, backgrounds))
+            renderings.append(GaussianRendererWithCheckpoint.apply(xyz_i, feature_i, scale_i, rotation_i, opacity_i, renderer_c2ws[ib], test_intr[ib], W, H, sh_degree, near_plane, far_plane, backgrounds))
 
         else:
             rendering = torch.zeros(V, H, W, 4).to(device)
             for iv in range(V):
                 rendering[iv:iv+1] = GaussianRendererWithCheckpoint.render(xyz_i, feature_i, scale_i, rotation_i, opacity_i, 
-                                                                      test_c2ws[ib][iv], test_intr[ib][iv], W, H, sh_degree, near_plane, far_plane, backgrounds[iv])
+                                                                      renderer_c2ws[ib][iv], test_intr[ib][iv], W, H, sh_degree, near_plane, far_plane, backgrounds[iv])
 
             # test_w2c_i = test_c2ws[ib].float().inverse() # (V, 4, 4)
             # test_intr_i = torch.zeros(V, 3, 3).to(device)

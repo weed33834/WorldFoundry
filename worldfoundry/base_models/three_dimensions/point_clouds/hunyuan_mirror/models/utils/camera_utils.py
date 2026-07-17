@@ -13,7 +13,7 @@ def camera_params_to_vector(
     # image_hw: (h, w)
     R = ext[..., :3, :3]           # Rotation part
     t = ext[..., :3, 3]            # Translation part
-    q = rotmat_to_quat(R)  # Quaternion (wxyz)
+    q = rotmat_to_quat(R)  # Quaternion (xyzw, scalar-last)
     h, w = image_hw
     fov_v = 2.0 * torch.atan(h * 0.5 / intr[..., 1, 1])  # Vertical FOV
     fov_u = 2.0 * torch.atan(w * 0.5 / intr[..., 0, 0])  # Horizontal FOV

@@ -23,6 +23,7 @@ from diffusers import FlowMatchEulerDiscreteScheduler
 
 class TrainTimeWeight:
     """Train time weight implementation."""
+
     def __init__(
         self,
         noise_scheduler,
@@ -63,6 +64,7 @@ class TrainTimeWeight:
 
 class TrainTimeSampler:
     """Train time sampler implementation."""
+
     def __init__(
         self,
         distribution: str = "uniform",
@@ -99,6 +101,7 @@ class TrainTimeSampler:
 
 class RectifiedFlow:
     """Rectified flow implementation."""
+
     def __init__(
         self,
         velocity_field: Callable,

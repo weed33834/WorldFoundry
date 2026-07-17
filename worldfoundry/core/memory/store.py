@@ -106,7 +106,9 @@ class MemoryStore:
         self.evict()
         return row
 
-    def latest(self, prefer_type: str | None = None, metadata: Mapping[str, Any] | None = None) -> dict[str, Any] | None:
+    def latest(
+        self, prefer_type: str | None = None, metadata: Mapping[str, Any] | None = None
+    ) -> dict[str, Any] | None:
         for record in reversed(self.records):
             if prefer_type is not None and record.get("type") != prefer_type:
                 continue

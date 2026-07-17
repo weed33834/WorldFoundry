@@ -10,11 +10,21 @@ from diffusers.configuration_utils import ConfigMixin, register_to_config
 import torch.utils
 import torch.utils.checkpoint
 
-from .activation_layers import get_activation_layer
-from .norm_layers import get_norm_layer
-from .embed_layers import TimestepEmbedder, PatchEmbed, TextProjection
+from worldfoundry.base_models.diffusion_model.video.hunyuan_video.official_hunyuan_video_runtime.hyvideo.modules.activation_layers import (
+    get_activation_layer,
+)
+from worldfoundry.base_models.diffusion_model.video.hunyuan_video.official_hunyuan_video_runtime.hyvideo.modules.embed_layers import (
+    PatchEmbed,
+    TextProjection,
+    TimestepEmbedder,
+)
+from worldfoundry.base_models.diffusion_model.video.hunyuan_video.official_hunyuan_video_runtime.hyvideo.modules.norm_layers import (
+    get_norm_layer,
+)
+from worldfoundry.base_models.diffusion_model.video.hunyuan_video.official_hunyuan_video_runtime.hyvideo.modules.posemb_layers import (
+    apply_rotary_emb,
+)
 from .attenion import attention, parallel_attention, get_cu_seqlens
-from .posemb_layers import apply_rotary_emb
 from .mlp_layers import MLP, MLPEmbedder, FinalLayer
 from worldfoundry.base_models.diffusion_model.video.hunyuan_video.modulate_layers_i2v import (
     ModulateDiT,

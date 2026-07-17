@@ -15,6 +15,8 @@ from typing import Any
 import torch
 from torch.distributed import TCPStore
 
+from worldfoundry.core.utils.misc_utils import divide
+
 from .logger import init_logger
 
 logger = init_logger(__name__)
@@ -22,15 +24,7 @@ logger = init_logger(__name__)
 
 def ensure_divisibility(numerator, denominator) -> None:
     """Ensure that numerator is divisible by the denominator."""
-    assert numerator % denominator == 0, "{} is not divisible by {}".format(
-        numerator, denominator)
-
-
-def divide(numerator: int, denominator: int) -> int:
-    """Ensure that numerator is divisible by the denominator and return
-    the division value."""
-    ensure_divisibility(numerator, denominator)
-    return numerator // denominator
+    assert numerator % denominator == 0, "{} is not divisible by {}".format(numerator, denominator)
 
 
 def split_tensor_along_last_dim(
@@ -38,16 +32,16 @@ def split_tensor_along_last_dim(
     num_partitions: int,
     contiguous_split_chunks: bool = False,
 ) -> Sequence[torch.Tensor]:
-    """ Split a tensor along its last dimension.
+    """Split a tensor along its last dimension.
 
-        Arguments:
-            tensor: input tensor.
-            num_partitions: number of partitions to split the tensor
-            contiguous_split_chunks: If True, make each chunk contiguous
-                                     in memory.
+    Arguments:
+        tensor: input tensor.
+        num_partitions: number of partitions to split the tensor
+        contiguous_split_chunks: If True, make each chunk contiguous
+                                 in memory.
 
-        Returns:
-            A list of Tensors
+    Returns:
+        A list of Tensors
     """
     # Get the size and dimension.
     last_dim = tensor.dim() - 1
@@ -67,6 +61,7 @@ class StatelessProcessGroup:
     group. Only use it to communicate metadata between processes.
     For data-plane communication, create NCCL-related objects.
     """
+
     rank: int
     world_size: int
     store: torch._C._distributed_c10d.Store
@@ -77,8 +72,7 @@ class StatelessProcessGroup:
     # src rank -> counter
     recv_src_counter: dict[int, int] = dataclasses.field(default_factory=dict)
     broadcast_send_counter: int = 0
-    broadcast_recv_src_counter: dict[int, int] = dataclasses.field(
-        default_factory=dict)
+    broadcast_recv_src_counter: dict[int, int] = dataclasses.field(default_factory=dict)
 
     # A deque to store the data entries, with key and timestamp.
     entries: deque[tuple[str, float]] = dataclasses.field(default_factory=deque)
@@ -110,8 +104,7 @@ class StatelessProcessGroup:
 
     def recv_obj(self, src: int) -> Any:
         """Receive an object from a source rank."""
-        obj = pickle.loads(
-            self.store.get(f"send_to/{self.rank}/{self.recv_src_counter[src]}"))
+        obj = pickle.loads(self.store.get(f"send_to/{self.rank}/{self.recv_src_counter[src]}"))
         self.recv_src_counter[src] += 1
         return obj
 
@@ -122,15 +115,13 @@ class StatelessProcessGroup:
         """
         if self.rank == src:
             self.expire_data()
-            key = (f"broadcast_from/{src}/"
-                   f"{self.broadcast_send_counter}")
+            key = f"broadcast_from/{src}/{self.broadcast_send_counter}"
             self.store.set(key, pickle.dumps(obj))
             self.broadcast_send_counter += 1
             self.entries.append((key, time.perf_counter()))
             return obj
         else:
-            key = (f"broadcast_from/{src}/"
-                   f"{self.broadcast_recv_src_counter[src]}")
+            key = f"broadcast_from/{src}/{self.broadcast_recv_src_counter[src]}"
             recv_obj = pickle.loads(self.store.get(key))
             self.broadcast_recv_src_counter[src] += 1
             return recv_obj
@@ -177,7 +168,7 @@ class StatelessProcessGroup:
         used for exchanging metadata. With this function, process A and process B
         can call `StatelessProcessGroup.create` to form a group, and then process A, B,
         C, and D can call `StatelessProcessGroup.create` to form another group.
-        """ # noqa
+        """  # noqa
         store = TCPStore(
             host_name=host,
             port=port,
@@ -186,7 +177,5 @@ class StatelessProcessGroup:
         )
 
         return StatelessProcessGroup(
-            rank=rank,
-            world_size=world_size,
-            store=store,
-            data_expiration_seconds=data_expiration_seconds)
+            rank=rank, world_size=world_size, store=store, data_expiration_seconds=data_expiration_seconds
+        )

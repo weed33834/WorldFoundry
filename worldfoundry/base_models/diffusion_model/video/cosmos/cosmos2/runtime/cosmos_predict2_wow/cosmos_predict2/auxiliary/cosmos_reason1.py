@@ -16,7 +16,6 @@
 """Module for base_models -> diffusion_model -> video -> cosmos -> cosmos2 -> runtime -> cosmos_predict2_wow -> cosmos_predict2 -> auxiliary -> cosmos_reason1.py functionality."""
 
 import torch
-from worldfoundry.base_models.llm_mllm_core.mllm.qwen.qwen_vl_utils import process_vision_info
 from transformers import (
     AutoProcessor,
     LogitsProcessor,
@@ -25,7 +24,8 @@ from transformers import (
     set_seed,
 )
 
-from imaginaire.utils import log
+from worldfoundry.base_models.llm_mllm_core.mllm.qwen.qwen_vl_utils import process_vision_info
+from worldfoundry.core.distributed.logging import log
 
 SYSTEM_PROMPT_REFINE = (
     """You are a prompt optimization specialist whose goal is to rewrite the user's input prompts into high-quality English prompts by referring to the details of the user's input images, making them more complete and expressive while maintaining the original meaning. You need to integrate the content of the user's photo with the input prompt for the rewrite, strictly adhering to the formatting of the examples provided.\n"""
@@ -81,6 +81,7 @@ USER_PROMPT_CRITIC = "Does the video contain any anomalies or artifacts?"
 
 class AllowedTokensLogitsProcessor(LogitsProcessor):
     """Allowed tokens logits processor implementation."""
+
     def __init__(self, allowed_token_ids: list[int]):
         """Init.
 
@@ -120,6 +121,7 @@ class AllowedTokensLogitsProcessor(LogitsProcessor):
 
 class CosmosReason1(torch.nn.Module):
     """Cosmos reason implementation."""
+
     def __init__(self, checkpoint_dir: str, offload_model_to_cpu: bool = True, enabled: bool = True):
         """Cosmos Reason1 model for prompt refinement.
 

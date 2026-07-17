@@ -1,11 +1,14 @@
 import datetime
 import os
+import threading
+from collections import OrderedDict
 from typing import Any, Optional, Tuple
 
 import torch
 import torch.distributed as dist
-
 from torch.nn import functional as F
+
+from worldfoundry.core.distributed.device_mesh_collectives import all_to_all_tensor
 
 
 class SequenceParallelInfo:
@@ -20,6 +23,9 @@ class SequenceParallelInfo:
 nccl_info = SequenceParallelInfo()
 _SEQUENCE_PARALLEL_STATE = False
 _SEQUENCE_PARALLEL_GROUPS: dict[str, dist.ProcessGroup] = {}
+_COLLECTIVE_SHAPE_CACHE: "OrderedDict[tuple[object, ...], tuple[tuple[int, ...], ...]]" = OrderedDict()
+_COLLECTIVE_SHAPE_CACHE_LOCK = threading.Lock()
+_COLLECTIVE_SHAPE_CACHE_LIMIT = 128
 
 
 def _resolve_group(group: Optional[dist.ProcessGroup] = None):
@@ -32,7 +38,61 @@ def _rank_in_group(group: Optional[dist.ProcessGroup] = None):
     return dist.get_group_rank(group, dist.get_rank())
 
 
+def _collective_shape_cache_enabled() -> bool:
+    # Dynamic video resolutions can leave one rank's local shape unchanged
+    # while another rank changes. Cache only when the deployment explicitly
+    # promises a fixed-shape workload.
+    return os.getenv("WORLDFOUNDRY_CACHE_COLLECTIVE_SHAPES", "0").strip().lower() not in {
+        "0",
+        "false",
+        "no",
+        "off",
+    }
+
+
+def _gather_shapes_cached(
+    local_shape: torch.Size | tuple[int, ...],
+    group: Optional[dist.ProcessGroup],
+    device: torch.device,
+) -> tuple[tuple[int, ...], ...]:
+    """Gather shape metadata on-device, optionally caching fixed workloads."""
+
+    shape = tuple(int(value) for value in local_shape)
+    world_size = dist.get_world_size(group)
+    key = (id(group), world_size, _rank_in_group(group), shape)
+    if _collective_shape_cache_enabled():
+        with _COLLECTIVE_SHAPE_CACHE_LOCK:
+            cached = _COLLECTIVE_SHAPE_CACHE.get(key)
+            if cached is not None:
+                _COLLECTIVE_SHAPE_CACHE.move_to_end(key)
+                return cached
+
+    local = torch.tensor(shape, dtype=torch.int64, device=device)
+    if hasattr(dist, "all_gather_into_tensor"):
+        gathered_tensor = local.new_empty(world_size * local.numel())
+        dist.all_gather_into_tensor(gathered_tensor, local, group=group)
+        gathered_tensor = gathered_tensor.reshape(world_size, local.numel())
+    else:
+        gathered_list = [torch.empty_like(local) for _ in range(world_size)]
+        dist.all_gather(gathered_list, local, group=group)
+        gathered_tensor = torch.stack(gathered_list, dim=0)
+    result = tuple(tuple(int(value) for value in item) for item in gathered_tensor.cpu().tolist())
+    if _collective_shape_cache_enabled():
+        with _COLLECTIVE_SHAPE_CACHE_LOCK:
+            _COLLECTIVE_SHAPE_CACHE[key] = result
+            _COLLECTIVE_SHAPE_CACHE.move_to_end(key)
+            while len(_COLLECTIVE_SHAPE_CACHE) > _COLLECTIVE_SHAPE_CACHE_LIMIT:
+                _COLLECTIVE_SHAPE_CACHE.popitem(last=False)
+    return result
+
+
+def clear_collective_shape_cache() -> None:
+    with _COLLECTIVE_SHAPE_CACHE_LOCK:
+        _COLLECTIVE_SHAPE_CACHE.clear()
+
+
 def initialize_sequence_parallel_group(sp_size: int) -> None:
+    clear_collective_shape_cache()
     world_size = dist.get_world_size()
     rank = dist.get_rank()
     assert world_size % sp_size == 0, "world_size must be divisible by sequence_parallel_size"
@@ -50,6 +110,7 @@ def initialize_sequence_parallel_group(sp_size: int) -> None:
 
 
 def set_sequence_parallel_group(group: dist.ProcessGroup) -> None:
+    clear_collective_shape_cache()
     _SEQUENCE_PARALLEL_GROUPS["sequence"] = group
     nccl_info.group = group
     nccl_info.sp_size = dist.get_world_size(group)
@@ -78,22 +139,26 @@ def get_sequence_parallel_state():
 
 
 def initialize_distributed(seed):
-    local_rank = int(os.getenv("RANK", 0))
+    rank = int(os.getenv("RANK", 0))
+    local_rank = int(os.getenv("LOCAL_RANK", rank))
     world_size = int(os.getenv("WORLD_SIZE", 1))
     # Set defaults for distributed env vars required by env:// init method
     os.environ.setdefault("MASTER_ADDR", "127.0.0.1")
     os.environ.setdefault("MASTER_PORT", "29500")
     if world_size == 1 and not dist.is_initialized():
         # Single-GPU mode: skip full init, use default device
-        torch.cuda.set_device(local_rank if torch.cuda.is_available() else 0)
+        if torch.cuda.is_available():
+            torch.cuda.set_device(local_rank)
     else:
+        if not torch.cuda.is_available():
+            raise RuntimeError("NCCL sequence parallelism requires CUDA, but CUDA is unavailable.")
         torch.cuda.set_device(local_rank)
         dist.init_process_group(
             backend="nccl",
             init_method="env://",
             timeout=datetime.timedelta(seconds=2**31 - 1),
             world_size=world_size,
-            rank=local_rank,
+            rank=rank,
         )
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
@@ -107,9 +172,7 @@ def broadcast(input_: torch.Tensor, group: Optional[dist.ProcessGroup] = None):
     return input_.contiguous()
 
 
-def _all_to_all_4D(
-    input: torch.tensor, scatter_idx: int = 2, gather_idx: int = 1, group=None
-) -> torch.tensor:
+def _all_to_all_4D(input: torch.tensor, scatter_idx: int = 2, gather_idx: int = 1, group=None) -> torch.tensor:
     """
     all-to-all for QKV
 
@@ -122,17 +185,13 @@ def _all_to_all_4D(
     Returns:
         torch.tensor: resharded tensor (bs, seqlen/P, hc, hs)
     """
-    assert (
-        input.dim() == 4
-    ), f"input must be 4D tensor, got {input.dim()} and shape {input.shape}"
+    assert input.dim() == 4, f"input must be 4D tensor, got {input.dim()} and shape {input.shape}"
 
     group = _resolve_group(group)
     seq_world_size = dist.get_world_size(group)
 
     if scatter_idx == 2 and gather_idx == 1:
-
-        seq_lens = [None] * seq_world_size
-        dist.all_gather_object(seq_lens, input.shape[1], group)
+        seq_lens = tuple(shape[0] for shape in _gather_shapes_cached((input.shape[1],), group, input.device))
         # uneven
         if seq_lens[-1] != seq_lens[0]:
             assert seq_lens[0] > seq_lens[-1]
@@ -146,18 +205,12 @@ def _all_to_all_4D(
         # input (torch.tensor): a tensor sharded along dim 1 (bs, seqlen/P, hc, hs) output: (bs, seqlen, hc/P, hs)
         bs, shard_seqlen, hc, hs = input.shape
         seqlen = shard_seqlen * seq_world_size
-        assert (
-            hc % seq_world_size == 0
-        ), f"Invalid size: {hc}, which should be divisible by {seq_world_size}"
+        assert hc % seq_world_size == 0, f"Invalid size: {hc}, which should be divisible by {seq_world_size}"
         shard_hc = hc // seq_world_size
 
         # transpose groups of heads with the seq-len parallel dimension, so that we can scatter them!
         # (bs, seqlen/P, hc, hs) -reshape-> (bs, seq_len/P, P, hc/P, hs) -transpose(0,2)-> (P, seq_len/P, bs, hc/P, hs)
-        input_t = (
-            input.reshape(bs, shard_seqlen, seq_world_size, shard_hc, hs)
-            .transpose(0, 2)
-            .contiguous()
-        )
+        input_t = input.reshape(bs, shard_seqlen, seq_world_size, shard_hc, hs).transpose(0, 2).contiguous()
 
         output = torch.empty_like(input_t)
         # https://pytorch.org/docs/stable/distributed.html#torch.distributed.all_to_all_single
@@ -219,10 +272,7 @@ def _all_to_all_4D(
         # (hc, seqlen/N, bs, hs) -tranpose(0,2)-> (bs, seqlen/N, hc, hs)
         output = output.transpose(0, 2).contiguous().reshape(bs, shard_seqlen, hc, hs)
 
-        if (
-            gap > 0
-            and _rank_in_group(group) == seq_world_size - 1
-        ):
+        if gap > 0 and _rank_in_group(group) == seq_world_size - 1:
             output = output[:, :-gap]
 
         return output
@@ -246,14 +296,10 @@ class SeqAllToAll4D(torch.autograd.Function):
         return _all_to_all_4D(input, scatter_idx, gather_idx, group=group)
 
     @staticmethod
-    def backward(
-        ctx: Any, *grad_output: torch.Tensor
-    ) -> Tuple[None, torch.Tensor, None, None]:
+    def backward(ctx: Any, *grad_output: torch.Tensor) -> Tuple[None, torch.Tensor, None, None]:
         return (
             None,
-            SeqAllToAll4D.apply(
-                ctx.group, *grad_output, ctx.gather_idx, ctx.scatter_idx
-            ),
+            SeqAllToAll4D.apply(ctx.group, *grad_output, ctx.gather_idx, ctx.scatter_idx),
             None,
             None,
         )
@@ -269,19 +315,38 @@ def all_to_all_4D(
     return SeqAllToAll4D.apply(group, input_, scatter_dim, gather_dim)
 
 
-def _all_to_all(
-    input_: torch.Tensor,
-    world_size: int,
-    group: dist.ProcessGroup,
-    scatter_dim: int,
-    gather_dim: int,
-):
-    input_list = [
-        t.contiguous() for t in torch.tensor_split(input_, world_size, scatter_dim)
-    ]
-    output_list = [torch.empty_like(input_list[0]) for _ in range(world_size)]
-    dist.all_to_all(output_list, input_list, group=group)
-    return torch.cat(output_list, dim=gather_dim).contiguous()
+def all_to_all_4d_many(
+    tensors: tuple[torch.Tensor, ...] | list[torch.Tensor],
+    group: Optional[dist.ProcessGroup] = None,
+    scatter_dim: int = 2,
+    gather_dim: int = 1,
+) -> tuple[torch.Tensor, ...]:
+    """Fuse equal-shaped 4D Q/K/V exchanges along their batch dimension."""
+
+    values = tuple(tensors)
+    if len(values) < 2:
+        return values
+    first = values[0]
+    compatible = all(
+        value.ndim == 4
+        and value.shape == first.shape
+        and value.dtype == first.dtype
+        and value.device == first.device
+        for value in values[1:]
+    )
+    try:
+        max_bytes = max(
+            int(float(os.getenv("WORLDFOUNDRY_FUSED_QKV_A2A_MAX_MB", "512") or "512") * 1024**2),
+            0,
+        )
+    except ValueError:
+        max_bytes = 512 * 1024**2
+    total_bytes = sum(value.numel() * value.element_size() for value in values)
+    if not compatible or max_bytes == 0 or total_bytes > max_bytes:
+        return tuple(all_to_all_4D(value, group, scatter_dim, gather_dim) for value in values)
+    packed = torch.cat(values, dim=0)
+    exchanged = all_to_all_4D(packed, group, scatter_dim, gather_dim)
+    return exchanged.split(first.shape[0], dim=0)
 
 
 class _AllToAll(torch.autograd.Function):
@@ -300,14 +365,12 @@ class _AllToAll(torch.autograd.Function):
         ctx.scatter_dim = scatter_dim
         ctx.gather_dim = gather_dim
         ctx.world_size = dist.get_world_size(process_group)
-        output = _all_to_all(
-            input_, ctx.world_size, process_group, scatter_dim, gather_dim
-        )
+        output = all_to_all_tensor(input_, ctx.world_size, process_group, scatter_dim, gather_dim)
         return output
 
     @staticmethod
     def backward(ctx, grad_output):
-        grad_output = _all_to_all(
+        grad_output = all_to_all_tensor(
             grad_output,
             ctx.world_size,
             ctx.process_group,
@@ -345,17 +408,12 @@ class _AllGather(torch.autograd.Function):
         ctx.dim = dim
         ctx.group = group
         world_size = dist.get_world_size(group)
-        input_size = list(input_.size())
 
-        sizes = [None] * world_size
-        dist.all_gather_object(sizes, input_.shape, group)
+        sizes = _gather_shapes_cached(input_.shape, group, input_.device)
 
-        ctx.input_size = input_size[dim]
+        ctx.gathered_dim_sizes = tuple(shape[dim] for shape in sizes)
 
-        tensor_list = [
-            torch.empty(sizes[i], dtype=input_.dtype, device=input_.device)
-            for i in range(world_size)
-        ]
+        tensor_list = [torch.empty(sizes[i], dtype=input_.dtype, device=input_.device) for i in range(world_size)]
         input_ = input_.contiguous()
         dist.all_gather(tensor_list, input_, group=group)
 
@@ -365,15 +423,10 @@ class _AllGather(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output):
         group = ctx.group
-        world_size = dist.get_world_size(group)
         rank = _rank_in_group(group)
         dim = ctx.dim
-        input_size = ctx.input_size
 
-        sizes = [None] * world_size
-        dist.all_gather_object(sizes, input_size, group=group)
-
-        grad_input_list = torch.split(grad_output, sizes, dim=dim)
+        grad_input_list = torch.split(grad_output, ctx.gathered_dim_sizes, dim=dim)
         grad_input = grad_input_list[rank]
 
         return grad_input, None, None
@@ -397,9 +450,9 @@ def _split(input_: torch.Tensor, dim: int, group: Optional[dist.ProcessGroup]) -
     world_size = dist.get_world_size(group)
     rank = dist.get_rank(group)
     dim_size = input_.size(dim)
-    assert (
-        dim_size % world_size == 0
-    ), f"The dimension to split ({dim_size}) is not a multiple of world size ({world_size})"
+    assert dim_size % world_size == 0, (
+        f"The dimension to split ({dim_size}) is not a multiple of world size ({world_size})"
+    )
     output_list = torch.split(input_, dim_size // world_size, dim=dim)
     return output_list[rank].contiguous()
 

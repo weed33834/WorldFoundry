@@ -22,12 +22,12 @@ from typing import Any
 
 import numpy as np
 import torch
-
 from cosmos_predict1.auxiliary.t5_text_encoder import CosmosT5TextEncoder, DummyT5TextEncoder
 
 
 class BaseWorldGenerationPipeline(ABC):
     """Base world generation pipeline implementation."""
+
     def __init__(
         self,
         inference_type: str | None = None,
@@ -237,6 +237,8 @@ class BaseWorldGenerationPipeline(ABC):
         Returns:
             bool: True if prompt passes all safety checks, False otherwise
         """
+        from cosmos_predict1.auxiliary.guardrail.common import presets as guardrail_presets
+
         return guardrail_presets.run_text_guardrail(prompt, self.text_guardrail)
 
     def _run_guardrail_on_prompt_with_offload(self, prompt: str) -> bool:
@@ -271,6 +273,8 @@ class BaseWorldGenerationPipeline(ABC):
         Returns:
             np.ndarray: Processed video if safe, None if unsafe
         """
+        from cosmos_predict1.auxiliary.guardrail.common import presets as guardrail_presets
+
         return guardrail_presets.run_video_guardrail(video, self.video_guardrail)
 
     def _run_guardrail_on_video_with_offload(self, video: np.ndarray) -> np.ndarray | None:

@@ -50,8 +50,7 @@ class WanVariant:
         except KeyError as exc:
             available = ", ".join(sorted(self.modules)) or "<none>"
             raise KeyError(
-                f"Wan variant {self.variant_id!r} has no component {component!r}. "
-                f"Available components: {available}"
+                f"Wan variant {self.variant_id!r} has no component {component!r}. Available components: {available}"
             ) from exc
 
 
@@ -80,6 +79,35 @@ _WAN_VARIANT_LIST: tuple[WanVariant, ...] = (
             "model": "worldfoundry.base_models.diffusion_model.video.wan.wan_2p2.modules.model",
             "vae2.1": "worldfoundry.base_models.diffusion_model.video.wan.wan_2p2.modules.vae2_1",
             "vae2.2": "worldfoundry.base_models.diffusion_model.video.wan.wan_2p2.modules.vae2_2",
+        },
+    ),
+    WanVariant(
+        variant_id="lingbot-world-v2",
+        display_name="LingBot-World-V2 Wan",
+        package="worldfoundry.base_models.diffusion_model.video.wan",
+        base_family="wan2.2",
+        aliases=("lingbot-world-infinity", "lingbot_world_v2", "lingbot-v2"),
+        notes="Causal-fast camera-control Wan backbone from LingBot-World-V2.",
+        modules={
+            "model": "worldfoundry.base_models.diffusion_model.video.wan.models.lingbot_world_v2",
+            "t5": "worldfoundry.base_models.diffusion_model.video.wan.wan_2p1.modules.t5",
+            "vae": "worldfoundry.base_models.diffusion_model.video.wan.wan_2p2.modules.vae2_1",
+        },
+    ),
+    WanVariant(
+        variant_id="abot-world",
+        display_name="ABot-World Wan",
+        package="worldfoundry.base_models.diffusion_model.video.wan",
+        base_family="wan2.2",
+        aliases=("abot-world-0-5b-lf", "abot_world", "abot"),
+        notes="Action-conditioned causal Wan2.2 backbone used by ABot-World.",
+        modules={
+            "attention": "worldfoundry.base_models.diffusion_model.video.wan.wan_2p1.modules.attention",
+            "model": "worldfoundry.base_models.diffusion_model.video.wan.models.abot_world",
+            "scheduler": "worldfoundry.base_models.diffusion_model.video.wan.inference_scheduler",
+            "t5": "worldfoundry.base_models.diffusion_model.video.wan.wan_2p1.modules.t5",
+            "tiny_vae": "worldfoundry.base_models.diffusion_model.video.wan.vae.taew2p2",
+            "vae": "worldfoundry.base_models.diffusion_model.video.wan.wan_2p2.modules.vae2_2",
         },
     ),
     WanVariant(
@@ -134,6 +162,85 @@ _WAN_VARIANT_LIST: tuple[WanVariant, ...] = (
         },
     ),
     WanVariant(
+        variant_id="magic-world",
+        display_name="MagicWorld Wan",
+        package="worldfoundry.base_models.diffusion_model.video.wan.variants.magic_world",
+        base_family="wan2.1",
+        aliases=("magicworld", "magic_world", "wan_magic_world"),
+        notes="Camera- and history-conditioned Wan2.1 inference models used by MagicWorld.",
+        modules={
+            "causal_model": "worldfoundry.base_models.diffusion_model.video.wan.variants.magic_world.causal_model",
+            "model": "worldfoundry.base_models.diffusion_model.video.wan.variants.magic_world.model",
+            "scheduler": "worldfoundry.base_models.diffusion_model.video.wan.inference_scheduler",
+        },
+    ),
+    WanVariant(
+        variant_id="video-x-fun",
+        display_name="VideoX-Fun Wan",
+        package="worldfoundry.base_models.diffusion_model.video.wan.variants.video_x_fun",
+        base_family="wan2.1/wan2.2",
+        aliases=("videox-fun", "video_x_fun", "videox_fun"),
+        notes="Diffusers-compatible Wan inference components shared by VideoX-Fun and VerseCrafter.",
+        modules={
+            "attention": "worldfoundry.core.attention.varlen",
+            "cache": "worldfoundry.base_models.diffusion_model.video.wan.variants.video_x_fun.cache",
+            "clip": "worldfoundry.base_models.diffusion_model.video.wan.variants.video_x_fun.image_encoder",
+            "model": "worldfoundry.base_models.diffusion_model.video.wan.variants.video_x_fun.transformer",
+            "vae": "worldfoundry.base_models.diffusion_model.video.wan.variants.video_x_fun.vae",
+        },
+    ),
+    WanVariant(
+        variant_id="spatia",
+        display_name="Spatia Wan",
+        package="worldfoundry.base_models.diffusion_model.video.wan.variants.spatia",
+        base_family="wan2.2",
+        aliases=("wan_spatia",),
+        notes="VACE control head built on the shared DreamZero Wan implementation.",
+        modules={
+            "vace": "worldfoundry.base_models.diffusion_model.video.wan.variants.spatia",
+        },
+    ),
+    WanVariant(
+        variant_id="versecrafter",
+        display_name="VerseCrafter Wan",
+        package="worldfoundry.base_models.diffusion_model.video.wan.variants.versecrafter",
+        base_family="wan2.1",
+        aliases=("verse-crafter", "wan_versecrafter"),
+        notes="GeoAda camera-control Wan inference model used by VerseCrafter.",
+        modules={
+            "model": "worldfoundry.base_models.diffusion_model.video.wan.variants.versecrafter.transformer",
+        },
+    ),
+    WanVariant(
+        variant_id="moverse",
+        display_name="MoVerse Wan",
+        package="worldfoundry.base_models.diffusion_model.video.wan.variants.moverse",
+        base_family="wan2.1",
+        aliases=("mo-verse", "wan_moverse"),
+        notes="Causal and MMDiT Wan2.1 inference models used by MoVerse.",
+        modules={
+            "causal_model": "worldfoundry.base_models.diffusion_model.video.wan.variants.moverse.causal_model",
+            "mmdit_model": "worldfoundry.base_models.diffusion_model.video.wan.variants.moverse.causal_mmdit_model",
+            "scheduler": "worldfoundry.base_models.diffusion_model.video.wan.inference_scheduler",
+        },
+    ),
+    WanVariant(
+        variant_id="dreamx-world",
+        display_name="DreamX World Wan",
+        package="worldfoundry.base_models.diffusion_model.video.wan.variants.dreamx_world",
+        base_family="wan2.2",
+        aliases=("dreamx", "dreamx_world", "wan_dreamx_world"),
+        notes="Bidirectional and causal camera-conditioned Wan2.2 inference models used by DreamX World.",
+        modules={
+            "causal_model": "worldfoundry.base_models.diffusion_model.video.wan.variants.dreamx_world.causal_camera_model",
+            "model": "worldfoundry.base_models.diffusion_model.video.wan.variants.dreamx_world.transformer",
+            "scheduler": "worldfoundry.base_models.diffusion_model.video.wan.inference_scheduler",
+            "text_encoder": "worldfoundry.base_models.diffusion_model.video.wan.variants.dreamx_world.text_encoder",
+            "vae": "worldfoundry.base_models.diffusion_model.video.wan.variants.dreamx_world.vae",
+            "wrappers": "worldfoundry.base_models.diffusion_model.video.wan.variants.dreamx_world.wrappers",
+        },
+    ),
+    WanVariant(
         variant_id="fantasy-world",
         display_name="FantasyWorld Wan",
         package="worldfoundry.base_models.diffusion_model.video.wan",
@@ -177,9 +284,7 @@ _WAN_VARIANT_LIST: tuple[WanVariant, ...] = (
 )
 
 
-WAN_VARIANTS: Mapping[str, WanVariant] = {
-    variant.variant_id: variant for variant in _WAN_VARIANT_LIST
-}
+WAN_VARIANTS: Mapping[str, WanVariant] = {variant.variant_id: variant for variant in _WAN_VARIANT_LIST}
 
 
 def _normalize_variant_key(value: str) -> str:

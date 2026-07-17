@@ -19,23 +19,21 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 
 import torch
-from hydra.core.config_store import ConfigStore
-
 from cosmos_predict2.configs.vid2vid.defaults.conditioner import Vid2VidCondition, Vid2VidConditioner
-from imaginaire.lazy_config import LazyCall as L
-from imaginaire.lazy_config import LazyDict
 
 
 # NOTE: extend the condition class to include action
 @dataclass(frozen=True)
 class ActionConditionedCondition(Vid2VidCondition):
     """Action conditioned condition implementation."""
+
     action: Optional[torch.Tensor] = None
 
 
 # NOTE: extend the conditioner class to include action
 class ActionConditionedConditioner(Vid2VidConditioner):
     """Action conditioned conditioner implementation."""
+
     def forward(
         self,
         batch: Dict,

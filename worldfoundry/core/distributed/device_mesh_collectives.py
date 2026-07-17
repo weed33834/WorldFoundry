@@ -41,6 +41,21 @@ def get_local_tensor_if_dtensor(tensor):
     return tensor.to_local() if hasattr(tensor, "to_local") else tensor
 
 
+def all_to_all_tensor(
+    tensor: torch.Tensor,
+    world_size: int,
+    group: dist.ProcessGroup,
+    scatter_dim: int,
+    gather_dim: int,
+) -> torch.Tensor:
+    """Exchange equal tensor chunks and concatenate them along another dimension."""
+
+    input_chunks = [chunk.contiguous() for chunk in torch.tensor_split(tensor, world_size, scatter_dim)]
+    output_chunks = [torch.empty_like(input_chunks[0]) for _ in range(world_size)]
+    dist.all_to_all(output_chunks, input_chunks, group=group)
+    return torch.cat(output_chunks, dim=gather_dim).contiguous()
+
+
 class DTensorFastEmaModelUpdater:
     """Foreach-based EMA updater that operates on local DTensor shards."""
 
@@ -87,6 +102,10 @@ class DTensorFastEmaModelUpdater:
         self.is_cached = False
 
 
+FastEmaModelUpdater = DTensorFastEmaModelUpdater
+get_local_tensor_if_DTensor = get_local_tensor_if_dtensor
+
+
 def broadcast_dtensor_model_states(model: torch.nn.Module, mesh: DeviceMesh) -> None:
     """Broadcast model parameters and buffers from the first rank in the replicate mesh."""
 
@@ -97,13 +116,23 @@ def broadcast_dtensor_model_states(model: torch.nn.Module, mesh: DeviceMesh) -> 
 
     src_rank = all_ranks[0]
     for _, tensor in itertools.chain(model.named_parameters(), model.named_buffers()):
-        dist.broadcast(get_local_tensor_if_dtensor(tensor), src=src_rank, group=replicate_group)
+        local_tensor = get_local_tensor_if_dtensor(tensor)
+        if local_tensor.device.type == "cpu":
+            if not torch.cuda.is_available():
+                raise RuntimeError("NCCL DTensor broadcast requires CUDA for CPU-resident model state.")
+            broadcast_tensor = local_tensor.cuda()
+            dist.broadcast(broadcast_tensor, src=src_rank, group=replicate_group)
+            local_tensor.copy_(broadcast_tensor.cpu())
+        else:
+            dist.broadcast(local_tensor, src=src_rank, group=replicate_group)
 
 
 __all__ = [
     "DTensorFastEmaModelUpdater",
+    "FastEmaModelUpdater",
     "broadcast",
     "broadcast_dtensor_model_states",
     "broadcast_with_shape_check",
     "get_local_tensor_if_dtensor",
+    "get_local_tensor_if_DTensor",
 ]

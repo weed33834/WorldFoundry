@@ -21,9 +21,10 @@ import os
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from cosmos_predict2.auxiliary.guardrail.common.core import ContentSafetyGuardrail, GuardrailRunner
 from worldfoundry.base_models.diffusion_model.video.cosmos.shared.llamaguard_categories import UNSAFE_CATEGORIES
-from imaginaire.utils import log, misc
+from worldfoundry.core.distributed.logging import log
+from worldfoundry.core.safety import ContentSafetyGuardrail, GuardrailRunner
+from worldfoundry.core.utils import inference_runtime as misc
 
 SAFE = misc.Color.green("SAFE")
 UNSAFE = misc.Color.red("UNSAFE")
@@ -31,6 +32,7 @@ UNSAFE = misc.Color.red("UNSAFE")
 
 class LlamaGuard3(ContentSafetyGuardrail):
     """Llama guard implementation."""
+
     def __init__(
         self,
         checkpoint_dir: str,

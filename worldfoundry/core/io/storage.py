@@ -94,7 +94,9 @@ def read_text_uri(uri: str | os.PathLike[str], *, encoding: str = "utf-8", **sto
         return handle.read()
 
 
-def write_binary_uri(uri: str | os.PathLike[str], data: bytes | bytearray | memoryview | io.BytesIO, **storage_options) -> None:
+def write_binary_uri(
+    uri: str | os.PathLike[str], data: bytes | bytearray | memoryview | io.BytesIO, **storage_options
+) -> None:
     """Write bytes to a URI, creating local parent directories as needed."""
 
     if isinstance(data, io.BytesIO):
@@ -198,7 +200,10 @@ def list_uri(
             raise RuntimeError("Remote listing requires fsspec")
         filesystem, path = fsspec.core.url_to_fs(str(uri), **storage_options)
         pattern = f"{path.rstrip('/')}/**" if recursive else f"{path.rstrip('/')}/*"
-        values = [f"{filesystem.protocol}://{item}" if isinstance(filesystem.protocol, str) else item for item in filesystem.glob(pattern)]
+        values = [
+            f"{filesystem.protocol}://{item}" if isinstance(filesystem.protocol, str) else item
+            for item in filesystem.glob(pattern)
+        ]
     if suffix is None:
         return sorted(values)
     suffixes = (suffix,) if isinstance(suffix, str) else suffix

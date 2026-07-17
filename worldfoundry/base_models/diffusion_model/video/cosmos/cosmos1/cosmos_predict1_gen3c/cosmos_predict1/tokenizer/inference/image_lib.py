@@ -19,7 +19,6 @@ from typing import Any
 
 import numpy as np
 import torch
-
 from cosmos_predict1.tokenizer.inference.utils import (
     load_decoder_model,
     load_encoder_model,
@@ -33,6 +32,7 @@ from cosmos_predict1.tokenizer.inference.utils import (
 
 class ImageTokenizer(torch.nn.Module):
     """Image tokenizer implementation."""
+
     def __init__(
         self,
         checkpoint: str = None,

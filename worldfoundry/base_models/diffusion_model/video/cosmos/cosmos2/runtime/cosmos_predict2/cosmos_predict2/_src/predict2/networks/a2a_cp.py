@@ -22,13 +22,12 @@ from typing import Any, Callable, List, Tuple, Union
 
 import torch
 import torch.distributed as dist
+from cosmos_predict2._src.predict2.modules.neighborhood_attn import NeighborhoodAttention
+from cosmos_predict2._src.predict2.networks.attention import attention
 from einops import rearrange
 from torch import Tensor
 from torch.distributed import ProcessGroup
 from torch.nn import Module
-
-from cosmos_predict2._src.predict2.modules.neighborhood_attn import NeighborhoodAttention
-from cosmos_predict2._src.predict2.networks.attention import attention
 
 
 def post_all2all(local_seq_2_local_head, seq_world_size):
@@ -38,6 +37,7 @@ def post_all2all(local_seq_2_local_head, seq_world_size):
         local_seq_2_local_head: The local seq 2 local head.
         seq_world_size: The seq world size.
     """
+
     def post_func(input):
         """Post func.
 
@@ -140,6 +140,7 @@ def async_a2a_communicate(
 
 class _SeqAllToAll(torch.autograd.Function):
     """Seq all to all implementation."""
+
     @staticmethod
     def forward(ctx: Any, group: dist.ProcessGroup, input: Tensor, local_seq_2_local_head: bool) -> Tensor:
         """Forward.
@@ -173,6 +174,7 @@ class _SeqAllToAll(torch.autograd.Function):
 
 class _SeqAllToAllQKV(torch.autograd.Function):
     """Seq all to all qkv implementation."""
+
     @staticmethod
     def forward(
         ctx: Any,
@@ -286,6 +288,7 @@ class DistributedAttention(torch.nn.Module):
 
 class MinimalA2AAttnOp(DistributedAttention):
     """Minimal a attn op implementation."""
+
     def __init__(self, *args, **kwargs):
         """Init."""
         del args, kwargs
@@ -320,6 +323,7 @@ class MinimalA2AAttnOp(DistributedAttention):
 
 class NattenA2AAttnOp(MinimalA2AAttnOp):
     """Natten a attn op implementation."""
+
     def __init__(self, *args, **kwargs):
         """Init."""
         super(NattenA2AAttnOp, self).__init__(None)

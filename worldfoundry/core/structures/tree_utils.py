@@ -3,10 +3,11 @@
 Install dm_tree first: https://tree.readthedocs.io/en/latest/api.html
 """
 
-import collections
 from typing import Any, Iterable, List, Tuple, TypeVar
 
 import numpy as np
+
+from .predicates import is_mapping, is_sequence  # noqa: F401 - compatibility exports
 
 try:
     import tree as _tree
@@ -19,24 +20,10 @@ else:
 
 def _require_tree():
     if _tree is None:
-        raise ImportError("dm-tree is required for nested tree operations: `pip install dm_tree`.") from _TREE_IMPORT_ERROR
+        raise ImportError(
+            "dm-tree is required for nested tree operations: `pip install dm_tree`."
+        ) from _TREE_IMPORT_ERROR
     return _tree
-
-
-def is_sequence(obj):
-    """
-    Returns:
-      True if the sequence is a collections.Sequence and not a string.
-    """
-    return isinstance(obj, collections.abc.Sequence) and not isinstance(obj, str)
-
-
-def is_mapping(obj):
-    """
-    Returns:
-      True if the sequence is a collections.Mapping
-    """
-    return isinstance(obj, collections.abc.Mapping)
 
 
 def tree_value_at_path(obj, paths: Tuple):

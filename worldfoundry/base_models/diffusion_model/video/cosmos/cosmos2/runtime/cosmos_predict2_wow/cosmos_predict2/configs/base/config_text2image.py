@@ -16,19 +16,20 @@
 """Module for base_models -> diffusion_model -> video -> cosmos -> cosmos2 -> runtime -> cosmos_predict2_wow -> cosmos_predict2 -> configs -> base -> config_text2image.py functionality."""
 
 import attrs
-
 from cosmos_predict2.conditioner import ReMapkey, TextAttr, VideoConditioner
-from cosmos_predict2.models.text2image_dit import MiniTrainDIT
+from cosmos_predict2.models.text2image_dit import InferenceDiT
 from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
-from imaginaire.config import make_freezable
-from imaginaire.lazy_config import LazyCall as L
-from imaginaire.lazy_config import LazyDict
+
+from worldfoundry.core.configuration import make_freezable
+from worldfoundry.core.configuration.lazy_config import LazyCall as L
+from worldfoundry.core.configuration.lazy_config import LazyDict
 
 
 @make_freezable
 @attrs.define(slots=False)
 class SolverTimestampConfig:
     """Solver timestamp config implementation."""
+
     nfe: int = 35
     t_min: float = 0.002
     t_max: float = 80.0
@@ -40,6 +41,7 @@ class SolverTimestampConfig:
 @attrs.define(slots=False)
 class CosmosGuardrailConfig:
     """Cosmos guardrail config implementation."""
+
     checkpoint_dir: str
     offload_model_to_cpu: bool = True
     enabled: bool = True
@@ -49,6 +51,7 @@ class CosmosGuardrailConfig:
 @attrs.define(slots=False)
 class Text2ImagePipelineConfig:
     """Text image pipeline config implementation."""
+
     adjust_video_noise: bool
     conditioner: LazyDict
     net: LazyDict
@@ -66,7 +69,7 @@ class Text2ImagePipelineConfig:
 
 
 # Cosmos Predict2 Text2Image 2B
-PREDICT2_TEXT2IMAGE_NET_2B = L(MiniTrainDIT)(
+PREDICT2_TEXT2IMAGE_NET_2B = L(InferenceDiT)(
     max_img_h=240,
     max_img_w=240,
     max_frames=128,
@@ -143,7 +146,7 @@ PREDICT2_TEXT2IMAGE_PIPELINE_2B = Text2ImagePipelineConfig(
 )
 
 # Cosmos Predict2 Text2Image 14B
-PREDICT2_TEXT2IMAGE_NET_14B = L(MiniTrainDIT)(
+PREDICT2_TEXT2IMAGE_NET_14B = L(InferenceDiT)(
     max_img_h=240,
     max_img_w=240,
     max_frames=128,

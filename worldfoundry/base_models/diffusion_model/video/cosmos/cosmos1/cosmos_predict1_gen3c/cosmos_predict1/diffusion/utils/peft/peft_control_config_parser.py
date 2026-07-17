@@ -56,13 +56,11 @@ class LayerControlConfigParser:
         "MLP": {"l1", "l2", "ada1", "ada2"},
     }
 
-    DEFAULT_VALUE_CONSTRAINTS = (
-        {  # field to allowed ranges. these ranges are not prescriptive and can be adjusted as needed.
-            "blocks": {"min": 0, "max": 27},
-            "rank": {"min": 1, "max": 512},
-            "scale": {"min": 1e-5, "max": 64},
-        }
-    )
+    DEFAULT_VALUE_CONSTRAINTS = {  # field to allowed ranges. these ranges are not prescriptive and can be adjusted as needed.
+        "blocks": {"min": 0, "max": 27},
+        "rank": {"min": 1, "max": 512},
+        "scale": {"min": 1e-5, "max": 64},
+    }
     ALLOWED_TYPES_FINAL_LAYER = {"FL": {"l1", "ada1", "ada2"}}
 
     def __init__(self, config: Union[str, dict] = {}, allowed_types: dict = None, value_constraints: dict = None):

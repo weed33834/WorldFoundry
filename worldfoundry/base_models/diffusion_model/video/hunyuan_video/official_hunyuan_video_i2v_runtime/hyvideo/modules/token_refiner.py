@@ -4,10 +4,17 @@ from einops import rearrange
 import torch
 import torch.nn as nn
 
-from .activation_layers import get_activation_layer
+from worldfoundry.base_models.diffusion_model.video.hunyuan_video.official_hunyuan_video_runtime.hyvideo.modules.activation_layers import (
+    get_activation_layer,
+)
+from worldfoundry.base_models.diffusion_model.video.hunyuan_video.official_hunyuan_video_runtime.hyvideo.modules.embed_layers import (
+    TextProjection,
+    TimestepEmbedder,
+)
+from worldfoundry.base_models.diffusion_model.video.hunyuan_video.official_hunyuan_video_runtime.hyvideo.modules.norm_layers import (
+    get_norm_layer,
+)
 from .attenion import attention
-from .norm_layers import get_norm_layer
-from .embed_layers import TimestepEmbedder, TextProjection
 from .attenion import attention
 from .mlp_layers import MLP
 from worldfoundry.base_models.diffusion_model.video.hunyuan_video.modulate_layers_i2v import apply_gate, modulate

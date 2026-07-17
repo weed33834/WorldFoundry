@@ -19,7 +19,7 @@ import numpy as np
 import torch
 from retinaface.utils.nms.py_cpu_nms import py_cpu_nms
 
-from imaginaire.utils import log
+from worldfoundry.core.distributed.logging import log
 
 
 # Adapted from https://github.com/biubug6/Pytorch_Retinaface/blob/master/detect.py

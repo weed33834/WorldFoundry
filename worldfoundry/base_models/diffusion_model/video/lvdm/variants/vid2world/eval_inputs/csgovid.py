@@ -18,14 +18,14 @@ from torch import Tensor
 from typing import Optional, List, Tuple
 import math
 
-from worldfoundry.synthesis.visual_generation.world_model.vid2world.vid2world_runtime.csgo_utils.data import (
+from worldfoundry.synthesis.visual_generation.world_model.vid2world.csgo_utils.data import (
     CSGOHdf5Dataset,
     SegmentId,
 )
 
 
 _VID2WORLD_RUNTIME_ROOT = Path(
-    str(files("worldfoundry.synthesis.visual_generation.world_model.vid2world.vid2world_runtime"))
+    str(files("worldfoundry.synthesis.visual_generation.world_model.vid2world"))
 )
 
 class CSGOVID(Dataset):

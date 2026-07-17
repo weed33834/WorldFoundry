@@ -21,11 +21,6 @@ from typing import Any, Callable, Dict, Optional, Tuple
 
 import attrs
 import torch
-from einops import rearrange
-from megatron.core import parallel_state
-from torch import Tensor
-
-from cosmos_predict2._src.imaginaire.utils.high_sigma_strategy import HighSigmaStrategy as HighSigmaStrategy
 from cosmos_predict2._src.predict2.conditioner import DataType
 from cosmos_predict2._src.predict2.configs.video2world.defaults.conditioner import Video2WorldCondition
 from cosmos_predict2._src.predict2.models.text2world_model import (
@@ -34,12 +29,18 @@ from cosmos_predict2._src.predict2.models.text2world_model import (
     Text2WorldModelConfig,
 )
 from cosmos_predict2._src.predict2.models.text2world_model import DiffusionModel as Text2WorldModel
+from einops import rearrange
+from torch import Tensor
+
+from worldfoundry.base_models.diffusion_model.video.cosmos.shared.sampling_strategies import HighSigmaStrategy
+from worldfoundry.core.distributed.megatron_compat import parallel_state
 
 NUM_CONDITIONAL_FRAMES_KEY: str = "num_conditional_frames"
 
 
 class ConditioningStrategy(str, Enum):
     """Conditioning strategy implementation."""
+
     FRAME_REPLACE = "frame_replace"  # First few frames of the video are replaced with the conditional frames
 
     def __str__(self) -> str:
@@ -54,6 +55,7 @@ class ConditioningStrategy(str, Enum):
 @attrs.define(slots=False)
 class Video2WorldConfig(Text2WorldModelConfig):
     """Video world config implementation."""
+
     min_num_conditional_frames: int = 1  # Minimum number of latent conditional frames
     max_num_conditional_frames: int = 2  # Maximum number of latent conditional frames
     sigma_conditional: float = 0.0001  # Noise level used for conditional frames
@@ -86,6 +88,7 @@ LOG_100000 = math.log(100000)
 
 class Video2WorldModel(Text2WorldModel):
     """Video world model implementation."""
+
     def get_data_and_condition(
         self, data_batch: dict[str, torch.Tensor]
     ) -> Tuple[Tensor, Tensor, Video2WorldCondition]:
@@ -157,7 +160,7 @@ class Video2WorldModel(Text2WorldModel):
                 sigma_B_1 = torch.where(mask, low_sigma_B_1, sigma_B_1)
             elif self.config.high_sigma_strategy == str(HighSigmaStrategy.HARDCODED_20steps):
                 if not hasattr(self, "hardcoded_20steps_sigma"):
-                    from cosmos_predict2._src.imaginaire.modules.res_sampler import get_rev_ts
+                    from worldfoundry.base_models.diffusion_model.video.cosmos.shared.res_sampler import get_rev_ts
 
                     hardcoded_20steps_sigma = get_rev_ts(
                         t_min=self.sde.sigma_min, t_max=self.sde.sigma_max, num_steps=20, ts_order=7.0

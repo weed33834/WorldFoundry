@@ -23,15 +23,21 @@ import numpy as np
 import torch
 from scipy.spatial.transform import Rotation as R
 
-from worldfoundry.base_models.three_dimensions.general_3d.vipe.ext.lietorch import SE3, SO3
+from worldfoundry.base_models.perception_core.tracking.track_anything import TrackAnythingPipeline
 from worldfoundry.base_models.three_dimensions.depth import DepthEstimationInput, make_depth_model
 from worldfoundry.base_models.three_dimensions.depth.alignment import align_inv_depth_to_depth
 from worldfoundry.base_models.three_dimensions.depth.priorda import PriorDAModel
 from worldfoundry.base_models.three_dimensions.depth.videodepthanything import VideoDepthAnythingDepthModel
 from worldfoundry.base_models.three_dimensions.general_3d.geocalib import GeoCalib
-from worldfoundry.base_models.perception_core.tracking.track_anything import TrackAnythingPipeline
+from worldfoundry.base_models.three_dimensions.general_3d.vipe.ext.lietorch import SE3, SO3
 from worldfoundry.base_models.three_dimensions.general_3d.vipe.slam.interface import SLAMOutput
-from worldfoundry.base_models.three_dimensions.general_3d.vipe.streams.base import CachedVideoStream, FrameAttribute, StreamProcessor, VideoFrame, VideoStream
+from worldfoundry.base_models.three_dimensions.general_3d.vipe.streams.base import (
+    CachedVideoStream,
+    FrameAttribute,
+    StreamProcessor,
+    VideoFrame,
+    VideoStream,
+)
 from worldfoundry.base_models.three_dimensions.general_3d.vipe.utils.cameras import CameraType
 from worldfoundry.base_models.three_dimensions.general_3d.vipe.utils.depth import get_camera_rays
 from worldfoundry.base_models.three_dimensions.general_3d.vipe.utils.geometry import project_points_to_panorama
@@ -101,6 +107,7 @@ class GeoCalibIntrinsicsProcessor(IntrinsicEstimationProcessor):
         video_stream: VideoStream,
         gap_sec: float = 1.0,
         camera_type: CameraType = CameraType.PINHOLE,
+        model: GeoCalib | None = None,
     ) -> None:
         """Init.
 
@@ -108,6 +115,7 @@ class GeoCalibIntrinsicsProcessor(IntrinsicEstimationProcessor):
             video_stream: The video stream.
             gap_sec: The gap sec.
             camera_type: The camera type.
+            model: An existing GeoCalib model to reuse across videos.
 
         Returns:
             The return value.
@@ -115,14 +123,23 @@ class GeoCalibIntrinsicsProcessor(IntrinsicEstimationProcessor):
         super().__init__(video_stream, gap_sec)
 
         is_pinhole = camera_type == CameraType.PINHOLE
-        weights = "pinhole" if is_pinhole else "distorted"
+        if model is None:
+            if is_pinhole:
+                from worldfoundry.base_models.three_dimensions.general_3d.vipe.assets import (
+                    geocalib_checkpoint,
+                    require_asset,
+                )
 
-        model = GeoCalib(weights=weights).cuda()
+                weights = str(require_asset(geocalib_checkpoint()))
+            else:
+                weights = "distorted"
+            model = GeoCalib(weights=weights).cuda()
+        self.model = model
         indexable_stream = CachedVideoStream(video_stream)
 
         if is_pinhole:
             sample_frames = torch.stack([indexable_stream[i].rgb.moveaxis(-1, 0) for i in self.sample_frame_inds])
-            res = model.calibrate(
+            res = self.model.calibrate(
                 sample_frames,
                 shared_intrinsics=True,
             )
@@ -132,7 +149,7 @@ class GeoCalibIntrinsicsProcessor(IntrinsicEstimationProcessor):
                 CameraType.PINHOLE: "pinhole",
                 CameraType.MEI: "simple_mei",
             }[camera_type]
-            res = model.calibrate(
+            res = self.model.calibrate(
                 indexable_stream[self.sample_frame_inds[0]].rgb.moveaxis(-1, 0)[None],
                 camera_model=camera_model,
             )
@@ -477,7 +494,9 @@ class MultiviewDepthProcessor(StreamProcessor):
 
         if self.model == "mvd_dav3":
             from worldfoundry.base_models.three_dimensions.depth.depth_anything.depth_anything_v3 import DepthAnything3
-            from worldfoundry.base_models.three_dimensions.depth.depth_anything.depth_anything_v3.utils.logger import logger as dav3_logger
+            from worldfoundry.base_models.three_dimensions.depth.depth_anything.depth_anything_v3.utils.logger import (
+                logger as dav3_logger,
+            )
 
             dav3_logger.level = 0  # Disable logging timing information
             self.dav3_api = DepthAnything3.from_pretrained("depth-anything/DA3-GIANT", model_name="da3-giant")

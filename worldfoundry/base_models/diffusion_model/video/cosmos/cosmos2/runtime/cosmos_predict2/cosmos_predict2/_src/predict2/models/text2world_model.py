@@ -18,7 +18,6 @@
 from __future__ import annotations
 
 import collections
-import math
 import os
 from contextlib import contextmanager
 from typing import Any, Callable, Dict, Mapping, Optional, Tuple
@@ -27,59 +26,49 @@ import attrs
 import numpy as np
 import torch
 import tqdm
+from cosmos_predict2._src.predict2.conditioner import DataType, Text2WorldCondition
+from cosmos_predict2._src.predict2.models.fm_solvers_unipc import FlowUniPCMultistepScheduler
+from cosmos_predict2._src.predict2.text_encoders.text_encoder import TextEncoder, TextEncoderConfig
+from cosmos_predict2._src.predict2.tokenizers.base_vae import BaseVAE
 from einops import rearrange
-from megatron.core import parallel_state
 from torch import Tensor
 from torch.distributed._composable.fsdp import FSDPModule, fully_shard
 from torch.distributed._tensor.api import DTensor
 from torch.distributed.device_mesh import DeviceMesh
 from torch.nn.modules.module import _IncompatibleKeys
-from torch.nn.utils.clip_grad import clip_grad_norm_
 
-from cosmos_predict2._src.imaginaire.flags import INTERNAL
-from cosmos_predict2._src.imaginaire.lazy_config import LazyCall as L
-from cosmos_predict2._src.imaginaire.lazy_config import LazyDict
-from cosmos_predict2._src.imaginaire.lazy_config import instantiate as lazy_instantiate
-from cosmos_predict2._src.imaginaire.model import ImaginaireModel
-from cosmos_predict2._src.imaginaire.modules.denoiser_scaling import EDMScaling, RectifiedFlowScaling
+from worldfoundry.base_models.diffusion_model.video.cosmos.shared.denoiser_scaling import (
+    EDMScaling,
+    RectifiedFlowScaling,
+)
+from worldfoundry.base_models.diffusion_model.video.cosmos.shared.diffusion_types import DenoisePrediction
 from worldfoundry.base_models.diffusion_model.video.cosmos.shared.edm_sde import EDMSDE
-from cosmos_predict2._src.imaginaire.modules.res_sampler import COMMON_SOLVER_OPTIONS, Sampler
-from cosmos_predict2._src.imaginaire.utils import log, misc
-from cosmos_predict2._src.imaginaire.utils.checkpointer import non_strict_load_model
+from worldfoundry.base_models.diffusion_model.video.cosmos.shared.res_sampler import COMMON_SOLVER_OPTIONS, Sampler
+from worldfoundry.core.configuration import EMAConfig
+from worldfoundry.core.configuration.flags import INTERNAL
+from worldfoundry.core.configuration.lazy_config import LazyCall as L
+from worldfoundry.core.configuration.lazy_config import LazyDict
+from worldfoundry.core.configuration.lazy_config import instantiate as lazy_instantiate
+from worldfoundry.core.distributed import (
+    DTensorFastEmaModelUpdater,
+    FastEmaModelUpdater,
+    broadcast_dtensor_model_states,
+)
 from worldfoundry.core.distributed.context_parallel import (
     broadcast,
     broadcast_split_tensor,
     cat_outputs_cp,
     find_split,
 )
-from cosmos_predict2._src.imaginaire.utils.count_params import count_params
-from cosmos_predict2._src.imaginaire.utils.denoise_prediction import DenoisePrediction
-from cosmos_predict2._src.imaginaire.utils.ema import FastEmaModelUpdater
 from worldfoundry.core.distributed.fsdp_runtime import hsdp_device_mesh
-from cosmos_predict2._src.imaginaire.utils.optim_instantiate import get_base_scheduler
-from cosmos_predict2._src.predict2.conditioner import DataType, Text2WorldCondition
-from cosmos_predict2._src.predict2.datasets.utils import VIDEO_RES_SIZE_INFO
-from cosmos_predict2._src.predict2.models.fm_solvers_unipc import FlowUniPCMultistepScheduler
-from worldfoundry.base_models.diffusion_model.video.cosmos.shared.model_weights_stats import WeightTrainingStat
-from cosmos_predict2._src.predict2.text_encoders.text_encoder import TextEncoder, TextEncoderConfig
-from cosmos_predict2._src.predict2.tokenizers.base_vae import BaseVAE
-from cosmos_predict2._src.predict2.utils.dtensor_helper import (
-    DTensorFastEmaModelUpdater,
-    broadcast_dtensor_model_states,
-)
+from worldfoundry.core.distributed.logging import log
+from worldfoundry.core.distributed.megatron_compat import parallel_state
+from worldfoundry.core.io.resolutions import VIDEO_RES_SIZE_INFO
+from worldfoundry.core.model_loading import InferenceModel, non_strict_load_model
+from worldfoundry.core.utils import count_parameters as count_params
+from worldfoundry.core.utils import inference_runtime as misc
 
 IS_PREPROCESSED_KEY = "is_preprocessed"
-
-
-@attrs.define(slots=False)
-class EMAConfig:
-    """
-    Config for the EMA.
-    """
-
-    enabled: bool = True
-    rate: float = 0.1
-    iteration_shift: int = 0
 
 
 @attrs.define(slots=False)
@@ -91,7 +80,7 @@ class Text2WorldModelConfig:
     tokenizer: LazyDict = None
     conditioner: LazyDict = None
     net: LazyDict = None
-    ema: EMAConfig = EMAConfig()
+    ema: EMAConfig = EMAConfig(enabled=True)
     sde: LazyDict = L(EDMSDE)(
         p_mean=0.0,
         p_std=1.0,
@@ -105,11 +94,7 @@ class Text2WorldModelConfig:
     input_data_key: str = "video"  # key to fetch input data from data_batch
     input_image_key: str = "images"  # key to fetch input image from data_batch
     input_caption_key: str = "ai_caption"  # Key used to fetch input captions
-    loss_reduce: str = "mean"
-    loss_scale: float = 10.0
     use_torch_compile: bool = False
-    adjust_video_noise: bool = True  # whether or not adjust video noise accroding to the video length
-
     state_ch: int = 16  # for latent model, ref to the latent channel number
     state_t: int = 8  # for latent model, ref to the latent number of frames
     resolution: str = "512"
@@ -133,7 +118,7 @@ class Text2WorldModelConfig:
         assert self.text_encoder_class in ["T5", "umT5", "reason1_2B", "reason1_7B", "reason1p1_7B", "qwen0.5B"]
 
 
-class DiffusionModel(ImaginaireModel):
+class DiffusionModel(InferenceModel):
     """
     Diffusion model.
     """
@@ -178,17 +163,7 @@ class DiffusionModel(ImaginaireModel):
                 f"latent_ch {self.tokenizer.latent_ch} != state_shape {self.config.state_ch}"
             )
 
-        # 4. Set up loss options, including loss masking, loss reduce and loss scaling
-        self.loss_reduce = getattr(config, "loss_reduce", "mean")
-        assert self.loss_reduce in ["mean", "sum"]
-        self.loss_scale = getattr(config, "loss_scale", 1.0)
-        log.critical(f"Using {self.loss_reduce} loss reduce with loss scale {self.loss_scale}")
-        if self.config.adjust_video_noise:
-            self.video_noise_multiplier = math.sqrt(self.config.state_t)
-        else:
-            self.video_noise_multiplier = 1.0
-
-        # 5. create fsdp mesh if needed
+        # 4. create fsdp mesh if needed
         if config.fsdp_shard_size > 1:
             self.fsdp_device_mesh = hsdp_device_mesh(
                 sharding_group_size=config.fsdp_shard_size,
@@ -196,19 +171,13 @@ class DiffusionModel(ImaginaireModel):
         else:
             self.fsdp_device_mesh = None
 
-        # 6. diffusion neural networks part
+        # 5. diffusion neural networks part
         self.set_up_model()
 
         # 7. text encoder
         self.text_encoder = None
         if self.config.text_encoder_config is not None and self.config.text_encoder_config.compute_online:
             self.text_encoder = TextEncoder(self.config.text_encoder_config)
-
-        # 8. training states
-        if parallel_state.is_initialized():
-            self.data_parallel_size = parallel_state.get_data_parallel_world_size()
-        else:
-            self.data_parallel_size = 1
 
     def setup_data_key(self) -> None:
         """Setup data key.
@@ -296,38 +265,10 @@ class DiffusionModel(ImaginaireModel):
             self.net_ema_worker = DTensorFastEmaModelUpdater()
             # No need to copy weights to EMA when applying FSDP, it is already copied before applying FSDP.
 
-    def init_optimizer_scheduler(
-        self, optimizer_config: LazyDict, scheduler_config: LazyDict
-    ) -> tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LRScheduler]:
-        """Creates the optimizer and scheduler for the model.
+    # ------------------------ runtime setup ------------------------
 
-        Args:
-            config_model (ModelConfig): The config object for the model.
-
-        Returns:
-            optimizer (torch.optim.Optimizer): The model optimizer.
-            scheduler (torch.optim.lr_scheduler.LRScheduler): The optimization scheduler.
-        """
-        optimizer = lazy_instantiate(optimizer_config, model=self.net)
-        scheduler = get_base_scheduler(optimizer, self, scheduler_config)
-        return optimizer, scheduler
-
-    # ------------------------ training hooks ------------------------
-    def on_before_zero_grad(
-        self, optimizer: torch.optim.Optimizer, scheduler: torch.optim.lr_scheduler.LRScheduler, iteration: int
-    ) -> None:
-        """
-        update the net_ema
-        """
-        del scheduler, optimizer
-
-        if self.config.ema.enabled:
-            # calculate beta for EMA update
-            ema_beta = self.ema_beta(iteration)
-            self.net_ema_worker.update_average(self.net, self.net_ema, beta=ema_beta)
-
-    def on_train_start(self, memory_format: torch.memory_format = torch.preserve_format) -> None:
-        """On train start.
+    def prepare_runtime(self, memory_format: torch.memory_format = torch.preserve_format) -> None:
+        """Prepare model components for inference.
 
         Args:
             memory_format: The memory format.
@@ -346,7 +287,7 @@ class DiffusionModel(ImaginaireModel):
                 log.warning(
                     "torch.compile in Pytorch version older than 2.3 doesn't work well with activation checkpointing.\n"
                     "It's very likely there will be no significant speedup from torch.compile.\n"
-                    "Please use at least 24.04 Pytorch container, or imaginaire4:v7 container."
+                    "Please use at least 24.04 Pytorch container, or the WorldFoundry unified CUDA environment."
                 )
             # Increasing cache size. It's required because of the model size and dynamic input shapes resulting in
             # multiple different triton kernels. For 28 TransformerBlocks, the cache limit of 256 should be enough for
@@ -361,67 +302,7 @@ class DiffusionModel(ImaginaireModel):
             # dynamic=True currently throws errors in pytorch 2.3.
             self.net = torch.compile(self.net, dynamic=False, disable=not self.config.use_torch_compile)
 
-    # ------------------------ training ------------------------
-
-    def training_step(
-        self, data_batch: dict[str, torch.Tensor], iteration: int
-    ) -> tuple[dict[str, torch.Tensor], torch.Tensor]:
-        """
-        Performs a single training step for the diffusion model.
-
-        This method is responsible for executing one iteration of the model's training. It involves:
-        1. Adding noise to the input data using the SDE process.
-        2. Passing the noisy data through the network to generate predictions.
-        3. Computing the loss based on the difference between the predictions and the original data, \
-            considering any configured loss weighting.
-
-        Args:
-            data_batch (dict): raw data batch draw from the training data loader.
-            iteration (int): Current iteration number.
-
-        Returns:
-            tuple: A tuple containing two elements:
-                - dict: additional data that used to debug / logging / callbacks
-                - Tensor: The computed loss for the training step as a PyTorch Tensor.
-
-        Raises:
-            AssertionError: If the class is conditional, \
-                but no number of classes is specified in the network configuration.
-
-        Notes:
-            - The method handles different types of conditioning
-            - The method also supports Kendall's loss
-        """
-        self._update_train_stats(data_batch)
-
-        # Obtain text embeddings online
-        if self.config.text_encoder_config is not None and self.config.text_encoder_config.compute_online:
-            text_embeddings = self.text_encoder.compute_text_embeddings_online(data_batch, self.input_caption_key)
-            data_batch["t5_text_embeddings"] = text_embeddings
-            data_batch["t5_text_mask"] = torch.ones(text_embeddings.shape[0], text_embeddings.shape[1], device="cuda")
-
-        # Get the input data to noise and denoise~(image, video) and the corresponding conditioner.
-        _, x0_B_C_T_H_W, condition = self.get_data_and_condition(data_batch)
-
-        # Sample pertubation noise levels and N(0, 1) noises
-        sigma_B_T, epsilon_B_C_T_H_W = self.draw_training_sigma_and_epsilon(x0_B_C_T_H_W.size(), condition)
-
-        # Broadcast and split the input data and condition for model parallelism
-        x0_B_C_T_H_W, condition, epsilon_B_C_T_H_W, sigma_B_T = self.broadcast_split_for_model_parallelsim(
-            x0_B_C_T_H_W, condition, epsilon_B_C_T_H_W, sigma_B_T
-        )
-        output_batch, kendall_loss, _, _ = self.compute_loss_with_epsilon_and_sigma(
-            x0_B_C_T_H_W, condition, epsilon_B_C_T_H_W, sigma_B_T
-        )
-
-        if self.loss_reduce == "mean":
-            kendall_loss = kendall_loss.mean() * self.loss_scale
-        elif self.loss_reduce == "sum":
-            kendall_loss = kendall_loss.sum(dim=1).mean() * self.loss_scale
-        else:
-            raise ValueError(f"Invalid loss_reduce: {self.loss_reduce}")
-
-        return output_batch, kendall_loss
+    # ------------------------ inference helpers ------------------------
 
     @staticmethod
     def get_context_parallel_group():
@@ -467,61 +348,6 @@ class DiffusionModel(ImaginaireModel):
             self.net.disable_context_parallel()
 
         return x0_B_C_T_H_W, condition, epsilon_B_C_T_H_W, sigma_B_T
-
-    def _update_train_stats(self, data_batch: dict[str, torch.Tensor]) -> None:
-        """Helper function to update train stats.
-
-        Args:
-            data_batch: The data batch.
-
-        Returns:
-            The return value.
-        """
-        is_image = self.is_image_batch(data_batch)
-        input_key = self.input_image_key if is_image else self.input_data_key
-        if isinstance(self.net, WeightTrainingStat):
-            if is_image:
-                self.net.accum_image_sample_counter += data_batch[input_key].shape[0] * self.data_parallel_size
-            else:
-                self.net.accum_video_sample_counter += data_batch[input_key].shape[0] * self.data_parallel_size
-
-    def draw_training_sigma_and_epsilon(self, x0_size: int, condition: Any) -> torch.Tensor:
-        """Draw training sigma and epsilon.
-
-        Args:
-            x0_size: The x0 size.
-            condition: The condition.
-
-        Returns:
-            The return value.
-        """
-        batch_size = x0_size[0]
-        # if use_wan_fp32_strategy, it should be float32. But torch.randn will default to float32 so no need to any change
-        epsilon = torch.randn(x0_size, device="cuda")
-        sigma_B = self.sde.sample_t(batch_size).to(device="cuda")
-        if self.config.use_wan_fp32_strategy:
-            assert sigma_B.dtype == torch.float32, f"sigma_B dtype is {sigma_B.dtype}, expected float32"
-        sigma_B_1 = rearrange(sigma_B, "b -> b 1")  # add a dimension for T, all frames share the same sigma
-        is_video_batch = condition.data_type == DataType.VIDEO
-
-        multiplier = self.video_noise_multiplier if is_video_batch else 1
-        sigma_B_1 = sigma_B_1 * multiplier
-        return sigma_B_1, epsilon
-
-    def get_per_sigma_loss_weights(self, sigma: torch.Tensor):
-        """
-        Args:
-            sigma (tensor): noise level
-
-        Returns:
-            loss weights per sigma noise level
-        """
-        if "edm" == self.config.scaling:
-            return (sigma**2 + self.sigma_data**2) / (sigma * self.sigma_data) ** 2
-        elif "rectified_flow" == self.config.scaling:
-            return (1 + sigma) ** 2 / sigma**2
-        else:
-            raise ValueError(f"Invalid scaling: {self.config.scaling}")
 
     def get_x0_fn_from_batch(
         self,
@@ -737,28 +563,6 @@ class DiffusionModel(ImaginaireModel):
         return samples
 
     @torch.no_grad()
-    def validation_step(
-        self, data: dict[str, torch.Tensor], iteration: int
-    ) -> tuple[dict[str, torch.Tensor], torch.Tensor]:
-        """
-        Current code does nothing.
-        """
-        raw_data, x0, _ = self.get_data_and_condition(data)
-        guidance = data["guidance"]
-        data = misc.to(data, **self.tensor_kwargs)
-        sample = self.generate_samples_from_batch(
-            data,
-            guidance=guidance,
-            # make sure no mismatch and also works for cp
-            state_shape=x0.shape[1:],
-            n_sample=x0.shape[0],
-        )
-        sample = self.decode(sample)
-        gt = raw_data
-        caption = data["ai_caption"]
-        return {"gt": gt, "result": sample, "caption": caption}, torch.tensor([0]).to(**self.tensor_kwargs)
-
-    @torch.no_grad()
     def forward(self, xt, t, condition: Text2WorldCondition):
         """
         Performs denoising on the input noise data, noise level, and condition
@@ -836,7 +640,8 @@ class DiffusionModel(ImaginaireModel):
             original_length = data_batch[input_key].shape[2]
             if original_length != expected_length:
                 log.warning(
-                    f"Input video length {original_length} doesn't match expected length specified by state_t {expected_length}")
+                    f"Input video length {original_length} doesn't match expected length specified by state_t {expected_length}"
+                )
             # assert original_length == expected_length, (
             #     f"Input video length doesn't match expected length specified by state_t: {original_length} != {expected_length}"
             # )
@@ -938,14 +743,6 @@ class DiffusionModel(ImaginaireModel):
             return 0.0
         return (1 - 1 / (iteration + 1)) ** (self.ema_exp_coefficient + 1)
 
-    def model_param_stats(self) -> Dict[str, int]:
-        """Model param stats.
-
-        Returns:
-            The return value.
-        """
-        return {"total_learnable_param_num": self._param_count}
-
     def is_image_batch(self, data_batch: dict[str, Tensor]) -> bool:
         """We hanlde two types of data_batch. One comes from a joint_dataloader where "dataset_name" can be used to differenciate image_batch and video_batch.
         Another comes from a dataloader which we by default assumes as video_data for video model training.
@@ -999,70 +796,6 @@ class DiffusionModel(ImaginaireModel):
         eps_pred_B_C_T_H_W = (xt_B_C_T_H_W - x0_pred_B_C_T_H_W) / sigma_B_1_T_1_1
 
         return DenoisePrediction(x0_pred_B_C_T_H_W, eps_pred_B_C_T_H_W, None)
-
-    def compute_loss_with_epsilon_and_sigma(
-        self,
-        x0_B_C_T_H_W: torch.Tensor,
-        condition: Text2WorldCondition,
-        epsilon_B_C_T_H_W: torch.Tensor,
-        sigma_B_T: torch.Tensor,
-    ):
-        """
-        Compute loss givee epsilon and sigma
-
-        This method is responsible for computing loss give epsilon and sigma. It involves:
-        1. Adding noise to the input data using the SDE process.
-        2. Passing the noisy data through the network to generate predictions.
-        3. Computing the loss based on the difference between the predictions and the original data, \
-            considering any configured loss weighting.
-
-        Args:
-            data_batch (dict): raw data batch draw from the training data loader.
-            x0: image/video latent
-            condition: text condition
-            epsilon: noise
-            sigma: noise level
-
-        Returns:
-            tuple: A tuple containing four elements:
-                - dict: additional data that used to debug / logging / callbacks
-                - Tensor 1: kendall loss,
-                - Tensor 2: MSE loss,
-                - Tensor 3: EDM loss
-
-        Raises:
-            AssertionError: If the class is conditional, \
-                but no number of classes is specified in the network configuration.
-
-        Notes:
-            - The method handles different types of conditioning
-            - The method also supports Kendall's loss
-        """
-        # Get the mean and stand deviation of the marginal probability distribution.
-        mean_B_C_T_H_W, std_B_T = self.sde.marginal_prob(x0_B_C_T_H_W, sigma_B_T)
-        # Generate noisy observations
-        xt_B_C_T_H_W = mean_B_C_T_H_W + epsilon_B_C_T_H_W * rearrange(std_B_T, "b t -> b 1 t 1 1")
-        # make prediction
-        model_pred = self.denoise(xt_B_C_T_H_W, sigma_B_T, condition)
-        # loss weights for different noise levels
-        weights_per_sigma_B_T = self.get_per_sigma_loss_weights(sigma=sigma_B_T)
-        # extra loss mask for each sample, for example, human faces, hands
-        pred_mse_B_C_T_H_W = (x0_B_C_T_H_W - model_pred.x0) ** 2
-        edm_loss_B_C_T_H_W = pred_mse_B_C_T_H_W * rearrange(weights_per_sigma_B_T, "b t -> b 1 t 1 1")
-
-        kendall_loss = edm_loss_B_C_T_H_W
-        output_batch = {
-            "x0": x0_B_C_T_H_W,
-            "xt": xt_B_C_T_H_W,
-            "sigma": sigma_B_T,
-            "weights_per_sigma": weights_per_sigma_B_T,
-            "condition": condition,
-            "model_pred": model_pred,
-            "mse_loss": pred_mse_B_C_T_H_W.mean(),
-            "edm_loss": edm_loss_B_C_T_H_W.mean(),
-            "edm_loss_per_frame": torch.mean(edm_loss_B_C_T_H_W, dim=[1, 3, 4]),
-        }
-        return output_batch, kendall_loss, pred_mse_B_C_T_H_W, edm_loss_B_C_T_H_W
 
     @torch.no_grad()
     def encode(self, state: torch.Tensor) -> torch.Tensor:
@@ -1149,29 +882,6 @@ class DiffusionModel(ImaginaireModel):
                 self.net_ema_worker.restore(self.net.parameters())
                 if context is not None:
                     log.info(f"{context}: Restored training weights")
-
-    def clip_grad_norm_(
-        self,
-        max_norm: float,
-        norm_type: float = 2.0,
-        error_if_nonfinite: bool = False,
-        foreach: Optional[bool] = None,
-    ):
-        """Clip grad norm.
-
-        Args:
-            max_norm: The max norm.
-            norm_type: The norm type.
-            error_if_nonfinite: The error if nonfinite.
-            foreach: The foreach.
-        """
-        return clip_grad_norm_(
-            self.net.parameters(),
-            max_norm,
-            norm_type=norm_type,
-            error_if_nonfinite=error_if_nonfinite,
-            foreach=foreach,
-        )
 
     def add_lora(
         self,

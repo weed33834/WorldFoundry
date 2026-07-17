@@ -1,16 +1,14 @@
 """Cross-platform filesystem helpers: paths, copies, archives, and pickles."""
 
 import glob
+import hashlib
 import os
 import pickle
 import shutil
 import sys
-import collections.abc
 from typing import Callable, Union
 
-
-def is_sequence(obj):
-    return isinstance(obj, collections.abc.Sequence) and not isinstance(obj, str)
+from worldfoundry.core.structures.predicates import is_sequence
 
 __all__ = [
     "create_tar",
@@ -18,6 +16,7 @@ __all__ = [
     "dump_text",
     "dump_text_lines",
     "extract_tar",
+    "file_sha256",
     "f_add_ext",
     "f_append_before_ext",
     "f_copy",
@@ -70,6 +69,17 @@ __all__ = [
     "write_text",
     "write_text_lines",
 ]
+
+
+def file_sha256(path: str | os.PathLike[str], *, chunk_size: int = 1024 * 1024) -> str:
+    """Compute a file's SHA-256 digest without loading the whole artifact into memory."""
+
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(chunk_size), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
 
 f_ext = os.path.splitext
 
@@ -413,11 +423,7 @@ def _include_patterns(*patterns):
         import fnmatch
 
         keep = set(name for pattern in patterns for name in fnmatch.filter(names, pattern))
-        ignore = set(
-            name
-            for name in names
-            if name not in keep and not os.path.isdir(os.path.join(path, name))
-        )
+        ignore = set(name for name in names if name not in keep and not os.path.isdir(os.path.join(path, name)))
         return ignore
 
     return _ignore_patterns

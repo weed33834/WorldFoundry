@@ -21,7 +21,24 @@ from worldfoundry.core.io.storage import (
 
 
 def load_state_dict(file_path, torch_dtype=None, device="cpu", pin_memory=False, verbose=0):
-    """Load a checkpoint file, folder, or sharded safetensors index into a state dict."""
+    """Load checkpoint weights from one path, many paths, a folder, or an index.
+
+    Args:
+        file_path: Local/remote checkpoint URI, directory, safetensors index, or
+            list of any of those. Later files overwrite duplicate keys.
+        torch_dtype: Optional dtype conversion applied to tensor values.
+        device: Device used while deserializing weights; CPU is the safe default.
+        pin_memory: Pin CPU tensors after loading to accelerate a later GPU copy.
+        verbose: Print start/finish messages when at least ``1``.
+
+    Returns:
+        Flat state-dict mapping parameter names to tensors or checkpoint values.
+
+    Notes:
+        File type is selected from the path: directories are scanned,
+        ``*.safetensors.index.json`` follows shards, ``*.safetensors`` uses
+        safetensors, and other suffixes use the safe PyTorch checkpoint loader.
+    """
     if isinstance(file_path, list):
         state_dict = {}
         for file_path_ in file_path:
@@ -31,7 +48,9 @@ def load_state_dict(file_path, torch_dtype=None, device="cpu", pin_memory=False,
         if verbose >= 1:
             print(f"Loading file [started]: {file_path}")
         if is_dir_uri(file_path):
-            state_dict = load_state_dict_from_folder(file_path, torch_dtype=torch_dtype, device=device, pin_memory=False, verbose=verbose)
+            state_dict = load_state_dict_from_folder(
+                file_path, torch_dtype=torch_dtype, device=device, pin_memory=False, verbose=verbose
+            )
         elif file_path.endswith(".safetensors.index.json"):
             state_dict = load_state_dict_from_safetensors_index(file_path, torch_dtype=torch_dtype, device=device)
         elif file_path.endswith(".safetensors"):
@@ -100,6 +119,19 @@ def load_state_dict_from_safetensors(file_path, torch_dtype=None, device="cpu"):
 
 
 def load_state_dict_from_safetensors_index(file_path, torch_dtype=None, device="cpu"):
+    """Load every unique shard referenced by a safetensors index.
+
+    Args:
+        file_path: Local or remote ``*.safetensors.index.json`` URI.
+        torch_dtype: Optional dtype conversion for each tensor.
+        device: Device used by the safetensors reader.
+
+    Returns:
+        Merged state dict containing all referenced shards.
+
+    Raises:
+        ValueError: The index has no mapping-valued ``weight_map``.
+    """
     file_path = str(file_path)
     index = json.loads(read_text_uri(file_path))
     weight_map = index.get("weight_map")
@@ -131,14 +163,11 @@ def load_state_dict_from_bin(file_path, torch_dtype=None, device="cpu"):
 
 def _torch_load(checkpoint_path: str | os.PathLike[str], **kwargs: Any) -> Any:
     with local_path_for_uri(checkpoint_path) as local_path:
-        try:
-            return torch.load(str(local_path), **kwargs)
-        except TypeError as exc:
-            if "weights_only" not in str(exc) or "weights_only" not in kwargs:
-                raise
-            fallback_kwargs = dict(kwargs)
-            fallback_kwargs.pop("weights_only")
-            return torch.load(str(local_path), **fallback_kwargs)
+        # Fail closed when the installed PyTorch does not support a requested
+        # safety option.  Dropping ``weights_only`` here would silently turn a
+        # tensor-only load into unrestricted pickle execution.
+        kwargs.setdefault("weights_only", True)
+        return torch.load(str(local_path), **kwargs)
 
 
 def load_torch_checkpoint(
@@ -149,7 +178,24 @@ def load_torch_checkpoint(
     allow_unsafe_pickle_fallback: bool = False,
     **kwargs: Any,
 ) -> Any:
-    """Load a PyTorch checkpoint with a safe default and old-PyTorch fallback."""
+    """Load a PyTorch checkpoint with weights-only deserialization by default.
+
+    Args:
+        checkpoint_path: Local or remote checkpoint URI.
+        map_location: Destination understood by ``torch.load``.
+        weights_only: Safe deserialization mode. ``None`` omits the argument for
+            compatibility with older PyTorch releases.
+        allow_unsafe_pickle_fallback: Retry with unrestricted pickle only after
+            a weights-only unpickling failure. Never enable for untrusted files.
+        **kwargs: Additional ``torch.load`` options.
+
+    Returns:
+        Object produced by ``torch.load``.
+
+    Warnings:
+        Setting ``allow_unsafe_pickle_fallback=True`` can execute code embedded
+        in a malicious checkpoint.
+    """
     load_kwargs = {"map_location": map_location, **kwargs}
     if weights_only is not None:
         load_kwargs["weights_only"] = weights_only
@@ -163,7 +209,16 @@ def load_torch_checkpoint(
 
 
 def load_torch_state_dict(checkpoint_path: str | os.PathLike[str], *, map_location: Any = "cpu") -> Any:
-    """Load PyTorch state dictionaries through weights-only deserialization when available."""
+    """Load a PyTorch state-dict-shaped checkpoint in weights-only mode.
+
+    Args:
+        checkpoint_path: Local or remote checkpoint URI.
+        map_location: Destination understood by ``torch.load``.
+
+    Returns:
+        Deserialized checkpoint object. The function does not unwrap outer
+        ``state_dict``/``module`` keys; use ``load_state_dict`` for that policy.
+    """
     return load_torch_checkpoint(checkpoint_path, map_location=map_location, weights_only=True)
 
 
@@ -184,14 +239,36 @@ def convert_state_dict_keys_to_single_str(state_dict, with_shape=True):
 
 
 def hash_state_dict_keys(state_dict, with_shape=True):
-    """Return an MD5 digest of state-dict key names (optionally including shapes)."""
+    """Return a deterministic fingerprint of state-dict structure.
+
+    Args:
+        state_dict: Possibly nested mapping whose tensor keys identify a model
+            checkpoint layout.
+        with_shape: Include tensor dimensions as well as parameter names.
+
+    Returns:
+        MD5 hexadecimal digest used for loader-registry matching.
+
+    Notes:
+        This is an identity hint, not a content or security hash: tensor values
+        are not read. Use ``hash_model_file`` when file content integrity is
+        required.
+    """
     keys_str = convert_state_dict_keys_to_single_str(state_dict, with_shape=with_shape)
     keys_str = keys_str.encode(encoding="UTF-8")
     return hashlib.md5(keys_str).hexdigest()
 
 
 def split_state_dict_with_prefix(state_dict):
-    """Split a state dict into sub-dicts grouped by the first dotted key segment."""
+    """Split a state dict by the first dotted parameter-key segment.
+
+    Args:
+        state_dict: Mapping with string parameter names.
+
+    Returns:
+        List of sub-dictionaries in deterministic prefix order. Keys without a
+        dot form their own prefix group.
+    """
 
     prefix_dict = {}
     for key in sorted(key for key in state_dict if isinstance(key, str)):

@@ -7,7 +7,7 @@ import sys
 
 def ensure_runtime_aliases() -> dict[str, object]:
     """Register the shared pixelSplat upstream alias only when requested."""
-    from worldfoundry.base_models.three_dimensions.point_clouds.pixelsplat_runtime import (
+    from worldfoundry.base_models.three_dimensions.point_clouds.pixelsplat import (
         ensure_pixelsplat_source_alias,
     )
 

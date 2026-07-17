@@ -17,22 +17,25 @@
 
 import argparse
 import os
+
 import cv2
-from worldfoundry.base_models.three_dimensions.depth.moge.model.v1 import MoGeModel
-import torch
 import numpy as np
+import torch
+import torch.nn.functional as F
+from cosmos_predict1.diffusion.inference.cache_3d import Cache3D_Buffer
+from cosmos_predict1.diffusion.inference.camera_utils import generate_camera_trajectory
+from cosmos_predict1.diffusion.inference.gen3c_pipeline import Gen3cPipeline
 from cosmos_predict1.diffusion.inference.inference_utils import (
     add_common_arguments,
     check_input_frames,
-    validate_args,
 )
-from cosmos_predict1.diffusion.inference.gen3c_pipeline import Gen3cPipeline
 from cosmos_predict1.utils import log, misc
+
 from worldfoundry.base_models.diffusion_model.video.cosmos.shared.io import read_prompts_from_file, save_video
-from cosmos_predict1.diffusion.inference.cache_3d import Cache3D_Buffer
-from cosmos_predict1.diffusion.inference.camera_utils import generate_camera_trajectory
-import torch.nn.functional as F
+from worldfoundry.base_models.three_dimensions.depth.moge.model.v1 import MoGeModel
+
 torch.enable_grad(False)
+
 
 def create_parser() -> argparse.ArgumentParser:
     """Create parser.
@@ -49,7 +52,7 @@ def create_parser() -> argparse.ArgumentParser:
         type=str,
         default="Pixtral-12B",
         help="Prompt upsampler weights directory relative to checkpoint_dir",
-    ) # TODO: do we need this?
+    )  # TODO: do we need this?
     parser.add_argument(
         "--input_image_path",
         type=str,
@@ -109,6 +112,7 @@ def create_parser() -> argparse.ArgumentParser:
     )
     return parser
 
+
 def parse_arguments() -> argparse.Namespace:
     """Parse arguments.
 
@@ -128,9 +132,10 @@ def validate_args(args):
     assert args.num_video_frames is not None, "num_video_frames must be provided"
     assert (args.num_video_frames - 1) % 120 == 0, "num_video_frames must be 121, 241, 361, ... (N*120+1)"
 
-def _predict_moge_depth(current_image_path: str | np.ndarray,
-                        target_h: int, target_w: int,
-                        device: torch.device, moge_model: MoGeModel):
+
+def _predict_moge_depth(
+    current_image_path: str | np.ndarray, target_h: int, target_w: int, device: torch.device, moge_model: MoGeModel
+):
     """Handles MoGe depth prediction for a single image.
 
     If the image is directly provided as a NumPy array, it should have shape [H, W, C],
@@ -149,7 +154,9 @@ def _predict_moge_depth(current_image_path: str | np.ndarray,
     depth_pred_h, depth_pred_w = 720, 1280
 
     input_image_for_depth_resized = cv2.resize(input_image_rgb, (depth_pred_w, depth_pred_h))
-    input_image_for_depth_tensor_chw = torch.tensor(input_image_for_depth_resized / 255.0, dtype=torch.float32, device=device).permute(2, 0, 1)
+    input_image_for_depth_tensor_chw = torch.tensor(
+        input_image_for_depth_resized / 255.0, dtype=torch.float32, device=device
+    ).permute(2, 0, 1)
     try:
         torch.backends.cuda.preferred_linalg_library("magma")
     except Exception:
@@ -159,7 +166,9 @@ def _predict_moge_depth(current_image_path: str | np.ndarray,
     moge_intrinsics_33_full_normalized = moge_output_full["intrinsics"]
     moge_mask_hw_full = moge_output_full["mask"]
 
-    moge_depth_hw_full = torch.where(moge_mask_hw_full==0, torch.tensor(1000.0, device=moge_depth_hw_full.device), moge_depth_hw_full)
+    moge_depth_hw_full = torch.where(
+        moge_mask_hw_full == 0, torch.tensor(1000.0, device=moge_depth_hw_full.device), moge_depth_hw_full
+    )
     moge_intrinsics_33_full_pixel = moge_intrinsics_33_full_normalized.clone()
     moge_intrinsics_33_full_pixel[0, 0] *= depth_pred_w
     moge_intrinsics_33_full_pixel[1, 1] *= depth_pred_h
@@ -172,26 +181,32 @@ def _predict_moge_depth(current_image_path: str | np.ndarray,
 
     # Resize depth map, mask, and image tensor
     # Resizing depth: (H, W) -> (1, 1, H, W) for interpolate, then squeeze
-    moge_depth_hw = F.interpolate(
-        moge_depth_hw_full.unsqueeze(0).unsqueeze(0),
-        size=(target_h, target_w),
-        mode='bilinear',
-        align_corners=False
-    ).squeeze(0).squeeze(0)
+    moge_depth_hw = (
+        F.interpolate(
+            moge_depth_hw_full.unsqueeze(0).unsqueeze(0),
+            size=(target_h, target_w),
+            mode="bilinear",
+            align_corners=False,
+        )
+        .squeeze(0)
+        .squeeze(0)
+    )
 
     # Resizing mask: (H, W) -> (1, 1, H, W) for interpolate, then squeeze
-    moge_mask_hw = F.interpolate(
-        moge_mask_hw_full.unsqueeze(0).unsqueeze(0).to(torch.float32),
-        size=(target_h, target_w),
-        mode='nearest',  # Using nearest neighbor for binary mask
-    ).squeeze(0).squeeze(0).to(torch.bool)
+    moge_mask_hw = (
+        F.interpolate(
+            moge_mask_hw_full.unsqueeze(0).unsqueeze(0).to(torch.float32),
+            size=(target_h, target_w),
+            mode="nearest",  # Using nearest neighbor for binary mask
+        )
+        .squeeze(0)
+        .squeeze(0)
+        .to(torch.bool)
+    )
 
     # Resizing image tensor: (C, H, W) -> (1, C, H, W) for interpolate, then squeeze
     input_image_tensor_chw_target_res = F.interpolate(
-        input_image_for_depth_tensor_chw.unsqueeze(0),
-        size=(target_h, target_w),
-        mode='bilinear',
-        align_corners=False
+        input_image_for_depth_tensor_chw.unsqueeze(0), size=(target_h, target_w), mode="bilinear", align_corners=False
     ).squeeze(0)
 
     moge_image_b1chw_float = input_image_tensor_chw_target_res.unsqueeze(0).unsqueeze(1) * 2 - 1
@@ -220,9 +235,10 @@ def _predict_moge_depth(current_image_path: str | np.ndarray,
         moge_intrinsics_b133,
     )
 
+
 def _predict_moge_depth_from_tensor(
-    image_tensor_chw_0_1: torch.Tensor, # Shape (C, H_input, W_input), range [0,1]
-    moge_model: MoGeModel
+    image_tensor_chw_0_1: torch.Tensor,  # Shape (C, H_input, W_input), range [0,1]
+    moge_model: MoGeModel,
 ):
     """Handles MoGe depth prediction from an image tensor."""
     try:
@@ -230,16 +246,19 @@ def _predict_moge_depth_from_tensor(
     except Exception:
         pass
     moge_output_full = moge_model.infer(image_tensor_chw_0_1)
-    moge_depth_hw_full = moge_output_full["depth"]      # (moge_inf_h, moge_inf_w)
-    moge_mask_hw_full = moge_output_full["mask"]        # (moge_inf_h, moge_inf_w)
+    moge_depth_hw_full = moge_output_full["depth"]  # (moge_inf_h, moge_inf_w)
+    moge_mask_hw_full = moge_output_full["mask"]  # (moge_inf_h, moge_inf_w)
 
     moge_depth_11hw = moge_depth_hw_full.unsqueeze(0).unsqueeze(0)
     moge_depth_11hw = torch.nan_to_num(moge_depth_11hw, nan=1e4)
     moge_depth_11hw = torch.clamp(moge_depth_11hw, min=0, max=1e4)
     moge_mask_11hw = moge_mask_hw_full.unsqueeze(0).unsqueeze(0)
-    moge_depth_11hw = torch.where(moge_mask_11hw==0, torch.tensor(1000.0, device=moge_depth_11hw.device), moge_depth_11hw)
+    moge_depth_11hw = torch.where(
+        moge_mask_11hw == 0, torch.tensor(1000.0, device=moge_depth_11hw.device), moge_depth_11hw
+    )
 
     return moge_depth_11hw, moge_mask_11hw
+
 
 def demo(args):
     """Run video-to-world generation demo.
@@ -271,9 +290,8 @@ def demo(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     if args.num_gpus > 1:
-        from worldfoundry.core.distributed.megatron_compat import parallel_state
-
         from worldfoundry.core.distributed import torch_process_group as distributed
+        from worldfoundry.core.distributed.megatron_compat import parallel_state
 
         distributed.init()
         parallel_state.initialize_model_parallel(context_parallel_size=args.num_gpus)
@@ -341,19 +359,17 @@ def demo(args):
             moge_mask_b11hw,
             moge_initial_w2c_b144,
             moge_intrinsics_b133,
-        ) = _predict_moge_depth(
-            current_image_path, args.height, args.width, device, moge_model
-        )
+        ) = _predict_moge_depth(current_image_path, args.height, args.width, device, moge_model)
 
         cache = Cache3D_Buffer(
             frame_buffer_max=frame_buffer_max,
             generator=generator,
             noise_aug_strength=args.noise_aug_strength,
-            input_image=moge_image_b1chw_float[:, 0].clone(), # [B, C, H, W]
-            input_depth=moge_depth_b11hw[:, 0],       # [B, 1, H, W]
+            input_image=moge_image_b1chw_float[:, 0].clone(),  # [B, C, H, W]
+            input_depth=moge_depth_b11hw[:, 0],  # [B, 1, H, W]
             # input_mask=moge_mask_b11hw[:, 0],         # [B, 1, H, W]
             input_w2c=moge_initial_w2c_b144[:, 0],  # [B, 4, 4]
-            input_intrinsics=moge_intrinsics_b133[:, 0],# [B, 3, 3]
+            input_intrinsics=moge_intrinsics_b133[:, 0],  # [B, 3, 3]
             filter_points_threshold=args.filter_points_threshold,
             foreground_masking=args.foreground_masking,
         )
@@ -402,21 +418,19 @@ def demo(args):
 
         num_ar_iterations = (generated_w2cs.shape[1] - 1) // (sample_n_frames - 1)
         for num_iter in range(1, num_ar_iterations):
-            start_frame_idx = num_iter * (sample_n_frames - 1) # Overlap by 1 frame
+            start_frame_idx = num_iter * (sample_n_frames - 1)  # Overlap by 1 frame
             end_frame_idx = start_frame_idx + sample_n_frames
 
             log.info(f"Generating {start_frame_idx} - {end_frame_idx} frames")
 
             last_frame_hwc_0_255 = torch.tensor(video[-1], device=device)
-            pred_image_for_depth_chw_0_1 = last_frame_hwc_0_255.permute(2, 0, 1) / 255.0 # (C,H,W), range [0,1]
+            pred_image_for_depth_chw_0_1 = last_frame_hwc_0_255.permute(2, 0, 1) / 255.0  # (C,H,W), range [0,1]
 
-            pred_depth, pred_mask = _predict_moge_depth_from_tensor(
-                pred_image_for_depth_chw_0_1, moge_model
-            )
+            pred_depth, pred_mask = _predict_moge_depth_from_tensor(pred_image_for_depth_chw_0_1, moge_model)
 
             cache.update_cache(
-                new_image=pred_image_for_depth_chw_0_1.unsqueeze(0) * 2 - 1, # (B,C,H,W) range [-1,1]
-                new_depth=pred_depth, #  (1,1,H,W)
+                new_image=pred_image_for_depth_chw_0_1.unsqueeze(0) * 2 - 1,  # (B,C,H,W) range [-1,1]
+                new_depth=pred_depth,  #  (1,1,H,W)
                 # new_mask=pred_mask,   # (1,1,H,W)
                 new_w2c=generated_w2cs[:, start_frame_idx],
                 new_intrinsics=generated_intrinsics[:, start_frame_idx],
@@ -431,8 +445,9 @@ def demo(args):
             if args.save_buffer:
                 all_rendered_warps.append(rendered_warp_images[:, 1:].clone().cpu())
 
-
-            pred_image_for_depth_bcthw_minus1_1 = pred_image_for_depth_chw_0_1.unsqueeze(0).unsqueeze(2) * 2 - 1 # (B,C,T,H,W), range [-1,1]
+            pred_image_for_depth_bcthw_minus1_1 = (
+                pred_image_for_depth_chw_0_1.unsqueeze(0).unsqueeze(2) * 2 - 1
+            )  # (B,C,T,H,W), range [-1,1]
             generated_output = pipeline.generate(
                 prompt=current_prompt,
                 image_path=pred_image_for_depth_bcthw_minus1_1,
@@ -448,7 +463,7 @@ def demo(args):
         final_width = args.width
 
         if args.save_buffer and all_rendered_warps:
-            squeezed_warps = [t.squeeze(0) for t in all_rendered_warps] # Each is (T_chunk, n_i, C, H, W)
+            squeezed_warps = [t.squeeze(0) for t in all_rendered_warps]  # Each is (T_chunk, n_i, C, H, W)
 
             if squeezed_warps:
                 n_max = max(t.shape[1] for t in squeezed_warps)
@@ -459,12 +474,19 @@ def demo(args):
                     current_n_i = sq_t.shape[1]
                     padding_needed_dim1 = n_max - current_n_i
 
-                    pad_spec = (0,0, # W
-                                0,0, # H
-                                0,0, # C
-                                0,padding_needed_dim1, # n_i
-                                0,0) # T_chunk
-                    padded_t = F.pad(sq_t, pad_spec, mode='constant', value=-1.0)
+                    pad_spec = (
+                        0,
+                        0,  # W
+                        0,
+                        0,  # H
+                        0,
+                        0,  # C
+                        0,
+                        padding_needed_dim1,  # n_i
+                        0,
+                        0,
+                    )  # T_chunk
+                    padded_t = F.pad(sq_t, pad_spec, mode="constant", value=-1.0)
                     padded_t_list.append(padded_t)
 
                 full_rendered_warp_tensor = torch.cat(padded_t_list, dim=0)
@@ -482,10 +504,8 @@ def demo(args):
             else:
                 log.info("No warp buffers to save.")
 
-
         video_save_path = os.path.join(
-            args.video_save_folder,
-            f"{i if args.batch_input_path else args.video_save_name}.mp4"
+            args.video_save_folder, f"{i if args.batch_input_path else args.video_save_name}.mp4"
         )
 
         os.makedirs(os.path.dirname(video_save_path), exist_ok=True)

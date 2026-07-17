@@ -18,17 +18,18 @@
 from typing import Any, List
 
 import attrs
-
 from cosmos_predict1.autoregressive.diffusion_decoder.config.registry import register_configs as register_dd_configs
 from cosmos_predict1.diffusion.config.base.model import LatentDiffusionDecoderModelConfig
 from cosmos_predict1.diffusion.config.registry import register_configs
 from cosmos_predict1.utils import config
-from cosmos_predict1.utils.config_helper import import_all_modules_from_package
+
+from worldfoundry.core.configuration.hydra import import_all_modules_from_package
 
 
 @attrs.define(slots=False)
 class Config(config.Config):
     """Config implementation."""
+
     # default config groups that will be used unless overwritten
     # see config groups in registry.py
     defaults: List[Any] = attrs.field(

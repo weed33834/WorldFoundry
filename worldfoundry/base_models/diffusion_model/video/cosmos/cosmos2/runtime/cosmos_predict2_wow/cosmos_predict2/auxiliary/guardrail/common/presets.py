@@ -16,15 +16,15 @@
 """Module for base_models -> diffusion_model -> video -> cosmos -> cosmos2 -> runtime -> cosmos_predict2_wow -> cosmos_predict2 -> auxiliary -> guardrail -> common -> presets.py functionality."""
 
 import numpy as np
-
 from cosmos_predict2.auxiliary.guardrail.blocklist.blocklist import Blocklist
-from cosmos_predict2.auxiliary.guardrail.common.core import GuardrailRunner
 from cosmos_predict2.auxiliary.guardrail.face_blur_filter.face_blur_filter import RetinaFaceFilter
 from cosmos_predict2.auxiliary.guardrail.llamaGuard3.llamaGuard3 import LlamaGuard3
 from cosmos_predict2.auxiliary.guardrail.video_content_safety_filter.video_content_safety_filter import (
     VideoContentSafetyFilter,
 )
-from imaginaire.utils import log
+
+from worldfoundry.core.distributed.logging import log
+from worldfoundry.core.safety import GuardrailRunner
 
 
 def create_text_guardrail_runner(checkpoint_dir: str, offload_model_to_cpu: bool) -> GuardrailRunner:

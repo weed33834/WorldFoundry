@@ -16,10 +16,10 @@
 """Module for base_models -> diffusion_model -> video -> cosmos -> cosmos1 -> cosmos_predict1_gen3c -> cosmos_predict1 -> diffusion -> utils -> peft -> lora_net.py functionality."""
 
 import torch
-from worldfoundry.core.distributed.megatron_compat import parallel_state
+from cosmos_predict1.utils import log
 from torch import nn
 
-from cosmos_predict1.utils import log
+from worldfoundry.core.distributed.megatron_compat import parallel_state
 
 try:
     import transformer_engine as te

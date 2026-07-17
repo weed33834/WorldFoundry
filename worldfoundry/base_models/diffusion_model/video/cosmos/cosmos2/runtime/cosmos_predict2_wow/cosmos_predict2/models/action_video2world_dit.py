@@ -19,14 +19,16 @@ from typing import List, Optional, Tuple
 
 import torch
 import torch.nn as nn
-from einops import rearrange
-
 from cosmos_predict2.conditioner import DataType
 from cosmos_predict2.models.video2world_dit import MinimalV1LVGDiT
+from einops import rearrange
+
+from worldfoundry.core.utils.cuda_graph import create_cuda_graph
 
 
 class Mlp(nn.Module):
     """Mlp implementation."""
+
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.0):
         """Init.
 
@@ -61,6 +63,7 @@ class Mlp(nn.Module):
 
 class ActionConditionedMinimalV1LVGDiT(MinimalV1LVGDiT):
     """Action conditioned minimal lvg di t implementation."""
+
     def __init__(self, *args, **kwargs):
         """Init."""
         assert "action_dim" in kwargs, "action_dim must be provided"
@@ -127,9 +130,9 @@ class ActionConditionedMinimalV1LVGDiT(MinimalV1LVGDiT):
         action_emb_B_D = self.action_embedder_B_D(action)
         action_emb_B_3D = self.action_embedder_B_3D(action)
 
-        assert isinstance(
-            data_type, DataType
-        ), f"Expected DataType, got {type(data_type)}. We need discuss this flag later."
+        assert isinstance(data_type, DataType), (
+            f"Expected DataType, got {type(data_type)}. We need discuss this flag later."
+        )
         assert not (self.training and use_cuda_graphs), "CUDA Graphs are supported only for inference"
         x_B_T_H_W_D, rope_emb_L_1_1_D, extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D = self.prepare_embedded_sequence(
             x_B_C_T_H_W,
@@ -155,9 +158,9 @@ class ActionConditionedMinimalV1LVGDiT(MinimalV1LVGDiT):
         self.crossattn_emb = crossattn_emb
 
         if extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D is not None:
-            assert (
-                x_B_T_H_W_D.shape == extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D.shape
-            ), f"{x_B_T_H_W_D.shape} != {extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D.shape}"
+            assert x_B_T_H_W_D.shape == extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D.shape, (
+                f"{x_B_T_H_W_D.shape} != {extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D.shape}"
+            )
 
         if use_cuda_graphs:
             shapes_key = create_cuda_graph(

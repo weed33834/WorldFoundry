@@ -5,6 +5,7 @@ from torch import nn
 
 from worldfoundry.base_models.diffusion_model.video.ltx2.ltx_core.model.transformer.rope import apply_rotary_emb
 from worldfoundry.base_models.diffusion_model.video.ltx2.ltx_core.utils import rms_norm
+from worldfoundry.core.kernels import residual_gate_add, rms_norm_scale_shift
 
 
 class PreAttentionCallable(Protocol):
@@ -55,7 +56,7 @@ class PytorchAdaZeroFunction(AdaZeroCallable):
         scale: torch.Tensor,
         shift: torch.Tensor,
     ) -> torch.Tensor:
-        return rms_norm(x, eps=eps) * (1 + scale) + shift
+        return rms_norm_scale_shift(x, scale, shift, eps=eps)
 
 
 class PostSACallable(Protocol):
@@ -78,7 +79,7 @@ class PytorchPostSAFunction(PostSACallable):
         eps: float,
         gate: torch.Tensor,
     ) -> List[torch.Tensor]:
-        x_fma = x + y * gate
+        x_fma = residual_gate_add(x, y, gate)
         return x_fma, rms_norm(x_fma, norm_weights, eps=eps)
 
 

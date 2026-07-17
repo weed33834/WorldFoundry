@@ -366,7 +366,3 @@ class DA3(Module):
                 preds[PredictionField.WORLD_POINTS_DIRECT_CONF] = output.world_points_conf
 
         return preds
-
-    def train_step(self, *args, **kwargs):
-        """Train step."""
-        raise NotImplementedError("DA3 does not support training within dvlt")

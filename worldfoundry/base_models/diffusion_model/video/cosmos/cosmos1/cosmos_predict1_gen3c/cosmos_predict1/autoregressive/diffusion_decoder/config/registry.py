@@ -15,14 +15,14 @@
 
 """Module for base_models -> diffusion_model -> video -> cosmos -> cosmos1 -> cosmos_predict1_gen3c -> cosmos_predict1 -> autoregressive -> diffusion_decoder -> config -> registry.py functionality."""
 
-from hydra.core.config_store import ConfigStore
-
 from cosmos_predict1.autoregressive.diffusion_decoder.config.base.conditioner import (
     VideoLatentDiffusionDecoderConditionerConfig,
 )
 from cosmos_predict1.autoregressive.tokenizer.discrete_video import DiscreteVideoFSQJITTokenizer
 from cosmos_predict1.diffusion.module.pretrained_vae import JITVAE, JointImageVideoSharedJITTokenizer, VideoJITTokenizer
-from cosmos_predict1.utils.lazy_config import LazyCall as L
+from hydra.core.config_store import ConfigStore
+
+from worldfoundry.core.configuration.lazy_config import LazyCall as L
 
 
 def get_cosmos_video_discrete_tokenizer_comp8x16x16(

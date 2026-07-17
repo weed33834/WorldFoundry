@@ -18,13 +18,13 @@
 from typing import List, Optional, TypedDict
 
 import torch
-
 from cosmos_predict1.autoregressive.tokenizer.image_text_tokenizer import ImageTextTokenizer
 from cosmos_predict1.autoregressive.tokenizer.text_tokenizer import TextTokenizer
 
 
 class ChatPrediction(TypedDict, total=False):
     """Chat prediction implementation."""
+
     tokens: List[str]  # not required
     logprobs: List[float]  # not required
 

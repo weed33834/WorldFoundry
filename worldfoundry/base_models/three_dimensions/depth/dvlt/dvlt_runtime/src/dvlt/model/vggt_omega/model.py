@@ -152,7 +152,3 @@ class VGGTOmega(Module):
             PredictionField.WORLD_POINTS: world_points,
         }
         return predictions
-
-    def train_step(self, *args, **kwargs):
-        """Train step."""
-        raise NotImplementedError("VGGT-Omega does not support training within dvlt")

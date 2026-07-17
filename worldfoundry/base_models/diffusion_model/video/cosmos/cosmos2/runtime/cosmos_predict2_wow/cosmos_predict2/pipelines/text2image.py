@@ -18,23 +18,24 @@
 from typing import Any, List, Tuple, Union
 
 import torch
-from einops import rearrange
-from megatron.core import parallel_state
-from tqdm import tqdm
-
 from cosmos_predict2.auxiliary.text_encoder import CosmosT5TextEncoder
 from cosmos_predict2.conditioner import DataType, T2VCondition
-from cosmos_predict2.datasets.utils import IMAGE_RES_SIZE_INFO
-from cosmos_predict2.models.text2image_dit import MiniTrainDIT
-from worldfoundry.core.vram import init_weights_on_device
-from cosmos_predict2.module.denoise_prediction import DenoisePrediction
-from cosmos_predict2.module.denoiser_scaling import RectifiedFlowScaling
+from cosmos_predict2.models.text2image_dit import InferenceDiT
 from cosmos_predict2.pipelines.base import BasePipeline
 from cosmos_predict2.schedulers.rectified_flow_scheduler import RectifiedFlowAB2Scheduler
 from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
-from imaginaire.lazy_config import LazyDict, instantiate
-from imaginaire.utils import log, misc
+from einops import rearrange
+from tqdm import tqdm
+
+from worldfoundry.base_models.diffusion_model.video.cosmos.shared.denoiser_scaling import RectifiedFlowScaling
+from worldfoundry.base_models.diffusion_model.video.cosmos.shared.diffusion_types import DenoisePrediction
+from worldfoundry.core.configuration.lazy_config import LazyDict, instantiate
+from worldfoundry.core.distributed.logging import log
+from worldfoundry.core.distributed.megatron_compat import parallel_state
+from worldfoundry.core.io.resolutions import IMAGE_RES_SIZE_INFO
 from worldfoundry.core.model_loading import load_state_dict
+from worldfoundry.core.utils import inference_runtime as misc
+from worldfoundry.core.vram import init_weights_on_device
 
 IS_PREPROCESSED_KEY = "is_preprocessed"
 
@@ -84,6 +85,7 @@ def get_sample_batch(
 
 class Text2ImagePipeline(BasePipeline):
     """Text image pipeline implementation."""
+
     def __init__(self, device: str = "cuda", torch_dtype: torch.dtype = torch.bfloat16):
         """Init.
 
@@ -93,7 +95,7 @@ class Text2ImagePipeline(BasePipeline):
         """
         super().__init__(device=device, torch_dtype=torch_dtype)
         self.text_encoder: CosmosT5TextEncoder = None
-        self.dit: MiniTrainDIT = None
+        self.dit: InferenceDiT = None
         self.tokenizer: TokenizerInterface = None
         self.conditioner = None
         self.text_guardrail_runner = None
@@ -147,9 +149,9 @@ class Text2ImagePipeline(BasePipeline):
 
         # 3. Set up tokenizer
         pipe.tokenizer = instantiate(config.tokenizer)
-        assert (
-            pipe.tokenizer.latent_ch == pipe.config.state_ch
-        ), f"latent_ch {pipe.tokenizer.latent_ch} != state_shape {pipe.config.state_ch}"
+        assert pipe.tokenizer.latent_ch == pipe.config.state_ch, (
+            f"latent_ch {pipe.tokenizer.latent_ch} != state_shape {pipe.config.state_ch}"
+        )
 
         # 4. Load text encoder
         pipe.text_encoder = CosmosT5TextEncoder(device=device, cache_dir=text_encoder_path)
@@ -157,9 +159,9 @@ class Text2ImagePipeline(BasePipeline):
 
         # 5. Initialize conditioner
         pipe.conditioner = instantiate(config.conditioner)
-        assert (
-            sum(p.numel() for p in pipe.conditioner.parameters() if p.requires_grad) == 0
-        ), "conditioner should not have learnable parameters"
+        assert sum(p.numel() for p in pipe.conditioner.parameters() if p.requires_grad) == 0, (
+            "conditioner should not have learnable parameters"
+        )
 
         if config.guardrail_config.enabled:
             from cosmos_predict2.auxiliary.guardrail.common import presets as guardrail_presets
@@ -201,7 +203,7 @@ class Text2ImagePipeline(BasePipeline):
 
         return pipe
 
-    def denoising_model(self) -> MiniTrainDIT:
+    def denoising_model(self) -> InferenceDiT:
         """Denoising model.
 
         Returns:
@@ -253,9 +255,9 @@ class Text2ImagePipeline(BasePipeline):
         if input_key in data_batch:
             # Check if the data has already been augmented and avoid re-augmenting
             if IS_PREPROCESSED_KEY in data_batch and data_batch[IS_PREPROCESSED_KEY] is True:
-                assert (
-                    data_batch[input_key].shape[2] == 1
-                ), f"Image data is claimed be augmented while its shape is {data_batch[input_key].shape}"
+                assert data_batch[input_key].shape[2] == 1, (
+                    f"Image data is claimed be augmented while its shape is {data_batch[input_key].shape}"
+                )
                 return
             else:
                 data_batch[input_key] = rearrange(data_batch[input_key], "b c h w -> b c 1 h w").contiguous()

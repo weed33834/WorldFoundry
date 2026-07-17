@@ -23,7 +23,9 @@ from transformers import AutoConfig, AutoModelForSeq2SeqLM
 from transformers.modeling_outputs import Seq2SeqLMOutput
 
 from ..multimodal_encoder.builder import build_vision_tower
-from ..multimodal_projector.builder import build_vision_projector
+from worldfoundry.base_models.perception_core.video_text.vqa_score.models.vqascore_models._shared.multimodal_projector import (
+    build_vision_projector,
+)
 from transformers import T5Config, T5ForConditionalGeneration
 
 IMAGE_TOKEN_INDEX = -200

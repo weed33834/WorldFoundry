@@ -19,19 +19,20 @@ from typing import Any
 
 import numpy as np
 import torch
-from megatron.core import parallel_state
-
 from cosmos_predict2.auxiliary.cosmos_reason1 import CosmosReason1
 from cosmos_predict2.auxiliary.text_encoder import CosmosT5TextEncoder
 from cosmos_predict2.configs.base.config_video2world import Video2WorldPipelineConfig
-from cosmos_predict2.module.denoiser_scaling import RectifiedFlowScaling
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
 from cosmos_predict2.schedulers.rectified_flow_scheduler import RectifiedFlowAB2Scheduler
+
+from worldfoundry.base_models.diffusion_model.video.cosmos.shared.denoiser_scaling import RectifiedFlowScaling
+from worldfoundry.core.configuration.lazy_config import instantiate
+from worldfoundry.core.distributed import FastEmaModelUpdater
 from worldfoundry.core.distributed.context_parallel import cat_outputs_cp, split_inputs_cp
-from imaginaire.lazy_config import instantiate
-from imaginaire.utils import log, misc
-from imaginaire.utils.ema import FastEmaModelUpdater
+from worldfoundry.core.distributed.logging import log
+from worldfoundry.core.distributed.megatron_compat import parallel_state
 from worldfoundry.core.model_loading import load_state_dict
+from worldfoundry.core.utils import inference_runtime as misc
 
 IS_PREPROCESSED_KEY = "is_preprocessed"
 _IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", "webp"]
@@ -41,6 +42,7 @@ NUM_CONDITIONAL_FRAMES_KEY: str = "num_conditional_frames"
 
 class ActionConditionedVideo2WorldPipeline(Video2WorldPipeline):
     """Action conditioned video world pipeline implementation."""
+
     def __init__(self, device: str = "cuda", torch_dtype: torch.dtype = torch.bfloat16):
         """Init.
 
@@ -99,9 +101,9 @@ class ActionConditionedVideo2WorldPipeline(Video2WorldPipeline):
 
         # 3. Set up tokenizer
         pipe.tokenizer = instantiate(config.tokenizer)
-        assert (
-            pipe.tokenizer.latent_ch == pipe.config.state_ch
-        ), f"latent_ch {pipe.tokenizer.latent_ch} != state_shape {pipe.config.state_ch}"
+        assert pipe.tokenizer.latent_ch == pipe.config.state_ch, (
+            f"latent_ch {pipe.tokenizer.latent_ch} != state_shape {pipe.config.state_ch}"
+        )
 
         # 4. Load text encoder
         if text_encoder_path:
@@ -114,9 +116,9 @@ class ActionConditionedVideo2WorldPipeline(Video2WorldPipeline):
 
         # 5. Initialize conditioner
         pipe.conditioner = instantiate(config.conditioner)
-        assert (
-            sum(p.numel() for p in pipe.conditioner.parameters() if p.requires_grad) == 0
-        ), "conditioner should not have learnable parameters"
+        assert sum(p.numel() for p in pipe.conditioner.parameters() if p.requires_grad) == 0, (
+            "conditioner should not have learnable parameters"
+        )
 
         if load_prompt_refiner:
             pipe.prompt_refiner = CosmosReason1(
@@ -362,6 +364,8 @@ class ActionConditionedVideo2WorldPipeline(Video2WorldPipeline):
 
         # Run video guardrail on the generated video and apply postprocessing
         if self.video_guardrail_runner is not None:
+            from cosmos_predict2.auxiliary.guardrail.common import presets as guardrail_presets
+
             # Clamp to safe range before normalization
             video = video.clamp(-1.0, 1.0)
             video_normalized = (video + 1) / 2  # [0, 1]

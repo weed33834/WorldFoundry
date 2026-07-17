@@ -15,16 +15,17 @@
 
 """Module for base_models -> diffusion_model -> video -> cosmos -> cosmos1 -> cosmos_predict1_gen3c -> cosmos_predict1 -> diffusion -> config -> base -> model.py functionality."""
 
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 import attrs
 
-from cosmos_predict1.utils.lazy_config import LazyDict
+from worldfoundry.core.configuration.lazy_config import LazyDict
 
 
 @attrs.define(slots=False)
 class DefaultModelConfig:
     """Default model config implementation."""
+
     tokenizer: LazyDict = None
     conditioner: LazyDict = None
     net: LazyDict = None
@@ -53,6 +54,7 @@ class DefaultModelConfig:
 @attrs.define(slots=False)
 class LatentDiffusionDecoderModelConfig(DefaultModelConfig):
     """Latent diffusion decoder model config implementation."""
+
     tokenizer_corruptor: LazyDict = None
     latent_corruptor: LazyDict = None
     pixel_corruptor: LazyDict = None
@@ -65,4 +67,5 @@ class LatentDiffusionDecoderModelConfig(DefaultModelConfig):
 @attrs.define(slots=False)
 class MultiviewModelConfig(DefaultModelConfig):
     """Multiview model config implementation."""
+
     n_views: int = 4

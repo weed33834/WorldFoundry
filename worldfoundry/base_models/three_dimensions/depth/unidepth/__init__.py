@@ -86,11 +86,13 @@ class UniDepth2Model(DepthEstimationModel):
         predictions = self.model.infer(rgb, camera)
         pred_depth = predictions["depth"].squeeze(1)
         confidence = predictions["confidence"].squeeze(1)
+        points = predictions["points"].moveaxis(1, -1)
 
         if not batch_dim:
-            pred_depth, confidence = pred_depth[0], confidence[0]
+            pred_depth, confidence, points = pred_depth[0], confidence[0], points[0]
 
         return DepthEstimationResult(
             metric_depth=pred_depth,
             confidence=confidence,
+            points=points,
         )

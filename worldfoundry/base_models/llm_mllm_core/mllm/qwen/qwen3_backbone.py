@@ -46,7 +46,7 @@ class Qwen3Backbone(torch.nn.Module):
         load_bf16: bool = False,
         tune_top_llm_layers: int = 0,
         trainable_params_fp32: bool = False,
-        transformers_loading_kwargs: dict = {},
+        transformers_loading_kwargs: dict | None = None,
     ):
         """
         Qwen3Backbone is to generate n_queries to represent the future action hidden states.
@@ -80,10 +80,12 @@ class Qwen3Backbone(torch.nn.Module):
         if load_bf16:
             extra_kwargs["torch_dtype"] = torch.bfloat16
 
+        loading_kwargs = dict(transformers_loading_kwargs or {})
+        loading_kwargs.setdefault("trust_remote_code", False)
         self.model = Qwen3VLForConditionalGeneration.from_pretrained(
             model_name,
             **extra_kwargs,
-            **transformers_loading_kwargs,
+            **loading_kwargs,
         ).eval()
 
         # needed since we don't use these layers. Also saves compute

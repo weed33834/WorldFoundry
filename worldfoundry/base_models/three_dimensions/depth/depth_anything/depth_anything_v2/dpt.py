@@ -1,14 +1,11 @@
 """Module for base_models -> three_dimensions -> depth -> depth_anything -> depth_anything_v2 -> dpt.py functionality."""
 
-import cv2
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision.transforms import Compose
 
 from worldfoundry.base_models.perception_core.general_perception.dinov2.hub.backbones import DINOv2
 from .util.blocks import FeatureFusionBlock, _make_scratch
-from .util.transform import Resize, NormalizeImage, PrepareForNet
 
 
 def _make_fusion_block(features, use_bn, size=None):
@@ -155,7 +152,7 @@ class DPTHead(nn.Module):
                 nn.Identity(),
             )
     
-    def forward(self, out_features, patch_h, patch_w):
+    def forward(self, out_features, patch_h, patch_w, patch_size=14):
         """Forward.
 
         Args:
@@ -167,12 +164,16 @@ class DPTHead(nn.Module):
         for i, x in enumerate(out_features):
             if self.use_clstoken:
                 x, cls_token = x[0], x[1]
-                readout = cls_token.unsqueeze(1).expand_as(x)
-                x = self.readout_projects[i](torch.cat((x, readout), -1))
+                if x.dim() == 3:
+                    readout = cls_token.unsqueeze(1).expand_as(x)
+                    x = self.readout_projects[i](torch.cat((x, readout), -1))
             else:
-                x = x[0]
-            
-            x = x.permute(0, 2, 1).reshape((x.shape[0], x.shape[-1], patch_h, patch_w))
+                x = x[0] if isinstance(x, (tuple, list)) else x
+
+            if x.dim() == 3:
+                x = x.permute(0, 2, 1).reshape((x.shape[0], x.shape[-1], patch_h, patch_w))
+            elif x.dim() == 4 and x.shape[-2:] != (patch_h, patch_w):
+                x = F.interpolate(x, size=(patch_h, patch_w), mode="bilinear", align_corners=False)
             
             x = self.projects[i](x)
             x = self.resize_layers[i](x)
@@ -192,7 +193,7 @@ class DPTHead(nn.Module):
         path_1 = self.scratch.refinenet1(path_2, layer_1_rn)
         
         out = self.scratch.output_conv1(path_1)
-        out = F.interpolate(out, (int(patch_h * 14), int(patch_w * 14)), mode="bilinear", align_corners=True)
+        out = F.interpolate(out, (int(patch_h * patch_size), int(patch_w * patch_size)), mode="bilinear", align_corners=True)
         out = self.scratch.output_conv2(out)
         
         return out
@@ -282,6 +283,11 @@ class DepthAnythingV2(nn.Module):
             raw_image: The raw image.
             input_size: The input size.
         """
+        import cv2
+        from torchvision.transforms import Compose
+
+        from .util.transform import NormalizeImage, PrepareForNet, Resize
+
         transform = Compose([
             Resize(
                 width=input_size,

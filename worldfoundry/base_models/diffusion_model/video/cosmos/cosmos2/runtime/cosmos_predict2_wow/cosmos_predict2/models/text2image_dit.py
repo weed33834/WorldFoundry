@@ -23,7 +23,9 @@ from typing import Any, Callable, List, Optional, Tuple
 
 import numpy as np
 import torch
-import transformer_engine as te
+from cosmos_predict2.conditioner import DataType
+from cosmos_predict2.networks.a2a_cp import MinimalA2AAttnOp
+from cosmos_predict2.networks.selective_activation_checkpoint import SACConfig as _SACConfig
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 from torch import nn
@@ -33,16 +35,14 @@ from torch.distributed.device_mesh import DeviceMesh
 from torch.distributed.fsdp import fully_shard
 from torch.utils.checkpoint import CheckpointPolicy, create_selective_checkpoint_contexts
 from torchvision import transforms
-from transformer_engine.pytorch.attention import DotProductAttention, apply_rotary_pos_emb
 
-from cosmos_predict2.conditioner import DataType
-from cosmos_predict2.networks.a2a_cp import MinimalA2AAttnOp
-from worldfoundry.base_models.diffusion_model.video.cosmos.shared.model_weights_stats import WeightTrainingStat
-from cosmos_predict2.networks.selective_activation_checkpoint import SACConfig as _SACConfig
-from worldfoundry.core.distributed.context_parallel import split_inputs_cp
-from imaginaire.utils import log
-from imaginaire.utils.graph import create_cuda_graph
 from worldfoundry.core.attention import scaled_dot_product_attention as _worldfoundry_scaled_dot_product_attention
+from worldfoundry.core.attention.native import NativeAttention
+from worldfoundry.core.attention.rope_kernel import apply_rotary_pos_emb
+from worldfoundry.core.distributed.context_parallel import split_inputs_cp
+from worldfoundry.core.distributed.logging import log
+from worldfoundry.core.nn.checkpoint_compat import InferenceCheckpointModule
+from worldfoundry.core.utils.cuda_graph import create_cuda_graph
 
 
 # selective activation checkpoint; only apply to the minimal v4 model. if there are change in the networks, some policy will not work as we expect.
@@ -60,8 +60,6 @@ def predict2_2B_720_context_fn():
         mode = "recompute" if ctx.is_recompute else "forward"
         if func == torch.ops.aten.mm.default:
             op_count_key = f"{mode}_mm_count"
-            # from imaginaire.utils import log
-            # log.info(f"op_count_key: {op_count_key}, op_count[op_count_key]: {op_count[op_count_key]}, {args[0].shape}, {args[1].shape}")
             # there are totally 6 + 4 + 4 + 2 = 16 block
             op_count[op_count_key] = (op_count[op_count_key] + 1) % 16
             if op_count[op_count_key] > 8:  # recompute self attn first 3 linear layers
@@ -90,8 +88,6 @@ def predict2_14B_720_context_fn():
         mode = "recompute" if ctx.is_recompute else "forward"
         if func == torch.ops.aten.mm.default:
             op_count_key = f"{mode}_mm_count"
-            # from imaginaire.utils import log
-            # log.info(f"op_count_key: {op_count_key}, op_count[op_count_key]: {op_count[op_count_key]}, {args[0].shape}, {args[1].shape}")
             # there are totally 6 + 4 + 4 + 2 = 16 block
             op_count[op_count_key] = (op_count[op_count_key] + 1) % 16
             if op_count[op_count_key] > 8:  # recompute self attn first 1 linear layers
@@ -132,6 +128,7 @@ def linear_selfattn_context_fn():
 
 class CheckpointMode(str, Enum):
     """Checkpoint mode implementation."""
+
     NONE = "none"
     MM_ONLY = "mm_only"
     BLOCK_WISE = "block_wise"
@@ -151,6 +148,7 @@ class CheckpointMode(str, Enum):
 @dataclass
 class SACConfig(_SACConfig):
     """Sac config implementation."""
+
     def get_context_fn(self):
         """Get context fn."""
         if self.mode == CheckpointMode.LINEAR_SELFATTN:
@@ -166,6 +164,7 @@ class SACConfig(_SACConfig):
 
 class RMSNorm(torch.nn.Module):
     """Rms norm implementation."""
+
     def __init__(self, dim: int, eps: float = 1e-5) -> None:
         """Init.
 
@@ -215,6 +214,7 @@ class RMSNorm(torch.nn.Module):
 # ---------------------- Feed Forward Network -----------------------
 class GPT2FeedForward(nn.Module):
     """Feed forward implementation."""
+
     def __init__(self, d_model: int, d_ff: int) -> None:
         """Init.
 
@@ -317,7 +317,7 @@ class Attention(nn.Module):
         head_dim (int, optional): The dimension of each attention head. Default: 64
         dropout (float, optional): Dropout probability applied to the output. Default: 0.0
         qkv_format (str, optional): Format specification for QKV tensors. Default: "bshd"
-        backend (str, optional): Backend to use for the attention operation. Default: "transformer_engine"
+        backend (str, optional): Backend to use for the attention operation. Default: "flash"
 
     Examples:
         >>> # Self-attention with 512 dimensions and 8 heads
@@ -340,7 +340,7 @@ class Attention(nn.Module):
         head_dim: int = 64,
         dropout: float = 0.0,
         qkv_format: str = "bshd",
-        backend: str = "transformer_engine",
+        backend: str = "flash",
     ) -> None:
         """Init.
 
@@ -363,7 +363,7 @@ class Attention(nn.Module):
         )
         self.is_selfattn = context_dim is None  # self attention
 
-        assert backend in ["transformer_engine", "torch", "minimal_a2a"], f"Invalid backend: {backend}"
+        assert backend in ["flash", "math", "torch", "minimal_a2a"], f"Invalid backend: {backend}"
         self.backend = backend
 
         context_dim = query_dim if context_dim is None else context_dim
@@ -376,10 +376,10 @@ class Attention(nn.Module):
         self.context_dim = context_dim
 
         self.q_proj = nn.Linear(query_dim, inner_dim, bias=False)
-        self.q_norm = te.pytorch.RMSNorm(self.head_dim, eps=1e-6)
+        self.q_norm = nn.RMSNorm(self.head_dim, eps=1e-6)
 
         self.k_proj = nn.Linear(context_dim, inner_dim, bias=False)
-        self.k_norm = te.pytorch.RMSNorm(self.head_dim, eps=1e-6)
+        self.k_norm = nn.RMSNorm(self.head_dim, eps=1e-6)
 
         self.v_proj = nn.Linear(context_dim, inner_dim, bias=False)
         self.v_norm = nn.Identity()
@@ -387,15 +387,8 @@ class Attention(nn.Module):
         self.output_proj = nn.Linear(inner_dim, query_dim, bias=False)
         self.output_dropout = nn.Dropout(dropout) if dropout > 1e-4 else nn.Identity()
 
-        if self.backend == "transformer_engine":
-            self.attn_op = DotProductAttention(
-                self.n_heads,
-                self.head_dim,
-                num_gqa_groups=self.n_heads,
-                attention_dropout=0,
-                qkv_format=qkv_format,
-                attn_mask_type="no_mask",
-            )
+        if self.backend in {"flash", "math"}:
+            self.attn_op = NativeAttention(qkv_format=qkv_format, backend=self.backend)
         elif self.backend == "minimal_a2a":
             self.attn_op = MinimalA2AAttnOp()
         elif self.backend == "torch":
@@ -468,8 +461,8 @@ class Attention(nn.Module):
             k = self.k_norm(k)
             v = self.v_norm(v)
             if self.is_selfattn and rope_emb is not None:  # only apply to self-attention!
-                q = apply_rotary_pos_emb(q, rope_emb, tensor_format=self.qkv_format, fused=True)
-                k = apply_rotary_pos_emb(k, rope_emb, tensor_format=self.qkv_format, fused=True)
+                q = apply_rotary_pos_emb(q, rope_emb)
+                k = apply_rotary_pos_emb(k, rope_emb)
             return q, k, v
 
         q, k, v = apply_norm_and_rotary_pos_emb(q, k, v, rope_emb)
@@ -522,6 +515,7 @@ class Attention(nn.Module):
 
 class VideoPositionEmb(nn.Module):
     """Video position emb implementation."""
+
     def __init__(self) -> None:
         """Init.
 
@@ -602,6 +596,7 @@ class VideoPositionEmb(nn.Module):
 
 class VideoRopePosition3DEmb(VideoPositionEmb):
     """Video rope position d emb implementation."""
+
     def __init__(
         self,
         *,  # enforce keyword arguments
@@ -699,17 +694,17 @@ class VideoRopePosition3DEmb(VideoPositionEmb):
         temporal_freqs = 1.0 / (t_theta**self.dim_temporal_range)
 
         B, T, H, W, _ = B_T_H_W_C
-        assert (
-            H <= self.max_h and W <= self.max_w
-        ), f"Input dimensions (H={H}, W={W}) exceed the maximum dimensions (max_h={self.max_h}, max_w={self.max_w})"
+        assert H <= self.max_h and W <= self.max_w, (
+            f"Input dimensions (H={H}, W={W}) exceed the maximum dimensions (max_h={self.max_h}, max_w={self.max_w})"
+        )
         half_emb_h = torch.outer(self.seq[:H], h_spatial_freqs)
         half_emb_w = torch.outer(self.seq[:W], w_spatial_freqs)
 
         if self.enable_fps_modulation:
             uniform_fps = (fps is None) or (fps.min() == fps.max())
-            assert (
-                uniform_fps or B == 1 or T == 1
-            ), "For video batch, batch size should be 1 for non-uniform fps. For image batch, T should be 1"
+            assert uniform_fps or B == 1 or T == 1, (
+                "For video batch, batch size should be 1 for non-uniform fps. For image batch, T should be 1"
+            )
 
             # apply sequence scaling in temporal dimension
             if fps is None:  # image case
@@ -744,6 +739,7 @@ class VideoRopePosition3DEmb(VideoPositionEmb):
 
 class LearnablePosEmbAxis(VideoPositionEmb):
     """Learnable pos emb axis implementation."""
+
     def __init__(
         self,
         *,  # enforce keyword arguments
@@ -812,6 +808,7 @@ class LearnablePosEmbAxis(VideoPositionEmb):
 
 class Timesteps(nn.Module):
     """Timesteps implementation."""
+
     def __init__(self, num_channels: int):
         """Init.
 
@@ -849,6 +846,7 @@ class Timesteps(nn.Module):
 
 class TimestepEmbedding(nn.Module):
     """Timestep embedding implementation."""
+
     def __init__(self, in_features: int, out_features: int, use_adaln_lora: bool = False):
         """Init.
 
@@ -1050,9 +1048,9 @@ class PatchEmbed(nn.Module):
         """
         assert x.dim() == 5
         _, _, T, H, W = x.shape
-        assert (
-            H % self.spatial_patch_size == 0 and W % self.spatial_patch_size == 0
-        ), f"H,W {(H, W)} should be divisible by spatial_patch_size {self.spatial_patch_size}"
+        assert H % self.spatial_patch_size == 0 and W % self.spatial_patch_size == 0, (
+            f"H,W {(H, W)} should be divisible by spatial_patch_size {self.spatial_patch_size}"
+        )
         assert T % self.temporal_patch_size == 0
         x = self.proj(x)
         return x
@@ -1141,8 +1139,9 @@ class FinalLayer(nn.Module):
         else:
             shift_B_T_D, scale_B_T_D = self.adaln_modulation(emb_B_T_D).chunk(2, dim=-1)
 
-        shift_B_T_1_1_D, scale_B_T_1_1_D = rearrange(shift_B_T_D, "b t d -> b t 1 1 d"), rearrange(
-            scale_B_T_D, "b t d -> b t 1 1 d"
+        shift_B_T_1_1_D, scale_B_T_1_1_D = (
+            rearrange(shift_B_T_D, "b t d -> b t 1 1 d"),
+            rearrange(scale_B_T_D, "b t d -> b t 1 1 d"),
         )
 
         def _fn(
@@ -1198,7 +1197,7 @@ class Block(nn.Module):
         mlp_ratio: float = 4.0,
         use_adaln_lora: bool = False,
         adaln_lora_dim: int = 256,
-        backend: str = "transformer_engine",
+        backend: str = "flash",
     ):
         """Init.
 
@@ -1422,7 +1421,7 @@ class Block(nn.Module):
         return x_B_T_H_W_D
 
 
-class MiniTrainDIT(WeightTrainingStat):
+class InferenceDiT(InferenceCheckpointModule):
     """
     A clean impl of DIT that can load and  reproduce the training results of the original DIT model in~(cosmos 1)
     A general implementation of adaln-modulated VIT-like~(DiT) transformer for video processing.
@@ -1472,7 +1471,7 @@ class MiniTrainDIT(WeightTrainingStat):
         num_blocks: int = 10,
         num_heads: int = 16,
         mlp_ratio: float = 4.0,
-        atten_backend: str = "transformer_engine",
+        atten_backend: str = "flash",
         # cross attention settings
         crossattn_emb_channels: int = 1024,
         # positional embedding settings
@@ -1592,7 +1591,7 @@ class MiniTrainDIT(WeightTrainingStat):
             adaln_lora_dim=self.adaln_lora_dim,
         )
 
-        self.t_embedding_norm = te.pytorch.RMSNorm(model_channels, eps=1e-6)
+        self.t_embedding_norm = nn.RMSNorm(model_channels, eps=1e-6)
         self.init_weights()
         self.enable_selective_checkpoint(sac_config)
         self._is_context_parallel_enabled = False
@@ -1765,9 +1764,9 @@ class MiniTrainDIT(WeightTrainingStat):
             timesteps: (B, ) tensor of timesteps
             crossattn_emb: (B, N, D) tensor of cross-attention embeddings
         """
-        assert isinstance(
-            data_type, DataType
-        ), f"Expected DataType, got {type(data_type)}. We need discuss this flag later."
+        assert isinstance(data_type, DataType), (
+            f"Expected DataType, got {type(data_type)}. We need discuss this flag later."
+        )
         assert not (self.training and use_cuda_graphs), "CUDA Graphs are supported only for inference"
         x_B_T_H_W_D, rope_emb_L_1_1_D, extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D = self.prepare_embedded_sequence(
             x_B_C_T_H_W,
@@ -1788,20 +1787,20 @@ class MiniTrainDIT(WeightTrainingStat):
         self.crossattn_emb = crossattn_emb
 
         if extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D is not None:
-            assert (
-                x_B_T_H_W_D.shape == extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D.shape
-            ), f"{x_B_T_H_W_D.shape} != {extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D.shape}"
+            assert x_B_T_H_W_D.shape == extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D.shape, (
+                f"{x_B_T_H_W_D.shape} != {extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D.shape}"
+            )
 
         if use_cuda_graphs:
             shapes_key = create_cuda_graph(
                 self.cuda_graphs,
                 self.blocks,
-                x_B_T_H_W_D,
-                t_embedding_B_T_D,
-                crossattn_emb,
-                rope_emb_L_1_1_D,
-                adaln_lora_B_T_3D,
-                extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D,
+                [x_B_T_H_W_D, t_embedding_B_T_D, crossattn_emb],
+                {
+                    "rope_emb_L_1_1_D": rope_emb_L_1_1_D,
+                    "adaln_lora_B_T_3D": adaln_lora_B_T_3D,
+                    "extra_per_block_pos_emb": extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D,
+                },
             )
             blocks = self.cuda_graphs[shapes_key]
         else:

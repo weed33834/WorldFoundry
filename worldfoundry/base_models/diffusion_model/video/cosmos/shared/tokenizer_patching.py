@@ -351,7 +351,6 @@ class UnPatcher3D(UnPatcher):
         """
         dtype = x.dtype
         h = self.wavelets
-        n = h.shape[0]
 
         g = x.shape[1] // 8  # split into 8 spatio-temporal filtered tesnors.
         hl = h.flip([0]).reshape(1, 1, -1).repeat([g, 1, 1])

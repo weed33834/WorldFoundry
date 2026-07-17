@@ -1,1 +1,0 @@
-"""Full pixelSplat runtime source."""

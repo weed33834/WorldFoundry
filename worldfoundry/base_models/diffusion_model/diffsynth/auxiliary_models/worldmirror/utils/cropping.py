@@ -15,7 +15,7 @@ except AttributeError:
     lanczos = PIL.Image.LANCZOS
     bicubic = PIL.Image.BICUBIC
 
-from .geometry import (
+from worldfoundry.base_models.three_dimensions.point_clouds.hunyuan_mirror.utils.geometry import (
     colmap_to_opencv_intrinsics,
     opencv_to_colmap_intrinsics,
 )

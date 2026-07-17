@@ -24,17 +24,15 @@ import argparse
 import os
 from math import ceil
 
-from PIL import Image
-
 from cosmos_predict1.autoregressive.configs.base.model_config import create_vision_language_model_config
 from cosmos_predict1.diffusion.prompt_upsampler.inference import chat_completion
 from cosmos_predict1.utils import log
+from PIL import Image
+
 from worldfoundry.base_models.diffusion_model.video.cosmos.shared.io import load_from_fileobj
 
 
-def create_vlm_prompt_upsampler(
-    checkpoint_dir: str, tokenizer_ckpt_path: str = "mistral-community/pixtral-12b"
-):
+def create_vlm_prompt_upsampler(checkpoint_dir: str, tokenizer_ckpt_path: str = "mistral-community/pixtral-12b"):
     """
     Load the fine-tuned pixtral model for SimReady.
     If pixtral_ckpt is not provided, use the pretrained checkpoint.

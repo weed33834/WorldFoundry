@@ -24,8 +24,7 @@ import torch
 import torch.nn.functional as F
 
 from worldfoundry.core.distributed.torch_process_group import rank0_first
-from cosmos_predict2._src.imaginaire.utils.env_parsers.cred_env_parser import CRED_ENVS
-from cosmos_predict2._src.imaginaire.utils.s3_utils import load_from_s3_with_cache
+from worldfoundry.core.io import load_from_s3_with_cache
 
 
 class BaseVAE(torch.nn.Module, ABC):
@@ -142,7 +141,7 @@ class BasePretrainedImageVAE(BaseVAE):
         assert s3_credential_path is None or isinstance(s3_credential_path, str)
         if s3_credential_path is None:
             self.backend_args = None
-        elif os.path.exists(s3_credential_path) or CRED_ENVS.APP_ENV in ["prod", "dev", "stg"]:
+        elif os.path.exists(s3_credential_path) or os.environ.get("APP_ENV", "") in {"prod", "dev", "stg"}:
             self.backend_args = {
                 "backend": "s3",
                 "path_mapping": None,
@@ -444,6 +443,7 @@ class StateDictVAE(BasePretrainedImageVAE):
 
 class SDVAE(BaseVAE):
     """Sdvae implementation."""
+
     def __init__(self, batch_size=16, count_std: bool = False, is_downsample: bool = True) -> None:
         """Init.
 

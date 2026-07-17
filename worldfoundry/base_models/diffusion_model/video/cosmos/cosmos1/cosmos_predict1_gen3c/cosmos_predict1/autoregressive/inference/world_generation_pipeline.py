@@ -22,10 +22,6 @@ from typing import List, Optional, Tuple
 import numpy as np
 import torch
 import torch.distributed as dist
-from einops import rearrange
-from worldfoundry.core.distributed.megatron_compat import ModelParallelConfig, parallel_state
-from megatron.core.tensor_parallel.random import model_parallel_cuda_manual_seed
-
 from cosmos_predict1.autoregressive.configs.base.model_config import create_video2world_model_config
 from cosmos_predict1.autoregressive.configs.base.tokenizer import TokenizerConfig
 from cosmos_predict1.autoregressive.configs.inference.inference_config import (
@@ -38,7 +34,6 @@ from cosmos_predict1.autoregressive.diffusion_decoder.inference import diffusion
 from cosmos_predict1.autoregressive.diffusion_decoder.model import LatentDiffusionDecoderModel
 from cosmos_predict1.autoregressive.model import AutoRegressiveModel, update_model_config
 from cosmos_predict1.autoregressive.utils.inference import _SUPPORTED_CONTEXT_LEN, prepare_video_batch_for_saving
-from worldfoundry.core.distributed.model_parallel_collectives import broadcast_data_batch_in_tp_cp_group, get_batch_on_this_cp_rank
 from cosmos_predict1.diffusion.inference.inference_utils import (
     load_model_by_config,
     load_network_model,
@@ -46,6 +41,17 @@ from cosmos_predict1.diffusion.inference.inference_utils import (
 )
 from cosmos_predict1.utils import log, misc
 from cosmos_predict1.utils.base_world_generation_pipeline import BaseWorldGenerationPipeline
+from einops import rearrange
+
+from worldfoundry.core.distributed.megatron_compat import (
+    ModelParallelConfig,
+    model_parallel_cuda_manual_seed,
+    parallel_state,
+)
+from worldfoundry.core.distributed.model_parallel_collectives import (
+    broadcast_data_batch_in_tp_cp_group,
+    get_batch_on_this_cp_rank,
+)
 
 
 def detect_model_size_from_ckpt_path(ckpt_path: str) -> str:
@@ -600,7 +606,9 @@ class ARBaseGenerationPipeline(BaseWorldGenerationPipeline):
         assert logit_clipping_range == [
             0,
             self.model.tokenizer.video_vocab_size,
-        ], f"logit_clipping_range {logit_clipping_range} is not supported for fast generate. Expected [0, {self.model.tokenizer.video_vocab_size}]"
+        ], (
+            f"logit_clipping_range {logit_clipping_range} is not supported for fast generate. Expected [0, {self.model.tokenizer.video_vocab_size}]"
+        )
 
         out_videos = {}
         out_indices_tensors = {}

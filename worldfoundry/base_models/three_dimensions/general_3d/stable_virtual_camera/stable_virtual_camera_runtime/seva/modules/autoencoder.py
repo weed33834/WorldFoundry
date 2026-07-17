@@ -4,21 +4,27 @@ import torch
 from diffusers.models import AutoencoderKL  # type: ignore
 from torch import nn
 
+from worldfoundry.core.io.paths import checkpoint_root_path
+
+DEFAULT_AUTOENCODER_REPO = "stabilityai/stable-diffusion-2-1-base"
+
 
 class AutoEncoder(nn.Module):
     """Auto encoder implementation."""
     scale_factor: float = 0.18215
     downsample: int = 8
 
-    def __init__(self, chunk_size: int | None = None):
+    def __init__(self, chunk_size: int | None = None, pretrained_model_path: str | None = None):
         """Init.
 
         Args:
             chunk_size: The chunk size.
         """
         super().__init__()
+        local_model_path = checkpoint_root_path("stable-diffusion-2-1-base")
+        model_ref = pretrained_model_path or (str(local_model_path) if local_model_path.is_dir() else DEFAULT_AUTOENCODER_REPO)
         self.module = AutoencoderKL.from_pretrained(
-            "stabilityai/stable-diffusion-2-1-base",
+            model_ref,
             subfolder="vae",
             force_download=False,
             low_cpu_mem_usage=False,

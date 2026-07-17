@@ -25,6 +25,8 @@ import torch.nn as nn
 from termcolor import colored
 from timm.models.layers import DropPath
 
+from worldfoundry.core.checkpoint import load_weights_only, require_mapping, require_tensor
+
 from diffusion.model.builder import MODELS
 from diffusion.model.nets.basic_modules import DWMlp, GLUMBConv, MBConvPreGLU, Mlp
 from diffusion.model.nets.sana_blocks import (
@@ -460,8 +462,15 @@ class Sana(nn.Module):
 
         # load null embed
         try:
-            null_embed = torch.load(self.null_embed_path, map_location="cpu")
-            self.y_embedder.y_embedding.data = null_embed["uncond_prompt_embeds"][0]
+            null_embed = require_mapping(
+                load_weights_only(self.null_embed_path),
+                source=self.null_embed_path,
+            )
+            uncond_prompt_embeds = require_tensor(
+                null_embed.get("uncond_prompt_embeds"),
+                source=f"{self.null_embed_path}:uncond_prompt_embeds",
+            )
+            self.y_embedder.y_embedding.data = uncond_prompt_embeds[0]
             if get_rank() == 0:
                 self.logger(colored(f"Load null embed from {self.null_embed_path}....", "green"))
         except Exception as e:

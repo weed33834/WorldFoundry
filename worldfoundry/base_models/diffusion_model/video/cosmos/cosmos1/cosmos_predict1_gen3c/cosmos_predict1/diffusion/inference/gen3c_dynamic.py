@@ -17,19 +17,22 @@
 
 import argparse
 import os
-import torch
+
 import numpy as np
-from cosmos_predict1.diffusion.inference.inference_utils import (
-    add_common_arguments,
-)
-from cosmos_predict1.diffusion.inference.gen3c_pipeline import Gen3cPipeline
-from cosmos_predict1.utils import log, misc
-from worldfoundry.base_models.diffusion_model.video.cosmos.shared.io import read_prompts_from_file, save_video
+import torch
+import torch.nn.functional as F
 from cosmos_predict1.diffusion.inference.cache_3d import Cache4D
 from cosmos_predict1.diffusion.inference.camera_utils import generate_camera_trajectory
 from cosmos_predict1.diffusion.inference.data_loader_utils import load_data_auto_detect
+from cosmos_predict1.diffusion.inference.gen3c_pipeline import Gen3cPipeline
+from cosmos_predict1.diffusion.inference.inference_utils import (
+    add_common_arguments,
+)
 from cosmos_predict1.diffusion.inference.vipe_utils import load_vipe_data
-import torch.nn.functional as F
+from cosmos_predict1.utils import log, misc
+
+from worldfoundry.base_models.diffusion_model.video.cosmos.shared.io import read_prompts_from_file, save_video
+
 torch.enable_grad(False)
 
 
@@ -48,7 +51,7 @@ def parse_arguments() -> argparse.Namespace:
         type=str,
         default="Pixtral-12B",
         help="Prompt upsampler weights directory relative to checkpoint_dir",
-    ) # TODO: do we need this?
+    )  # TODO: do we need this?
     parser.add_argument(
         "--input_image_path",
         type=str,
@@ -113,6 +116,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     return parser.parse_args()
 
+
 def validate_args(args):
     """Validate args.
 
@@ -153,9 +157,8 @@ def demo(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     if args.num_gpus > 1:
-        from worldfoundry.core.distributed.megatron_compat import parallel_state
-
         from worldfoundry.core.distributed import torch_process_group as distributed
+        from worldfoundry.core.distributed.megatron_compat import parallel_state
 
         distributed.init()
         parallel_state.initialize_model_parallel(context_parallel_size=args.num_gpus)
@@ -242,11 +245,11 @@ def demo(args):
         intrinsics_b33 = intrinsics_b33.to(device)
 
         cache = Cache4D(
-            input_image=image_bchw_float.clone(), # [B, C, H, W]
-            input_depth=depth_b1hw,       # [B, 1, H, W]
-            input_mask=mask_b1hw,         # [B, 1, H, W]
+            input_image=image_bchw_float.clone(),  # [B, C, H, W]
+            input_depth=depth_b1hw,  # [B, 1, H, W]
+            input_mask=mask_b1hw,  # [B, 1, H, W]
             input_w2c=initial_w2c_b44,  # [B, 4, 4]
-            input_intrinsics=intrinsics_b33,# [B, 3, 3]
+            input_intrinsics=intrinsics_b33,  # [B, 3, 3]
             filter_points_threshold=args.filter_points_threshold,
             input_format=["F", "C", "H", "W"],
             foreground_masking=args.foreground_masking,
@@ -297,13 +300,13 @@ def demo(args):
 
         num_ar_iterations = (generated_w2cs.shape[1] - 1) // (sample_n_frames - 1)
         for num_iter in range(1, num_ar_iterations):
-            start_frame_idx = num_iter * (sample_n_frames - 1) # Overlap by 1 frame
+            start_frame_idx = num_iter * (sample_n_frames - 1)  # Overlap by 1 frame
             end_frame_idx = start_frame_idx + sample_n_frames
 
             log.info(f"Generating {start_frame_idx} - {end_frame_idx} frames")
 
             last_frame_hwc_0_255 = torch.tensor(video[-1], device=device)
-            pred_image_for_depth_chw_0_1 = last_frame_hwc_0_255.permute(2, 0, 1) / 255.0 # (C,H,W), range [0,1]
+            pred_image_for_depth_chw_0_1 = last_frame_hwc_0_255.permute(2, 0, 1) / 255.0  # (C,H,W), range [0,1]
 
             current_segment_w2cs = generated_w2cs[:, start_frame_idx:end_frame_idx]
             current_segment_intrinsics = generated_intrinsics[:, start_frame_idx:end_frame_idx]
@@ -316,8 +319,9 @@ def demo(args):
             if args.save_buffer:
                 all_rendered_warps.append(rendered_warp_images[:, 1:].clone().cpu())
 
-
-            pred_image_for_depth_bcthw_minus1_1 = pred_image_for_depth_chw_0_1.unsqueeze(0).unsqueeze(2) * 2 - 1 # (B,C,T,H,W), range [-1,1]
+            pred_image_for_depth_bcthw_minus1_1 = (
+                pred_image_for_depth_chw_0_1.unsqueeze(0).unsqueeze(2) * 2 - 1
+            )  # (B,C,T,H,W), range [-1,1]
             generated_output = pipeline.generate(
                 prompt=current_prompt,
                 image_path=pred_image_for_depth_bcthw_minus1_1,
@@ -333,7 +337,7 @@ def demo(args):
         final_width = args.width
 
         if args.save_buffer and all_rendered_warps:
-            squeezed_warps = [t.squeeze(0) for t in all_rendered_warps] # Each is (T_chunk, n_i, C, H, W)
+            squeezed_warps = [t.squeeze(0) for t in all_rendered_warps]  # Each is (T_chunk, n_i, C, H, W)
 
             if squeezed_warps:
                 n_max = max(t.shape[1] for t in squeezed_warps)
@@ -344,12 +348,19 @@ def demo(args):
                     current_n_i = sq_t.shape[1]
                     padding_needed_dim1 = n_max - current_n_i
 
-                    pad_spec = (0,0, # W
-                                0,0, # H
-                                0,0, # C
-                                0,padding_needed_dim1, # n_i
-                                0,0) # T_chunk
-                    padded_t = F.pad(sq_t, pad_spec, mode='constant', value=-1.0)
+                    pad_spec = (
+                        0,
+                        0,  # W
+                        0,
+                        0,  # H
+                        0,
+                        0,  # C
+                        0,
+                        padding_needed_dim1,  # n_i
+                        0,
+                        0,
+                    )  # T_chunk
+                    padded_t = F.pad(sq_t, pad_spec, mode="constant", value=-1.0)
                     padded_t_list.append(padded_t)
 
                 full_rendered_warp_tensor = torch.cat(padded_t_list, dim=0)
@@ -366,7 +377,6 @@ def demo(args):
                 log.info(f"Concatenating video with {n_max} warp buffers. Final video width will be {final_width}")
             else:
                 log.info("No warp buffers to save.")
-
 
         if args.batch_input_path:
             video_save_path = os.path.join(args.video_save_folder, f"{i}.mp4")

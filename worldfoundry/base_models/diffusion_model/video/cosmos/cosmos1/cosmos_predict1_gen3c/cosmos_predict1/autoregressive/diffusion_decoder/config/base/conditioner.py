@@ -19,7 +19,6 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 
 import torch
-
 from cosmos_predict1.diffusion.conditioner import BaseVideoCondition, GeneralConditioner
 from cosmos_predict1.diffusion.config.base.conditioner import (
     FPSConfig,
@@ -30,13 +29,15 @@ from cosmos_predict1.diffusion.config.base.conditioner import (
     PaddingMaskConfig,
     TextConfig,
 )
-from cosmos_predict1.utils.lazy_config import LazyCall as L
-from cosmos_predict1.utils.lazy_config import LazyDict
+
+from worldfoundry.core.configuration.lazy_config import LazyCall as L
+from worldfoundry.core.configuration.lazy_config import LazyDict
 
 
 @dataclass
 class VideoLatentDiffusionDecoderCondition(BaseVideoCondition):
     """Video latent diffusion decoder condition implementation."""
+
     # latent_condition will concat to the input of network, along channel dim;
     # cfg will make latent_condition all zero padding.
     latent_condition: Optional[torch.Tensor] = None
@@ -45,6 +46,7 @@ class VideoLatentDiffusionDecoderCondition(BaseVideoCondition):
 
 class VideoDiffusionDecoderConditioner(GeneralConditioner):
     """Video diffusion decoder conditioner implementation."""
+
     def forward(
         self,
         batch: Dict,

@@ -25,10 +25,9 @@ from __future__ import annotations
 from typing import Optional, Sequence, Tuple
 
 import torch
-from einops import rearrange
-
-from cosmos_predict2._src.imaginaire.modules.camera import Camera
+from cosmos_predict2._src.predict2.camera.geometry import Camera
 from cosmos_predict2._src.predict2.conditioner import ReMapkey
+from einops import rearrange
 
 
 def _normalize_image_size(image_size: torch.Tensor | Sequence[int] | Tuple[int, int]) -> tuple[int, int]:

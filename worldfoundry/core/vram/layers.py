@@ -3,10 +3,9 @@ from typing import Union
 
 import torch
 
-from .initialization import init_weights_on_device, skip_model_initialization
+from ..device import IS_NPU_AVAILABLE, get_device_name, parse_device_type
 from .disk_map import DiskMap
-from ..device import parse_device_type, get_device_name, IS_NPU_AVAILABLE
-
+from .initialization import init_weights_on_device, skip_model_initialization
 
 _FLOAT8_DTYPES = tuple(
     dtype
@@ -19,6 +18,12 @@ _FLOAT8_DTYPES = tuple(
 
 
 class AutoTorchModule(torch.nn.Module):
+    """Base state machine for modules that move between memory tiers.
+
+    ``state`` is ``0`` while offloaded, ``1`` while onloaded, and ``2`` while
+    kept on the computation device. Subclasses decide whether transitions copy
+    tensors, materialize them from disk, or use temporary computation weights.
+    """
 
     def __init__(
         self,
@@ -32,6 +37,21 @@ class AutoTorchModule(torch.nn.Module):
         computation_device: Union[str, torch.device] = None,
         vram_limit: float = None,
     ):
+        """Configure the dtype and device used at each lifecycle stage.
+
+        Args:
+            offload_dtype: Storage dtype while the module is inactive.
+            offload_device: Storage device while inactive; subclasses may also
+                accept the sentinel ``"disk"``.
+            onload_dtype: Dtype after the first prefetch transition.
+            onload_device: Device used for prefetched weights.
+            preparing_dtype: Dtype used by the optional second prefetch stage.
+            preparing_device: Device used by the preparing stage.
+            computation_dtype: Dtype used for the actual forward operation.
+            computation_device: Device used for the actual forward operation.
+            vram_limit: Optional used-memory limit in GiB. Below the limit,
+                wrappers may keep prepared weights resident.
+        """
         super().__init__()
         self.set_dtype_and_device(
             offload_dtype,
@@ -60,6 +80,7 @@ class AutoTorchModule(torch.nn.Module):
         computation_device: Union[str, torch.device] = None,
         vram_limit: float = None,
     ):
+        """Update lifecycle placement, defaulting omitted stages to computation placement."""
         self.offload_dtype = offload_dtype or computation_dtype
         self.offload_device = offload_device or computation_device
         self.onload_dtype = onload_dtype or computation_dtype
@@ -71,11 +92,13 @@ class AutoTorchModule(torch.nn.Module):
         self.vram_limit = vram_limit
 
     def cast_to(self, weight, dtype, device):
+        """Copy one tensor to ``dtype`` and ``device`` without mutating the source."""
         r = torch.empty_like(weight, dtype=dtype, device=device)
         r.copy_(weight)
         return r
 
     def check_free_vram(self):
+        """Return whether current accelerator usage is below ``vram_limit``."""
         if self.vram_limit is None or self.computation_device_type not in {"cuda", "npu"}:
             return True
         device = self.computation_device if not IS_NPU_AVAILABLE else get_device_name()
@@ -84,21 +107,25 @@ class AutoTorchModule(torch.nn.Module):
         return used_memory < self.vram_limit
 
     def offload(self):
+        """Move managed parameters to the inactive placement and set state 0."""
         if self.state != 0:
             self.to(dtype=self.offload_dtype, device=self.offload_device)
             self.state = 0
 
     def onload(self):
+        """Move managed parameters to the first prefetch placement and set state 1."""
         if self.state != 1:
             self.to(dtype=self.onload_dtype, device=self.onload_device)
             self.state = 1
 
     def keep(self):
+        """Keep managed parameters at computation placement and set state 2."""
         if self.state != 2:
             self.to(dtype=self.computation_dtype, device=self.computation_device)
             self.state = 2
-            
+
     def param_name(self, name):
+        """Return the fully qualified checkpoint key for a local parameter name."""
         if self.name == "":
             return name
         else:
@@ -106,6 +133,13 @@ class AutoTorchModule(torch.nn.Module):
 
 
 class AutoWrappedModule(AutoTorchModule):
+    """Wrap an arbitrary module with staged CPU/GPU/disk weight movement.
+
+    Forward calls opportunistically prepare weights, materialize a computation
+    copy only when placement differs, and then delegate to the wrapped module.
+    Attribute access falls through to the wrapped module so model code can keep
+    using its original interface.
+    """
 
     def __init__(
         self,
@@ -121,8 +155,25 @@ class AutoWrappedModule(AutoTorchModule):
         vram_limit: float = None,
         name: str = "",
         disk_map: DiskMap = None,
-        **kwargs
+        **kwargs,
     ):
+        """Wrap ``module`` and bind it to a placement policy.
+
+        Args:
+            module: Original PyTorch module.
+            offload_dtype: Inactive storage dtype or ``"disk"``.
+            offload_device: Inactive storage device or ``"disk"``.
+            onload_dtype: First-stage prefetch dtype.
+            onload_device: First-stage prefetch device.
+            preparing_dtype: Second-stage prefetch dtype.
+            preparing_device: Second-stage prefetch device.
+            computation_dtype: Forward-pass dtype.
+            computation_device: Forward-pass device.
+            vram_limit: Optional used-memory limit in GiB.
+            name: Qualified module name used to resolve disk-map keys.
+            disk_map: Lazy checkpoint tensor mapping required for disk offload.
+            **kwargs: Reserved for wrapper-compatible module maps.
+        """
         super().__init__(
             offload_dtype,
             offload_device,
@@ -142,7 +193,7 @@ class AutoWrappedModule(AutoTorchModule):
             self.disk_offload = True
         else:
             self.disk_offload = False
-            
+
     def load_from_disk(self, torch_dtype, device, copy_module=False):
         if copy_module:
             module = copy.deepcopy(self.module)
@@ -156,7 +207,7 @@ class AutoWrappedModule(AutoTorchModule):
         module.load_state_dict(state_dict, assign=True)
         module.to(dtype=torch_dtype, device=device)
         return module
-    
+
     def offload_to_disk(self, model: torch.nn.Module):
         for buf in model.buffers():
             # If there are some parameters are registed in buffers (not in state dict),
@@ -184,7 +235,7 @@ class AutoWrappedModule(AutoTorchModule):
             elif self.onload_device != "disk":
                 self.to(dtype=self.onload_dtype, device=self.onload_device)
             self.state = 1
-            
+
     def preparing(self):
         # onload / preparing -> preparing
         if self.state != 2:
@@ -196,7 +247,7 @@ class AutoWrappedModule(AutoTorchModule):
 
     def cast_to(self, module, dtype, device):
         return copy.deepcopy(module).to(dtype=dtype, device=device)
-            
+
     def computation(self):
         # onload / preparing -> computation (temporary)
         if self.state == 2:
@@ -216,7 +267,7 @@ class AutoWrappedModule(AutoTorchModule):
             self.preparing()
         module = self.computation()
         return module(*args, **kwargs)
-    
+
     def __getattr__(self, name):
         if name in self.__dict__ or name == "module":
             return super().__getattr__(name)
@@ -225,6 +276,7 @@ class AutoWrappedModule(AutoTorchModule):
 
 
 class AutoWrappedNonRecurseModule(AutoWrappedModule):
+    """Manage only a module's direct parameters while its children are wrapped separately."""
 
     def __init__(
         self,
@@ -240,7 +292,7 @@ class AutoWrappedNonRecurseModule(AutoWrappedModule):
         vram_limit: float = None,
         name: str = "",
         disk_map: DiskMap = None,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(
             module,
@@ -255,11 +307,11 @@ class AutoWrappedNonRecurseModule(AutoWrappedModule):
             vram_limit,
             name,
             disk_map,
-            **kwargs
+            **kwargs,
         )
         if self.disk_offload:
             self.required_params = [name for name, _ in self.module.named_parameters(recurse=False)]
-            
+
     def load_from_disk(self, torch_dtype, device, copy_module=False):
         if copy_module:
             module = copy.deepcopy(self.module)
@@ -272,15 +324,15 @@ class AutoWrappedNonRecurseModule(AutoWrappedModule):
             state_dict[name] = param
         module.load_state_dict(state_dict, assign=True, strict=False)
         return module
-    
+
     def offload_to_disk(self, model: torch.nn.Module):
         for name in self.required_params:
             getattr(self, name).to("meta")
-    
+
     def cast_to(self, module, dtype, device):
         # Parameter casting is implemented in the model architecture.
         return module
-    
+
     def __getattr__(self, name):
         if name in self.__dict__ or name == "module":
             return super().__getattr__(name)
@@ -289,6 +341,8 @@ class AutoWrappedNonRecurseModule(AutoWrappedModule):
 
 
 class WanAutoCastLayerNorm(torch.nn.LayerNorm, AutoTorchModule):
+    """LayerNorm adapter that materializes affine weights at computation precision."""
+
     def __init__(
         self,
         module: torch.nn.LayerNorm,
@@ -338,8 +392,16 @@ class WanAutoCastLayerNorm(torch.nn.LayerNorm, AutoTorchModule):
                 self.keep()
                 weight, bias = self.weight, self.bias
             else:
-                weight = None if self.weight is None else self.cast_to(self.weight, self.computation_dtype, self.computation_device)
-                bias = None if self.bias is None else self.cast_to(self.bias, self.computation_dtype, self.computation_device)
+                weight = (
+                    None
+                    if self.weight is None
+                    else self.cast_to(self.weight, self.computation_dtype, self.computation_device)
+                )
+                bias = (
+                    None
+                    if self.bias is None
+                    else self.cast_to(self.bias, self.computation_dtype, self.computation_device)
+                )
         with torch.amp.autocast(device_type=x.device.type):
             return torch.nn.functional.layer_norm(
                 x.float(),
@@ -351,6 +413,8 @@ class WanAutoCastLayerNorm(torch.nn.LayerNorm, AutoTorchModule):
 
 
 class AutoWrappedLinear(torch.nn.Linear, AutoTorchModule):
+    """Linear-layer wrapper with staged placement, disk loading, FP8, and LoRA support."""
+
     def __init__(
         self,
         module: torch.nn.Linear,
@@ -365,8 +429,25 @@ class AutoWrappedLinear(torch.nn.Linear, AutoTorchModule):
         vram_limit: float = None,
         name: str = "",
         disk_map: DiskMap = None,
-        **kwargs
+        **kwargs,
     ):
+        """Wrap an existing linear layer with one placement policy.
+
+        Args:
+            module: Source ``torch.nn.Linear`` whose parameters are reused.
+            offload_dtype: Inactive storage dtype or ``"disk"``.
+            offload_device: Inactive storage device or ``"disk"``.
+            onload_dtype: First prefetch dtype.
+            onload_device: First prefetch device.
+            preparing_dtype: Second prefetch dtype.
+            preparing_device: Second prefetch device.
+            computation_dtype: Matmul dtype; supported FP8 dtypes use scaled MM.
+            computation_device: Matmul device.
+            vram_limit: Optional used-memory limit in GiB.
+            name: Qualified checkpoint prefix for weight and bias.
+            disk_map: Required lazy tensor map when disk offload is selected.
+            **kwargs: Reserved for module-map compatibility.
+        """
         with skip_model_initialization():
             super().__init__(
                 in_features=module.in_features,
@@ -393,13 +474,13 @@ class AutoWrappedLinear(torch.nn.Linear, AutoTorchModule):
         self.lora_merger = None
         self.enable_fp8 = computation_dtype in _FLOAT8_DTYPES
         self.computation_device_type = parse_device_type(self.computation_device)
-        
+
         if offload_dtype == "disk":
             self.disk_map = disk_map
             self.disk_offload = True
         else:
             self.disk_offload = False
-    
+
     def fp8_linear(
         self,
         input: torch.Tensor,
@@ -437,16 +518,17 @@ class AutoWrappedLinear(torch.nn.Linear, AutoTorchModule):
         new_shape = origin_shape[:-1] + result.shape[-1:]
         result = result.reshape(new_shape)
         return result
-            
+
     def load_from_disk(self, torch_dtype, device, assign=True):
         weight = self.disk_map[self.name + ".weight"].to(dtype=torch_dtype, device=device)
         bias = None if self.bias is None else self.disk_map[self.name + ".bias"].to(dtype=torch_dtype, device=device)
         if assign:
             state_dict = {"weight": weight}
-            if bias is not None: state_dict["bias"] = bias
+            if bias is not None:
+                state_dict["bias"] = bias
             self.load_state_dict(state_dict, assign=True)
         return weight, bias
-    
+
     def offload(self):
         # offload / onload / preparing -> offload
         if self.state != 0:
@@ -464,7 +546,7 @@ class AutoWrappedLinear(torch.nn.Linear, AutoTorchModule):
             elif self.onload_device != "disk":
                 self.to(dtype=self.onload_dtype, device=self.onload_device)
             self.state = 1
-            
+
     def preparing(self):
         # onload / preparing -> preparing
         if self.state != 2:
@@ -473,7 +555,7 @@ class AutoWrappedLinear(torch.nn.Linear, AutoTorchModule):
             elif self.preparing_device != "disk":
                 self.to(dtype=self.preparing_dtype, device=self.preparing_device)
             self.state = 2
-            
+
     def computation(self):
         # onload / preparing -> computation (temporary)
         if self.state == 2:
@@ -486,7 +568,9 @@ class AutoWrappedLinear(torch.nn.Linear, AutoTorchModule):
             weight, bias = self.load_from_disk(self.computation_dtype, self.computation_device, assign=False)
         else:
             weight = self.cast_to(self.weight, self.computation_dtype, self.computation_device)
-            bias = None if self.bias is None else self.cast_to(self.bias, self.computation_dtype, self.computation_device)
+            bias = (
+                None if self.bias is None else self.cast_to(self.bias, self.computation_dtype, self.computation_device)
+            )
         return weight, bias
 
     def linear_forward(self, x, weight, bias):
@@ -507,7 +591,7 @@ class AutoWrappedLinear(torch.nn.Linear, AutoTorchModule):
             lora_output = torch.stack(lora_output)
             out = self.lora_merger(out, lora_output)
         return out
-    
+
     def forward(self, x, *args, **kwargs):
         if self.state == 1 and (self.vram_limit is None or self.check_free_vram()):
             self.preparing()
@@ -530,6 +614,30 @@ def enable_vram_management_recursively(
     total_num_param=0,
     **kwargs,
 ):
+    """Replace matching descendants with lifecycle-aware wrapper modules.
+
+    Args:
+        model: Root module mutated in place.
+        module_map: Mapping from source module classes to wrapper classes.
+        vram_config: Default offload/onload/preparing/computation placements.
+        vram_limit: Optional used-memory limit in GiB forwarded to wrappers.
+        name_prefix: Prefix used when resolving checkpoint keys through a
+            ``DiskMap``.
+        disk_map: Optional lazy checkpoint mapping for disk-backed wrappers.
+        max_num_param: Parameter budget that switches later modules to
+            ``overflow_vram_config``.
+        overflow_vram_config: Placement policy used after the parameter budget.
+        total_num_param: Running parameter count for recursive calls.
+        **kwargs: Extra wrapper constructor arguments.
+
+    Returns:
+        Total number of parameters replaced at or below this module.
+
+    Notes:
+        The function mutates child modules. Most callers should use
+        ``enable_vram_management`` so the root itself is handled correctly and
+        the ``vram_management_enabled`` marker is installed.
+    """
     if isinstance(model, AutoWrappedNonRecurseModule):
         model = model.module
     for name, module in model.named_children():
@@ -544,7 +652,9 @@ def enable_vram_management_recursively(
                     and total_num_param + num_param > max_num_param
                 ):
                     selected_vram_config = overflow_vram_config
-                module_ = target_module(module, **selected_vram_config, vram_limit=vram_limit, name=layer_name, disk_map=disk_map, **kwargs)
+                module_ = target_module(
+                    module, **selected_vram_config, vram_limit=vram_limit, name=layer_name, disk_map=disk_map, **kwargs
+                )
                 if isinstance(module_, AutoWrappedNonRecurseModule):
                     enable_vram_management_recursively(
                         module_,
@@ -578,6 +688,7 @@ def enable_vram_management_recursively(
 
 
 def fill_vram_config(model, vram_config):
+    """Collapse a placement policy when the root module is wrapped as one unit."""
     vram_config_ = vram_config.copy()
     vram_config_["onload_dtype"] = vram_config["computation_dtype"]
     vram_config_["onload_device"] = vram_config["computation_device"]
@@ -585,7 +696,9 @@ def fill_vram_config(model, vram_config):
     vram_config_["preparing_device"] = vram_config["computation_device"]
     for k in vram_config:
         if vram_config[k] != vram_config_[k]:
-            print(f"No fine-grained VRAM configuration is provided for {model.__class__.__name__}. [`onload`, `preparing`, `computation`] will be the same state. `vram_config` is set to {vram_config_}")
+            print(
+                f"No fine-grained VRAM configuration is provided for {model.__class__.__name__}. [`onload`, `preparing`, `computation`] will be the same state. `vram_config` is set to {vram_config_}"
+            )
             break
     return vram_config_
 
@@ -600,6 +713,29 @@ def enable_vram_management(
     overflow_vram_config: dict | None = None,
     **kwargs,
 ):
+    """Install staged VRAM management on a model and return that model.
+
+    Args:
+        model: Model to wrap. It may be replaced when its own class appears in
+            ``module_map``; otherwise matching descendants are mutated.
+        module_map: Mapping from original module classes to wrapper classes,
+            for example ``{torch.nn.Linear: AutoWrappedLinear}``.
+        vram_config: Dictionary containing offload, onload, preparing, and
+            computation dtype/device pairs.
+        vram_limit: Optional used-memory limit in GiB.
+        disk_map: Lazy checkpoint mapping used by disk-backed wrappers.
+        max_num_param: Optional parameter budget for the primary policy.
+        overflow_vram_config: Placement used after ``max_num_param``.
+        **kwargs: Extra wrapper constructor arguments.
+
+    Returns:
+        The managed model with ``vram_management_enabled`` set to ``True``.
+
+    Notes:
+        ``module_map`` order matters when source classes overlap. Configure
+        complete placement keys before calling; this function changes module
+        identity and is normally run once during model construction.
+    """
     for source_module, target_module in module_map.items():
         # If no fine-grained VRAM configuration is provided, the entire model will be managed uniformly.
         if isinstance(model, source_module):

@@ -38,6 +38,7 @@ import gc
 import logging
 import math
 import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -46,6 +47,11 @@ from typing import Literal
 # mask path on torch 2.9 + xformers 0.0.33; fall back to PyTorch SDPA, which is
 # numerically equivalent here. Must be set before any sana imports.
 os.environ.setdefault("DISABLE_XFORMERS", "1")
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+os.environ.setdefault("USE_TF", "0")
+os.environ.setdefault("USE_FLAX", "0")
+os.environ.setdefault("USE_TORCH_XLA", "0")
+os.environ.setdefault("WORLDFOUNDRY_SANA_NETS_PROFILE", "wm")
 
 import imageio.v3 as iio
 import numpy as np
@@ -54,26 +60,29 @@ import torch
 from PIL import Image
 from torchvision import transforms as T
 
-# Importing diffusion.model.nets registers all Sana / Sana-WM blocks.
+# Importing diffusion.model.nets registers the selected SANA-WM blocks.
 import diffusion.model.nets  # noqa: F401
 from diffusion import DPMS, FlowEuler, LTXFlowEuler
 from diffusion.model.builder import (
     build_model,
+    find_model,
     get_tokenizer_and_text_encoder,
     get_vae,
     vae_decode,
     vae_encode,
 )
 from diffusion.model.utils import get_weight_dtype
-from diffusion.refiner.diffusers_ltx2_refiner import STAGE_2_DISTILLED_SIGMA_VALUES, DiffusersLTX2Refiner
+from diffusion.refiner.diffusers_ltx2_refiner import (
+    STAGE_2_DISTILLED_SIGMA_VALUES,
+    DiffusersLTX2Refiner,
+)
 from diffusion.utils.action_overlay import apply_overlay
 from diffusion.utils.cam_utils import compute_raymap, get_pose_inverse
 from diffusion.utils.camctrl_config import ModelVideoCamCtrlConfig, model_video_camctrl_init_config
 from diffusion.utils.chunk_utils import get_chunk_index_from_config
 from diffusion.utils.config import AEConfig, SchedulerConfig, TextEncoderConfig
 from diffusion.utils.logger import get_root_logger
-from sana.tools import resolve_hf_path
-from tools.download import find_model
+from worldfoundry.core.io import resolve_hf_path
 
 SamplingAlgo = Literal["flow_euler_ltx", "flow_euler", "flow_dpm-solver"]
 
@@ -301,63 +310,98 @@ def estimate_intrinsics_with_pi3x(image: Image.Image, device: torch.device, logg
     ``MIN_FOV_DEG < horizontal_fov < MAX_FOV_DEG`` and abort otherwise so
     the user knows to provide intrinsics manually.
     """
-    from pi3.models.pi3x import Pi3X
-    from pi3.utils.geometry import recover_intrinsic_from_rays_d
-
-    logger.warning(
-        "Intrinsics not provided — estimating with Pi3X from the input image. "
-        "Estimation errors propagate into the generated camera geometry; please "
-        "supply --intrinsics when accurate values are available."
-    )
-
-    W_orig, H_orig = image.size
-    pixel_limit = 255_000
-    scale = math.sqrt(pixel_limit / (W_orig * H_orig)) if W_orig * H_orig > 0 else 1.0
-    W_t, H_t = W_orig * scale, H_orig * scale
-    k, m = max(1, round(W_t / 14)), max(1, round(H_t / 14))
-    while (k * 14) * (m * 14) > pixel_limit:
-        if k / m > W_t / H_t:
-            k -= 1
-        else:
-            m -= 1
-    W_model, H_model = max(1, k) * 14, max(1, m) * 14
-    resized = image.resize((W_model, H_model), Image.Resampling.LANCZOS)
-    tensor = T.ToTensor()(resized).unsqueeze(0).unsqueeze(0).to(device)
-
-    dtype = (
-        torch.bfloat16 if torch.cuda.is_available() and torch.cuda.get_device_capability()[0] >= 8 else torch.float16
-    )
-    model = Pi3X.from_pretrained("yyfz233/Pi3X").to(device).eval()
-    model.disable_multimodal()
-    model.requires_grad_(False)
-    with torch.no_grad(), torch.amp.autocast("cuda", dtype=dtype):
-        out = model(imgs=tensor)
-    rays_d = torch.nn.functional.normalize(out["local_points"], dim=-1)
-    K_model = recover_intrinsic_from_rays_d(rays_d, force_center_principal_point=True)
-    K_model_np = K_model[0, 0].detach().cpu().float().numpy()
-
-    sx, sy = W_orig / W_model, H_orig / H_model
-    fx, fy = float(K_model_np[0, 0] * sx), float(K_model_np[1, 1] * sy)
-    cx, cy = float(K_model_np[0, 2] * sx), float(K_model_np[1, 2] * sy)
-
-    fov_x = math.degrees(2.0 * math.atan(W_orig / (2.0 * fx)))
-    fov_y = math.degrees(2.0 * math.atan(H_orig / (2.0 * fy)))
-    logger.info(
-        f"Pi3X intrinsics: fx={fx:.1f} fy={fy:.1f} cx={cx:.1f} cy={cy:.1f} " f"(FOV: H={fov_x:.1f}° V={fov_y:.1f}°)"
-    )
-    if not (MIN_FOV_DEG < fov_x < MAX_FOV_DEG and MIN_FOV_DEG < fov_y < MAX_FOV_DEG):
-        raise SystemExit(
-            f"Pi3X-estimated FOV (H={fov_x:.1f}°, V={fov_y:.1f}°) falls outside "
-            f"[{MIN_FOV_DEG}°, {MAX_FOV_DEG}°]. Intrinsics estimation likely failed; "
-            f"pass --intrinsics with a trusted .npy."
-        )
-
-    # Free Pi3X memory before the heavy models load.
-    del model, out, K_model, rays_d, tensor
+    estimator = Pi3XIntrinsicsEstimator(device=device, logger=logger)
+    result = estimator(image)
+    # The one-shot CLI does not need Pi3X after preprocessing. Resident
+    # sessions instantiate the estimator themselves and keep its weights.
+    del estimator
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
     gc.collect()
-    return np.array([fx, fy, cx, cy], dtype=np.float32)
+    return result
+
+
+class Pi3XIntrinsicsEstimator:
+    """Resident Pi3X camera-intrinsics estimator.
+
+    Loading Pi3X from disk for every uploaded image introduces a long pause and
+    allocator churn before generation. Interactive runtimes own one estimator
+    for their complete process lifetime; only the tiny per-image activations
+    are temporary.
+    """
+
+    def __init__(
+        self,
+        *,
+        device: torch.device | str,
+        logger: logging.Logger,
+        source: str | Path | None = None,
+    ) -> None:
+        from pi3.models.pi3x import Pi3X
+
+        self.device = torch.device(device)
+        self.logger = logger
+        self.source = str(source or os.getenv("WORLDFOUNDRY_PI3X_PATH", "yyfz233/Pi3X"))
+        capability = torch.cuda.get_device_capability(self.device)
+        self.dtype = torch.bfloat16 if capability[0] >= 8 else torch.float16
+        self.model = Pi3X.from_pretrained(self.source).to(self.device).eval()
+        self.model.disable_multimodal()
+        self.model.requires_grad_(False)
+
+    @torch.inference_mode()
+    def __call__(self, image: Image.Image) -> np.ndarray:
+        from pi3.utils.geometry import recover_intrinsic_from_rays_d
+
+        self.logger.info("Estimating camera intrinsics with resident Pi3X weights.")
+        width_orig, height_orig = image.size
+        if width_orig < 1 or height_orig < 1:
+            raise ValueError(f"Input image has invalid dimensions: {image.size}.")
+
+        pixel_limit = 255_000
+        scale = math.sqrt(pixel_limit / (width_orig * height_orig))
+        width_target, height_target = width_orig * scale, height_orig * scale
+        width_patches = max(1, round(width_target / 14))
+        height_patches = max(1, round(height_target / 14))
+        while (width_patches * 14) * (height_patches * 14) > pixel_limit:
+            if width_patches / height_patches > width_target / height_target:
+                width_patches -= 1
+            else:
+                height_patches -= 1
+        width_model = max(1, width_patches) * 14
+        height_model = max(1, height_patches) * 14
+        resized = image.resize((width_model, height_model), Image.Resampling.LANCZOS)
+        tensor = T.ToTensor()(resized).unsqueeze(0).unsqueeze(0).to(self.device)
+
+        with torch.amp.autocast("cuda", dtype=self.dtype):
+            output = self.model(imgs=tensor)
+        rays_d = torch.nn.functional.normalize(output["local_points"], dim=-1)
+        intrinsics_model = recover_intrinsic_from_rays_d(
+            rays_d,
+            force_center_principal_point=True,
+        )[0, 0].detach().cpu().float().numpy()
+
+        scale_x, scale_y = width_orig / width_model, height_orig / height_model
+        fx = float(intrinsics_model[0, 0] * scale_x)
+        fy = float(intrinsics_model[1, 1] * scale_y)
+        cx = float(intrinsics_model[0, 2] * scale_x)
+        cy = float(intrinsics_model[1, 2] * scale_y)
+        fov_x = math.degrees(2.0 * math.atan(width_orig / (2.0 * fx)))
+        fov_y = math.degrees(2.0 * math.atan(height_orig / (2.0 * fy)))
+        self.logger.info(
+            "Pi3X intrinsics: fx=%.1f fy=%.1f cx=%.1f cy=%.1f (FOV: H=%.1f° V=%.1f°)",
+            fx,
+            fy,
+            cx,
+            cy,
+            fov_x,
+            fov_y,
+        )
+        if not (MIN_FOV_DEG < fov_x < MAX_FOV_DEG and MIN_FOV_DEG < fov_y < MAX_FOV_DEG):
+            raise ValueError(
+                f"Pi3X-estimated FOV (H={fov_x:.1f}°, V={fov_y:.1f}°) falls outside "
+                f"[{MIN_FOV_DEG}°, {MAX_FOV_DEG}°]."
+            )
+        return np.asarray((fx, fy, cx, cy), dtype=np.float32)
 
 
 def transform_intrinsics_for_crop(
@@ -527,9 +571,14 @@ class SanaWMPipeline:
         model_path: str | Path,
         *,
         device: torch.device | str = "cuda",
+        vae_device: torch.device | str | None = None,
+        text_device: torch.device | str | None = None,
+        refiner_device: torch.device | str | None = None,
+        refiner_text_device: torch.device | str | None = None,
         refiner: RefinerSettings | None = None,
         offload_vae: bool = False,
         offload_refiner: bool = False,
+        keep_refiner_text_encoder_resident: bool = False,
         logger: logging.Logger | None = None,
     ):
         """Init.
@@ -540,13 +589,20 @@ class SanaWMPipeline:
         """
         self.config = config
         self.device = torch.device(device)
+        self.vae_device = torch.device(vae_device or device)
+        self.text_device = torch.device(text_device or device)
+        self.refiner_device = torch.device(refiner_device or device)
+        self.refiner_text_device = torch.device(refiner_text_device or self.refiner_device)
         self.refiner_settings = refiner
         self.offload_vae = offload_vae
         self.offload_refiner = offload_refiner
+        self.keep_refiner_text_encoder_resident = bool(keep_refiner_text_encoder_resident)
         self.logger = logger or get_root_logger()
         self.weight_dtype = get_weight_dtype(config.model.mixed_precision)
         self.vae_dtype = get_weight_dtype(config.vae.weight_dtype)
         self._refiner_built = False
+        self._stage1_prompt_cache_key: tuple[str, str] | None = None
+        self._stage1_prompt_cache: tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor] | None = None
 
         self._build_vae()
         self._build_text_encoder()
@@ -566,7 +622,7 @@ class SanaWMPipeline:
         vae = get_vae(
             self.config.vae.vae_type,
             self.config.vae.vae_pretrained,
-            device=self.device,
+            device=self.vae_device,
             dtype=self.vae_dtype,
             config=self.config.vae,
         )
@@ -577,6 +633,10 @@ class SanaWMPipeline:
             vae.use_framewise_decoding = True
             vae.tile_sample_stride_num_frames = getattr(self.config.vae, "tile_sample_stride_num_frames", 64)
             vae.tile_sample_min_num_frames = getattr(self.config.vae, "tile_sample_min_num_frames", 96)
+        if hasattr(vae, "eval"):
+            vae.eval()
+        if hasattr(vae, "requires_grad_"):
+            vae.requires_grad_(False)
         self.vae = vae
 
     def _build_text_encoder(self) -> None:
@@ -586,8 +646,12 @@ class SanaWMPipeline:
             The return value.
         """
         self.tokenizer, self.text_encoder = get_tokenizer_and_text_encoder(
-            name=self.config.text_encoder.text_encoder_name, device=self.device
+            name=self.config.text_encoder.text_encoder_name, device=self.text_device
         )
+        if hasattr(self.text_encoder, "eval"):
+            self.text_encoder.eval()
+        if hasattr(self.text_encoder, "requires_grad_"):
+            self.text_encoder.requires_grad_(False)
 
     def _build_model(self, model_path: str | Path) -> None:
         """Helper function to build model.
@@ -619,7 +683,7 @@ class SanaWMPipeline:
             self.logger.warning(f"Missing keys: {missing}")
         if unexpected:
             self.logger.warning(f"Unexpected keys: {unexpected}")
-        self.model = model.eval().to(self.weight_dtype)
+        self.model = model.eval().to(self.weight_dtype).requires_grad_(False)
 
     def _build_refiner(self) -> None:
         """Helper function to build refiner.
@@ -638,7 +702,9 @@ class SanaWMPipeline:
             refiner_root=refiner_root,
             gemma_root=gemma,
             dtype=self.weight_dtype,
-            device=self.device,
+            device=self.refiner_device,
+            text_device=self.refiner_text_device,
+            keep_text_encoder_resident=self.keep_refiner_text_encoder_resident,
         )
         self._refiner_built = True
 
@@ -707,6 +773,8 @@ class SanaWMPipeline:
         c2w: np.ndarray,
         intrinsics_vec4: np.ndarray,
         params: GenerationParams = GenerationParams(),
+        *,
+        return_latent: bool = False,
     ) -> dict[str, object]:
         """Generate a video.
 
@@ -724,6 +792,7 @@ class SanaWMPipeline:
         latent_T = (params.num_frames - 1) // vae_stride[0] + 1
         latent_h, latent_w = TARGET_HEIGHT // vae_stride[-1], TARGET_WIDTH // vae_stride[-1]
 
+        started = time.perf_counter()
         camera = prepare_camera(
             c2w[: params.num_frames],
             intrinsics_vec4[: params.num_frames],
@@ -731,8 +800,13 @@ class SanaWMPipeline:
             vae_stride=vae_stride,
         )
 
-        sana_latent = self._sample_stage1(image, prompt, camera, params, latent_T, latent_h, latent_w)
+        camera_ms = (time.perf_counter() - started) * 1000.0
 
+        stage1_started = time.perf_counter()
+        sana_latent = self._sample_stage1(image, prompt, camera, params, latent_T, latent_h, latent_w)
+        stage1_ms = (time.perf_counter() - stage1_started) * 1000.0
+
+        decode_started = time.perf_counter()
         if self.refiner_settings is not None:
             video = self._refine(sana_latent, prompt, params, self.refiner_settings)
             # _refine drops the sink anchor frame; realign the trajectory.
@@ -740,11 +814,24 @@ class SanaWMPipeline:
         else:
             video = self._decode_with_sana_vae(sana_latent)
             video_c2w = c2w[: params.num_frames]
+        decode_ms = (time.perf_counter() - decode_started) * 1000.0
 
-        return {"video": video, "c2w": video_c2w, "latent": sana_latent.cpu()}
+        result: dict[str, object] = {
+            "video": video,
+            "c2w": video_c2w,
+            "realtime_metrics": {
+                "camera_ms": camera_ms,
+                "model_ms": stage1_ms,
+                "decode_ms": decode_ms,
+            },
+        }
+        if return_latent:
+            result["latent"] = sana_latent.cpu()
+        return result
 
     # ------- stage 1: Sana DiT -------
 
+    @torch.inference_mode()
     def _encode_prompts(
         self, prompt: str, negative_prompt: str
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -757,6 +844,10 @@ class SanaWMPipeline:
         Returns:
             The return value.
         """
+        cache_key = (prompt, negative_prompt)
+        if self._stage1_prompt_cache_key == cache_key and self._stage1_prompt_cache is not None:
+            return self._stage1_prompt_cache
+
         max_length = self.config.text_encoder.model_max_length
         chi_prompt = "\n".join(self.config.text_encoder.chi_prompt or [])
         if chi_prompt:
@@ -777,7 +868,7 @@ class SanaWMPipeline:
             """
             tok = self.tokenizer(
                 [text], max_length=length, padding="max_length", truncation=True, return_tensors="pt"
-            ).to(self.device)
+            ).to(self.text_device)
             return self.text_encoder(tok.input_ids, tok.attention_mask)[0], tok.attention_mask
 
         cond, cond_mask = encode(prompt, max_length_all)
@@ -785,7 +876,15 @@ class SanaWMPipeline:
         cond = cond[:, None][:, :, select]
         cond_mask = cond_mask[:, select]
         neg, neg_mask = encode(negative_prompt, max_length)
-        return cond, cond_mask, neg[:, None], neg_mask
+        result = (
+            cond.to(self.device, non_blocking=True),
+            cond_mask.to(self.device, non_blocking=True),
+            neg[:, None].to(self.device, non_blocking=True),
+            neg_mask.to(self.device, non_blocking=True),
+        )
+        self._stage1_prompt_cache_key = cache_key
+        self._stage1_prompt_cache = result
+        return result
 
     def _sample_stage1(
         self,
@@ -812,14 +911,14 @@ class SanaWMPipeline:
             The return value.
         """
         if self.offload_vae:
-            self.vae.to(self.device)
+            self.vae.to(self.vae_device)
         img = (T.ToTensor()(image) * 2.0 - 1.0).unsqueeze(0).unsqueeze(2)
         first_latent = vae_encode(
             self.config.vae.vae_type,
             self.vae,
-            img.to(self.device, dtype=self.vae_dtype),
-            device=self.device,
-        ).to(self.weight_dtype)
+            img.to(self.vae_device, dtype=self.vae_dtype),
+            device=self.vae_device,
+        ).to(device=self.device, dtype=self.weight_dtype)
         if self.offload_vae:
             self.vae.to("cpu")
             torch.cuda.empty_cache()
@@ -874,7 +973,6 @@ class SanaWMPipeline:
             chunk_index,
             generator,
         )
-        torch.cuda.empty_cache()
         return samples.detach()
 
     def _resolve_flow_shift(self, override: float | None) -> float:
@@ -959,8 +1057,8 @@ class SanaWMPipeline:
         if getattr(self, "vae", None) is None:
             self._build_vae()
         if self.offload_vae:
-            self.vae.to(self.device)
-        samples = sana_latent.to(device=self.device, dtype=self.vae_dtype)
+            self.vae.to(self.vae_device)
+        samples = sana_latent.to(device=self.vae_device, dtype=self.vae_dtype)
         decoded = vae_decode(self.config.vae.vae_type, self.vae, samples)
         if isinstance(decoded, list):
             decoded = torch.stack(decoded, dim=0)
@@ -970,7 +1068,6 @@ class SanaWMPipeline:
         if self.offload_vae:
             self.vae.to("cpu")
         del samples, decoded
-        torch.cuda.empty_cache()
         return video
 
     def _refine(
@@ -995,7 +1092,7 @@ class SanaWMPipeline:
             self._offload_stage1()
             self._build_refiner()
 
-        sigmas = torch.tensor(STAGE_2_DISTILLED_SIGMA_VALUES, dtype=torch.float32, device=self.device)
+        sigmas = torch.tensor(STAGE_2_DISTILLED_SIGMA_VALUES, dtype=torch.float32, device=self.refiner_device)
         start_sigma = float(sigmas[0])
         self.logger.info(f"[refiner] {len(sigmas) - 1}-step Euler, start_sigma={start_sigma:.4f}")
 
@@ -1016,8 +1113,6 @@ class SanaWMPipeline:
         # the output starts from the first refined frame.
         video = video[1:]
         del refined
-        torch.cuda.empty_cache()
-        gc.collect()
         return video
 
 

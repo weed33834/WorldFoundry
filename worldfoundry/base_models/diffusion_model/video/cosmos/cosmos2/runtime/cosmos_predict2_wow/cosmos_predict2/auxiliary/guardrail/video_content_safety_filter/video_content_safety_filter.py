@@ -21,13 +21,13 @@ import os
 from typing import Iterable, Tuple, Union
 
 import torch
+from cosmos_predict2.auxiliary.guardrail.video_content_safety_filter.model import ModelConfig, VideoSafetyModel
 from PIL import Image
 
-from cosmos_predict2.auxiliary.guardrail.common.core import ContentSafetyGuardrail, GuardrailRunner
-from cosmos_predict2.auxiliary.guardrail.common.io_utils import get_video_filepaths, read_video
-from cosmos_predict2.auxiliary.guardrail.video_content_safety_filter.model import ModelConfig, VideoSafetyModel
 from worldfoundry.base_models.diffusion_model.video.cosmos.shared.vision_encoder import SigLIPEncoder
-from imaginaire.utils import log, misc
+from worldfoundry.core.distributed.logging import log
+from worldfoundry.core.safety import ContentSafetyGuardrail, GuardrailRunner, get_video_filepaths, read_video
+from worldfoundry.core.utils import inference_runtime as misc
 
 # Define the class index to class name mapping for multi-class classification
 CLASS_IDX_TO_NAME = {
@@ -43,6 +43,7 @@ CLASS_IDX_TO_NAME = {
 
 class VideoContentSafetyFilter(ContentSafetyGuardrail):
     """Video content safety filter implementation."""
+
     def __init__(
         self,
         checkpoint_dir: str,

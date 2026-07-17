@@ -1,7 +1,9 @@
 # Copyright 2024-2025 The Alibaba Wan Team Authors. All rights reserved.
 import gc
+import os
 
 import torch
+
 try:
     from torch.distributed.fsdp import MixedPrecisionPolicy, fully_shard
 except ImportError:  # Torch < 2.9 lacks the FSDP2 helper used upstream.
@@ -12,6 +14,7 @@ from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
     checkpoint_wrapper as ptd_checkpoint_wrapper,
 )
 
+
 def apply_ac(model):
     """Apply activation checkpointing to the model."""
     for layer_id, transformer_block in enumerate(model.blocks):
@@ -19,9 +22,7 @@ def apply_ac(model):
         model.blocks[layer_id] = transformer_block
 
 
-def shard_model(model,
-                param_dtype=torch.bfloat16,
-                reduce_dtype=torch.float32):
+def shard_model(model, param_dtype=torch.bfloat16, reduce_dtype=torch.float32):
     if fully_shard is None or MixedPrecisionPolicy is None:
         model.to(param_dtype)
         if torch.cuda.is_available():
@@ -40,6 +41,17 @@ def shard_model(model,
         fully_shard(block.attn2, **fsdp_config)
         fully_shard(block.ffn, **fsdp_config)
         fully_shard(block, **fsdp_config)
+
+    if os.getenv("WORLDFOUNDRY_FSDP_FORWARD_PREFETCH", "1").strip().lower() not in {
+        "0",
+        "false",
+        "no",
+        "off",
+    }:
+        for block, next_block in zip(model.blocks, model.blocks[1:]):
+            set_prefetch = getattr(block, "set_modules_to_forward_prefetch", None)
+            if callable(set_prefetch):
+                set_prefetch([next_block])
 
     fully_shard(model, **fsdp_config)
     return model

@@ -10,4 +10,3 @@ __all__ = [
     "list_pipelines",
     "load_pipeline",
 ]
-from .pipeline import get_pipelines, list_pipelines, load_pipeline

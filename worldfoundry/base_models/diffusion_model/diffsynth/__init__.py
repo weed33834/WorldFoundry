@@ -4,6 +4,7 @@ from importlib import import_module
 
 _EXPORTS = {
     "FlowMatchScheduler": ".schedulers",
+    "HyDRAPipeline": ".pipelines.hydra",
     "ModelManager": ".models",
     "ModelManagerWan22": ".models.model_manager_wan22",
     "WanPrompter": ".prompters",

@@ -167,9 +167,7 @@ def _compute_freqs(
     Returns:
         Base frequencies of shape ``[dim // 2]``.
     """
-    dim_range = (
-        torch.arange(0, dim, 2, dtype=torch.float32, device=device)[: (dim // 2)] / dim
-    )
+    dim_range = torch.arange(0, dim, 2, dtype=torch.float32, device=device)[: (dim // 2)] / dim
     ntk_factor = extrapolation_ratio ** (dim / (dim - 2))
     theta = 10000.0 * ntk_factor
     freqs = 1.0 / (theta**dim_range)
@@ -263,11 +261,7 @@ class _RotaryPositionEmbedding3DBase:
             self.device_mesh = None
         else:
             self.cp_group = cp_group
-            device_type = (
-                self.device.type
-                if isinstance(self.device, torch.device)
-                else str(self.device)
-            )
+            device_type = self.device.type if isinstance(self.device, torch.device) else str(self.device)
             self.device_mesh = DeviceMesh.from_group(cp_group, device_type=device_type)
 
     def is_context_parallel_enabled(self) -> bool:
@@ -518,12 +512,9 @@ class KVCacheRelativeRotaryPositionEmbedding3D(_RotaryPositionEmbedding3DBase):
             device=device,
         )
         assert self.kvcache_total_size_t % self.len_t == 0, (
-            "sink_size_t + window_size_t "
-            f"({self.kvcache_total_size_t}) must be divisible by len_t ({self.len_t})"
+            f"sink_size_t + window_size_t ({self.kvcache_total_size_t}) must be divisible by len_t ({self.len_t})"
         )
-        self.freqs_t, self.freqs_h, self.freqs_w = self._freq_components_for_len(
-            self.kvcache_total_size_t
-        )
+        self.freqs_t, self.freqs_h, self.freqs_w = self._freq_components_for_len(self.kvcache_total_size_t)
         self._rope_freqs = self._cat_freqs(self.freqs_t, self.freqs_h, self.freqs_w)
         self._rope_freqs_cp: Tensor | None = None
 
@@ -542,9 +533,7 @@ class KVCacheRelativeRotaryPositionEmbedding3D(_RotaryPositionEmbedding3DBase):
     def set_context_parallel_group(self, cp_group: ProcessGroup | None) -> None:
         super().set_context_parallel_group(cp_group)
         self._rope_freqs_cp = (
-            None
-            if cp_group is None
-            else self._split_cache_freqs_cp(self._rope_freqs, self.kvcache_total_size_t)
+            None if cp_group is None else self._split_cache_freqs_cp(self._rope_freqs, self.kvcache_total_size_t)
         )
 
     def shift_t(self, autoregressive_index: int) -> Tensor:
@@ -567,9 +556,7 @@ class KVCacheRelativeRotaryPositionEmbedding3D(_RotaryPositionEmbedding3DBase):
         if self.is_context_parallel_enabled():
             if self._rope_freqs_cp is not None:
                 return self._rope_freqs_cp
-            return self._split_cache_freqs_cp(
-                self._rope_freqs, self.kvcache_total_size_t
-            )
+            return self._split_cache_freqs_cp(self._rope_freqs, self.kvcache_total_size_t)
         return self._rope_freqs
 
 

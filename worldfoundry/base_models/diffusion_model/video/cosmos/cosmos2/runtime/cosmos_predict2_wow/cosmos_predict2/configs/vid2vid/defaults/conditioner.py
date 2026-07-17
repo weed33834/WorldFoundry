@@ -19,17 +19,18 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 
 import torch
+from cosmos_predict2.conditioner import BooleanFlag, GeneralConditioner, ReMapkey, T2VCondition, TextAttr
 from hydra.core.config_store import ConfigStore
 
-from cosmos_predict2.conditioner import BooleanFlag, GeneralConditioner, ReMapkey, T2VCondition, TextAttr
+from worldfoundry.core.configuration.lazy_config import LazyCall as L
+from worldfoundry.core.configuration.lazy_config import LazyDict
 from worldfoundry.core.distributed.context_parallel import broadcast_split_tensor
-from imaginaire.lazy_config import LazyCall as L
-from imaginaire.lazy_config import LazyDict
 
 
 @dataclass(frozen=True)
 class Vid2VidCondition(T2VCondition):
     """Vid vid condition implementation."""
+
     use_video_condition: bool = False
     # the following two attributes are used to set the video condition; during training, inference
     gt_frames: Optional[torch.Tensor] = None
@@ -222,6 +223,7 @@ class Vid2VidConditionV2(Vid2VidCondition):
 
 class Vid2VidConditioner(GeneralConditioner):
     """Vid vid conditioner implementation."""
+
     def forward(
         self,
         batch: Dict,
@@ -242,6 +244,7 @@ class Vid2VidConditioner(GeneralConditioner):
 
 class Vid2VidConditionerV2(GeneralConditioner):
     """Vid vid conditioner implementation."""
+
     def forward(
         self,
         batch: Dict,

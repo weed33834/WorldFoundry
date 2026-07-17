@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 import os
 import time
-from typing import Literal
 import warnings
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Literal
 
 import numpy as np
 import torch
@@ -82,6 +83,73 @@ def load_pil_image(image_input, *, first_sequence_item: bool = True) -> Image.Im
             tensor = tensor.permute(1, 2, 0)
         return load_pil_image(tensor.numpy(), first_sequence_item=first_sequence_item)
     raise TypeError(f"Unsupported image input type: {type(image_input)!r}")
+
+
+def materialize_image_input(
+    image_input,
+    output_dir: str | os.PathLike[str],
+    *,
+    filename: str = "input.png",
+) -> str:
+    """Normalize an image-like input and save it at a stable local path."""
+
+    output_path = Path(output_dir).expanduser().resolve() / filename
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    load_pil_image(image_input).save(output_path)
+    return str(output_path)
+
+
+def compose_horizontal_views(
+    images,
+    *,
+    target_size: tuple[int, int] | None = None,
+) -> Image.Image:
+    """Resize optional per-view images and concatenate them horizontally."""
+
+    if not isinstance(images, Sequence) or isinstance(images, (str, bytes, bytearray)):
+        images = [images]
+    if not images:
+        raise ValueError("at least one image view is required")
+    views = [load_pil_image(image, first_sequence_item=False) for image in images]
+    if target_size is not None:
+        views = [image.resize(target_size, Image.Resampling.LANCZOS) for image in views]
+    elif len({image.height for image in views}) > 1:
+        target_height = min(image.height for image in views)
+        views = [
+            image.resize(
+                (round(image.width * target_height / image.height), target_height),
+                Image.Resampling.LANCZOS,
+            )
+            for image in views
+        ]
+    canvas = Image.new("RGB", (sum(image.width for image in views), views[0].height))
+    offset = 0
+    for image in views:
+        canvas.paste(image, (offset, 0))
+        offset += image.width
+    return canvas
+
+
+def split_horizontal_views(
+    image,
+    *,
+    num_views: int,
+    target_size: tuple[int, int] | None = None,
+) -> list[Image.Image]:
+    """Split a horizontally concatenated image into equally sized RGB views."""
+
+    if num_views <= 0:
+        raise ValueError("num_views must be positive")
+    source = load_pil_image(image, first_sequence_item=False)
+    if source.width % num_views:
+        raise ValueError(f"image width {source.width} is not divisible by num_views={num_views}")
+    view_width = source.width // num_views
+    views = [
+        source.crop((index * view_width, 0, (index + 1) * view_width, source.height)) for index in range(num_views)
+    ]
+    if target_size is not None:
+        views = [view.resize(target_size, Image.Resampling.LANCZOS) for view in views]
+    return views
 
 
 def imshow(img):
@@ -245,9 +313,7 @@ class Cv2Display:
 
 
 # ---------------- Image tensor handling -----------------
-def sanity_check_image_tensor(
-    img: torch.Tensor, on_error: Literal["raise", "warn", "ignore"] = "raise"
-):
+def sanity_check_image_tensor(img: torch.Tensor, on_error: Literal["raise", "warn", "ignore"] = "raise"):
     """
     Check if the input image tensor is all integers, which is wrong for any NN input.
     This is a common case if the user forgets to normalize the image first
@@ -267,10 +333,7 @@ def sanity_check_image_tensor(
             return False
     # check if all values in the image are close to an integer
     if (img - torch.round(img)).abs().max() < 1e-5:
-        msg = (
-            "Input image is all close to integers, "
-            "are you sure you have normalized it before passing it to a NN?"
-        )
+        msg = "Input image is all close to integers, are you sure you have normalized it before passing it to a NN?"
         if on_error == "raise":
             raise ValueError(msg)
         elif on_error == "warn":
@@ -306,7 +369,7 @@ def basic_image_tensor_preprocess(
     if shape and input_size != shape:
         if global_once("worldfoundry.core.utils.image_utils.basic_image_preprocess:transform"):
             warnings.warn(
-                f'{"Down" if shape < input_size else "Up"}sampling image'
+                f"{'Down' if shape < input_size else 'Up'}sampling image"
                 f" from original resolution {input_size}x{input_size}"
                 f" to {shape}x{shape}"
             )

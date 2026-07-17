@@ -23,16 +23,18 @@ from difflib import SequenceMatcher
 
 import nltk
 from better_profanity import profanity
-
 from cosmos_predict2.auxiliary.guardrail.blocklist.utils import read_keyword_list_from_dir, to_ascii
-from cosmos_predict2.auxiliary.guardrail.common.core import ContentSafetyGuardrail, GuardrailRunner
-from imaginaire.utils import log, misc
+
+from worldfoundry.core.distributed.logging import log
+from worldfoundry.core.safety import ContentSafetyGuardrail, GuardrailRunner
+from worldfoundry.core.utils import inference_runtime as misc
 
 CENSOR = misc.Color.red("*")
 
 
 class Blocklist(ContentSafetyGuardrail):
     """Blocklist implementation."""
+
     def __init__(
         self,
         checkpoint_dir: str,

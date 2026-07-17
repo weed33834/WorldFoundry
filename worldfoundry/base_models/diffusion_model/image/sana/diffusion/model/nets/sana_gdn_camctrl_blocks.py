@@ -42,7 +42,13 @@ from copy import deepcopy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from fla.modules import ShortConvolution
+
+if os.environ.get("WORLDFOUNDRY_SANA_NETS_PROFILE", "").strip().lower() == "wm":
+    from diffusion.utils.fla_import import import_short_convolution
+
+    ShortConvolution = import_short_convolution()
+else:
+    from fla.modules import ShortConvolution
 
 from diffusion.utils.chunk_utils import is_chunk_causal_request, normalize_chunk_index
 

@@ -15,19 +15,16 @@
 
 """Module for base_models -> diffusion_model -> video -> cosmos -> cosmos1 -> cosmos_predict1_gen3c -> cosmos_predict1 -> auxiliary -> guardrail -> common -> presets.py functionality."""
 
-import os
-from pathlib import Path
-
 import numpy as np
-
 from cosmos_predict1.auxiliary.guardrail.blocklist.blocklist import Blocklist
-from cosmos_predict1.auxiliary.guardrail.common.core import GuardrailRunner
 from cosmos_predict1.auxiliary.guardrail.face_blur_filter.face_blur_filter import RetinaFaceFilter
 from cosmos_predict1.auxiliary.guardrail.llamaGuard3.llamaGuard3 import LlamaGuard3
 from cosmos_predict1.auxiliary.guardrail.video_content_safety_filter.video_content_safety_filter import (
     VideoContentSafetyFilter,
 )
 from cosmos_predict1.utils import log
+
+from worldfoundry.core.safety import GuardrailRunner
 
 
 def create_text_guardrail_runner(checkpoint_dir: str) -> GuardrailRunner:

@@ -22,11 +22,17 @@ import torch
 from einops import rearrange
 from torch import nn
 from torch.utils.checkpoint import checkpoint
+
 from worldfoundry.core.attention import scaled_dot_product_attention as _worldfoundry_scaled_dot_product_attention
 
 try:
     import transformer_engine as te
-    from transformer_engine.pytorch.attention import DotProductAttention, apply_rotary_pos_emb as te_apply_rotary_pos_emb
+    from transformer_engine.pytorch.attention import (
+        DotProductAttention,
+    )
+    from transformer_engine.pytorch.attention import (
+        apply_rotary_pos_emb as te_apply_rotary_pos_emb,
+    )
 except Exception:
     te = None
     DotProductAttention = None
@@ -106,6 +112,7 @@ class FeedForward(nn.Module):
 
 class GPT2FeedForward(FeedForward):
     """Feed forward implementation."""
+
     def __init__(self, d_model: int, d_ff: int, dropout: float = 0.1, bias: bool = False):
         """Init.
 
@@ -212,6 +219,7 @@ def apply_rotary_pos_emb_torch(x: torch.Tensor, rope_emb: torch.Tensor, qkv_form
 
 class BaseAttentionOp(nn.Module):
     """Base attention op implementation."""
+
     def __init__(self):
         """Init."""
         super().__init__()
@@ -402,9 +410,9 @@ class Attention(nn.Module):
         """
         if self.backend == "transformer_engine":
             seq_dim = self.qkv_format.index("s")
-            assert (
-                q.shape[seq_dim] > 1 and k.shape[seq_dim] > 1
-            ), "Seqlen must be larger than 1 for TE Attention starting with 1.8 TE version."
+            assert q.shape[seq_dim] > 1 and k.shape[seq_dim] > 1, (
+                "Seqlen must be larger than 1 for TE Attention starting with 1.8 TE version."
+            )
             out = self.attn_op(q, k, v, core_attention_bias_type="no_bias", core_attention_bias=None)  # [B, Mq, H, V]
             return self.to_out(out)
         elif self.backend == "torch":

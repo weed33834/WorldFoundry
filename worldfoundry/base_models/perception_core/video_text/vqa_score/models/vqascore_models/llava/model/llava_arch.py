@@ -19,7 +19,9 @@ import torch
 import torch.nn as nn
 
 from .multimodal_encoder.builder import build_vision_tower
-from .multimodal_projector.builder import build_vision_projector
+from worldfoundry.base_models.perception_core.video_text.vqa_score.models.vqascore_models._shared.multimodal_projector import (
+    build_vision_projector,
+)
 
 IMAGE_TOKEN_INDEX = -200
 IGNORE_INDEX = -100

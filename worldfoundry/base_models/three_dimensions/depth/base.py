@@ -55,11 +55,13 @@ class DepthEstimationResult:
         One has to estimate scale and offset of such estimation
     - metric_depth: The estimated depth map ([B,], H, W) in metric scale.
     - confidence: The confidence map ([B,], H, W).
+    - points: Optional camera-frame XYZ points ([B,], H, W, 3).
     """
 
     relative_inv_depth: torch.Tensor | None = None
     metric_depth: torch.Tensor | None = None
     confidence: torch.Tensor | None = None
+    points: torch.Tensor | None = None
 
 
 @dataclass(slots=True, kw_only=True)

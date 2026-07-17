@@ -9,8 +9,8 @@ from typing import Callable, Optional, Sequence, Tuple, Type, Union
 
 import numpy as np
 import torch
-from torch import Tensor, nn
 import torch.nn.functional as F
+from torch import Tensor, nn
 
 
 def to_2tuple(value: int | Sequence[int] | bool | Sequence[bool] | float | Sequence[float]):
@@ -97,6 +97,14 @@ class LayerScale(nn.Module):
         inplace: bool = False,
         device=None,
     ) -> None:
+        """Create a learnable residual multiplier.
+
+        Args:
+            dim: Channel width of the final tensor dimension.
+            init_values: Scalar or per-channel initialization for ``gamma``.
+            inplace: Multiply the input in place during ``forward``.
+            device: Optional parameter device.
+        """
         super().__init__()
         self.dim = dim
         self.inplace = inplace
@@ -112,6 +120,7 @@ class LayerScale(nn.Module):
             nn.init.constant_(self.gamma, self.init_values)
 
     def forward(self, x: Tensor) -> Tensor:
+        """Scale the final dimension of ``x`` by the learned ``gamma``."""
         return x.mul_(self.gamma) if self.inplace else x * self.gamma
 
     def extra_repr(self) -> str:
@@ -181,6 +190,18 @@ class Mlp(nn.Module):
         bias: bool | tuple[bool, bool] = True,
         device=None,
     ) -> None:
+        """Construct a two-projection feed-forward block.
+
+        Args:
+            in_features: Input width.
+            hidden_features: Intermediate width; defaults to ``in_features``.
+            out_features: Output width; defaults to ``in_features``.
+            act_layer: Activation module factory between projections.
+            drop: One probability for both dropout sites or a pair for the
+                first and second sites.
+            bias: One bias flag for both projections or a pair.
+            device: Optional projection parameter device.
+        """
         super().__init__()
         out_features = out_features or in_features
         hidden_features = hidden_features or in_features
@@ -200,12 +221,50 @@ class Mlp(nn.Module):
             self.drop = self.drop1
 
     def forward(self, x: Tensor) -> Tensor:
+        """Apply ``fc1 → activation → dropout → fc2 → dropout``."""
         x = self.fc1(x)
         x = self.act(x)
         x = self.drop1(x)
         x = self.fc2(x)
         x = self.drop2(x)
         return x
+
+
+class DomainAwareLinear(nn.Module):
+    """Per-sample linear projection selected by an integer domain id.
+
+    The layer stores one flattened weight matrix and bias per domain.  It is
+    useful for cross-embodiment policies whose tensor shapes are shared while
+    input/output projections remain embodiment-specific.
+    """
+
+    def __init__(self, input_size: int, output_size: int, num_domains: int = 20) -> None:
+        super().__init__()
+        if input_size <= 0 or output_size <= 0 or num_domains <= 0:
+            raise ValueError("input_size, output_size, and num_domains must be positive")
+        self.input_size = int(input_size)
+        self.output_size = int(output_size)
+        self.fc = nn.Embedding(int(num_domains), self.output_size * self.input_size)
+        self.bias = nn.Embedding(int(num_domains), self.output_size)
+        nn.init.xavier_uniform_(self.fc.weight)
+        nn.init.zeros_(self.bias.weight)
+
+    def forward(self, x: Tensor, domain_id: Tensor) -> Tensor:
+        if domain_id.ndim != 1:
+            raise ValueError(f"domain_id must have shape [batch], got {tuple(domain_id.shape)}")
+        batch = int(domain_id.shape[0])
+        squeeze_sequence = x.ndim == 2
+        if squeeze_sequence:
+            x = x.unsqueeze(1)
+        if x.ndim != 3 or int(x.shape[0]) != batch or int(x.shape[-1]) != self.input_size:
+            raise ValueError(
+                "DomainAwareLinear expects [batch, input] or [batch, sequence, input], "
+                f"got x={tuple(x.shape)}, domain_id={tuple(domain_id.shape)}"
+            )
+        weight = self.fc(domain_id).view(batch, self.input_size, self.output_size)
+        bias = self.bias(domain_id).view(batch, 1, self.output_size)
+        output = torch.matmul(x, weight) + bias
+        return output.squeeze(1) if squeeze_sequence else output
 
 
 class PositionEmbeddingRandom(nn.Module):
@@ -262,6 +321,17 @@ class PatchEmbed(nn.Module):
         norm_layer: Optional[Callable[..., nn.Module]] = None,
         flatten_embedding: bool = True,
     ) -> None:
+        """Configure convolutional image-to-token projection.
+
+        Args:
+            img_size: Nominal image height/width used to report patch count.
+            patch_size: Convolution kernel/stride height and width.
+            in_chans: Input channel count.
+            embed_dim: Output token width.
+            norm_layer: Optional normalization factory applied per token.
+            flatten_embedding: Return ``(B, N, D)`` when true, otherwise
+                ``(B, grid_h, grid_w, D)``.
+        """
         super().__init__()
 
         image_hw = make_2tuple(img_size)
@@ -286,6 +356,11 @@ class PatchEmbed(nn.Module):
             nn.init.uniform_(self.proj.bias, -math.sqrt(k), math.sqrt(k))
 
     def forward(self, x: Tensor) -> Tensor:
+        """Project a divisible NCHW image batch into patch embeddings.
+
+        Raises:
+            ValueError: Runtime height or width is not divisible by patch size.
+        """
         _, _, height, width = x.shape
         patch_height, patch_width = self.patch_size
         if height % patch_height:
@@ -414,6 +489,17 @@ class SwiGLUFFNFused(SwiGLU):
         drop: float = 0.0,
         bias: bool = True,
     ) -> None:
+        """Construct a tensor-core-aligned SwiGLU feed-forward block.
+
+        Args:
+            in_features: Input width.
+            hidden_features: Requested hidden width before the SwiGLU 2/3
+                adjustment and upward rounding to a multiple of eight.
+            out_features: Output width; defaults to ``in_features``.
+            act_layer: Accepted for MLP-constructor compatibility; unused.
+            drop: Accepted for MLP-constructor compatibility; unused.
+            bias: Enable biases in the fused input and output projections.
+        """
         out_features = out_features or in_features
         hidden_features = hidden_features or in_features
         hidden_features = (int(hidden_features * 2 / 3) + 7) // 8 * 8

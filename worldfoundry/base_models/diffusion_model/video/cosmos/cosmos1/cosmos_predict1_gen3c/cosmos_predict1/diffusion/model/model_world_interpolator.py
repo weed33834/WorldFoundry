@@ -15,45 +15,26 @@
 
 """Module for base_models -> diffusion_model -> video -> cosmos -> cosmos1 -> cosmos_predict1_gen3c -> cosmos_predict1 -> diffusion -> model -> model_world_interpolator.py functionality."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from statistics import NormalDist
 from typing import Callable, Dict, Optional, Tuple, Union
 
 import numpy as np
 import torch
+from cosmos_predict1.diffusion.conditioner import DataType, VideoExtendCondition
+from cosmos_predict1.diffusion.config.base.conditioner import VideoCondBoolConfig
+from cosmos_predict1.diffusion.model.model_v2w import DiffusionV2WModel, broadcast_condition
+from cosmos_predict1.utils import log, misc
 from einops import rearrange
 from torch import Tensor
 
-try:
-    from worldfoundry.core.distributed.megatron_compat import parallel_state
-except Exception:
-    class _NoParallelState:
-        """No parallel state implementation."""
-        @staticmethod
-        def is_initialized():
-            """Is initialized."""
-            return False
-
-        @staticmethod
-        def get_context_parallel_world_size():
-            """Get context parallel world size."""
-            return 1
-
-        @staticmethod
-        def get_context_parallel_group():
-            """Get context parallel group."""
-            return None
-
-    parallel_state = _NoParallelState()
-
-from cosmos_predict1.diffusion.conditioner import VideoExtendCondition
-from cosmos_predict1.diffusion.config.base.conditioner import VideoCondBoolConfig
 from worldfoundry.base_models.diffusion_model.video.cosmos.shared.batch_ops import batch_mul
-from cosmos_predict1.diffusion.model.model_v2w import DiffusionV2WModel, broadcast_condition
+from worldfoundry.base_models.diffusion_model.video.cosmos.shared.denoiser_scaling import EDMScaling
+from worldfoundry.base_models.diffusion_model.video.cosmos.shared.diffusion_types import DenoisePrediction
+from worldfoundry.base_models.diffusion_model.video.cosmos.shared.edm_sde import EDMSDE
+from worldfoundry.base_models.diffusion_model.video.cosmos.shared.res_sampler import Sampler
 from worldfoundry.core.distributed.context_parallel import cat_outputs_cp, split_inputs_cp
-from cosmos_predict1.diffusion.modules.res_sampler import Sampler
-from cosmos_predict1.diffusion.conditioner import DataType
-from cosmos_predict1.utils import log, misc
+from worldfoundry.core.distributed.megatron_compat import parallel_state
 
 
 def _broadcast(item: torch.Tensor | str | None, to_tp: bool = True, to_cp: bool = True) -> torch.Tensor | str | None:
@@ -69,17 +50,14 @@ def _broadcast(item: torch.Tensor | str | None, to_tp: bool = True, to_cp: bool 
     """
     return item
 
-IS_PREPROCESSED_KEY = "is_preprocessed"
-from dataclasses import dataclass, fields
 
-from worldfoundry.base_models.diffusion_model.video.cosmos.shared.denoiser_scaling import EDMScaling
-from worldfoundry.base_models.diffusion_model.video.cosmos.shared.edm_sde import EDMSDE
-from worldfoundry.base_models.diffusion_model.video.cosmos.shared.diffusion_types import DenoisePrediction
+IS_PREPROCESSED_KEY = "is_preprocessed"
 
 
 @dataclass
 class VideoDenoisePrediction:
     """Video denoise prediction implementation."""
+
     x0: torch.Tensor  # clean data prediction
     eps: Optional[torch.Tensor] = None  # noise prediction
     logvar: Optional[torch.Tensor] = None  # log variance of noise prediction
@@ -92,6 +70,7 @@ class VideoDenoisePrediction:
 @dataclass
 class CosmosCondition:
     """Cosmos condition implementation."""
+
     crossattn_emb: torch.Tensor
     crossattn_mask: torch.Tensor
     padding_mask: Optional[torch.Tensor] = None
@@ -108,6 +87,7 @@ class CosmosCondition:
 
 class DiffusionWorldInterpolatorWModel(DiffusionV2WModel):
     """Diffusion world interpolator w model implementation."""
+
     def __init__(self, config):
         """Init.
 
@@ -146,9 +126,9 @@ class DiffusionWorldInterpolatorWModel(DiffusionV2WModel):
         """
         is_image = self.input_image_key in data_batch
         is_video = self.input_data_key in data_batch
-        assert (
-            is_image != is_video
-        ), "Only one of the input_image_key or input_data_key should be present in the data_batch."
+        assert is_image != is_video, (
+            "Only one of the input_image_key or input_data_key should be present in the data_batch."
+        )
         return is_image
 
     def _normalize_video_databatch_inplace(self, data_batch: dict[str, Tensor], input_key: str = None) -> None:
@@ -165,9 +145,9 @@ class DiffusionWorldInterpolatorWModel(DiffusionV2WModel):
         if input_key in data_batch:
             if IS_PREPROCESSED_KEY in data_batch and data_batch[IS_PREPROCESSED_KEY] is True:
                 assert torch.is_floating_point(data_batch[input_key]), "Video data is not in float format."
-                assert torch.all(
-                    (data_batch[input_key] >= -1.0001) & (data_batch[input_key] <= 1.0001)
-                ), f"Video data is not in the range [-1, 1]. get data range [{data_batch[input_key].min()}, {data_batch[input_key].max()}]"
+                assert torch.all((data_batch[input_key] >= -1.0001) & (data_batch[input_key] <= 1.0001)), (
+                    f"Video data is not in the range [-1, 1]. get data range [{data_batch[input_key].min()}, {data_batch[input_key].max()}]"
+                )
             else:
                 assert data_batch[input_key].dtype == torch.uint8, "Video data is not in uint8 format."
                 data_batch[input_key] = data_batch[input_key].to(**self.tensor_kwargs) / 127.5 - 1.0
@@ -186,9 +166,9 @@ class DiffusionWorldInterpolatorWModel(DiffusionV2WModel):
         input_key = self.input_image_key if input_key is None else input_key
         if input_key in data_batch:
             if IS_PREPROCESSED_KEY in data_batch and data_batch[IS_PREPROCESSED_KEY] is True:
-                assert (
-                    data_batch[input_key].shape[2] == 1
-                ), f"Image data is claimed be augmented while its shape is {data_batch[input_key].shape}"
+                assert data_batch[input_key].shape[2] == 1, (
+                    f"Image data is claimed be augmented while its shape is {data_batch[input_key].shape}"
+                )
                 return
             else:
                 data_batch[input_key] = rearrange(data_batch[input_key], "b c h w -> b c 1 h w").contiguous()
@@ -247,14 +227,14 @@ class DiffusionWorldInterpolatorWModel(DiffusionV2WModel):
             log.debug(
                 f"condition_video_augment_sigma_in_inference={condition_video_augment_sigma_in_inference}, sigma={sigma.flatten()[0]}"
             )
-            assert (
-                condition_video_augment_sigma_in_inference is not None
-            ), "condition_video_augment_sigma_in_inference should be provided"
+            assert condition_video_augment_sigma_in_inference is not None, (
+                "condition_video_augment_sigma_in_inference should be provided"
+            )
             augment_sigma = condition_video_augment_sigma_in_inference
 
             if augment_sigma >= sigma.flatten()[0]:
                 log.debug("augment_sigma larger than sigma or other frame, remove condition")
-                condition.condition_video_indicator = condition_video_indicator * 0
+                condition.condition_video_indicator = condition.condition_video_indicator * 0
 
             augment_sigma = torch.tensor([augment_sigma], **self.tensor_kwargs)
             noise = misc.arch_invariant_rand(
@@ -346,9 +326,9 @@ class DiffusionWorldInterpolatorWModel(DiffusionV2WModel):
         seed_inference: int = 1,
     ) -> VideoDenoisePrediction:
         """Denoise the noisy input tensor for video data."""
-        assert (
-            condition.gt_latent is not None
-        ), "find None gt_latent in condition, likely didn't call self.add_condition_video_indicator_and_video_input_mask when preparing the condition"
+        assert condition.gt_latent is not None, (
+            "find None gt_latent in condition, likely didn't call self.add_condition_video_indicator_and_video_input_mask when preparing the condition"
+        )
         gt_latent = condition.gt_latent
         cfg_video_cond_bool: VideoCondBoolConfig = self.config.conditioner.video_cond_bool
 
@@ -605,9 +585,9 @@ class DiffusionWorldInterpolatorWModel(DiffusionV2WModel):
         elif self.config.conditioner.video_cond_bool.condition_location == "first_random_n":
             # Only in training
             num_condition_t_max = self.config.conditioner.video_cond_bool.first_random_n_num_condition_t_max
-            assert (
-                num_condition_t_max <= T
-            ), f"num_condition_t_max should be less than T, get {num_condition_t_max}, {T}"
+            assert num_condition_t_max <= T, (
+                f"num_condition_t_max should be less than T, get {num_condition_t_max}, {T}"
+            )
             assert num_condition_t_max >= self.config.conditioner.video_cond_bool.first_random_n_num_condition_t_min
             num_condition_t = torch.randint(
                 self.config.conditioner.video_cond_bool.first_random_n_num_condition_t_min,
@@ -663,9 +643,9 @@ class DiffusionWorldInterpolatorWModel(DiffusionV2WModel):
         Returns:
             VideoExtendCondition: Updated condition object.
         """
-        assert (
-            "plucker_embeddings" in data_batch or "plucker_embeddings_downsample" in data_batch.keys()
-        ), f"plucker_embeddings should be in data_batch. only find {data_batch.keys()}"
+        assert "plucker_embeddings" in data_batch or "plucker_embeddings_downsample" in data_batch.keys(), (
+            f"plucker_embeddings should be in data_batch. only find {data_batch.keys()}"
+        )
         plucker_embeddings = (
             data_batch["plucker_embeddings"]
             if "plucker_embeddings_downsample" not in data_batch.keys()

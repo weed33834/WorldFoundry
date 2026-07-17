@@ -35,36 +35,8 @@ import math
 from diff_gaussian_rasterization import GaussianRasterizationSettings, GaussianRasterizer
 from scene.gaussian_model import GaussianModel
 from utils.render_utils import get_state_at_time
+from utils.merge_transform_utils import apply_rotation_bias_wxyz, rotate_point_cloud
 from tqdm import tqdm
-def rotate_point_cloud(point_cloud, displacement, rotation_angles, scales_bias):
-    """Rotate point cloud.
-
-    Args:
-        point_cloud: The point cloud.
-        displacement: The displacement.
-        rotation_angles: The rotation angles.
-        scales_bias: The scales bias.
-    """
-    
-    theta, phi = rotation_angles
-
-    rotation_matrix_z = torch.tensor([
-        [torch.cos(theta), -torch.sin(theta), 0],
-        [torch.sin(theta),  torch.cos(theta), 0],
-        [0,                0,               1]
-    ]).to(point_cloud)
-    rotation_matrix_x = torch.tensor([
-        [1, 0,                0],
-        [0, torch.cos(phi), -torch.sin(phi)],
-        [0, torch.sin(phi),  torch.cos(phi)]
-    ]).to(point_cloud)
-    rotation_matrix = torch.matmul(rotation_matrix_z, rotation_matrix_x)
-    # print(rotation_matrix)
-    point_cloud = point_cloud*scales_bias
-    rotated_point_cloud = torch.matmul(point_cloud, rotation_matrix.t())
-    displaced_point_cloud = rotated_point_cloud + displacement
-
-    return displaced_point_cloud
 @torch.no_grad()
 def render(viewpoint_camera, gaussians, bg_color : torch.Tensor, scaling_modifier = 1.0, motion_bias = [torch.tensor([0,0,0])], rotation_bias = [torch.tensor([0,0])],
            scales_bias=[1,1]):
@@ -124,6 +96,7 @@ def render(viewpoint_camera, gaussians, bg_color : torch.Tensor, scaling_modifie
             motion_bias_t = motion_bias[index-1].to(means3D_final)
             rotation_bias_t = rotation_bias[index-1].to(means3D_final)
             means3D_final1 = rotate_point_cloud(means3D_final1,motion_bias_t,rotation_bias_t,scales_bias[index-1])
+            rotations_final1 = apply_rotation_bias_wxyz(rotations_final1, rotation_bias_t)
             # breakpoint()
             scales_final1 = scales_final1*scales_bias[index-1]
             means3D_final = torch.cat([means3D_final,means3D_final1],dim=0)

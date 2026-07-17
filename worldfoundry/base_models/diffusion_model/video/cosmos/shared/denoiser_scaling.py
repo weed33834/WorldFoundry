@@ -22,6 +22,7 @@ import torch
 
 class EDMScaling:
     """Edm scaling implementation."""
+
     def __init__(self, sigma_data: float = 0.5):
         """Init.
 
@@ -44,3 +45,22 @@ class EDMScaling:
         c_in = 1 / (sigma**2 + self.sigma_data**2) ** 0.5
         c_noise = 0.25 * sigma.log()
         return c_skip, c_out, c_in, c_noise
+
+    def sigma_loss_weights(self, sigma: torch.Tensor) -> torch.Tensor:
+        return (sigma**2 + self.sigma_data**2) / (sigma * self.sigma_data) ** 2
+
+
+class RectifiedFlowScaling:
+    """Scaling coefficients for rectified-flow inference."""
+
+    def __init__(self, sigma_data: float = 1.0, t_scaling_factor: float = 1.0):
+        if abs(sigma_data - 1.0) >= 1e-6:
+            raise ValueError("sigma_data must be 1.0 for RectifiedFlowScaling")
+        self.t_scaling_factor = t_scaling_factor
+
+    def __call__(self, sigma: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        t = sigma / (sigma + 1)
+        return 1.0 - t, -t, 1.0 - t, t * self.t_scaling_factor
+
+    def sigma_loss_weights(self, sigma: torch.Tensor) -> torch.Tensor:
+        return 1.0 / sigma**2

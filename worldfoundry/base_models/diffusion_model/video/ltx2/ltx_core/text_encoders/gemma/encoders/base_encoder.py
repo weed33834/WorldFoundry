@@ -1,4 +1,5 @@
 import functools
+import itertools
 from pathlib import Path
 
 import torch
@@ -28,6 +29,17 @@ class GemmaTextEncoder(torch.nn.Module):
         self.processor = processor
         self._dtype = dtype
 
+    def _execution_device(self) -> torch.device:
+        """Return the device of materialized weights in standard or streaming mode."""
+        # A block-streamed model intentionally keeps inactive transformer blocks
+        # on ``meta``.  Hugging Face's ``model.device`` reports the device of the
+        # first parameter, which can therefore be ``meta`` even though embeddings
+        # and other non-block weights are resident on the execution device.
+        for tensor in itertools.chain(self.model.parameters(), self.model.buffers()):
+            if tensor.device.type != "meta":
+                return tensor.device
+        raise RuntimeError("Gemma text encoder has no materialized parameters or buffers.")
+
     def encode(
         self,
         text: str,
@@ -39,8 +51,9 @@ class GemmaTextEncoder(torch.nn.Module):
             (hidden_states, attention_mask) where hidden_states is a tuple of per-layer tensors.
         """
         token_pairs = self.tokenizer.tokenize_with_weights(text)["gemma"]
-        input_ids = torch.tensor([[t[0] for t in token_pairs]], device=self.model.device)
-        attention_mask = torch.tensor([[w[1] for w in token_pairs]], device=self.model.device)
+        execution_device = self._execution_device()
+        input_ids = torch.tensor([[t[0] for t in token_pairs]], device=execution_device)
+        attention_mask = torch.tensor([[w[1] for w in token_pairs]], device=execution_device)
         outputs = self.model.model(input_ids=input_ids, attention_mask=attention_mask, output_hidden_states=True)
         hidden_states = outputs.hidden_states
         del outputs
@@ -61,11 +74,12 @@ class GemmaTextEncoder(torch.nn.Module):
             text=text,
             images=image,
             return_tensors="pt",
-        ).to(self.model.device)
+        ).to(self._execution_device())
         pad_token_id = self.processor.tokenizer.pad_token_id if self.processor.tokenizer.pad_token_id is not None else 0
         model_inputs = _pad_inputs_for_attention_alignment(model_inputs, pad_token_id=pad_token_id)
 
-        with torch.inference_mode(), torch.random.fork_rng(devices=[self.model.device]):
+        execution_device = self._execution_device()
+        with torch.inference_mode(), torch.random.fork_rng(devices=[execution_device]):
             torch.manual_seed(seed)
             outputs = self.model.generate(
                 **model_inputs,

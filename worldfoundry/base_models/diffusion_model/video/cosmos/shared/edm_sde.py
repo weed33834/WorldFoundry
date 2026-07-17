@@ -8,6 +8,7 @@ import torch
 
 class EDMSDE:
     """Edmsde implementation."""
+
     def __init__(
         self,
         p_mean: float = -1.2,

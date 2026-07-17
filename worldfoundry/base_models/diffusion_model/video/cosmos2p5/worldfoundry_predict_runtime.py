@@ -29,13 +29,7 @@ from worldfoundry.base_models.diffusion_model.video.wan.wan_2p1.utils.fm_solvers
     FlowUniPCMultistepScheduler,
 )
 
-
-PipelineImageInput = Union[
-    Image.Image, 
-    torch.Tensor, 
-    List[Image.Image], 
-    List[torch.Tensor]
-]
+PipelineImageInput = Union[Image.Image, torch.Tensor, List[Image.Image], List[torch.Tensor]]
 
 _TRANSFORMER_CHECKPOINT_RELATIVE_PATHS = (
     "base/post-trained/81edfebe-bd6a-4039-8c1d-737df1a790bf_ema_bf16.pt",
@@ -69,7 +63,7 @@ class CosmosPredict2p5Runtime:
             vae: The vae.
             scheduler: The scheduler.
         """
-        self.mode = mode 
+        self.mode = mode
 
         # Initialize components
         self.text_encoder = text_encoder
@@ -150,25 +144,21 @@ class CosmosPredict2p5Runtime:
         vae_ckpt = resolve_local_artifact_path(vae_model_path, ("Wan2.1_VAE.pth",))
 
         #  Load cosmos models
-        config_args = get_cosmos_config_for_path(transformer_ckpt, mode='base')
+        config_args = get_cosmos_config_for_path(transformer_ckpt, mode="base")
         transformer = Cosmos25Transformer3DModel(**config_args)
         load_official_weights(transformer, str(transformer_ckpt))
         text_encoder = Reason1TextEncoder(str(text_encoder_path))
-        vae = WanVAE(vae_pth=str(vae_ckpt), dtype=weight_dtype, device=device)  # Vae device & dtype specify in initalization
+        vae = WanVAE(
+            vae_pth=str(vae_ckpt), dtype=weight_dtype, device=device
+        )  # Vae device & dtype specify in initalization
         scheduler = FlowUniPCMultistepScheduler(num_train_timesteps=1000, shift=1, use_dynamic_shifting=False)
-        
+
         # Move to device & change dtype
-        device = device or torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
         transformer = transformer.to(device, weight_dtype)
         text_encoder = text_encoder.to(device, weight_dtype)
-        
-        instance = cls(
-            text_encoder=text_encoder,
-            transformer=transformer,
-            vae=vae,
-            scheduler=scheduler,
-            mode=mode
-        )
+
+        instance = cls(text_encoder=text_encoder, transformer=transformer, vae=vae, scheduler=scheduler, mode=mode)
         instance._execution_device = device
         return instance
 
@@ -196,7 +186,7 @@ class CosmosPredict2p5Runtime:
         if self.do_classifier_free_guidance:
             if negative_prompt_embeds is None:
                 if negative_prompt is None:
-                    negative_prompt = [''] * prompt_embeds.shape[0]
+                    negative_prompt = [""] * prompt_embeds.shape[0]
                 elif isinstance(negative_prompt, str):
                     negative_prompt = [negative_prompt]
                 negative_prompt_embeds = self.text_encoder.encode_prompts(negative_prompt)
@@ -253,7 +243,7 @@ class CosmosPredict2p5Runtime:
             else:
                 cond_images = [np.array(image) for image in images]
                 cond_images = np.stack(cond_images, axis=0)
-                cond_images = rearrange(cond_images, 't h w c -> t c h w')
+                cond_images = rearrange(cond_images, "t h w c -> t c h w")
                 cond_images = cond_images / 127.5 - 1.0
                 cond_images = torch.from_numpy(cond_images)
             cond_images = cond_images.to(device, dtype)
@@ -265,15 +255,15 @@ class CosmosPredict2p5Runtime:
             )
 
             # Pad the conditional frames to the full length
-            if pad_mode == 'repeat':
+            if pad_mode == "repeat":
                 last_image = cond_images[-1:]
-            elif pad_mode == 'zero':
+            elif pad_mode == "zero":
                 last_image = torch.zeros_like(cond_images[-1:])
             else:
-                raise ValueError(f'Invalid pad_mode: {pad_mode}')
+                raise ValueError(f"Invalid pad_mode: {pad_mode}")
             last_images = last_image.repeat(num_frames - cond_images.shape[0], 1, 1, 1)
             cond_images = torch.cat([cond_images, last_images], dim=0)
-            cond_images = rearrange(cond_images, 't c h w -> 1 c t h w')
+            cond_images = rearrange(cond_images, "t c h w -> 1 c t h w")
 
             # Encode images to latents and create the mask
             cond_latents = self.encode(cond_images).to(dtype)
@@ -308,7 +298,7 @@ class CosmosPredict2p5Runtime:
             elif isinstance(control_scale, float):
                 control_scales = {key: control_scale for key in control_latents}
             else:
-                raise TypeError('control_scale must be a float or a dictionary of floats.')
+                raise TypeError("control_scale must be a float or a dictionary of floats.")
         else:  # Single ControlNet case
             assert len(control_video) == num_frames and isinstance(control_scale, float)
             control_video = self.video_processor.preprocess_video(control_video, height, width).to(self.vae.device)
@@ -347,8 +337,8 @@ class CosmosPredict2p5Runtime:
         timestep_scale: float = 0.001,
         seed: int = -1,
         use_kerras_sigma: bool = True,
-        pad_mode: str = 'repeat',
-        output_type: Optional[str] = 'pil',
+        pad_mode: str = "repeat",
+        output_type: Optional[str] = "pil",
     ):
         """The main call function to generate a video.
 
@@ -516,7 +506,7 @@ class CosmosPredict2p5Runtime:
                     progress_bar.update()
 
         # Decode latents to video
-        if not output_type == 'latent':
+        if not output_type == "latent":
             video = self.decode(latents).unsqueeze(0)
             video = self.video_processor.postprocess_video(video=video, output_type=output_type)
         else:

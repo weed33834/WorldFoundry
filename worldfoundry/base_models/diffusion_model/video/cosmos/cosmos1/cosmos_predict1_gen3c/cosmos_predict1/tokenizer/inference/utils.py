@@ -22,7 +22,6 @@ from typing import Any
 import mediapy as media
 import numpy as np
 import torch
-
 from cosmos_predict1.tokenizer.networks import TokenizerModels
 
 _DTYPE, _DEVICE = torch.bfloat16, "cuda"
@@ -121,19 +120,6 @@ def load_jit_model(jit_filepath: str = None, device: str = "cuda") -> torch.jit.
     """
     model = torch.jit.load(jit_filepath, map_location=device)
     return model.eval().to(device)
-
-
-def save_jit_model(
-    model: torch.jit.ScriptModule | torch.jit.RecursiveScriptModule = None,
-    jit_filepath: str = None,
-) -> None:
-    """Saves a torch.jit.ScriptModule or torch.jit.RecursiveScriptModule to file.
-
-    Args:
-        model: JIT compiled model loaded onto `config.checkpoint.jit.device`.
-        jit_filepath: The filepath to the JIT-compiled model.
-    """
-    torch.jit.save(model, jit_filepath)
 
 
 def get_filepaths(input_pattern) -> list[str]:

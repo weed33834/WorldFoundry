@@ -4,21 +4,26 @@ import argparse
 import os
 import time
 
-from worldfoundry.base_models.three_dimensions.depth.moge.model.v1 import MoGeModel
-import torch
 import numpy as np
+import torch
+import torch.nn.functional as F
+from cosmos_predict1.diffusion.inference.cache_3d import Cache3D_Buffer, Cache4D
 from cosmos_predict1.diffusion.inference.gen3c_pipeline import Gen3cPipeline
 from cosmos_predict1.diffusion.inference.gen3c_single_image import (
-    create_parser as create_parser_base,
-    validate_args as validate_args_base,
     _predict_moge_depth,
-    _predict_moge_depth_from_tensor
+    _predict_moge_depth_from_tensor,
+)
+from cosmos_predict1.diffusion.inference.gen3c_single_image import (
+    create_parser as create_parser_base,
+)
+from cosmos_predict1.diffusion.inference.gen3c_single_image import (
+    validate_args as validate_args_base,
 )
 from cosmos_predict1.utils import log, misc
-from worldfoundry.core.distributed.torch_process_group import device_with_rank, is_rank0, get_rank
+
 from worldfoundry.base_models.diffusion_model.video.cosmos.shared.io import save_video
-from cosmos_predict1.diffusion.inference.cache_3d import Cache3D_Buffer, Cache4D
-import torch.nn.functional as F
+from worldfoundry.base_models.three_dimensions.depth.moge.model.v1 import MoGeModel
+from worldfoundry.core.distributed.torch_process_group import device_with_rank, get_rank, is_rank0
 
 
 def create_parser():
@@ -36,13 +41,20 @@ def validate_args(args: argparse.Namespace):
     assert args.batch_input_path is None, "Unsupported in persistent mode"
     assert args.prompt is not None, "Prompt is required in persistent mode (but it can be the empty string)"
     assert args.input_image_path is None, "Image should be provided directly by value in persistent mode"
-    assert args.trajectory in (None, 'none'), "Trajectory should be provided directly by value in persistent mode, set --trajectory=none"
-    assert not args.video_save_name, f"Video saving name will be set automatically for each inference request. Found string: \"{args.video_save_name}\""
+    assert args.trajectory in (None, "none"), (
+        "Trajectory should be provided directly by value in persistent mode, set --trajectory=none"
+    )
+    assert not args.video_save_name, (
+        f'Video saving name will be set automatically for each inference request. Found string: "{args.video_save_name}"'
+    )
 
 
-def resize_intrinsics(intrinsics: np.ndarray | torch.Tensor,
-                      old_size: tuple[int, int], new_size: tuple[int, int],
-                      crop_size: tuple[int, int] | None = None) -> np.ndarray | torch.Tensor:
+def resize_intrinsics(
+    intrinsics: np.ndarray | torch.Tensor,
+    old_size: tuple[int, int],
+    new_size: tuple[int, int],
+    crop_size: tuple[int, int] | None = None,
+) -> np.ndarray | torch.Tensor:
     """Resize intrinsics.
 
     Args:
@@ -71,7 +83,7 @@ def resize_intrinsics(intrinsics: np.ndarray | torch.Tensor,
     return intrinsics_copy
 
 
-class Gen3cPersistentModel():
+class Gen3cPersistentModel:
     """Helper class to run Gen3C image-to-video or video-to-video inference.
 
     This class loads the models only once and can be reused for multiple inputs.
@@ -107,9 +119,8 @@ class Gen3cPersistentModel():
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         if args.num_gpus > 1:
-            from worldfoundry.core.distributed.megatron_compat import parallel_state
-
             from worldfoundry.core.distributed import torch_process_group as distributed
+            from worldfoundry.core.distributed.megatron_compat import parallel_state
 
             distributed.init()
             parallel_state.initialize_model_parallel(context_parallel_size=args.num_gpus)
@@ -157,16 +168,17 @@ class Gen3cPersistentModel():
         # Shape [B, C, T, H, W], type float, range [-1, 1].
         self.seeding_image: torch.Tensor | None = None
 
-
     @torch.no_grad()
-    def seed_model_from_values(self,
-                               images_np: np.ndarray,
-                               depths_np: np.ndarray | None,
-                               world_to_cameras_np: np.ndarray,
-                               focal_lengths_np: np.ndarray,
-                               principal_point_rel_np: np.ndarray,
-                               resolutions: np.ndarray,
-                               masks_np: np.ndarray | None = None):
+    def seed_model_from_values(
+        self,
+        images_np: np.ndarray,
+        depths_np: np.ndarray | None,
+        world_to_cameras_np: np.ndarray,
+        focal_lengths_np: np.ndarray,
+        principal_point_rel_np: np.ndarray,
+        resolutions: np.ndarray,
+        masks_np: np.ndarray | None = None,
+    ):
         """Seed model from values.
 
         Args:
@@ -190,10 +202,11 @@ class Gen3cPersistentModel():
         assert (depths_np is None) or (depths_np.shape == images_np.shape[:-1])
         assert (masks_np is None) or (masks_np.shape == images_np.shape[:-1])
 
-
         if n == 1:
             # TODO: allow user to provide depths, extrinsics and intrinsics
-            assert depths_np is None, "Not supported yet: directly providing pre-estimated depth values along with a single image."
+            assert depths_np is None, (
+                "Not supported yet: directly providing pre-estimated depth values along with a single image."
+            )
 
             # Note: image is received as 0..1 float, but MoGE expects 0..255 uint8.
             input_image_np = images_np[0, ...] * 255.0
@@ -219,11 +232,11 @@ class Gen3cPersistentModel():
                 frame_buffer_max=self.frame_buffer_max,
                 generator=self.generator,
                 noise_aug_strength=self.args.noise_aug_strength,
-                input_image=input_image,                     # [B, C, H, W]
-                input_depth=moge_depth_b11hw[:, 0],          # [B, 1, H, W]
+                input_image=input_image,  # [B, C, H, W]
+                input_depth=moge_depth_b11hw[:, 0],  # [B, 1, H, W]
                 # input_mask=moge_mask_b11hw[:, 0],          # [B, 1, H, W]
-                input_w2c=moge_initial_w2c_b144[:, 0],       # [B, 4, 4]
-                input_intrinsics=moge_intrinsics_b133[:, 0], # [B, 3, 3]
+                input_w2c=moge_initial_w2c_b144[:, 0],  # [B, 4, 4]
+                input_intrinsics=moge_intrinsics_b133[:, 0],  # [B, 3, 3]
                 filter_points_threshold=self.args.filter_points_threshold,
                 foreground_masking=self.args.foreground_masking,
             )
@@ -234,8 +247,9 @@ class Gen3cPersistentModel():
             # Return the estimated extrinsics and intrinsics in the same format as the input
             estimated_w2c_b44_np = moge_initial_w2c_b144.cpu().numpy()[:, 0, ...]
             moge_intrinsics_b133_np = moge_intrinsics_b133.cpu().numpy()
-            estimated_focal_lengths_b2_np = np.stack([moge_intrinsics_b133_np[:, 0, 0, 0],
-                                                    moge_intrinsics_b133_np[:, 0, 1, 1]], axis=1)
+            estimated_focal_lengths_b2_np = np.stack(
+                [moge_intrinsics_b133_np[:, 0, 0, 0], moge_intrinsics_b133_np[:, 0, 1, 1]], axis=1
+            )
             estimated_principal_point_rel_b2_np = moge_intrinsics_b133_np[:, 0, :2, 2]
 
         else:
@@ -245,7 +259,9 @@ class Gen3cPersistentModel():
                 raise NotImplementedError("Seeding from multiple frames requires providing mask values.")
 
             # RGB: [B, H, W, C] to [B, C, H, W]
-            image_bchw_float = torch.from_numpy(images_np.transpose(0, 3, 1, 2).astype(np.float32)).to(self.device_with_rank)
+            image_bchw_float = torch.from_numpy(images_np.transpose(0, 3, 1, 2).astype(np.float32)).to(
+                self.device_with_rank
+            )
             # Images are received as 0..1 float32, we convert to -1..1 range.
             image_bchw_float = (image_bchw_float * 2.0) - 1.0
             del images_np
@@ -266,11 +282,11 @@ class Gen3cPersistentModel():
             intrinsics_b33 = torch.from_numpy(intrinsics_b33_np).to(self.device_with_rank)
 
             self.cache = Cache4D(
-                input_image=image_bchw_float.clone(), # [B, C, H, W]
-                input_depth=depth_b1hw,               # [B, 1, H, W]
-                input_mask=mask_b1hw,                 # [B, 1, H, W]
-                input_w2c=initial_w2c_b44,            # [B, 4, 4]
-                input_intrinsics=intrinsics_b33,      # [B, 3, 3]
+                input_image=image_bchw_float.clone(),  # [B, C, H, W]
+                input_depth=depth_b1hw,  # [B, 1, H, W]
+                input_mask=mask_b1hw,  # [B, 1, H, W]
+                input_w2c=initial_w2c_b44,  # [B, 4, 4]
+                input_intrinsics=intrinsics_b33,  # [B, 3, 3]
                 filter_points_threshold=self.args.filter_points_threshold,
                 foreground_masking=self.args.foreground_masking,
                 input_format=["F", "C", "H", "W"],
@@ -299,17 +315,20 @@ class Gen3cPersistentModel():
             estimated_w2c_b44_np,
             estimated_focal_lengths_b2_np,
             estimated_principal_point_rel_b2_np,
-            working_resolutions_b2_np
+            working_resolutions_b2_np,
         )
 
-
     @torch.no_grad()
-    def inference_on_cameras(self, view_cameras_w2cs: np.ndarray, view_camera_intrinsics: np.ndarray,
-                             fps: int | float,
-                             overlap_frames:int = 1,
-                             return_estimated_depths: bool = False,
-                             video_save_quality: int = 5,
-                             save_buffer: bool | None = None) -> dict | None:
+    def inference_on_cameras(
+        self,
+        view_cameras_w2cs: np.ndarray,
+        view_camera_intrinsics: np.ndarray,
+        fps: int | float,
+        overlap_frames: int = 1,
+        return_estimated_depths: bool = False,
+        video_save_quality: int = 5,
+        save_buffer: bool | None = None,
+    ) -> dict | None:
         """Inference on cameras.
 
         Args:
@@ -344,8 +363,7 @@ class Gen3cPersistentModel():
         # inference resolution (self.W, self.H), so this call is just to make sure
         # that all tensors have the right shape, etc.
         view_cameras_w2cs, view_camera_intrinsics = self.prepare_camera_for_inference(
-            view_cameras_w2cs, view_camera_intrinsics,
-            old_size=(self.H, self.W), new_size=(self.H, self.W)
+            view_cameras_w2cs, view_camera_intrinsics, old_size=(self.H, self.W), new_size=(self.H, self.W)
         )
 
         n_frames_total = view_cameras_w2cs.shape[1]
@@ -355,8 +373,8 @@ class Gen3cPersistentModel():
         # Note: camera trajectory is given by the user, no need to generate it.
         log.info(f"Generating frames 0 - {self.sample_n_frames} (out of {n_frames_total} total)...")
         rendered_warp_images, rendered_warp_masks = self.cache.render_cache(
-            view_cameras_w2cs[:, 0:self.sample_n_frames],
-            view_camera_intrinsics[:, 0:self.sample_n_frames],
+            view_cameras_w2cs[:, 0 : self.sample_n_frames],
+            view_camera_intrinsics[:, 0 : self.sample_n_frames],
             start_frame_idx=0,
         )
 
@@ -369,7 +387,6 @@ class Gen3cPersistentModel():
         if current_prompt is None and self.args.disable_prompt_upsampler:
             log.critical("Prompt is missing, skipping world generation.")
             return
-
 
         # Generate video
         starting_frame = self.seeding_image
@@ -388,7 +405,6 @@ class Gen3cPersistentModel():
             return
         video, _ = generated_output
 
-
         def depth_for_frame(frame: np.ndarray | torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
             """Depth for frame.
 
@@ -399,13 +415,10 @@ class Gen3cPersistentModel():
                 The return value.
             """
             last_frame_hwc_0_255 = torch.tensor(frame, device=self.device_with_rank)
-            pred_image_for_depth_chw_0_1 = last_frame_hwc_0_255.permute(2, 0, 1) / 255.0 # (C,H,W), range [0,1]
+            pred_image_for_depth_chw_0_1 = last_frame_hwc_0_255.permute(2, 0, 1) / 255.0  # (C,H,W), range [0,1]
 
-            pred_depth, pred_mask = _predict_moge_depth_from_tensor(
-                pred_image_for_depth_chw_0_1, self.moge_model
-            )
+            pred_depth, pred_mask = _predict_moge_depth_from_tensor(pred_image_for_depth_chw_0_1, self.moge_model)
             return pred_depth, pred_mask, pred_image_for_depth_chw_0_1
-
 
         # We predict depth either if we need it (multi-round generation without depth in the cache),
         # or if the user requested it explicitly.
@@ -417,12 +430,10 @@ class Gen3cPersistentModel():
                 # For easier indexing, we include entries even for the frames for which we don't predict
                 # depth. Since the results will be transmitted in compressed format, this hopefully
                 # shouldn't take up any additional bandwidth.
-                depths_batch_0 = np.full((video.shape[0], 1, self.H, self.W), fill_value=np.nan,
-                                         dtype=np.float32)
+                depths_batch_0 = np.full((video.shape[0], 1, self.H, self.W), fill_value=np.nan, dtype=np.float32)
                 depths_batch_0[-1, ...] = pred_depth.cpu().numpy()
                 all_predicted_depth.append(depths_batch_0)
                 del depths_batch_0
-
 
         # Autoregressive generation (if needed)
         for num_iter in range(1, num_ar_iterations):
@@ -434,14 +445,14 @@ class Gen3cPersistentModel():
             if cache_is_multiframe:
                 # Nothing much to do, we assume that depth is alraedy provided and
                 # all frames of the seeding video are already in the cache.
-                pred_image_for_depth_chw_0_1 = torch.tensor(
-                    video[-1], device=self.device_with_rank
-                ).permute(2, 0, 1) / 255.0 # (C,H,W), range [0,1]
+                pred_image_for_depth_chw_0_1 = (
+                    torch.tensor(video[-1], device=self.device_with_rank).permute(2, 0, 1) / 255.0
+                )  # (C,H,W), range [0,1]
 
             else:
                 self.cache.update_cache(
-                    new_image=pred_image_for_depth_chw_0_1.unsqueeze(0) * 2 - 1, # (B,C,H,W) range [-1,1]
-                    new_depth=pred_depth, #  (1,1,H,W)
+                    new_image=pred_image_for_depth_chw_0_1.unsqueeze(0) * 2 - 1,  # (B,C,H,W) range [-1,1]
+                    new_depth=pred_depth,  #  (1,1,H,W)
                     # new_mask=pred_mask,   # (1,1,H,W)
                     new_w2c=view_cameras_w2cs[:, start_frame_idx],
                     new_intrinsics=view_camera_intrinsics[:, start_frame_idx],
@@ -455,8 +466,7 @@ class Gen3cPersistentModel():
                 # If requesting more frames than are available in the cache,
                 # freeze (hold) on the last batch of frames.
                 cache_start_frame_idx = min(
-                    start_frame_idx,
-                    self.cache.input_frame_count() - (end_frame_idx - start_frame_idx)
+                    start_frame_idx, self.cache.input_frame_count() - (end_frame_idx - start_frame_idx)
                 )
 
             rendered_warp_images, rendered_warp_masks = self.cache.render_cache(
@@ -468,7 +478,9 @@ class Gen3cPersistentModel():
             if save_buffer:
                 all_rendered_warps.append(rendered_warp_images[:, overlap_frames:].clone().cpu())
 
-            pred_image_for_depth_bcthw_minus1_1 = pred_image_for_depth_chw_0_1.unsqueeze(0).unsqueeze(2) * 2 - 1 # (B,C,T,H,W), range [-1,1]
+            pred_image_for_depth_bcthw_minus1_1 = (
+                pred_image_for_depth_chw_0_1.unsqueeze(0).unsqueeze(2) * 2 - 1
+            )  # (B,C,T,H,W), range [-1,1]
             generated_output = self.pipeline.generate(
                 prompt=current_prompt,
                 image_path=pred_image_for_depth_bcthw_minus1_1,
@@ -481,18 +493,20 @@ class Gen3cPersistentModel():
             video = np.concatenate([video, video_new[overlap_frames:]], axis=0)
 
             # Prepare depth prediction for the next AR iteration.
-            need_depth_of_latest_frame = return_estimated_depths or ((num_iter < num_ar_iterations - 1) and not cache_is_multiframe)
+            need_depth_of_latest_frame = return_estimated_depths or (
+                (num_iter < num_ar_iterations - 1) and not cache_is_multiframe
+            )
             if need_depth_of_latest_frame:
                 # Either we don't have depth (e.g. single-image seeding), or the user requested
                 # depth to be returned explicitly.
                 pred_depth, _, pred_image_for_depth_chw_0_1 = depth_for_frame(video_new[-1])
             if return_estimated_depths:
-                depths_batch_i = np.full((video_new.shape[0] - overlap_frames, 1, self.H, self.W),
-                                         fill_value=np.nan, dtype=np.float32)
+                depths_batch_i = np.full(
+                    (video_new.shape[0] - overlap_frames, 1, self.H, self.W), fill_value=np.nan, dtype=np.float32
+                )
                 depths_batch_i[-1, ...] = pred_depth.cpu().numpy()
                 all_predicted_depth.append(depths_batch_i)
                 del depths_batch_i
-
 
         if is_rank0():
             # Final video processing
@@ -500,7 +514,7 @@ class Gen3cPersistentModel():
             final_width = self.args.width
 
             if save_buffer and all_rendered_warps:
-                squeezed_warps = [t.squeeze(0) for t in all_rendered_warps] # Each is (T_chunk, n_i, C, H, W)
+                squeezed_warps = [t.squeeze(0) for t in all_rendered_warps]  # Each is (T_chunk, n_i, C, H, W)
 
                 if squeezed_warps:
                     n_max = max(t.shape[1] for t in squeezed_warps)
@@ -511,19 +525,28 @@ class Gen3cPersistentModel():
                         current_n_i = sq_t.shape[1]
                         padding_needed_dim1 = n_max - current_n_i
 
-                        pad_spec = (0,0, # W
-                                    0,0, # H
-                                    0,0, # C
-                                    0,padding_needed_dim1, # n_i
-                                    0,0) # T_chunk
-                        padded_t = F.pad(sq_t, pad_spec, mode='constant', value=-1.0)
+                        pad_spec = (
+                            0,
+                            0,  # W
+                            0,
+                            0,  # H
+                            0,
+                            0,  # C
+                            0,
+                            padding_needed_dim1,  # n_i
+                            0,
+                            0,
+                        )  # T_chunk
+                        padded_t = F.pad(sq_t, pad_spec, mode="constant", value=-1.0)
                         padded_t_list.append(padded_t)
 
                     full_rendered_warp_tensor = torch.cat(padded_t_list, dim=0)
 
                     T_total, _, C_dim, H_dim, W_dim = full_rendered_warp_tensor.shape
                     buffer_video_TCHnW = full_rendered_warp_tensor.permute(0, 2, 3, 1, 4)
-                    buffer_video_TCHWstacked = buffer_video_TCHnW.contiguous().view(T_total, C_dim, H_dim, n_max * W_dim)
+                    buffer_video_TCHWstacked = buffer_video_TCHnW.contiguous().view(
+                        T_total, C_dim, H_dim, n_max * W_dim
+                    )
                     buffer_video_TCHWstacked = (buffer_video_TCHWstacked * 0.5 + 0.5) * 255.0
                     buffer_numpy_TCHWstacked = buffer_video_TCHWstacked.cpu().numpy().astype(np.uint8)
                     buffer_numpy_THWC = np.transpose(buffer_numpy_TCHWstacked, (0, 2, 3, 1))
@@ -546,12 +569,10 @@ class Gen3cPersistentModel():
             )
             log.info(f"Saved video to {video_save_path}")
 
-
         if return_estimated_depths:
             predicted_depth = np.concatenate(all_predicted_depth, axis=0)
         else:
             predicted_depth = None
-
 
         # Currently `video` is [n_frames, height, width, channels].
         # Return as [1, n_frames, channels, height, width] for consistency with other codebases.
@@ -572,8 +593,13 @@ class Gen3cPersistentModel():
 
     # --------------------
 
-    def prepare_camera_for_inference(self, view_cameras: np.ndarray, view_camera_intrinsics: np.ndarray,
-                                     old_size: tuple[int, int], new_size: tuple[int, int]):
+    def prepare_camera_for_inference(
+        self,
+        view_cameras: np.ndarray,
+        view_camera_intrinsics: np.ndarray,
+        old_size: tuple[int, int],
+        new_size: tuple[int, int],
+    ):
         """Old and new sizes should be given as (height, width)."""
         if isinstance(view_cameras, np.ndarray):
             view_cameras = torch.from_numpy(view_cameras).float().contiguous()
@@ -587,9 +613,9 @@ class Gen3cPersistentModel():
         view_camera_intrinsics = view_camera_intrinsics.unsqueeze(dim=0)
         assert view_camera_intrinsics.ndim == 4
 
-        return view_cameras.to(device_with_rank(self.device_with_rank)), \
-               view_camera_intrinsics.to(device_with_rank(self.device_with_rank))
-
+        return view_cameras.to(device_with_rank(self.device_with_rank)), view_camera_intrinsics.to(
+            device_with_rank(self.device_with_rank)
+        )
 
     def get_cache_input_depths(self) -> torch.Tensor | None:
         """Get cache input depths.
@@ -619,7 +645,6 @@ class Gen3cPersistentModel():
         """
         return self.args.height
 
-
     def clear_cache(self) -> None:
         """Clear cache.
 
@@ -629,7 +654,6 @@ class Gen3cPersistentModel():
         self.cache = None
         self.model_was_seeded = False
 
-
     def cleanup(self) -> None:
         """Cleanup.
 
@@ -638,12 +662,13 @@ class Gen3cPersistentModel():
         """
         if self.args.num_gpus > 1:
             rank = get_rank()
-            log.info(f"Model cleanup: destroying model parallel group on rank={rank}.",
-                     rank0_only=False)
+            log.info(f"Model cleanup: destroying model parallel group on rank={rank}.", rank0_only=False)
             from worldfoundry.core.distributed.megatron_compat import parallel_state
+
             parallel_state.destroy_model_parallel()
 
             import torch.distributed as dist
+
             dist.destroy_process_group()
 
             log.info(f"Destroyed model parallel group on rank={rank}.", rank0_only=False)

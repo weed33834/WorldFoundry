@@ -7,7 +7,10 @@
 import torch
 import torch.nn.functional as F
 
-from .models.core.model_utils import smart_cat, get_points_on_a_grid
+from worldfoundry.base_models.perception_core.tracking.cotracker.models.core.model_utils import (
+    get_points_on_a_grid,
+    smart_cat,
+)
 from .models.build_cotracker import build_cotracker
 
 

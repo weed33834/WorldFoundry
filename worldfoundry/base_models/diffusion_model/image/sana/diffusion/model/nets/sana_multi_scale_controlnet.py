@@ -23,6 +23,8 @@ import torch
 import torch.nn as nn
 from torch.nn import Linear, Module, init
 
+from worldfoundry.core.checkpoint import load_tensor_state_dict
+
 from diffusion.model.builder import MODELS
 from diffusion.model.nets.sana import get_2d_sincos_pos_embed
 from diffusion.model.nets.sana_blocks import RopePosEmbed
@@ -217,7 +219,7 @@ class SanaMSControlNet(SanaMS):
             model_path: The model path.
         """
         missing, unexpected = self.load_state_dict(
-            torch.load(model_path, map_location="cpu")["state_dict"], strict=False
+            load_tensor_state_dict(model_path, wrapper_keys=("state_dict",)), strict=False
         )
         self.initialize_all()
         return missing, unexpected

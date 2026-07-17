@@ -22,6 +22,7 @@ The typical workflow is:
 If you only need to use the distributed environment without model parallelism,
  you can skip the model parallel initialization and destruction steps.
 """
+
 import contextlib
 import os
 import pickle
@@ -39,12 +40,9 @@ import torch.distributed
 from torch.distributed import Backend, ProcessGroup, ReduceOp
 
 from . import envs
-from .device_communicators.base_device_communicator import (
-    DeviceCommunicatorBase)
-from .device_communicators.cpu_communicator import (
-    CpuCommunicator)
-from .utils import StatelessProcessGroup
+from .device_communicators.base_device_communicator import DeviceCommunicatorBase
 from .logger import init_logger
+from .utils import StatelessProcessGroup
 
 logger = init_logger(__name__)
 
@@ -57,9 +55,7 @@ class GraphCaptureContext:
 TensorMetadata = namedtuple("TensorMetadata", ["device", "dtype", "size"])
 
 
-def _split_tensor_dict(
-    tensor_dict: dict[str, torch.Tensor | Any]
-) -> tuple[list[tuple[str, Any]], list[torch.Tensor]]:
+def _split_tensor_dict(tensor_dict: dict[str, torch.Tensor | Any]) -> tuple[list[tuple[str, Any]], list[torch.Tensor]]:
     """Split the tensor dictionary into two parts:
     1. A list of (key, value) pairs. If the value is a tensor, it is replaced
          by its metadata.
@@ -74,8 +70,7 @@ def _split_tensor_dict(
             # index (e.g. "cuda:0"). We only need the device type.
             # receiving side will set the device index.
             device = value.device.type
-            metadata_list.append(
-                (key, TensorMetadata(device, value.dtype, value.size())))
+            metadata_list.append((key, TensorMetadata(device, value.dtype, value.size())))
             tensor_list.append(value)
         else:
             metadata_list.append((key, value))
@@ -165,8 +160,7 @@ class GroupCoordinator:
         self.cpu_group = None
 
         for ranks in group_ranks:
-            device_group = torch.distributed.new_group(
-                ranks, backend=torch_distributed_backend)
+            device_group = torch.distributed.new_group(ranks, backend=torch_distributed_backend)
             # a group with `gloo` backend, to allow direct coordination between
             # processes through the CPU.
             cpu_group = torch.distributed.new_group(ranks, backend="gloo")
@@ -189,8 +183,8 @@ class GroupCoordinator:
 
         self.device_communicator: DeviceCommunicatorBase = None  # type: ignore
         if use_device_communicator and self.world_size > 1:
-            from .device_communicators.cuda_communicator import (
-                CudaCommunicator)
+            from .device_communicators.cuda_communicator import CudaCommunicator
+
             self.device_communicator = CudaCommunicator(
                 cpu_group=self.cpu_group,
                 device=self.device,
@@ -237,8 +231,7 @@ class GroupCoordinator:
         return self.ranks[(rank_in_group - 1) % world_size]
 
     @contextmanager
-    def graph_capture(self,
-                      graph_capture_context: GraphCaptureContext | None = None):
+    def graph_capture(self, graph_capture_context: GraphCaptureContext | None = None):
         if graph_capture_context is None:
             stream = torch.cuda.Stream()
             graph_capture_context = GraphCaptureContext(stream)
@@ -252,11 +245,7 @@ class GroupCoordinator:
         with torch.cuda.stream(stream):
             yield graph_capture_context
 
-    def all_reduce(
-            self,
-            input_: torch.Tensor,
-            op: torch.distributed.ReduceOp | None = ReduceOp.SUM
-    ) -> torch.Tensor:
+    def all_reduce(self, input_: torch.Tensor, op: torch.distributed.ReduceOp | None = ReduceOp.SUM) -> torch.Tensor:
         """
         User-facing all-reduce function before we actually call the
         all-reduce operation.
@@ -276,15 +265,12 @@ class GroupCoordinator:
             return input_
 
         if self.use_custom_op_call:
-            return torch.ops.vllm.all_reduce(input_,
-                                             group_name=self.unique_name)
+            return torch.ops.vllm.all_reduce(input_, group_name=self.unique_name)
         else:
             return self._all_reduce_out_place(input_, op=op)
 
     def _all_reduce_out_place(
-            self,
-            input_: torch.Tensor,
-            op: torch.distributed.ReduceOp | None = ReduceOp.SUM
+        self, input_: torch.Tensor, op: torch.distributed.ReduceOp | None = ReduceOp.SUM
     ) -> torch.Tensor:
         return self.device_communicator.all_reduce(input_, op=op)
 
@@ -293,15 +279,11 @@ class GroupCoordinator:
         # Bypass the function if we are using only 1 GPU.
         if world_size == 1:
             return input_
-        assert -input_.dim() <= dim < input_.dim(), (
-            f"Invalid dim ({dim}) for input tensor with shape {input_.size()}")
+        assert -input_.dim() <= dim < input_.dim(), f"Invalid dim ({dim}) for input tensor with shape {input_.size()}"
 
         return self.device_communicator.all_gather(input_, dim)
 
-    def gather(self,
-               input_: torch.Tensor,
-               dst: int = 0,
-               dim: int = -1) -> torch.Tensor | None:
+    def gather(self, input_: torch.Tensor, dst: int = 0, dim: int = -1) -> torch.Tensor | None:
         """
         NOTE: We assume that the input tensor is on the same device across
         all the ranks.
@@ -313,14 +295,10 @@ class GroupCoordinator:
             return input_
         return self.device_communicator.gather(input_, dst, dim)
 
-    def all_to_all_4D(self,
-                      input_: torch.Tensor,
-                      scatter_dim: int = 2,
-                      gather_dim: int = 1) -> torch.Tensor:
+    def all_to_all_4D(self, input_: torch.Tensor, scatter_dim: int = 2, gather_dim: int = 1) -> torch.Tensor:
         if self.world_size == 1:
             return input_
-        return self.device_communicator.all_to_all_4D(input_, scatter_dim,
-                                                      gather_dim)
+        return self.device_communicator.all_to_all_4D(input_, scatter_dim, gather_dim)
 
     def broadcast(self, input_: torch.Tensor, src: int = 0):
         """Broadcast the input tensor.
@@ -332,9 +310,7 @@ class GroupCoordinator:
         if self.world_size == 1:
             return input_
         # Broadcast.
-        torch.distributed.broadcast(input_,
-                                    src=self.ranks[src],
-                                    group=self.device_group)
+        torch.distributed.broadcast(input_, src=self.ranks[src], group=self.device_group)
         return input_
 
     def broadcast_object(self, obj: Any | None = None, src: int = 0):
@@ -350,21 +326,14 @@ class GroupCoordinator:
             assert src == 0, "Message queue broadcaster only supports src=0"
             return self.mq_broadcaster.broadcast_object(obj)
         if self.rank_in_group == src:
-            torch.distributed.broadcast_object_list([obj],
-                                                    src=self.ranks[src],
-                                                    group=self.cpu_group)
+            torch.distributed.broadcast_object_list([obj], src=self.ranks[src], group=self.cpu_group)
             return obj
         else:
             recv = [None]
-            torch.distributed.broadcast_object_list(recv,
-                                                    src=self.ranks[src],
-                                                    group=self.cpu_group)
+            torch.distributed.broadcast_object_list(recv, src=self.ranks[src], group=self.cpu_group)
             return recv[0]
 
-    def broadcast_object_list(self,
-                              obj_list: list[Any],
-                              src: int = 0,
-                              group: ProcessGroup | None = None):
+    def broadcast_object_list(self, obj_list: list[Any], src: int = 0, group: ProcessGroup | None = None):
         """Broadcast the input object list.
         NOTE: `src` is the local rank of the source rank.
         """
@@ -374,9 +343,7 @@ class GroupCoordinator:
         if self.world_size == 1:
             return obj_list
         # Broadcast.
-        torch.distributed.broadcast_object_list(obj_list,
-                                                src=self.ranks[src],
-                                                group=self.device_group)
+        torch.distributed.broadcast_object_list(obj_list, src=self.ranks[src], group=self.device_group)
         return obj_list
 
     def send_object(self, obj: Any, dst: int) -> None:
@@ -385,27 +352,19 @@ class GroupCoordinator:
 
         assert dst < self.world_size, f"Invalid dst rank ({dst})"
 
-        assert dst != self.rank_in_group, (
-            "Invalid destination rank. Destination rank is the same "
-            "as the current rank.")
+        assert dst != self.rank_in_group, "Invalid destination rank. Destination rank is the same as the current rank."
 
         # Serialize object to tensor and get the size as well
         object_tensor = torch.frombuffer(pickle.dumps(obj), dtype=torch.uint8)
 
-        size_tensor = torch.tensor([object_tensor.numel()],
-                                   dtype=torch.long,
-                                   device="cpu")
+        size_tensor = torch.tensor([object_tensor.numel()], dtype=torch.long, device="cpu")
 
         # Send object size
 
-        torch.distributed.send(size_tensor,
-                               dst=self.ranks[dst],
-                               group=self.cpu_group)
+        torch.distributed.send(size_tensor, dst=self.ranks[dst], group=self.cpu_group)
 
         # Send object
-        torch.distributed.send(object_tensor,
-                               dst=self.ranks[dst],
-                               group=self.cpu_group)
+        torch.distributed.send(object_tensor, dst=self.ranks[dst], group=self.cpu_group)
 
         return None
 
@@ -415,28 +374,23 @@ class GroupCoordinator:
 
         assert src < self.world_size, f"Invalid src rank ({src})"
 
-        assert src != self.rank_in_group, (
-            "Invalid source rank. Source rank is the same as the current rank.")
+        assert src != self.rank_in_group, "Invalid source rank. Source rank is the same as the current rank."
 
         size_tensor = torch.empty(1, dtype=torch.long, device="cpu")
 
         # Receive object size
-        rank_size = torch.distributed.recv(size_tensor,
-                                           src=self.ranks[src],
-                                           group=self.cpu_group)
+        rank_size = torch.distributed.recv(size_tensor, src=self.ranks[src], group=self.cpu_group)
 
         # Tensor to receive serialized objects into.
         object_tensor = torch.empty(  # type: ignore[call-overload]
             size_tensor.item(),  # type: ignore[arg-type]
             dtype=torch.uint8,
-            device="cpu")
+            device="cpu",
+        )
 
-        rank_object = torch.distributed.recv(object_tensor,
-                                             src=self.ranks[src],
-                                             group=self.cpu_group)
+        rank_object = torch.distributed.recv(object_tensor, src=self.ranks[src], group=self.cpu_group)
 
-        assert rank_object == rank_size, (
-            "Received object sender rank does not match the size sender rank.")
+        assert rank_object == rank_size, "Received object sender rank does not match the size sender rank."
 
         obj = pickle.loads(object_tensor.numpy().tobytes())
 
@@ -447,13 +401,13 @@ class GroupCoordinator:
         tensor_dict: dict[str, torch.Tensor | Any] | None = None,
         src: int = 0,
         group: ProcessGroup | None = None,
-        metadata_group: ProcessGroup | None = None
+        metadata_group: ProcessGroup | None = None,
     ) -> dict[str, torch.Tensor | Any] | None:
         """Broadcast the input tensor dictionary.
         NOTE: `src` is the local rank of the source rank.
         """
         # Bypass the function if we are using only 1 GPU.
-        if (not torch.distributed.is_initialized() or self.world_size == 1):
+        if not torch.distributed.is_initialized() or self.world_size == 1:
             return tensor_dict
 
         group = self.device_group
@@ -463,9 +417,7 @@ class GroupCoordinator:
         rank_in_group = self.rank_in_group
         if rank_in_group == src:
             metadata_list: list[tuple[Any, Any]] = []
-            assert isinstance(
-                tensor_dict,
-                dict), (f"Expecting a dictionary, got {type(tensor_dict)}")
+            assert isinstance(tensor_dict, dict), f"Expecting a dictionary, got {type(tensor_dict)}"
             metadata_list, tensor_list = _split_tensor_dict(tensor_dict)
             # `metadata_list` lives in CPU memory.
             # `broadcast_object_list` has serialization & deserialization,
@@ -478,16 +430,12 @@ class GroupCoordinator:
                     continue
                 if tensor.is_cpu:
                     # use metadata_group for CPU tensors
-                    handle = torch.distributed.broadcast(tensor,
-                                                         src=self.ranks[src],
-                                                         group=metadata_group,
-                                                         async_op=True)
+                    handle = torch.distributed.broadcast(
+                        tensor, src=self.ranks[src], group=metadata_group, async_op=True
+                    )
                 else:
                     # use group for GPU tensors
-                    handle = torch.distributed.broadcast(tensor,
-                                                         src=self.ranks[src],
-                                                         group=group,
-                                                         async_op=True)
+                    handle = torch.distributed.broadcast(tensor, src=self.ranks[src], group=group, async_op=True)
                 async_handles.append(handle)
             for async_handle in async_handles:
                 async_handle.wait()
@@ -498,9 +446,7 @@ class GroupCoordinator:
             async_handles = []
             for key, value in metadata_list:
                 if isinstance(value, TensorMetadata):
-                    tensor = torch.empty(value.size,
-                                         dtype=value.dtype,
-                                         device=value.device)
+                    tensor = torch.empty(value.size, dtype=value.dtype, device=value.device)
                     if tensor.numel() == 0:
                         # Skip broadcasting empty tensors.
                         tensor_dict[key] = tensor
@@ -508,17 +454,11 @@ class GroupCoordinator:
                     if tensor.is_cpu:
                         # use metadata_group for CPU tensors
                         handle = torch.distributed.broadcast(
-                            tensor,
-                            src=self.ranks[src],
-                            group=metadata_group,
-                            async_op=True)
+                            tensor, src=self.ranks[src], group=metadata_group, async_op=True
+                        )
                     else:
                         # use group for GPU tensors
-                        handle = torch.distributed.broadcast(
-                            tensor,
-                            src=self.ranks[src],
-                            group=group,
-                            async_op=True)
+                        handle = torch.distributed.broadcast(tensor, src=self.ranks[src], group=group, async_op=True)
                     async_handles.append(handle)
                     tensor_dict[key] = tensor
                 else:
@@ -540,10 +480,8 @@ class GroupCoordinator:
         if not torch.distributed.is_initialized() or self.world_size == 1:
             return tensor_dict
 
-        all_gather_size = (1 if all_gather_group is None else
-                           all_gather_group.world_size)
-        all_gather_rank = (0 if all_gather_group is None else
-                           all_gather_group.rank_in_group)
+        all_gather_size = 1 if all_gather_group is None else all_gather_group.world_size
+        all_gather_rank = 0 if all_gather_group is None else all_gather_group.rank_in_group
 
         group = self.device_group
         metadata_group = self.cpu_group
@@ -553,9 +491,7 @@ class GroupCoordinator:
         assert dst < self.world_size, f"Invalid dst rank ({dst})"
 
         metadata_list: list[tuple[Any, Any]] = []
-        assert isinstance(
-            tensor_dict,
-            dict), f"Expecting a dictionary, got {type(tensor_dict)}"
+        assert isinstance(tensor_dict, dict), f"Expecting a dictionary, got {type(tensor_dict)}"
         metadata_list, tensor_list = _split_tensor_dict(tensor_dict)
         # `metadata_list` lives in CPU memory.
         # `send_object_list` has serialization & deserialization,
@@ -567,15 +503,12 @@ class GroupCoordinator:
                 continue
 
             # send-allgather: send only a slice, then do allgather.
-            if (all_gather_group is not None
-                    and tensor.numel() % all_gather_size == 0):
+            if all_gather_group is not None and tensor.numel() % all_gather_size == 0:
                 tensor = tensor.reshape(all_gather_size, -1)[all_gather_rank]
 
             if tensor.is_cpu:
                 # use metadata_group for CPU tensors
-                torch.distributed.send(tensor,
-                                       dst=self.ranks[dst],
-                                       group=metadata_group)
+                torch.distributed.send(tensor, dst=self.ranks[dst], group=metadata_group)
             else:
                 # use group for GPU tensors
                 torch.distributed.send(tensor, dst=self.ranks[dst], group=group)
@@ -593,10 +526,8 @@ class GroupCoordinator:
         if not torch.distributed.is_initialized() or self.world_size == 1:
             return None
 
-        all_gather_size = (1 if all_gather_group is None else
-                           all_gather_group.world_size)
-        all_gather_rank = (0 if all_gather_group is None else
-                           all_gather_group.rank_in_group)
+        all_gather_size = 1 if all_gather_group is None else all_gather_group.world_size
+        all_gather_rank = 0 if all_gather_group is None else all_gather_group.rank_in_group
 
         group = self.device_group
         metadata_group = self.cpu_group
@@ -609,37 +540,30 @@ class GroupCoordinator:
         tensor_dict: dict[str, Any] = {}
         for key, value in recv_metadata_list:
             if isinstance(value, TensorMetadata):
-                tensor = torch.empty(value.size,
-                                     dtype=value.dtype,
-                                     device=value.device)
+                tensor = torch.empty(value.size, dtype=value.dtype, device=value.device)
                 if tensor.numel() == 0:
                     # Skip broadcasting empty tensors.
                     tensor_dict[key] = tensor
                     continue
 
                 # send-allgather: send only a slice, then do allgather.
-                use_all_gather = (all_gather_group is not None
-                                  and tensor.numel() % all_gather_size == 0)
+                use_all_gather = all_gather_group is not None and tensor.numel() % all_gather_size == 0
 
                 if use_all_gather:
                     orig_shape = tensor.shape
-                    tensor = tensor.reshape(all_gather_size,
-                                            -1)[all_gather_rank]
+                    tensor = tensor.reshape(all_gather_size, -1)[all_gather_rank]
 
                 if tensor.is_cpu:
                     # use metadata_group for CPU tensors
-                    torch.distributed.recv(tensor,
-                                           src=self.ranks[src],
-                                           group=metadata_group)
+                    torch.distributed.recv(tensor, src=self.ranks[src], group=metadata_group)
                 else:
                     # use group for GPU tensors
-                    torch.distributed.recv(tensor,
-                                           src=self.ranks[src],
-                                           group=group)
+                    torch.distributed.recv(tensor, src=self.ranks[src], group=group)
                 if use_all_gather:
                     # do the allgather
                     tensor = all_gather_group.all_gather(  # type: ignore
-                        tensor, dim=0)
+                        tensor, dim=0
+                    )
                     tensor = tensor.reshape(orig_shape)
 
                 tensor_dict[key] = tensor
@@ -661,10 +585,7 @@ class GroupCoordinator:
         """NOTE: `dst` is the local rank of the destination rank."""
         self.device_communicator.send(tensor, dst)
 
-    def recv(self,
-             size: torch.Size,
-             dtype: torch.dtype,
-             src: int | None = None) -> torch.Tensor:
+    def recv(self, size: torch.Size, dtype: torch.dtype, src: int | None = None) -> torch.Tensor:
         """Receives a tensor from the source rank."""
         """NOTE: `src` is the local rank of the source rank."""
         return self.device_communicator.recv(size, dtype, src)
@@ -687,12 +608,11 @@ _NODE: GroupCoordinator | None = None
 
 
 def get_world_group() -> GroupCoordinator:
-    assert _WORLD is not None, ("world group is not initialized")
+    assert _WORLD is not None, "world group is not initialized"
     return _WORLD
 
 
-def init_world_group(ranks: list[int], local_rank: int,
-                     backend: str) -> GroupCoordinator:
+def init_world_group(ranks: list[int], local_rank: int, backend: str) -> GroupCoordinator:
     return GroupCoordinator(
         group_ranks=[ranks],
         local_rank=local_rank,
@@ -724,7 +644,7 @@ _TP: GroupCoordinator | None = None
 
 
 def get_tp_group() -> GroupCoordinator:
-    assert _TP is not None, ("tensor model parallel group is not initialized")
+    assert _TP is not None, "tensor model parallel group is not initialized"
     return _TP
 
 
@@ -745,21 +665,22 @@ def init_distributed_environment(
     device_id: torch.device | None = None,
 ):
     logger.debug(
-        "world_size=%d rank=%d local_rank=%d "
-        "distributed_init_method=%s backend=%s", world_size, rank, local_rank,
-        distributed_init_method, backend)
+        "world_size=%d rank=%d local_rank=%d distributed_init_method=%s backend=%s",
+        world_size,
+        rank,
+        local_rank,
+        distributed_init_method,
+        backend,
+    )
     if not torch.distributed.is_initialized():
         assert distributed_init_method is not None, (
-            "distributed_init_method must be provided when initializing "
-            "distributed environment")
+            "distributed_init_method must be provided when initializing distributed environment"
+        )
 
         # this backend is used for WORLD
         torch.distributed.init_process_group(
-            backend=backend,
-            init_method=distributed_init_method,
-            world_size=world_size,
-            rank=rank,
-            device_id=device_id)
+            backend=backend, init_method=distributed_init_method, world_size=world_size, rank=rank, device_id=device_id
+        )
     # set the local rank
     # local_rank is not available in torch ProcessGroup,
     # see https://github.com/pytorch/pytorch/issues/122816
@@ -776,14 +697,15 @@ def init_distributed_environment(
         _WORLD = init_world_group(ranks, local_rank, backend)
     else:
         assert _WORLD.world_size == torch.distributed.get_world_size(), (
-            "world group already initialized with a different world size")
+            "world group already initialized with a different world size"
+        )
 
 
 _SP: GroupCoordinator | None = None
 
 
 def get_sp_group() -> GroupCoordinator:
-    assert _SP is not None, ("sequence model parallel group is not initialized")
+    assert _SP is not None, "sequence model parallel group is not initialized"
     return _SP
 
 
@@ -791,7 +713,7 @@ _DP: GroupCoordinator | None = None
 
 
 def get_dp_group() -> GroupCoordinator:
-    assert _DP is not None, ("data parallel group is not initialized")
+    assert _DP is not None, "data parallel group is not initialized"
     return _DP
 
 
@@ -813,61 +735,48 @@ def initialize_model_parallel(
     # Get world size and rank. Ensure some consistencies.
     assert _WORLD is not None, "world group is not initialized, please call init_distributed_environment first"
     world_size: int = get_world_size()
-    backend = backend or torch.distributed.get_backend(
-        get_world_group().device_group)
-    assert world_size >= tensor_model_parallel_size, f"world_size({world_size}) must be greater than or equal to tensor_model_parallel_size({tensor_model_parallel_size})"
-    num_tensor_model_parallel_groups: int = (world_size //
-                                             tensor_model_parallel_size)
+    backend = backend or torch.distributed.get_backend(get_world_group().device_group)
+    assert world_size >= tensor_model_parallel_size, (
+        f"world_size({world_size}) must be greater than or equal to tensor_model_parallel_size({tensor_model_parallel_size})"
+    )
+    num_tensor_model_parallel_groups: int = world_size // tensor_model_parallel_size
     global _TP
-    assert _TP is None, ("tensor model parallel group is already initialized")
+    assert _TP is None, "tensor model parallel group is already initialized"
     group_ranks = []
     for i in range(num_tensor_model_parallel_groups):
-        ranks = list(
-            range(i * tensor_model_parallel_size,
-                  (i + 1) * tensor_model_parallel_size))
+        ranks = list(range(i * tensor_model_parallel_size, (i + 1) * tensor_model_parallel_size))
         group_ranks.append(ranks)
 
     # message queue broadcaster is only used in tensor model parallel group
-    _TP = init_model_parallel_group(group_ranks,
-                                    get_world_group().local_rank,
-                                    backend,
-                                    use_message_queue_broadcaster=True,
-                                    group_name="tp")
+    _TP = init_model_parallel_group(
+        group_ranks, get_world_group().local_rank, backend, use_message_queue_broadcaster=True, group_name="tp"
+    )
 
     # Build the sequence model-parallel groups.
-    num_sequence_model_parallel_groups: int = (world_size //
-                                               sequence_model_parallel_size)
+    num_sequence_model_parallel_groups: int = world_size // sequence_model_parallel_size
     global _SP
-    assert _SP is None, ("sequence model parallel group is already initialized")
+    assert _SP is None, "sequence model parallel group is already initialized"
     group_ranks = []
 
     # Since SP is incompatible with TP and PP, we can use a simpler group creation logic
     for i in range(num_sequence_model_parallel_groups):
         # Create groups of consecutive ranks
-        ranks = list(
-            range(i * sequence_model_parallel_size,
-                  (i + 1) * sequence_model_parallel_size))
+        ranks = list(range(i * sequence_model_parallel_size, (i + 1) * sequence_model_parallel_size))
         group_ranks.append(ranks)
 
-    _SP = init_model_parallel_group(group_ranks,
-                                    get_world_group().local_rank,
-                                    backend,
-                                    group_name="sp")
+    _SP = init_model_parallel_group(group_ranks, get_world_group().local_rank, backend, group_name="sp")
 
     # Build the data parallel groups.
     num_data_parallel_groups: int = sequence_model_parallel_size
     global _DP
-    assert _DP is None, ("data parallel group is already initialized")
+    assert _DP is None, "data parallel group is already initialized"
     group_ranks = []
 
     for i in range(num_data_parallel_groups):
         ranks = list(range(i, world_size, num_data_parallel_groups))
         group_ranks.append(ranks)
 
-    _DP = init_model_parallel_group(group_ranks,
-                                    get_world_group().local_rank,
-                                    backend,
-                                    group_name="dp")
+    _DP = init_model_parallel_group(group_ranks, get_world_group().local_rank, backend, group_name="dp")
 
 
 def get_sp_world_size() -> int:
@@ -906,30 +815,31 @@ def get_local_torch_device() -> torch.device:
 
 
 def maybe_init_distributed_environment_and_model_parallel(
-        tp_size: int, sp_size: int, distributed_init_method: str = "env://"):
+    tp_size: int, sp_size: int, distributed_init_method: str = "env://"
+):
     if _WORLD is not None and model_parallel_is_initialized():
         # make sure the tp and sp sizes are correct
-        assert get_tp_world_size(
-        ) == tp_size, f"You are trying to initialize model parallel groups with size {tp_size}, but they are already initialized with size {get_tp_world_size()}"
-        assert get_sp_world_size(
-        ) == sp_size, f"You are trying to initialize model parallel groups with size {sp_size}, but they are already initialized with size {get_sp_world_size()}"
+        assert get_tp_world_size() == tp_size, (
+            f"You are trying to initialize model parallel groups with size {tp_size}, but they are already initialized with size {get_tp_world_size()}"
+        )
+        assert get_sp_world_size() == sp_size, (
+            f"You are trying to initialize model parallel groups with size {sp_size}, but they are already initialized with size {get_sp_world_size()}"
+        )
         return
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
     world_size = int(os.environ.get("WORLD_SIZE", 1))
     rank = int(os.environ.get("RANK", 0))
     device = get_local_torch_device()
-    logger.info(
-        "Initializing distributed environment with world_size=%d, device=%s",
-        world_size, device)
+    logger.info("Initializing distributed environment with world_size=%d, device=%s", world_size, device)
 
     init_distributed_environment(
         world_size=world_size,
         rank=rank,
         local_rank=local_rank,
         distributed_init_method=distributed_init_method,
-        device_id=device)
-    initialize_model_parallel(tensor_model_parallel_size=tp_size,
-                              sequence_model_parallel_size=sp_size)
+        device_id=device,
+    )
+    initialize_model_parallel(tensor_model_parallel_size=tp_size, sequence_model_parallel_size=sp_size)
 
     # Set CUDA device
     device = torch.device(f"cuda:{local_rank}")
@@ -1013,20 +923,20 @@ def cleanup_dist_env_and_memory(shutdown_ray: bool = False):
         torch.distributed.destroy_process_group()
     if shutdown_ray:
         import ray  # Lazy import Ray
+
         ray.shutdown()
 
 
-def is_the_same_node_as(pg: ProcessGroup | StatelessProcessGroup,
-                        source_rank: int = 0) -> list[int]:
+def is_the_same_node_as(pg: ProcessGroup | StatelessProcessGroup, source_rank: int = 0) -> list[int]:
     """
     This is a collective operation that returns if each rank is in the same node
     as the source rank. It tests if processes are attached to the same
     memory system (shared access to shared memory).
     """
     if isinstance(pg, ProcessGroup):
-        assert torch.distributed.get_backend(
-            pg) != torch.distributed.Backend.NCCL, (
-                "in_the_same_node_as should be tested with a non-NCCL group.")
+        assert torch.distributed.get_backend(pg) != torch.distributed.Backend.NCCL, (
+            "in_the_same_node_as should be tested with a non-NCCL group."
+        )
         # local rank inside the group
         rank = torch.distributed.get_rank(group=pg)
         world_size = torch.distributed.get_world_size(group=pg)
@@ -1049,10 +959,9 @@ def is_the_same_node_as(pg: ProcessGroup | StatelessProcessGroup,
             if rank == source_rank:
                 # create a shared memory segment
                 shm = shared_memory.SharedMemory(create=True, size=128)
-                shm.buf[:len(magic_message)] = magic_message
+                shm.buf[: len(magic_message)] = magic_message
                 if isinstance(pg, ProcessGroup):
-                    torch.distributed.broadcast_object_list(
-                        [shm.name], src=ranks[source_rank], group=pg)
+                    torch.distributed.broadcast_object_list([shm.name], src=ranks[source_rank], group=pg)
                 else:
                     pg.broadcast_obj(shm.name, src=source_rank)
                 is_in_the_same_node[rank] = 1
@@ -1060,18 +969,16 @@ def is_the_same_node_as(pg: ProcessGroup | StatelessProcessGroup,
                 # try to open the shared memory segment
                 if isinstance(pg, ProcessGroup):
                     recv = [None]
-                    torch.distributed.broadcast_object_list(
-                        recv, src=ranks[source_rank], group=pg)
+                    torch.distributed.broadcast_object_list(recv, src=ranks[source_rank], group=pg)
                     name = recv[0]
                 else:
                     name = pg.broadcast_obj(None, src=source_rank)
                 # fix to https://stackoverflow.com/q/62748654/9191338
                 # Python incorrectly tracks shared memory even if it is not
                 # created by the process. The following patch is a workaround.
-                with patch("multiprocessing.resource_tracker.register",
-                           lambda *args, **kwargs: None):
+                with patch("multiprocessing.resource_tracker.register", lambda *args, **kwargs: None):
                     shm = shared_memory.SharedMemory(name=name)
-                if shm.buf[:len(magic_message)] == magic_message:
+                if shm.buf[: len(magic_message)] == magic_message:
                     is_in_the_same_node[rank] = 1
     except Exception as e:
         logger.error("Error ignored in is_in_the_same_node: %s", e)
@@ -1102,24 +1009,23 @@ def is_the_same_node_as(pg: ProcessGroup | StatelessProcessGroup,
 
 
 def initialize_tensor_parallel_group(
-        tensor_model_parallel_size: int = 1,
-        backend: str | None = None,
-        group_name_suffix: str = "") -> GroupCoordinator:
+    tensor_model_parallel_size: int = 1, backend: str | None = None, group_name_suffix: str = ""
+) -> GroupCoordinator:
     """Initialize a tensor parallel group for a specific model.
-    
+
     This function creates a tensor parallel group that can be used with the
     patch_tensor_parallel_group context manager. It allows different models
     to use different tensor parallelism configurations.
-    
+
     Arguments:
         tensor_model_parallel_size: number of GPUs used for tensor model parallelism.
         backend: communication backend to use.
         group_name_suffix: optional suffix to make the group name unique.
-        
+
     Returns:
         A GroupCoordinator for tensor parallelism that can be used with
         the patch_tensor_parallel_group context manager.
-        
+
     Example usage:
         ```python
         # Initialize tensor parallel group for model1
@@ -1127,7 +1033,7 @@ def initialize_tensor_parallel_group(
             tensor_model_parallel_size=4,
             group_name_suffix="model1"
         )
-        
+
         # Use tensor parallelism for model1
         with patch_tensor_parallel_group(tp_group_model1):
             # Run model1 with tensor parallelism
@@ -1137,53 +1043,47 @@ def initialize_tensor_parallel_group(
     # Get world size and rank. Ensure some consistencies.
     assert torch.distributed.is_initialized()
     world_size: int = torch.distributed.get_world_size()
-    backend = backend or torch.distributed.get_backend(
-        get_world_group().device_group)
+    backend = backend or torch.distributed.get_backend(get_world_group().device_group)
 
     # Ensure the world size is compatible with the parallelism configuration
-    assert world_size % tensor_model_parallel_size == 0, \
+    assert world_size % tensor_model_parallel_size == 0, (
         f"World size ({world_size}) must be divisible by tensor_model_parallel_size ({tensor_model_parallel_size})"
+    )
 
     # Build the tensor model-parallel groups.
-    num_tensor_model_parallel_groups: int = (world_size //
-                                             tensor_model_parallel_size)
+    num_tensor_model_parallel_groups: int = world_size // tensor_model_parallel_size
     tp_group_ranks = []
     for i in range(num_tensor_model_parallel_groups):
-        ranks = list(
-            range(i * tensor_model_parallel_size,
-                  (i + 1) * tensor_model_parallel_size))
+        ranks = list(range(i * tensor_model_parallel_size, (i + 1) * tensor_model_parallel_size))
         tp_group_ranks.append(ranks)
 
     # Create TP group coordinator with a unique name
     group_name = f"tp_{group_name_suffix}" if group_name_suffix else "tp"
-    tp_group = init_model_parallel_group(tp_group_ranks,
-                                         get_world_group().local_rank,
-                                         backend,
-                                         use_message_queue_broadcaster=True,
-                                         group_name=group_name)
+    tp_group = init_model_parallel_group(
+        tp_group_ranks, get_world_group().local_rank, backend, use_message_queue_broadcaster=True, group_name=group_name
+    )
 
     return tp_group
 
 
 def initialize_sequence_parallel_group(
-        sequence_model_parallel_size: int = 1,
-        backend: str | None = None,
-        group_name_suffix: str = "") -> GroupCoordinator:
+    sequence_model_parallel_size: int = 1, backend: str | None = None, group_name_suffix: str = ""
+) -> GroupCoordinator:
     """Initialize a sequence parallel group for a specific model.
-    
+
     This function creates a sequence parallel group that can be used with the
     patch_sequence_parallel_group context manager. It allows different models
     to use different sequence parallelism configurations.
-    
+
     Arguments:
         sequence_model_parallel_size: number of GPUs used for sequence model parallelism.
         backend: communication backend to use.
         group_name_suffix: optional suffix to make the group name unique.
-        
+
     Returns:
         A GroupCoordinator for sequence parallelism that can be used with
         the patch_sequence_parallel_group context manager.
-        
+
     Example usage:
         ```python
         # Initialize sequence parallel group for model2
@@ -1191,7 +1091,7 @@ def initialize_sequence_parallel_group(
             sequence_model_parallel_size=2,
             group_name_suffix="model2"
         )
-        
+
         # Use sequence parallelism for model2
         with patch_sequence_parallel_group(sp_group_model2):
             # Run model2 with sequence parallelism
@@ -1201,30 +1101,24 @@ def initialize_sequence_parallel_group(
     # Get world size and rank. Ensure some consistencies.
     assert torch.distributed.is_initialized()
     world_size: int = torch.distributed.get_world_size()
-    backend = backend or torch.distributed.get_backend(
-        get_world_group().device_group)
+    backend = backend or torch.distributed.get_backend(get_world_group().device_group)
 
     # Ensure the world size is compatible with the parallelism configuration
-    assert world_size % sequence_model_parallel_size == 0, \
+    assert world_size % sequence_model_parallel_size == 0, (
         f"World size ({world_size}) must be divisible by sequence_model_parallel_size ({sequence_model_parallel_size})"
+    )
 
     # Build the sequence model-parallel groups.
-    num_sequence_model_parallel_groups: int = (world_size //
-                                               sequence_model_parallel_size)
+    num_sequence_model_parallel_groups: int = world_size // sequence_model_parallel_size
     sp_group_ranks = []
 
     for i in range(num_sequence_model_parallel_groups):
         # Create groups of consecutive ranks
-        ranks = list(
-            range(i * sequence_model_parallel_size,
-                  (i + 1) * sequence_model_parallel_size))
+        ranks = list(range(i * sequence_model_parallel_size, (i + 1) * sequence_model_parallel_size))
         sp_group_ranks.append(ranks)
 
     # Create SP group coordinator with a unique name
     group_name = f"sp_{group_name_suffix}" if group_name_suffix else "sp"
-    sp_group = init_model_parallel_group(sp_group_ranks,
-                                         get_world_group().local_rank,
-                                         backend,
-                                         group_name=group_name)
+    sp_group = init_model_parallel_group(sp_group_ranks, get_world_group().local_rank, backend, group_name=group_name)
 
     return sp_group

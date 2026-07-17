@@ -19,9 +19,7 @@ def find_nccl_library() -> str:
 
     # manually load the nccl library
     if so_file:
-        logger.info(
-            "Found nccl from environment variable TRAINER_NCCL_SO_PATH=%s",
-            so_file)
+        logger.info("Found nccl from environment variable TRAINER_NCCL_SO_PATH=%s", so_file)
     else:
         if torch.version.cuda is not None:
             so_file = "libnccl.so.2"

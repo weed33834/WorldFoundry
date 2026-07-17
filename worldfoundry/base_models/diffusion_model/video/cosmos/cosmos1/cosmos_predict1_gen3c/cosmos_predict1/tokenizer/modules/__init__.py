@@ -25,34 +25,40 @@ from .quantizers import FSQuantizer, LFQuantizer, ResidualFSQuantizer, VectorQua
 
 class EncoderType(Enum):
     """Encoder type implementation."""
+
     Default = Encoder
 
 
 class DecoderType(Enum):
     """Decoder type implementation."""
+
     Default = Decoder
 
 
 class Encoder3DType(Enum):
     """Encoder d type implementation."""
+
     BASE = EncoderBase
     FACTORIZED = EncoderFactorized
 
 
 class Decoder3DType(Enum):
     """Decoder d type implementation."""
+
     BASE = DecoderBase
     FACTORIZED = DecoderFactorized
 
 
 class ContinuousFormulation(Enum):
     """Continuous formulation implementation."""
+
     VAE = GaussianDistribution
     AE = IdentityDistribution
 
 
 class DiscreteQuantizer(Enum):
     """Discrete quantizer implementation."""
+
     VQ = VectorQuantizer
     LFQ = LFQuantizer
     FSQ = FSQuantizer

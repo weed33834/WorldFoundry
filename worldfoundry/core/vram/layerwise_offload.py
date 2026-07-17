@@ -9,7 +9,6 @@ from typing import Iterator
 import torch
 from torch import nn
 
-
 _compiler_disable = getattr(getattr(torch, "compiler", None), "disable", lambda fn: fn)
 
 
@@ -51,10 +50,7 @@ def enable_layerwise_cpu_offload(
         return LayerwiseOffloadHandle(enabled=False, layer_count=0, reason="no nn.ModuleList layer container found")
 
     stream = torch.cuda.Stream(device=target_device)
-    states = [
-        _LayerwiseOffloadState(layer, target_device, stream, pin_memory=pin_memory)
-        for layer in layers
-    ]
+    states = [_LayerwiseOffloadState(layer, target_device, stream, pin_memory=pin_memory) for layer in layers]
     for index, state in enumerate(states):
         state.next_state = states[(index + 1) % len(states)]
         state.offload_to_cpu()

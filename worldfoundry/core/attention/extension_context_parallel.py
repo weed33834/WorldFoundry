@@ -8,18 +8,8 @@ from xfuser.core.distributed import (
 from xfuser.core.long_ctx_attention import xFuserLongContextAttention
 from yunchang.kernels import AttnType
 
+from worldfoundry.core.attention.sequence_parallel_rope import pad_freqs
 from worldfoundry.core.nn import sinusoidal_embedding_1d
-
-
-def pad_freqs(original_tensor, target_len):
-    """Pad frequency tensor to target length for sequence parallel."""
-    seq_len, s1, s2 = original_tensor.shape
-    pad_size = target_len - seq_len
-    padding_tensor = torch.ones(
-        pad_size, s1, s2, dtype=original_tensor.dtype, device=original_tensor.device
-    )
-    padded_tensor = torch.cat([original_tensor, padding_tensor], dim=0)
-    return padded_tensor
 
 
 @amp.autocast("cuda", enabled=False)
@@ -63,9 +53,7 @@ def rope_apply(
         latent_seq_len = num_frame * h * w
         freqs_i = torch.cat(
             [
-                freqs[0][:num_frame]
-                .view(num_frame, 1, 1, -1)
-                .expand(num_frame, h, w, -1),
+                freqs[0][:num_frame].view(num_frame, 1, 1, -1).expand(num_frame, h, w, -1),
                 freqs[1][:h].view(1, h, 1, -1).expand(num_frame, h, w, -1),
                 freqs[2][:w].view(1, 1, w, -1).expand(num_frame, h, w, -1),
             ],
@@ -77,9 +65,7 @@ def rope_apply(
             start = 1024 if ii == 0 else 1024 + sum(num_frame_list[:ii])
             freqs_temp = torch.cat(
                 [
-                    freqs[0][start : start + nf]
-                    .view(nf, 1, 1, -1)
-                    .expand(nf, h, w, -1),
+                    freqs[0][start : start + nf].view(nf, 1, 1, -1).expand(nf, h, w, -1),
                     freqs[1][:h].view(1, h, 1, -1).expand(nf, h, w, -1),
                     freqs[2][:w].view(1, 1, w, -1).expand(nf, h, w, -1),
                 ],
@@ -112,9 +98,7 @@ def rope_apply(
 
         freqs_i = torch.cat(
             [
-                freqs[0][sum(num_frame_list) : f]
-                .view(num_latent_frame, 1, 1, -1)
-                .expand(num_latent_frame, h, w, -1),
+                freqs[0][sum(num_frame_list) : f].view(num_latent_frame, 1, 1, -1).expand(num_latent_frame, h, w, -1),
                 freqs[1][:h].view(1, h, 1, -1).expand(num_latent_frame, h, w, -1),
                 freqs[2][:w].view(1, 1, w, -1).expand(num_latent_frame, h, w, -1),
             ],
@@ -262,9 +246,7 @@ def usp_dit_forward(
     else:
         # list of tensors path
         x = [self.patch_embedding(item) for item in x]
-        grid_size_list = [
-            torch.tensor(item.shape[2:], dtype=torch.long) for item in x[1:]
-        ]
+        grid_size_list = [torch.tensor(item.shape[2:], dtype=torch.long) for item in x[1:]]
         num_frame_list = [item.shape[2] for item in x[1:]]
 
         grid_sizes = torch.tensor(x[0].shape[2:], dtype=torch.long)
@@ -280,9 +262,7 @@ def usp_dit_forward(
         b, f = t.shape
 
         e = self.time_embedding(
-            sinusoidal_embedding_1d(self.freq_dim, t.flatten()).to(
-                self.patch_embedding.weight.dtype
-            )
+            sinusoidal_embedding_1d(self.freq_dim, t.flatten()).to(self.patch_embedding.weight.dtype)
         )
         e0 = self.time_projection(e).unflatten(1, (6, self.dim))
         e = e.view(b, f, -1)

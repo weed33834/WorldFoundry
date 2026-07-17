@@ -26,9 +26,11 @@ from loguru import logger
 from PIL import Image
 from torchvision.transforms import functional as F
 
-from worldfoundry.core.io import dump_serialized, read_video as core_read_video, write_video as core_write_video
-from cosmos_predict2._src.imaginaire.utils.easy_io import easy_io
-from cosmos_predict2._src.predict2.datasets.utils import IMAGE_RES_SIZE_INFO
+from worldfoundry.core.io import dump_serialized
+from worldfoundry.core.io import read_video as core_read_video
+from worldfoundry.core.io import write_video as core_write_video
+from worldfoundry.core.io.easy_io import easy_io
+from worldfoundry.core.io.resolutions import IMAGE_RES_SIZE_INFO
 
 _CREDENTIAL, _BACKEND = "credentials/pdx_cosmos_base.secret", "s3"
 _DTYPE, _DEVICE = torch.bfloat16, "cuda"

@@ -33,7 +33,7 @@ from torch.distributed.utils import _verify_param_shape_across_processes
 from worldfoundry.core.distributed import torch_process_group as distributed
 
 try:
-    import megatron.core.parallel_state as parallel_state
+    from worldfoundry.core.distributed.megatron_compat import parallel_state
 
     USE_MEGATRON = True
 except ImportError:
@@ -42,9 +42,7 @@ except ImportError:
 _disable_compile = getattr(getattr(torch, "compiler", None), "disable", lambda fn: fn)
 
 
-def split_inputs_cp(
-    x: Tensor, seq_dim: int, cp_group: ProcessGroup | None = None
-) -> Tensor:
+def split_inputs_cp(x: Tensor, seq_dim: int, cp_group: ProcessGroup | None = None) -> Tensor:
     """Slice a tensor along ``seq_dim`` to this rank's CP shard.
 
     Args:
@@ -65,9 +63,7 @@ def split_inputs_cp(
     if seq_dim < 0:
         seq_dim = x.ndim + seq_dim  # bring it to positive dimension
 
-    assert x.shape[seq_dim] % cp_size == 0, (
-        f"{x.shape[seq_dim]} cannot divide cp_size {cp_size}"
-    )
+    assert x.shape[seq_dim] % cp_size == 0, f"{x.shape[seq_dim]} cannot divide cp_size {cp_size}"
     x = x.view(
         *x.shape[:seq_dim],
         cp_size,
@@ -80,9 +76,7 @@ def split_inputs_cp(
     return x.contiguous()
 
 
-def cat_outputs_cp(
-    x: Tensor, seq_dim: int, cp_group: ProcessGroup | None = None
-) -> Tensor:
+def cat_outputs_cp(x: Tensor, seq_dim: int, cp_group: ProcessGroup | None = None) -> Tensor:
     """Gather and concatenate per-rank tensors along ``seq_dim``.
 
     Args:
@@ -111,9 +105,7 @@ def cat_outputs_cp(
     return torch.cat(gathered_tensors, dim=seq_dim)
 
 
-def cat_outputs_cp_with_grad(
-    x: Tensor, seq_dim: int, cp_group: ProcessGroup | None = None
-) -> Tensor:
+def cat_outputs_cp_with_grad(x: Tensor, seq_dim: int, cp_group: ProcessGroup | None = None) -> Tensor:
     """Gather CP shards while preserving the local rank's autograd graph."""
 
     if cp_group is None:
@@ -207,9 +199,7 @@ def find_split(
     cp_size_t = 1
     for index, size in enumerate([temporal, height, width]):
         if index == 2 and cp_size > 1:
-            raise ValueError(
-                "Split by width dimension is not supported; lower the context-parallel size."
-            )
+            raise ValueError("Split by width dimension is not supported; lower the context-parallel size.")
         patch_size = patch_values[index]
         gcd = math.gcd(size // patch_size, cp_size)
         cp_size = cp_size // gcd
@@ -223,9 +213,7 @@ def find_split(
 T = TypeVar("T")
 
 
-def split_inputs_cp_object_list(
-    object_list: list[T], cp_group: ProcessGroup | None = None
-) -> list[T]:
+def split_inputs_cp_object_list(object_list: list[T], cp_group: ProcessGroup | None = None) -> list[T]:
     """Slice a list to this rank's CP shard.
 
     Args:
@@ -252,9 +240,7 @@ def split_inputs_cp_object_list(
     return object_list[start_idx:end_idx]
 
 
-def cat_outputs_cp_object_list(
-    object_list: list[T], cp_group: ProcessGroup | None = None
-) -> list[T]:
+def cat_outputs_cp_object_list(object_list: list[T], cp_group: ProcessGroup | None = None) -> list[T]:
     """Gather per-rank lists and flatten into a single list.
 
     Args:

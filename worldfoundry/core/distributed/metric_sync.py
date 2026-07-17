@@ -14,28 +14,18 @@ import torch
 import torch.distributed as dist
 from torcheval.metrics import FrechetInceptionDistance
 
+from .generic_collectives import (
+    get_rank,
+    get_world_size,
+)
+from .generic_collectives import (
+    is_dist_initialized as is_dist_avail_and_initialized,
+)
+from .generic_collectives import (
+    is_master as is_main_process,
+)
 
 logger = getLogger()
-
-
-def is_dist_avail_and_initialized() -> bool:
-    return dist.is_available() and dist.is_initialized()
-
-
-def get_world_size() -> int:
-    if not is_dist_avail_and_initialized():
-        return 1
-    return dist.get_world_size()
-
-
-def get_rank() -> int:
-    if not is_dist_avail_and_initialized():
-        return 0
-    return dist.get_rank()
-
-
-def is_main_process() -> bool:
-    return get_rank() == 0
 
 
 def setup_for_distributed(is_master) -> None:
@@ -248,10 +238,7 @@ def sync_fid_loss_fns(fid_loss_fn, device="cuda"):
     dist.barrier()
     dist.all_gather_object(gathered_fid_loss_fn, serialized_fid_loss_fn)
 
-    final_fid_loss_fn = {
-        sec: FrechetInceptionDistance(feature_dim=2048).to(device)
-        for sec in [1, 2, 4, 8, 16]
-    }
+    final_fid_loss_fn = {sec: FrechetInceptionDistance(feature_dim=2048).to(device) for sec in [1, 2, 4, 8, 16]}
     for serialized_rank_metrics in gathered_fid_loss_fn:
         rank_metrics = pickle.loads(serialized_rank_metrics)
         for sec in [1, 2, 4, 8, 16]:

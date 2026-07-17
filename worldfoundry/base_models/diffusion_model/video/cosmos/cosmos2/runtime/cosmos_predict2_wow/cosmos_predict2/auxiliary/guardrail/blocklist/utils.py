@@ -18,7 +18,7 @@
 import os
 import re
 
-from imaginaire.utils import log
+from worldfoundry.core.distributed.logging import log
 
 
 def read_keyword_list_from_dir(folder_path: str) -> list[str]:

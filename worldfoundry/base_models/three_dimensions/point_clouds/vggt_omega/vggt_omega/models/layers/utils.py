@@ -20,6 +20,7 @@ from typing import Callable, List, Optional, Tuple
 import numpy as np
 import torch
 from torch import Tensor, nn
+from worldfoundry.core.nn.module_utils import named_apply
 
 logger = logging.getLogger("dinov3")
 
@@ -90,41 +91,6 @@ def named_replace(
 
     if depth_first and include_root:
         module = fn(module=module, name=name)
-    return module
-
-
-def named_apply(
-    fn: Callable,
-    module: nn.Module,
-    name: str = "",
-    depth_first: bool = True,
-    include_root: bool = False,
-) -> nn.Module:
-    """Named apply.
-
-    Args:
-        fn: The fn.
-        module: The module.
-        name: The name.
-        depth_first: The depth first.
-        include_root: The include root.
-
-    Returns:
-        The return value.
-    """
-    if not depth_first and include_root:
-        fn(module=module, name=name)
-    for child_name, child_module in module.named_children():
-        child_name = ".".join((name, child_name)) if name else child_name
-        named_apply(
-            fn=fn,
-            module=child_module,
-            name=child_name,
-            depth_first=depth_first,
-            include_root=True,
-        )
-    if depth_first and include_root:
-        fn(module=module, name=name)
     return module
 
 

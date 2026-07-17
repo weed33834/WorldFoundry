@@ -23,8 +23,8 @@ import einops
 import numpy as np
 import torch
 import torchvision.transforms.functional as transforms_F
-
 from cosmos_predict1.utils import log
+
 from worldfoundry.core.io import load_serialized
 from worldfoundry.core.io.artifacts import (
     visualize_latent_tensor_bcthw,
@@ -190,12 +190,12 @@ def create_condition_latent_from_input_frames(
         f"Create condition latent from input frames {input_frames.shape}, value {input_frames.min()}, {input_frames.max()}, dtype {input_frames.dtype}"
     )
 
-    assert (
-        input_frames.shape[2] >= num_frames_condition
-    ), f"input_frames not enough for condition, require at least {num_frames_condition}, got {input_frames.shape[2]}, {input_frames.shape}"
-    assert (
-        num_frames_encode >= num_frames_condition
-    ), f"num_frames_encode should be larger than num_frames_condition, got {num_frames_encode}, {num_frames_condition}"
+    assert input_frames.shape[2] >= num_frames_condition, (
+        f"input_frames not enough for condition, require at least {num_frames_condition}, got {input_frames.shape[2]}, {input_frames.shape}"
+    )
+    assert num_frames_encode >= num_frames_condition, (
+        f"num_frames_encode should be larger than num_frames_condition, got {num_frames_encode}, {num_frames_condition}"
+    )
 
     # Put the conditional frames at the beginning of the video, and pad the end with zeros
     if model.config.conditioner.video_cond_bool.condition_location == "first_and_last_1":

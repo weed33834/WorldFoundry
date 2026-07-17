@@ -13,7 +13,12 @@ from diffusers.models.normalization import RMSNorm
 from einops import rearrange, repeat
 from torchvision import transforms
 
-from worldfoundry.core.distributed.sequence_parallel_runtime import gather_forward_split_backward, get_sequence_parallel_group, split_forward_gather_backward
+from worldfoundry.core.distributed.sequence_parallel_runtime import (
+    gather_forward_split_backward,
+    get_sequence_parallel_group,
+    split_forward_gather_backward,
+)
+
 from .attention import Attention as _AttentionOp
 from .transformer_cosmos import CosmosAdaLayerNorm, CosmosPatchEmbed, CosmosTimestepEmbedding, CosmosTransformerBlock
 
@@ -25,13 +30,13 @@ class Cosmos25AttnProcessor2_0:
     It uses a custom attention operation backend (e.g., 'sdpa', 'flash_attention_2').
     """
 
-    def __init__(self, backend='sdpa'):
+    def __init__(self, backend="sdpa"):
         """Init.
 
         Args:
             backend: The backend.
         """
-        self.attn_op = _AttentionOp(backend=backend, qkv_format='bhsd')
+        self.attn_op = _AttentionOp(backend=backend, qkv_format="bhsd")
 
     def __call__(
         self,
@@ -137,9 +142,15 @@ class Cosmos25RotaryPosEmbed(nn.Module):
 
         # Generate frequency ranges
         seq = torch.arange(max(self.max_size), device=device, dtype=torch.float32)
-        dim_h_range = torch.arange(0, self.dim_h, 2, device=device, dtype=torch.float32)[: (self.dim_h // 2)] / self.dim_h
-        dim_w_range = torch.arange(0, self.dim_w, 2, device=device, dtype=torch.float32)[: (self.dim_w // 2)] / self.dim_w
-        dim_t_range = torch.arange(0, self.dim_t, 2, device=device, dtype=torch.float32)[: (self.dim_t // 2)] / self.dim_t
+        dim_h_range = (
+            torch.arange(0, self.dim_h, 2, device=device, dtype=torch.float32)[: (self.dim_h // 2)] / self.dim_h
+        )
+        dim_w_range = (
+            torch.arange(0, self.dim_w, 2, device=device, dtype=torch.float32)[: (self.dim_w // 2)] / self.dim_w
+        )
+        dim_t_range = (
+            torch.arange(0, self.dim_t, 2, device=device, dtype=torch.float32)[: (self.dim_t // 2)] / self.dim_t
+        )
         h_spatial_freqs = 1.0 / (h_theta**dim_h_range)
         w_spatial_freqs = 1.0 / (w_theta**dim_w_range)
         temporal_freqs = 1.0 / (t_theta**dim_t_range)
@@ -240,8 +251,8 @@ class Cosmos25Transformer3DModel(ModelMixin, ConfigMixin):
     denoising step in the diffusion process.
     """
 
-    _skip_layerwise_casting_patterns = ['patch_embed', 'final_layer', 'norm']
-    _no_split_modules = ['CosmosTransformerBlock']
+    _skip_layerwise_casting_patterns = ["patch_embed", "final_layer", "norm"]
+    _no_split_modules = ["CosmosTransformerBlock"]
 
     @register_to_config
     def __init__(
@@ -292,7 +303,9 @@ class Cosmos25Transformer3DModel(ModelMixin, ConfigMixin):
         self.patch_embed = CosmosPatchEmbed(patch_embed_in_channels, hidden_size, patch_size, bias=False)
 
         # Positional Embedding
-        self.rope = Cosmos25RotaryPosEmbed(hidden_size=attention_head_dim, max_size=max_size, patch_size=patch_size, rope_scale=rope_scale)
+        self.rope = Cosmos25RotaryPosEmbed(
+            hidden_size=attention_head_dim, max_size=max_size, patch_size=patch_size, rope_scale=rope_scale
+        )
 
         # Text Embedding Projection
         self.text_embed = nn.Sequential(
@@ -306,14 +319,14 @@ class Cosmos25Transformer3DModel(ModelMixin, ConfigMixin):
                 in_features=action_dim * num_action_per_latent_frame,
                 hidden_features=hidden_size * 4,
                 out_features=hidden_size,
-                act_layer=lambda: nn.GELU(approximate='tanh'),
+                act_layer=lambda: nn.GELU(approximate="tanh"),
                 drop=0,
             )
             self.action_embed_3d = Cosmos25ActionEmbed(
                 in_features=action_dim * num_action_per_latent_frame,
                 hidden_features=hidden_size * 4,
                 out_features=hidden_size * 3,
-                act_layer=lambda: nn.GELU(approximate='tanh'),
+                act_layer=lambda: nn.GELU(approximate="tanh"),
                 drop=0,
             )
 
@@ -330,7 +343,7 @@ class Cosmos25Transformer3DModel(ModelMixin, ConfigMixin):
                     cross_attention_dim=text_embed_dim,
                     mlp_ratio=mlp_ratio,
                     adaln_lora_dim=adaln_lora_dim,
-                    qk_norm='rms_norm',
+                    qk_norm="rms_norm",
                     out_bias=False,
                 )
                 for _ in range(num_layers)
@@ -406,7 +419,7 @@ class Cosmos25Transformer3DModel(ModelMixin, ConfigMixin):
 
         # Prepare action embeddings if provided
         if action is not None:
-            action = rearrange(action, 'B (T A) C -> B T (A C)', A=self.config.num_action_per_latent_frame)
+            action = rearrange(action, "B (T A) C -> B T (A C)", A=self.config.num_action_per_latent_frame)
             embedded_action = self.action_embed(action)
             temb_action = self.action_embed_3d(action)
             # Prepend a zero embedding for the unconditional part
@@ -421,8 +434,8 @@ class Cosmos25Transformer3DModel(ModelMixin, ConfigMixin):
         # Prepare time embeddings
         timestep = timestep.flatten()
         embedded_timestep, temb = self.time_embed(hidden_states, timestep)
-        embedded_timestep = rearrange(embedded_timestep, '(B T) C -> B T C', B=batch_size)
-        temb = rearrange(temb, '(B T) C -> B T C', B=batch_size)
+        embedded_timestep = rearrange(embedded_timestep, "(B T) C -> B T C", B=batch_size)
+        temb = rearrange(temb, "(B T) C -> B T C", B=batch_size)
         # Add action embeddings to time embeddings
         if action is not None:
             embedded_timestep = embedded_timestep + embedded_action
@@ -432,7 +445,7 @@ class Cosmos25Transformer3DModel(ModelMixin, ConfigMixin):
         temb, embedded_timestep = (
             repeat(
                 x,
-                'B T C -> B (T T2 H W) C',
+                "B T C -> B (T T2 H W) C",
                 T=x.shape[1],
                 T2=post_patch_num_frames if x.shape[1] == 1 else 1,
                 H=post_patch_height,
@@ -463,7 +476,7 @@ class Cosmos25Transformer3DModel(ModelMixin, ConfigMixin):
         # Unpatchify to get the final latent representation
         hidden_states = rearrange(
             hidden_states,
-            'B (T H W) (p1 p2 t C) -> B C (T t) (H p1) (W p2)',
+            "B (T H W) (p1 p2 t C) -> B C (T t) (H p1) (W p2)",
             T=post_patch_num_frames,
             H=post_patch_height,
             W=post_patch_width,

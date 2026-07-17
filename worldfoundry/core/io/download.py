@@ -99,9 +99,7 @@ def download_to_cache(
     # Stream into a sibling temp file, validate, then atomic-rename;
     # keeping the temp file on the same filesystem makes ``os.replace``
     # atomic, so a partial download cannot poison the cache slot.
-    tmp_fd, tmp_path_str = tempfile.mkstemp(
-        prefix=f".{filename}.", suffix=".part", dir=cache_dir
-    )
+    tmp_fd, tmp_path_str = tempfile.mkstemp(prefix=f".{filename}.", suffix=".part", dir=cache_dir)
     tmp_path = Path(tmp_path_str)
     try:
         with os.fdopen(tmp_fd, "wb") as out:
@@ -121,9 +119,7 @@ def download_to_cache(
             env_vars=("WORLDFOUNDRY_CACHE_DIR", CACHE_MIN_FREE_ENV),
             settings={"url": url},
         )
-        raise RuntimeError(
-            f"Failed to download {url!r} into {local_path}: {exc}"
-        ) from exc
+        raise RuntimeError(f"Failed to download {url!r} into {local_path}: {exc}") from exc
     try:
         os.replace(tmp_path, local_path)
     except Exception as exc:

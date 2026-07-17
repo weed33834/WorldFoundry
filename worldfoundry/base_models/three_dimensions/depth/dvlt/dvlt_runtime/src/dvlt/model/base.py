@@ -9,16 +9,14 @@ import re
 import tempfile
 import urllib.parse
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 from accelerate import Accelerator
 from accelerate.logging import get_logger
 from huggingface_hub import hf_hub_download
 from safetensors import safe_open
-from safetensors.torch import save_file
 from torch import Tensor, nn
-from torch.utils.checkpoint import checkpoint
 
 from dvlt.common.constants import DataField
 from dvlt.util.download import download_file_from_url
@@ -30,102 +28,15 @@ logger = get_logger(__name__)
 class Module(ABC):
     """Module implementation."""
 
-    def __init__(
-        self,
-        *args,
-        freeze: Optional[List[str]] = None,
-        log_params: Optional[List[str]] = None,
-        log_every_n_steps: int = 50,
-        gradient_checkpointing_config: Optional[Dict[str, Any]] = None,
-        **kwargs,
-    ):
-        """Initialize the base model.
-
-        Args:
-            freeze: List of module/parameter paths to freeze. None means no freezing.
-            log_params: Parameter logging configuration:
-                - None (default): No parameter logging
-                - [] (empty list): Log all trainable parameters
-                - ['module1', 'param.weight']: Log specific modules/parameters only
-            log_every_n_steps: Call _log_train every N steps.
-            **kwargs: Additional arguments passed to parent classes
-        """
+    def __init__(self, *args, **kwargs):
+        """Initialize an inference model wrapper."""
         super().__init__()
         self.model_file = "model.pt"
-        self.paths_to_freeze = freeze
-        self.paths_to_log = log_params
-        self.log_every_n_steps = log_every_n_steps
         self.model = self.build_model()
-        self.gradient_checkpointing_config = {}
-        self.gradient_checkpointing_enabled = False
-
-    def freeze(self) -> None:
-        """
-        Freeze specified modules or single parameters by setting requires_grad=False.
-
-        Args:
-            module_paths: List of module paths to freeze
-        """
-        if not self.paths_to_freeze:
-            return
-
-        for module_path in self.paths_to_freeze:
-            try:
-                # Navigate to the module using the path
-                module = self.model
-                for attr in module_path.split("."):
-                    module = getattr(module, attr)
-
-                # Freeze parameters if it's a module with parameters
-                if hasattr(module, "parameters"):
-                    for param in module.parameters():
-                        param.requires_grad = False
-                    logger.info(f"Frozen module: {module_path}")
-                # Freeze single parameter/tensor
-                elif hasattr(module, "requires_grad"):
-                    module.requires_grad = False
-                    logger.info(f"Frozen parameter: {module_path}")
-                else:
-                    logger.warning(f"Cannot freeze {module_path}: not a module or parameter")
-
-            except AttributeError as e:
-                logger.warning(f"Cannot freeze {module_path}: {e}")
 
     @abstractmethod
     def build_model(self):
         """Build model."""
-        raise NotImplementedError
-
-    def setup_train(self, accelerator: Accelerator, gradient_checkpointing: bool = False) -> None:
-        """Setup train.
-
-        Args:
-            accelerator: The accelerator.
-            gradient_checkpointing: The gradient checkpointing.
-
-        Returns:
-            The return value.
-        """
-        self.model.train()
-        self.freeze()
-        if gradient_checkpointing:
-            self.model.enable_gradient_checkpointing()
-        self.model = accelerator.prepare(self.model)
-
-    @abstractmethod
-    def train_step(
-        self, batch: dict, step: int, accelerator: Accelerator
-    ) -> tuple[torch.Tensor, dict[str, torch.Tensor], dict[str, torch.Tensor]]:
-        """Train step.
-
-        Args:
-            batch: The batch.
-            step: The step.
-            accelerator: The accelerator.
-
-        Returns:
-            The return value.
-        """
         raise NotImplementedError
 
     def setup_test(self, accelerator: Accelerator) -> None:
@@ -171,37 +82,6 @@ class Module(ABC):
     def print_summary(self):
         """Print a summary of the model."""
         logger.info(self.model)
-
-    def save_pretrained(self, accelerator: Accelerator, save_path: str, safe_serialization: bool = True) -> None:
-        """
-        Save model weights to the specified path.
-
-        Args:
-            accelerator: Accelerator instance
-            save_path: Directory to save the model to
-            safe_serialization: Whether to save using safetensors format
-        """
-        accelerator.wait_for_everyone()
-        if accelerator.is_main_process:
-            model = accelerator.unwrap_model(self.model)
-            os.makedirs(save_path, exist_ok=True)
-
-            state_dict = model.state_dict()
-            if safe_serialization:
-                # Change extension to .safetensors if needed
-                if not self.model_file.endswith(".safetensors"):
-                    model_path = os.path.join(save_path, os.path.splitext(self.model_file)[0] + ".safetensors")
-                else:
-                    model_path = os.path.join(save_path, self.model_file)
-
-                save_file(state_dict, model_path, metadata={"format": "pt"})
-                logger.info(f"Model saved in safetensors format to {model_path}")
-            else:
-                model_path = os.path.join(save_path, self.model_file)
-                torch.save(state_dict, model_path)
-                logger.info(f"Model saved in PyTorch format to {model_path}")
-
-        accelerator.wait_for_everyone()
 
     def load_pretrained(
         self,
@@ -391,217 +271,13 @@ class Module(ABC):
         """Transform state dict before loading. Override in subclasses for custom transformations."""
         return state_dict
 
-    def _validate_param_groups(self, param_groups: dict[str, list[nn.Parameter]]) -> None:
-        """Validate that parameter groups are correct.
-
-        Args:
-            param_groups: Dictionary mapping group names to parameter lists
-
-        Raises:
-            ValueError: If parameter groups are invalid
-        """
-        # Create mapping from parameter ID to name
-        param_id_to_name = {id(param): name for name, param in self.model.named_parameters()}
-
-        # Get all trainable parameter IDs
-        trainable_param_ids = {id(param) for param in self.model.parameters() if param.requires_grad}
-
-        # Get all grouped parameter IDs and check for duplicates
-        grouped_param_ids = set()
-        duplicates = []
-
-        for _, params in param_groups.items():
-            for param in params:
-                param_id = id(param)
-                if param_id in grouped_param_ids:
-                    param_name = param_id_to_name.get(param_id, f"unknown_{param_id}")
-                    duplicates.append(param_name)
-                grouped_param_ids.add(param_id)
-
-        # Check for issues and build error message
-        errors = []
-        warnings = []
-
-        if duplicates:
-            errors.append(f"Duplicated parameters: {', '.join(duplicates)}")
-
-        missing_ids = trainable_param_ids - grouped_param_ids
-        if missing_ids:
-            missing_names = [param_id_to_name.get(pid, f"unknown_{pid}") for pid in missing_ids]
-            errors.append(f"Missing trainable parameters: {', '.join(missing_names)}")
-
-        extra_ids = grouped_param_ids - trainable_param_ids
-        if extra_ids:
-            extra_names = [param_id_to_name.get(pid, f"unknown_{pid}") for pid in extra_ids]
-            warnings.append(f"Non-trainable parameters in groups: {', '.join(extra_names)}")
-
-        if errors:
-            raise ValueError("Parameter group validation failed:\n" + "\n".join(f"  - {error}" for error in errors))
-        if warnings:
-            logger.warning(
-                "Parameter group validation warnings:\n" + "\n".join(f"  - {warning}" for warning in warnings)
-            )
-
-    def _get_param_groups(self) -> dict[str, list[nn.Parameter]]:
-        """Get parameter groups for the model. Override in subclasses.
-
-        Returns:
-            Dictionary mapping group names to parameter lists
-        """
-        return {"params": list(self.get_trainable_params())}
-
-    def get_param_groups(self) -> dict[str, list[nn.Parameter]]:
-        """Get validated parameter groups for the model.
-
-        Returns:
-            Dictionary mapping group names to parameter lists
-        """
-        param_groups = self._get_param_groups()
-        self._validate_param_groups(param_groups)
-        return param_groups
-
-    def get_params(self) -> list[nn.Parameter]:
-        """Get params.
-
-        Returns:
-            The return value.
-        """
-        return self.model.parameters()
-
-    def get_trainable_params(self) -> list[nn.Parameter]:
-        """Get trainable params.
-
-        Returns:
-            The return value.
-        """
-        # Cache trainable params to avoid recreating list every step
-        if not hasattr(self, "_trainable_params_cache"):
-            self._trainable_params_cache = [p for p in self.model.parameters() if p.requires_grad]
-        return self._trainable_params_cache
-
 
 class Model(nn.Module):
     """Model implementation."""
 
-    def __init__(self, *args, gradient_checkpointing_config: Optional[Dict[str, Any]] = None, **kwargs):
+    def __init__(self, *args, **kwargs):
         """Init."""
         super().__init__()
-        self.gradient_checkpointing_config = gradient_checkpointing_config or {}
-        self.gradient_checkpointing_enabled = False
-
-    def enable_gradient_checkpointing(self, use_reentrant: bool = False) -> None:
-        """Enable gradient checkpointing to reduce memory usage at the cost of some computation."""
-        if self.gradient_checkpointing_enabled:
-            return
-        self.gradient_checkpointing_enabled = True
-
-        # Use configuration values, but allow override via parameter
-        config = self.gradient_checkpointing_config
-        use_reentrant = config.get("use_reentrant", use_reentrant)
-        modules_to_checkpoint = config.get("modules", [])
-
-        def create_checkpoint_wrapper(orig_forward_fn):
-            """Create checkpoint wrapper.
-
-            Args:
-                orig_forward_fn: The orig forward fn.
-            """
-            # Create a wrapper that uses checkpoint
-            def forward_with_checkpoint(*args, **kwargs):
-                """Forward with checkpoint."""
-                if self.training:
-                    return checkpoint(orig_forward_fn, *args, use_reentrant=use_reentrant, **kwargs)
-                else:
-                    return orig_forward_fn(*args, **kwargs)
-
-            return forward_with_checkpoint
-
-        # Apply gradient checkpointing based on configuration
-        for module_path in modules_to_checkpoint:
-            self._apply_gradient_checkpointing_to_module(module_path, create_checkpoint_wrapper, use_reentrant)
-
-    @staticmethod
-    def _parse_module_path(module_path: str) -> Tuple[str, Optional[Set[int]]]:
-        """Parse a module path with optional index slice, e.g. ``backbone.blocks[4:]``.
-
-        Supported slice forms: ``[i]``, ``[start:]``, ``[:stop]``, ``[start:stop]``,
-        ``[start:stop:step]``.  Without a slice suffix every element is selected.
-
-        Returns ``(base_path, indices)`` where *indices* is ``None`` (meaning all)
-        or a set of concrete integer indices to checkpoint.
-        """
-        m = re.fullmatch(r"(.+)\[([^\]]*)\]", module_path)
-        if m is None:
-            return module_path, None
-
-        base_path = m.group(1)
-        slice_str = m.group(2)
-
-        # Single index: [4]
-        if ":" not in slice_str:
-            return base_path, {int(slice_str)}
-
-        # Slice: [start:stop] or [start:stop:step]
-        parts = slice_str.split(":")
-        start = int(parts[0]) if parts[0] else None
-        stop = int(parts[1]) if len(parts) > 1 and parts[1] else None
-        step = int(parts[2]) if len(parts) > 2 and parts[2] else None
-        return base_path, (start, stop, step)  # resolved later when length is known
-
-    def _apply_gradient_checkpointing_to_module(
-        self, module_path: str, checkpoint_wrapper, use_reentrant: bool
-    ) -> None:
-        """Apply gradient checkpointing to a specific module path.
-
-        Supports optional index slicing for iterable modules, e.g.:
-          - ``backbone.blocks``        — checkpoint all blocks
-          - ``backbone.blocks[4:]``    — checkpoint from index 4 onwards
-          - ``backbone.blocks[::2]``   — checkpoint every other block
-        """
-        base_path, index_spec = self._parse_module_path(module_path)
-        parts = base_path.split(".")
-        current_module = self
-
-        for part in parts:
-            if not hasattr(current_module, part):
-                logger.warning(f"Module path {module_path} not found, skipping gradient checkpointing")
-                return
-            current_module = getattr(current_module, part)
-
-        if hasattr(current_module, "__iter__"):
-            blocks = list(current_module)
-            n = len(blocks)
-
-            # Resolve index_spec to a set of indices
-            if index_spec is None:
-                selected: Set[int] = set(range(n))
-            elif isinstance(index_spec, set):
-                selected = index_spec
-            else:
-                start, stop, step = index_spec
-                selected = set(range(*slice(start, stop, step).indices(n)))
-
-            for i, block in enumerate(blocks):
-                if i not in selected:
-                    continue
-                if hasattr(block, "forward"):
-                    block.forward = checkpoint_wrapper(block.forward)
-                    logger.info(f"Enabled gradient checkpointing for {base_path}.{i} via forward")
-
-            skipped = set(range(n)) - selected
-            if skipped:
-                logger.info(f"Skipped gradient checkpointing for {base_path} indices: {sorted(skipped)}")
-
-        elif hasattr(current_module, "enable_gradient_checkpointing"):
-            current_module.enable_gradient_checkpointing(use_reentrant=use_reentrant)
-            logger.info(f"Enabled gradient checkpointing for {base_path} via enable_gradient_checkpointing")
-        elif hasattr(current_module, "forward"):
-            current_module.forward = checkpoint_wrapper(current_module.forward)
-            logger.info(f"Enabled gradient checkpointing for {base_path} via forward")
-        else:
-            logger.warning(
-                f"Module {current_module} has no forward or enable_gradient_checkpointing method, skipping gradient checkpointing"
-            )
 
     @property
     def device(self) -> torch.device:

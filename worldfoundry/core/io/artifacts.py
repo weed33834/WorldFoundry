@@ -8,6 +8,8 @@ import cv2
 import numpy as np
 from PIL import Image
 
+from worldfoundry.core.geometry import rotation_matrix_to_euler_angles_opencv
+
 COLORMAP_VIRIDIS = "viridis"
 COLORMAP_INFERNO = "inferno"
 
@@ -352,8 +354,8 @@ def flow_to_image(
 
 
 def _reshape_viz_batch_img(img_data, shape: int | str = 7) -> tuple:
-    from einops import rearrange
     import torch
+    from einops import rearrange
     from torchvision.utils import make_grid
 
     if isinstance(shape, int):
@@ -517,7 +519,9 @@ def render_point_cloud(
     return Image.fromarray(canvas)
 
 
-def parse_game_control_config(config, mode: str = "universal") -> tuple[dict[int, dict[str, bool]], dict[int, tuple[float, float]]]:
+def parse_game_control_config(
+    config, mode: str = "universal"
+) -> tuple[dict[int, dict[str, bool]], dict[int, tuple[float, float]]]:
     """Parse Matrix-Game style keyboard and mouse controls for overlay rendering."""
 
     if mode not in {"universal", "gta_drive", "templerun"}:
@@ -598,10 +602,22 @@ def draw_game_keys_on_frame(
     vertical_shift = -20
     horizon_shift_all = 50
     key_positions = {
-        "W": (w // 2 - key_size[0] // 2 - horizon_shift - horizon_shift_all, h - bottom_margin - key_size[1] * 2 + vertical_shift - 20),
-        "A": (w // 2 - key_size[0] * 2 + 5 - horizon_shift - horizon_shift_all, h - bottom_margin - key_size[1] + vertical_shift),
-        "S": (w // 2 - key_size[0] // 2 - horizon_shift - horizon_shift_all, h - bottom_margin - key_size[1] + vertical_shift),
-        "D": (w // 2 + key_size[0] - 5 - horizon_shift - horizon_shift_all, h - bottom_margin - key_size[1] + vertical_shift),
+        "W": (
+            w // 2 - key_size[0] // 2 - horizon_shift - horizon_shift_all,
+            h - bottom_margin - key_size[1] * 2 + vertical_shift - 20,
+        ),
+        "A": (
+            w // 2 - key_size[0] * 2 + 5 - horizon_shift - horizon_shift_all,
+            h - bottom_margin - key_size[1] + vertical_shift,
+        ),
+        "S": (
+            w // 2 - key_size[0] // 2 - horizon_shift - horizon_shift_all,
+            h - bottom_margin - key_size[1] + vertical_shift,
+        ),
+        "D": (
+            w // 2 + key_size[0] - 5 - horizon_shift - horizon_shift_all,
+            h - bottom_margin - key_size[1] + vertical_shift,
+        ),
     }
     key_icon = {"W": "W", "A": "A", "S": "S", "D": "D", "left": "left", "right": "right"}
     if mode == "templerun":
@@ -706,7 +722,9 @@ def process_game_control_video(
     out_video = []
     for frame_idx, frame in enumerate(input_video):
         if process_icon:
-            keys = key_data.get(frame_idx, {"W": False, "A": False, "S": False, "D": False, "left": False, "right": False})
+            keys = key_data.get(
+                frame_idx, {"W": False, "A": False, "S": False, "D": False, "left": False, "right": False}
+            )
             draw_game_keys_on_frame(frame, keys, key_size=(50, 50), spacing=10, bottom_margin=20, mode=mode)
             if mode == "universal":
                 mouse_position = mouse_data.get(frame_idx, (frame_width // 2, frame_height // 2))
@@ -778,14 +796,18 @@ def draw_wasd_ui(frame: np.ndarray, wasd_onehot: np.ndarray, position: tuple[int
 
     for key, (kx, ky, idx) in keys.items():
         bg_color = (0, 100, 200) if wasd_onehot[idx] == 1 else (50, 50, 50)
-        frame = draw_navigation_rounded_rectangle(frame, (kx, ky), (kx + key_size, ky + key_size), bg_color, -1, r=5, alpha=0.7)
+        frame = draw_navigation_rounded_rectangle(
+            frame, (kx, ky), (kx + key_size, ky + key_size), bg_color, -1, r=5, alpha=0.7
+        )
         text_color = (255, 255, 255)
         font_scale = 0.6
         thickness = 2
         text_size = cv2.getTextSize(key, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)[0]
         text_x = kx + (key_size - text_size[0]) // 2
         text_y = ky + (key_size + text_size[1]) // 2
-        cv2.putText(frame, key, (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, text_color, thickness, cv2.LINE_AA)
+        cv2.putText(
+            frame, key, (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, text_color, thickness, cv2.LINE_AA
+        )
 
     return frame
 
@@ -807,19 +829,25 @@ def draw_ijkl_ui(frame: np.ndarray, rotation_direction: str, width: int, height:
 
     for key, (kx, ky, direction) in keys.items():
         bg_color = (200, 100, 0) if rotation_direction == direction else (50, 50, 50)
-        frame = draw_navigation_rounded_rectangle(frame, (kx, ky), (kx + key_size, ky + key_size), bg_color, -1, r=5, alpha=0.7)
+        frame = draw_navigation_rounded_rectangle(
+            frame, (kx, ky), (kx + key_size, ky + key_size), bg_color, -1, r=5, alpha=0.7
+        )
         text_color = (255, 255, 255)
         font_scale = 0.6
         thickness = 2
         text_size = cv2.getTextSize(key, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)[0]
         text_x = kx + (key_size - text_size[0]) // 2
         text_y = ky + (key_size + text_size[1]) // 2
-        cv2.putText(frame, key, (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, text_color, thickness, cv2.LINE_AA)
+        cv2.putText(
+            frame, key, (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, text_color, thickness, cv2.LINE_AA
+        )
 
     return frame
 
 
-def draw_rotation_ui(frame: np.ndarray, rotation_direction: str, width: int, height: int, mode: str = "arrow") -> np.ndarray:
+def draw_rotation_ui(
+    frame: np.ndarray, rotation_direction: str, width: int, height: int, mode: str = "arrow"
+) -> np.ndarray:
     if mode == "arrow":
         if rotation_direction == "no":
             return frame
@@ -847,23 +875,17 @@ def draw_rotation_ui(frame: np.ndarray, rotation_direction: str, width: int, hei
         pt1 = (center_x - box_size // 2, center_y - box_size // 2)
         pt2 = (center_x + box_size // 2, center_y + box_size // 2)
         frame = draw_navigation_rounded_rectangle(frame, pt1, pt2, bg_color, -1, r=10, alpha=alpha)
-        frame = draw_chevron(frame, (center_x, center_y), size=int(box_size * 0.5), direction=rotation_direction, color=arrow_color, thickness=4)
+        frame = draw_chevron(
+            frame,
+            (center_x, center_y),
+            size=int(box_size * 0.5),
+            direction=rotation_direction,
+            color=arrow_color,
+            thickness=4,
+        )
     elif mode == "keys":
         frame = draw_ijkl_ui(frame, rotation_direction, width, height)
     return frame
-
-
-def rotation_matrix_to_euler_angles_opencv(R: np.ndarray) -> tuple[float, float, float]:
-    sy = np.sqrt(R[0, 0] ** 2 + R[1, 0] ** 2)
-    if sy < 1e-6:
-        z_angle = 0
-        y_angle = np.arctan2(-R[2, 0], R[0, 0])
-        x_angle = np.arctan2(-R[1, 2], R[1, 1])
-    else:
-        z_angle = np.arctan2(R[1, 0], R[0, 0])
-        y_angle = np.arctan2(-R[2, 0], sy)
-        x_angle = np.arctan2(R[2, 1], R[2, 2])
-    return z_angle, y_angle, x_angle
 
 
 def compute_rotation_angles_batch_opencv(c2w_a_batch: np.ndarray, c2w_b_batch: np.ndarray) -> np.ndarray:
@@ -991,8 +1013,18 @@ def save_openloop_action_comparison(
         ax = axes[dim_idx]
         ax.plot(x_axis, gt_actions[:, dim_idx], label="Ground Truth", color="cornflowerblue", alpha=0.9)
         ax.plot(x_axis, pred_actions[:, dim_idx], label="Inferred", color="tomato", linestyle="--", alpha=0.9)
-        ax.scatter(start_indices, gt_actions[start_indices, dim_idx], c="blue", marker="o", s=40, zorder=5, label="GT Start")
-        ax.scatter(start_indices, pred_actions[start_indices, dim_idx], c="darkred", marker="x", s=40, zorder=5, label="Inferred Start")
+        ax.scatter(
+            start_indices, gt_actions[start_indices, dim_idx], c="blue", marker="o", s=40, zorder=5, label="GT Start"
+        )
+        ax.scatter(
+            start_indices,
+            pred_actions[start_indices, dim_idx],
+            c="darkred",
+            marker="x",
+            s=40,
+            zorder=5,
+            label="Inferred Start",
+        )
         ax.set_title(f"Dimension- {dim_idx}")
         ax.set_ylabel("Value")
         ax.grid(True, linestyle=":", alpha=0.6)

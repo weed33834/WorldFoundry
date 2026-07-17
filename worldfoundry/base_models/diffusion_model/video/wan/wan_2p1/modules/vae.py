@@ -763,7 +763,9 @@ def _video_vae(pretrained_path=None, z_dim=None, device='cpu', **kwargs):
         dropout=0.0)
     cfg.update(**kwargs)
 
-    # init model
+    if pretrained_path is None:
+        return WanVAE_(**cfg)
+
     with torch.device('meta'):
         model = WanVAE_(**cfg)
 

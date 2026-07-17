@@ -21,12 +21,6 @@ from typing import Callable, Dict, Optional, Tuple
 import attrs
 import torch
 import tqdm
-from megatron.core import parallel_state
-from torch import Tensor
-
-from cosmos_predict2._src.imaginaire.flags import INTERNAL
-from cosmos_predict2._src.imaginaire.utils import misc
-from worldfoundry.core.distributed.context_parallel import broadcast_split_tensor, cat_outputs_cp
 from cosmos_predict2._src.predict2.conditioner import DataType
 from cosmos_predict2._src.predict2.configs.video2world.defaults.conditioner import Video2WorldCondition
 from cosmos_predict2._src.predict2.models.text2world_model import DenoisePrediction
@@ -35,12 +29,19 @@ from cosmos_predict2._src.predict2.models.text2world_model_rectified_flow import
     Text2WorldModelRectifiedFlow,
     Text2WorldModelRectifiedFlowConfig,
 )
+from torch import Tensor
+
+from worldfoundry.core.configuration.flags import INTERNAL
+from worldfoundry.core.distributed.context_parallel import broadcast_split_tensor, cat_outputs_cp
+from worldfoundry.core.distributed.megatron_compat import parallel_state
+from worldfoundry.core.utils import inference_runtime as misc
 
 NUM_CONDITIONAL_FRAMES_KEY: str = "num_conditional_frames"
 
 
 class ConditioningStrategy(str, Enum):
     """Conditioning strategy implementation."""
+
     FRAME_REPLACE = "frame_replace"  # First few frames of the video are replaced with the conditional frames
 
     def __str__(self) -> str:
@@ -55,6 +56,7 @@ class ConditioningStrategy(str, Enum):
 @attrs.define(slots=False)
 class Video2WorldModelRectifiedFlowConfig(Text2WorldModelRectifiedFlowConfig):
     """Video world model rectified flow config implementation."""
+
     min_num_conditional_frames: int = 1  # Minimum number of latent conditional frames
     max_num_conditional_frames: int = 2  # Maximum number of latent conditional frames
     conditional_frame_timestep: float = (
@@ -74,6 +76,7 @@ class Video2WorldModelRectifiedFlowConfig(Text2WorldModelRectifiedFlowConfig):
 
 class ActionVideo2WorldModelRectifiedFlow(Text2WorldModelRectifiedFlow):
     """Action video world model rectified flow implementation."""
+
     def get_data_and_condition(
         self, data_batch: dict[str, torch.Tensor]
     ) -> Tuple[Tensor, Tensor, Video2WorldCondition]:

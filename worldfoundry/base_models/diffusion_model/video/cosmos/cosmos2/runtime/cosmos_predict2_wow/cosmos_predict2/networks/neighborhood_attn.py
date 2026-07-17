@@ -21,8 +21,6 @@ from typing import Optional
 import torch
 from torch import nn
 
-# from imaginaire.utils import log
-
 try:
     import natten
     from natten.functional import neighborhood_attention_generic
@@ -47,6 +45,7 @@ VideoSize = namedtuple("VideoSize", ["T", "H", "W"])
 
 class NeighborhoodAttention(nn.Module):
     """Neighborhood attention implementation."""
+
     def __init__(self, gna_parameters, base_attn_op):
         """Init.
 
@@ -65,7 +64,7 @@ class NeighborhoodAttention(nn.Module):
             or "stride" not in gna_parameters
         ):
             raise ValueError(
-                "Expected `gna_parameters` to be a dict with keys window_size " f"and stride, got {gna_parameters=}."
+                f"Expected `gna_parameters` to be a dict with keys window_size and stride, got {gna_parameters=}."
             )
 
         self.natten_window_size = gna_parameters["window_size"]
@@ -74,14 +73,14 @@ class NeighborhoodAttention(nn.Module):
 
         if not isinstance(self.natten_window_size, Sized) or len(self.natten_window_size) != 3:
             raise ValueError(
-                "Invalid window_size value. Expected an iterable of length 3, got " f"{self.natten_window_size}."
+                f"Invalid window_size value. Expected an iterable of length 3, got {self.natten_window_size}."
             )
 
         if (not isinstance(self.natten_stride, Sized) or len(self.natten_stride) != 3) and not isinstance(
             self.natten_stride, int
         ):
             raise ValueError(
-                "Invalid stride value. Expected an iterable of length 3, or integer, got " f"{self.natten_stride}."
+                f"Invalid stride value. Expected an iterable of length 3, or integer, got {self.natten_stride}."
             )
 
         if self.natten_base_size is not None and (
@@ -126,15 +125,14 @@ class NeighborhoodAttention(nn.Module):
         """
         if not (q_B_L_H_D.shape == k_B_L_H_D.shape == v_B_L_H_D.shape):
             raise ValueError(
-                "NATTEN requires QKV shapes to match, got "
-                f"{q_B_L_H_D.shape=}, {k_B_L_H_D.shape=}, {v_B_L_H_D.shape=}."
+                f"NATTEN requires QKV shapes to match, got {q_B_L_H_D.shape=}, {k_B_L_H_D.shape=}, {v_B_L_H_D.shape=}."
             )
 
         batch, seqlen, heads, head_dim = q_B_L_H_D.shape
         T, H, W = video_size
 
         if seqlen != T * H * W:
-            raise ValueError("Mismatch between seqlen and video_size dimensions; got " f"{video_size=}, {seqlen=}.")
+            raise ValueError(f"Mismatch between seqlen and video_size dimensions; got {video_size=}, {seqlen=}.")
 
         if T > 1:
             # assert T in [20, 24]

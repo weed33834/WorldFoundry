@@ -19,19 +19,21 @@ import attrs
 import torch
 import torch.nn as nn
 
-from imaginaire.config import make_freezable
+from worldfoundry.core.configuration import make_freezable
 
 
 @make_freezable
 @attrs.define(slots=False)
 class ModelConfig:
     """Model config implementation."""
+
     input_size: int = 1152
     num_classes: int = 7
 
 
 class SafetyClassifier(nn.Module):
     """Safety classifier implementation."""
+
     def __init__(self, input_size: int = 1024, num_classes: int = 2):
         """Init.
 
@@ -64,6 +66,7 @@ class SafetyClassifier(nn.Module):
 
 class VideoSafetyModel(nn.Module):
     """Video safety model implementation."""
+
     def __init__(self, config: ModelConfig) -> None:
         """Init.
 

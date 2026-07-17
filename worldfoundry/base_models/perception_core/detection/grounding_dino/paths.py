@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from worldfoundry.evaluation.utils import REPO_ROOT
+
 _ROOT = Path(__file__).resolve().parent
 
 
@@ -32,6 +34,13 @@ def checkpoint_path() -> Path:
     evalcrafter_dir = os.environ.get("WORLDFOUNDRY_EVALCRAFTER_CHECKPOINTS_DIR")
     if evalcrafter_dir:
         candidate = Path(evalcrafter_dir).expanduser() / "GroundingDINO" / "groundingdino_swint_ogc.pth"
+        if candidate.is_file():
+            return candidate
+
+    for candidate in (
+        REPO_ROOT.parent / "ckpt" / "GroundingDINO" / "groundingdino_swint_ogc.pth",
+        REPO_ROOT.parent / "ckpt" / "WorldScore" / "groundingdino_swint_ogc.pth",
+    ):
         if candidate.is_file():
             return candidate
 

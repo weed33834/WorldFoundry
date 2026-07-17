@@ -1,6 +1,5 @@
 """Module for base_models -> three_dimensions -> depth -> depth_anything -> depth_anything_v1 -> dpt.py functionality."""
 
-import argparse
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -235,18 +234,3 @@ class DepthAnything(DPT_DINOv2, PyTorchModelHubMixin):
             config: The config.
         """
         super().__init__(**config)
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--encoder",
-        default="vits",
-        type=str,
-        choices=["vits", "vitb", "vitl"],
-    )
-    args = parser.parse_args()
-
-    model = DepthAnything.from_pretrained("LiheYoung/depth_anything_{:}14".format(args.encoder))
-
-    print(model)

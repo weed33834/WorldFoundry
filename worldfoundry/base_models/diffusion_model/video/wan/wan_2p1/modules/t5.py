@@ -340,6 +340,22 @@ class T5RelativeEmbedding(nn.Module):
             lk: The lk.
         """
         device = self.embedding.weight.device
+        if device.type == "meta":
+            # Accelerate's sequential CPU offload deliberately replaces child
+            # module weights with meta tensors between calls.  This parent
+            # module constructs the relative-position indices before the
+            # embedding child's pre-forward hook materializes its weight, so
+            # deriving the input device from that meta weight produces an
+            # unusable meta index tensor.  Use the hook's real execution
+            # device when available.
+            hook = getattr(self.embedding, "_hf_hook", None)
+            execution_device = getattr(hook, "execution_device", None)
+            if execution_device is None:
+                raise RuntimeError(
+                    "T5 relative-position embedding is on meta without an "
+                    "Accelerate execution device"
+                )
+            device = torch.device(execution_device)
         # rel_pos = torch.arange(lk).unsqueeze(0).to(device) - \
         #     torch.arange(lq).unsqueeze(1).to(device)
         rel_pos = torch.arange(lk, device=device).unsqueeze(0) - \

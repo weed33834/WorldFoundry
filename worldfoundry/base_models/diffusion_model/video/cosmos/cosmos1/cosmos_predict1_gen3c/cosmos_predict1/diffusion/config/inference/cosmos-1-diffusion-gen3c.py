@@ -15,11 +15,11 @@
 
 """Module for base_models -> diffusion_model -> video -> cosmos -> cosmos1 -> cosmos_predict1_gen3c -> cosmos_predict1 -> diffusion -> config -> inference -> cosmos-1-diffusion-gen3c.py functionality."""
 
+from cosmos_predict1.diffusion.networks.general_dit_video_conditioned import VideoExtendGeneralDIT
 from hydra.core.config_store import ConfigStore
 
-from cosmos_predict1.diffusion.networks.general_dit_video_conditioned import VideoExtendGeneralDIT
-from cosmos_predict1.utils.lazy_config import LazyCall as L
-from cosmos_predict1.utils.lazy_config import LazyDict
+from worldfoundry.core.configuration.lazy_config import LazyCall as L
+from worldfoundry.core.configuration.lazy_config import LazyDict
 
 GEN3C_Cosmos_7B: LazyDict = LazyDict(
     dict(
@@ -41,7 +41,9 @@ GEN3C_Cosmos_7B: LazyDict = LazyDict(
                 rope_h_extrapolation_ratio=1.0,
                 rope_w_extrapolation_ratio=1.0,
                 rope_t_extrapolation_ratio=2.0,
-                in_channels=16 + 16 * 4 + 1 # 16: video_latent, 16 * 4: (warped_frames + warped_frames_mask) * buffer 2, 1: mask
+                in_channels=16
+                + 16 * 4
+                + 1,  # 16: video_latent, 16 * 4: (warped_frames + warped_frames_mask) * buffer 2, 1: mask
             ),
             frame_buffer_max=2,
         ),

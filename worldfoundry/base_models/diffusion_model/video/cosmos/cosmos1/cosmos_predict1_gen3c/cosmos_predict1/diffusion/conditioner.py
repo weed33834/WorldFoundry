@@ -24,13 +24,14 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
-
 from cosmos_predict1.utils import log
-from cosmos_predict1.utils.lazy_config import instantiate
+
+from worldfoundry.core.configuration.lazy_config import instantiate
 
 
 class BaseConditionEntry(nn.Module):
     """Base condition entry implementation."""
+
     def __init__(self):
         """Init."""
         super().__init__()
@@ -138,12 +139,14 @@ class BaseConditionEntry(nn.Module):
 
 class DataType(Enum):
     """Data type implementation."""
+
     IMAGE = "image"
     VIDEO = "video"
 
 
 class TextAttr(BaseConditionEntry):
     """Text attr implementation."""
+
     def __init__(self):
         """Init."""
         super().__init__()
@@ -178,6 +181,7 @@ class TextAttr(BaseConditionEntry):
 @dataclass
 class BaseVideoCondition:
     """Base video condition implementation."""
+
     crossattn_emb: torch.Tensor
     crossattn_mask: torch.Tensor
     data_type: DataType = DataType.VIDEO
@@ -200,6 +204,7 @@ class BaseVideoCondition:
 @dataclass
 class VideoExtendCondition(BaseVideoCondition):
     """Video extend condition implementation."""
+
     video_cond_bool: Optional[torch.Tensor] = None  # whether or not it conditioned on video
     gt_latent: Optional[torch.Tensor] = None
     condition_video_indicator: Optional[torch.Tensor] = None  # 1 for condition region
@@ -237,9 +242,9 @@ class GeneralConditioner(nn.Module, ABC):
         self.embedders = nn.ModuleDict()
         for n, (emb_name, embconfig) in enumerate(emb_models.items()):
             embedder = instantiate(embconfig.obj)
-            assert isinstance(
-                embedder, BaseConditionEntry
-            ), f"embedder model {embedder.__class__.__name__} has to inherit from BaseConditionEntry"
+            assert isinstance(embedder, BaseConditionEntry), (
+                f"embedder model {embedder.__class__.__name__} has to inherit from BaseConditionEntry"
+            )
             embedder.dropout_rate = getattr(embconfig, "dropout_rate", 0.0)
 
             if hasattr(embconfig, "input_key"):
@@ -374,6 +379,7 @@ class GeneralConditioner(nn.Module, ABC):
 @dataclass
 class CosmosCondition:
     """Cosmos condition implementation."""
+
     crossattn_emb: torch.Tensor
     crossattn_mask: torch.Tensor
     padding_mask: Optional[torch.Tensor] = None
@@ -390,6 +396,7 @@ class CosmosCondition:
 
 class VideoConditioner(GeneralConditioner):
     """Video conditioner implementation."""
+
     def forward(
         self,
         batch: Dict,
@@ -410,6 +417,7 @@ class VideoConditioner(GeneralConditioner):
 
 class VideoExtendConditioner(GeneralConditioner):
     """Video extend conditioner implementation."""
+
     def forward(
         self,
         batch: Dict,

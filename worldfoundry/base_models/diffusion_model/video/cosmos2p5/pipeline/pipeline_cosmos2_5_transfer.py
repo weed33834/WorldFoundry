@@ -31,13 +31,13 @@ from ...video_processor import VideoProcessor
 from ..pipeline_utils import DiffusionPipeline
 from .pipeline_output import CosmosPipelineOutput
 
-
 if is_cosmos_guardrail_available():
     from cosmos_guardrail import CosmosSafetyChecker
 else:
 
     class CosmosSafetyChecker:
         """Cosmos safety checker implementation."""
+
         def __init__(self, *args, **kwargs):
             """Init."""
             raise ImportError(
@@ -930,9 +930,7 @@ class Cosmos2_5_TransferPipeline(DiffusionPipeline):
                     dtype=torch.float32,
                     device=device,
                     generator=generator,
-                    num_cond_latent_frames=initial_num_cond_latent_frames
-                    if chunk_idx == 0
-                    else num_cond_latent_frames,
+                    num_cond_latent_frames=initial_num_cond_latent_frames if chunk_idx == 0 else num_cond_latent_frames,
                     latents=latents_arg,
                 )
                 cond_mask = cond_mask.to(transformer_dtype)

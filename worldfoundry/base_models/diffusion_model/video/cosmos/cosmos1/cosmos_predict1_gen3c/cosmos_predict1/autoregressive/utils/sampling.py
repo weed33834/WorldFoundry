@@ -18,9 +18,9 @@
 from typing import Optional, Tuple
 
 import torch
-from worldfoundry.core.attention import attention_backend_context
-
 from cosmos_predict1.autoregressive.networks.transformer import Transformer
+
+from worldfoundry.core.attention import attention_backend_context
 
 
 def sample_top_p(logits, temperature, top_p, return_probs: bool = False):
@@ -137,9 +137,9 @@ def prefill(
     """
     logits = model(tokens=tokens, token_embeddings=token_embeddings, input_pos=input_pos, **kwargs)
     # Only top-p or top-k can be provided
-    assert (
-        top_p is None or top_k is None
-    ), "Only one of top-p or top-k can be provided, got top-p={top_p} and top-k={top_k}"
+    assert top_p is None or top_k is None, (
+        "Only one of top-p or top-k can be provided, got top-p={top_p} and top-k={top_k}"
+    )
     if top_p is not None:
         return sample_top_p(logits, temperature=temperature, top_p=top_p)[0]
     else:
@@ -184,9 +184,9 @@ def decode_n_tokens(
     """
     new_tokens, new_probs = [], []
     batch_size = cur_token.shape[0]
-    assert (
-        top_p is None or top_k is None
-    ), "Only one of top-p or top-k can be provided, got top-p={top_p} and top-k={top_k}"
+    assert top_p is None or top_k is None, (
+        "Only one of top-p or top-k can be provided, got top-p={top_p} and top-k={top_k}"
+    )
     if stop_tokens is not None:
         # Indicator for whether the EOS token (stop token) has been reached for each sample in the batch
         eos_reached = torch.tensor([False] * batch_size, device="cuda")

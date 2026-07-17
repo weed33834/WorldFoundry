@@ -32,12 +32,12 @@ from urllib.parse import urlparse
 import numpy as np
 import termcolor
 import torch
+from cosmos_predict1.utils import log
 from torch import nn
 from torch.distributed._functional_collectives import AsyncCollectiveTensor
 from torch.distributed._tensor.api import DTensor
 
 from worldfoundry.core.distributed import torch_process_group as distributed
-from cosmos_predict1.utils import log
 from worldfoundry.core.io import copy_uri, load_serialized
 
 
@@ -61,9 +61,9 @@ def to(
     Returns:
         data (Any): Data cast to the specified device, dtype, and/or memory_format.
     """
-    assert (
-        device is not None or dtype is not None or memory_format is not None
-    ), "at least one of device, dtype, memory_format should be specified"
+    assert device is not None or dtype is not None or memory_format is not None, (
+        "at least one of device, dtype, memory_format should be specified"
+    )
     if isinstance(data, torch.Tensor):
         is_cpu = (isinstance(device, str) and device == "cpu") or (
             isinstance(device, torch.device) and device.type == "cpu"
@@ -220,6 +220,7 @@ class timer(ContextDecorator):  # noqa: N801
         Returns:
             The return value.
         """
+
         @functools.wraps(func)
         def wrapper(*args, **kwargs):  # noqa: ANN202
             """Wrapper."""
@@ -233,116 +234,6 @@ class timer(ContextDecorator):  # noqa: N801
             return result
 
         return wrapper  # type: ignore
-
-
-class TrainingTimer:
-    """Timer for timing the execution of code, aggregating over multiple training iterations.
-
-    It is used as a context manager to measure the execution time of code and store the timing results
-    for each function. The context managers can be nested.
-
-    Attributes:
-        results (dict): A dictionary to store timing results for various code.
-
-    Example:
-        timer = Timer()
-        for i in range(100):
-            with timer("func_a"):
-                func_a()
-        avg_time = sum(timer.results["func_a"]) / len(timer.results["func_a"])
-        print(f"func_a() took {avg_time} seconds.")
-    """
-
-    def __init__(self) -> None:
-        """Init.
-
-        Returns:
-            The return value.
-        """
-        self.results = dict()
-        self.average_results = dict()
-        self.start_time = []
-        self.func_stack = []
-        self.reset()
-
-    def reset(self) -> None:
-        """Reset.
-
-        Returns:
-            The return value.
-        """
-        self.results = {key: [] for key in self.results}
-
-    def __enter__(self) -> TrainingTimer:
-        """Enter.
-
-        Returns:
-            The return value.
-        """
-        self.start_time.append(time.time())
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback) -> None:  # noqa: ANN001
-        """Exit.
-
-        Args:
-            exc_type: The exc type.
-            exc_value: The exc value.
-            traceback: The traceback.
-
-        Returns:
-            The return value.
-        """
-        end_time = time.time()
-        result = end_time - self.start_time.pop()
-        key = self.func_stack.pop()
-        self.results.setdefault(key, [])
-        self.results[key].append(result)
-
-    def __call__(self, func_name: str) -> TrainingTimer:
-        """Call.
-
-        Args:
-            func_name: The func name.
-
-        Returns:
-            The return value.
-        """
-        self.func_stack.append(func_name)
-        return self
-
-    def __getattr__(self, func_name: str) -> TrainingTimer:
-        """Getattr.
-
-        Args:
-            func_name: The func name.
-
-        Returns:
-            The return value.
-        """
-        return self.__call__(func_name)
-
-    def nested(self, func_name: str) -> TrainingTimer:
-        """Nested.
-
-        Args:
-            func_name: The func name.
-
-        Returns:
-            The return value.
-        """
-        return self.__call__(func_name)
-
-    def compute_average_results(self) -> dict[str, float]:
-        """Compute average results.
-
-        Returns:
-            The return value.
-        """
-        results = dict()
-        for key, value_list in self.results.items():
-            results[key] = sum(value_list) / len(value_list)
-        return results
 
 
 def timeout_handler(timeout_period: float, signum: int, frame: int) -> None:
@@ -515,7 +406,7 @@ def count_params(model: nn.Module, verbose=False) -> int:
     """
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     if verbose:
-        print(f"{model.__class__.__name__} has {total_params * 1.e-6:.2f} M params.")
+        print(f"{model.__class__.__name__} has {total_params * 1.0e-6:.2f} M params.")
     return total_params
 
 

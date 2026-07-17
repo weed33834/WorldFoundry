@@ -20,6 +20,7 @@ import torch
 import torch.distributed as dist
 
 from worldfoundry.core.distributed import context_parallel_util
+from worldfoundry.core.distributed.sequence_ops import all_to_all_many
 
 
 def all_to_all(tensor, scatter_idx, gather_idx, group=None, gather=True):
@@ -57,7 +58,7 @@ def all_to_all(tensor, scatter_idx, gather_idx, group=None, gather=True):
         if t_shape[scatter_idx] % world_size != 0:
             raise ValueError(f"Dimension {scatter_idx} must be divisible by world size {world_size}")
         chunk_size = t_shape[scatter_idx] // world_size
-        
+
         # Split scatter_idx into [world_size, chunk_size]
         new_shape = list()
         for i in range(len(t_shape)):
@@ -66,7 +67,7 @@ def all_to_all(tensor, scatter_idx, gather_idx, group=None, gather=True):
             else:
                 new_shape.extend([world_size, chunk_size])
         tensor = tensor.reshape(*new_shape)
-        
+
         # Move the world_size dimension to dim 0 and make memory contiguous.
         # This is critical as `all_to_all_single` slices the tensor along dim 0 to dispatch to ranks.
         tensor = tensor.permute(scatter_idx, *[i for i in range(len(new_shape)) if i != scatter_idx]).contiguous()
@@ -87,7 +88,7 @@ def all_to_all(tensor, scatter_idx, gather_idx, group=None, gather=True):
     def reorder_tensor(tensor, gather_idx):
         t_shape = list(tensor.shape)
         world_size = t_shape[0]
-        
+
         # Build permutation indices, inserting world_size dimension (dim 0) right after gather_idx.
         permute_idx = list()
         for i in range(1, len(t_shape)):
@@ -109,7 +110,7 @@ def all_to_all(tensor, scatter_idx, gather_idx, group=None, gather=True):
             tensor = tensor.reshape(*new_shape)
         else:
             # Optimize: directly retrieve the slice corresponding to the local rank.
-            tensor = tensor[:,ulysses_rank]
+            tensor = tensor[:, ulysses_rank]
 
         return tensor
 
@@ -133,9 +134,12 @@ def ulysses_a2a_in(query, key, value):
         return query, key, value
 
     # Partition along Head dimension (scatter_idx=1), reconstruct/gather along Seq dimension (gather_idx=2)
-    query = all_to_all(query, scatter_idx=1, gather_idx=2, group=context_parallel_util.get_cp_group())
-    key = all_to_all(key, scatter_idx=1, gather_idx=2, group=context_parallel_util.get_cp_group())
-    value = all_to_all(value, scatter_idx=1, gather_idx=2, group=context_parallel_util.get_cp_group())
+    query, key, value = all_to_all_many(
+        (query, key, value),
+        scatter_dim=1,
+        gather_dim=2,
+        group=context_parallel_util.get_cp_group(),
+    )
     return query, key, value
 
 
@@ -163,9 +167,10 @@ def ulysses_wrapper(func):
     2. Invokes the underlying attention kernel (e.g., FlashAttention, SDPA) on the fully gathered sequence.
     3. Transforms output back to sequence-partitioned space via `ulysses_a2a_out`.
     """
+
     def wrapper(self, query, key, value, shape):
         query, key, value = ulysses_a2a_in(query, key, value)
-        output = func(self, query, key, value, shape)        
+        output = func(self, query, key, value, shape)
         output = ulysses_a2a_out(output)
         return output
 

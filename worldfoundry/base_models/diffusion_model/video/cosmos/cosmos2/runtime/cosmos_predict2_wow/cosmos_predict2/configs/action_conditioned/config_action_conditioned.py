@@ -15,24 +15,20 @@
 
 """Module for base_models -> diffusion_model -> video -> cosmos -> cosmos2 -> runtime -> cosmos_predict2_wow -> cosmos_predict2 -> configs -> action_conditioned -> config_action_conditioned.py functionality."""
 
-import attrs
-
 from cosmos_predict2.conditioner import BooleanFlag, ReMapkey, TextAttr
 from cosmos_predict2.configs.action_conditioned.defaults.conditioner import ActionConditionedConditioner
 from cosmos_predict2.configs.base.config_video2world import (
     ConditioningStrategy,
     CosmosGuardrailConfig,
     CosmosReason1Config,
-    SolverTimestampConfig,
     Video2WorldPipelineConfig,
 )
-from cosmos_predict2.configs.base.defaults.ema import EMAConfig
 from cosmos_predict2.models.action_video2world_dit import ActionConditionedMinimalV1LVGDiT
 from cosmos_predict2.models.text2image_dit import SACConfig
 from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
-from imaginaire.config import make_freezable
-from imaginaire.lazy_config import LazyCall as L
-from imaginaire.lazy_config import LazyDict
+
+from worldfoundry.core.configuration import EMAConfig
+from worldfoundry.core.configuration.lazy_config import LazyCall as L
 
 # Cosmos Predict2 Video2World 2B
 ACTION_CONDITIONED_PREDICT2_VIDEO2WORLD_NET_2B = L(ActionConditionedMinimalV1LVGDiT)(

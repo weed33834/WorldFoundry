@@ -8,7 +8,6 @@ from functools import cached_property
 
 from torch.distributed.device_mesh import init_device_mesh
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -50,8 +49,7 @@ class ParallelDims:
         if dp_replicate * dp_shard * cp * tp * pp != self.world_size:
             self.dp_replicate = self.world_size // (dp_shard * cp * tp * pp)
             logger.warning(
-                "Invalid parallel dims: dp_replicate(%s) * dp_shard(%s) * cp(%s) * "
-                "tp(%s) * pp(%s) != WORLD_SIZE(%s).",
+                "Invalid parallel dims: dp_replicate(%s) * dp_shard(%s) * cp(%s) * tp(%s) * pp(%s) != WORLD_SIZE(%s).",
                 dp_replicate,
                 dp_shard,
                 cp,

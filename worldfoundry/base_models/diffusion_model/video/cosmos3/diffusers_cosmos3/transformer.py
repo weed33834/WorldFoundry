@@ -12,213 +12,157 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Module for base_models -> diffusion_model -> video -> cosmos3 -> diffusers_cosmos3 -> transformer.py functionality."""
-
 import math
-from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
+
 from diffusers.configuration_utils import ConfigMixin, register_to_config
+from diffusers.loaders import PeftAdapterMixin
+from diffusers.models.attention import AttentionMixin, AttentionModuleMixin
 from diffusers.models.attention_dispatch import dispatch_attention_fn
+from diffusers.models.embeddings import TimestepEmbedding, Timesteps
 from diffusers.models.modeling_utils import ModelMixin
-from transformers.activations import ACT2FN
-from transformers.integrations import use_kernel_forward_from_hub
-from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS, dynamic_rope_update
-from transformers.models.qwen3_vl.modeling_qwen3_vl import apply_rotary_pos_emb
-
-from worldfoundry.base_models.diffusion_model.video.cosmos3.diffusers_cosmos3.sequence_packing import (
-    FactoredSequencePack,
-    from_joint,
-    from_mode_splits,
-    from_und_gen_splits,
-    get_all_seq,
-    get_causal_seq,
-    get_device_and_dtype,
-    get_full_only_seq,
-    get_gen_seq,
-    get_und_seq,
-    set_gen_seq,
-    set_und_seq,
-    zeros_like,
-)
+from diffusers.models.normalization import RMSNorm
 
 
-def _pack_to_batch(tokens: torch.Tensor, cu_seqlens: torch.Tensor, max_seqlen: int) -> torch.Tensor:
-    """Unpack (total_tokens, heads, dim) → (batch, max_seqlen, heads, dim)."""
-    batch = cu_seqlens.shape[0] - 1
-    cu = cu_seqlens.tolist()
-    out = tokens.new_zeros(batch, max_seqlen, *tokens.shape[1:])
-    for i in range(batch):
-        n = cu[i + 1] - cu[i]
-        out[i, :n] = tokens[cu[i] : cu[i + 1]]
-    return out
+class Cosmos3AttnProcessor:
+    """Dual-pathway attention processor for Cosmos3.
 
-
-def _batch_to_pack(batched: torch.Tensor, cu_seqlens: torch.Tensor) -> torch.Tensor:
-    """Repack (batch, max_seqlen, heads, dim) → (total_tokens, heads, dim)."""
-    cu = cu_seqlens.tolist()
-    return torch.cat([batched[i, : cu[i + 1] - cu[i]] for i in range(len(cu) - 1)], dim=0)
-
-
-def _kv_padding_mask(cu_seqlens: torch.Tensor, max_seqlen: int, dtype: torch.dtype, device: torch.device):
-    """Float mask (batch, 1, 1, max_seqlen) with -inf at padding positions, or None if uniform."""
-    batch = cu_seqlens.shape[0] - 1
-    cu = cu_seqlens.tolist()
-    mask = torch.zeros(batch, 1, 1, max_seqlen, dtype=dtype, device=device)
-    for i in range(batch):
-        kl = cu[i + 1] - cu[i]
-        if kl < max_seqlen:
-            mask[i, 0, 0, kl:] = float("-inf")
-    return None if (mask == 0).all() else mask
-
-
-class CosmosAttnProcessor3_0:
+    Projects, normalizes, applies rotary position embeddings, then runs separate causal (understanding) and full
+    (generation) attention pathways. The generation pathway cross-attends to both und and gen keys/values.
     """
-    Packed two-way attention processor for Cosmos3. Implements separate causal
-    (understanding) and full (generation) attention pathways via dispatch_attention_fn.
-    """
+
+    _attention_backend = None
+    _parallel_config = None
 
     def __call__(
         self,
-        packed_query_states: FactoredSequencePack,
-        packed_key_states: FactoredSequencePack,
-        packed_value_states: FactoredSequencePack,
-    ) -> FactoredSequencePack:
-        """Call.
+        attn: "Cosmos3PackedMoTAttention",
+        und_seq: torch.Tensor,
+        gen_seq: torch.Tensor,
+        rotary_emb: tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        # Per-pathway projections
+        q_und = attn.to_q(und_seq).view(-1, attn.num_attention_heads, attn.head_dim)
+        k_und = attn.to_k(und_seq).view(-1, attn.num_key_value_heads, attn.head_dim)
+        v_und = attn.to_v(und_seq).view(-1, attn.num_key_value_heads, attn.head_dim)
+        q_gen = attn.add_q_proj(gen_seq).view(-1, attn.num_attention_heads, attn.head_dim)
+        k_gen = attn.add_k_proj(gen_seq).view(-1, attn.num_key_value_heads, attn.head_dim)
+        v_gen = attn.add_v_proj(gen_seq).view(-1, attn.num_key_value_heads, attn.head_dim)
 
-        Args:
-            packed_query_states: The packed query states.
-            packed_key_states: The packed key states.
-            packed_value_states: The packed value states.
+        q_und = attn.norm_q(q_und)
+        k_und = attn.norm_k(k_und)
+        q_gen = attn.norm_added_q(q_gen)
+        k_gen = attn.norm_added_k(k_gen)
 
-        Returns:
-            The return value.
-        """
-        causal_q, causal_offsets = get_causal_seq(packed_query_states)
-        causal_k, _ = get_causal_seq(packed_key_states)
-        causal_v, _ = get_causal_seq(packed_value_states)
-        full_q, full_offsets = get_full_only_seq(packed_query_states)
-        sample_offsets = packed_query_states["sample_offsets"]
-        max_causal = packed_query_states["max_causal_len"]
-        max_full = packed_query_states["max_full_len"]
-        max_sample = packed_query_states["max_sample_len"]
+        # Apply rotary position embeddings per pathway
+        cos_und, sin_und, cos_gen, sin_gen = rotary_emb
+        cos_und = cos_und.unsqueeze(1)
+        sin_und = sin_und.unsqueeze(1)
+        q_und = q_und * cos_und + _rotate_half(q_und) * sin_und
+        k_und = k_und * cos_und + _rotate_half(k_und) * sin_und
+        cos_gen = cos_gen.unsqueeze(1)
+        sin_gen = sin_gen.unsqueeze(1)
+        q_gen = q_gen * cos_gen + _rotate_half(q_gen) * sin_gen
+        k_gen = k_gen * cos_gen + _rotate_half(k_gen) * sin_gen
 
-        # Causal (understanding) self-attention
+        # Causal pathway (understanding): und tokens self-attend with causal masking.
         causal_out = dispatch_attention_fn(
-            _pack_to_batch(causal_q, causal_offsets, max_causal),
-            _pack_to_batch(causal_k, causal_offsets, max_causal),
-            _pack_to_batch(causal_v, causal_offsets, max_causal),
+            q_und.unsqueeze(0),
+            k_und.unsqueeze(0),
+            v_und.unsqueeze(0),
             is_causal=True,
             enable_gqa=True,
+            backend=self._attention_backend,
+            parallel_config=self._parallel_config,
         )
-        causal_out = _batch_to_pack(causal_out, causal_offsets).flatten(-2, -1)
+        causal_out = causal_out.squeeze(0).flatten(-2, -1)
 
-        # Full (generation) cross-attention: Q = gen tokens, K/V = all tokens
-        all_k = get_all_seq(packed_key_states)
-        all_v = get_all_seq(packed_value_states)
+        # Full pathway (generation): gen tokens cross-attend to all (und + gen) keys/values.
+        all_k = torch.cat([k_und, k_gen], dim=0)
+        all_v = torch.cat([v_und, v_gen], dim=0)
         full_out = dispatch_attention_fn(
-            _pack_to_batch(full_q, full_offsets, max_full),
-            _pack_to_batch(all_k, sample_offsets, max_sample),
-            _pack_to_batch(all_v, sample_offsets, max_sample),
-            attn_mask=_kv_padding_mask(sample_offsets, max_sample, causal_q.dtype, causal_q.device),
+            q_gen.unsqueeze(0),
+            all_k.unsqueeze(0),
+            all_v.unsqueeze(0),
             is_causal=False,
             enable_gqa=True,
+            backend=self._attention_backend,
+            parallel_config=self._parallel_config,
         )
-        full_out = _batch_to_pack(full_out, full_offsets).flatten(-2, -1)
+        full_out = full_out.squeeze(0).flatten(-2, -1)
 
-        return from_mode_splits(causal_out, full_out, packed_query_states)
+        # Per-pathway output projection
+        und_out = attn.to_out(causal_out)
+        gen_out = attn.to_add_out(full_out)
+        return und_out, gen_out
 
 
-class TimestepEmbedder(nn.Module):
-    """Embeds scalar timesteps into vector representations."""
+def _rotate_half(x: torch.Tensor) -> torch.Tensor:
+    half = x.shape[-1] // 2
+    return torch.cat((-x[..., half:], x[..., :half]), dim=-1)
 
-    def __init__(self, hidden_size, frequency_embedding_size=256):
-        """Init.
 
-        Args:
-            hidden_size: The hidden size.
-            frequency_embedding_size: The frequency embedding size.
-        """
+class Cosmos3VLTextRotaryEmbedding(nn.Module):
+    def __init__(self, head_dim: int, rope_theta: float, rope_axes_dim: tuple[int, int, int]):
         super().__init__()
-        self.linear_1 = nn.Linear(frequency_embedding_size, hidden_size, bias=True)
-        self.act = nn.SiLU()
-        self.linear_2 = nn.Linear(hidden_size, hidden_size, bias=True)
-        self.frequency_embedding_size = frequency_embedding_size
-        self.hidden_size = hidden_size
+        inv_freq = 1.0 / (rope_theta ** (torch.arange(0, head_dim, 2, dtype=torch.float32) / head_dim))
+        self.register_buffer("inv_freq", inv_freq, persistent=False)
+        self.rope_axes_dim = rope_axes_dim
 
-    def _init_weights(self):
-        """Helper function to init weights."""
-        std = 1.0 / math.sqrt(self.frequency_embedding_size)
-        torch.nn.init.trunc_normal_(self.mlp[0].weight, std=std, a=-3 * std, b=3 * std)
-        torch.nn.init.zeros_(self.mlp[0].bias)
+    def apply_interleaved_mrope(self, freqs, rope_axes_dim):
+        """Reorganize chunked [TTT...HHH...WWW] frequency layout into interleaved
+        [THTHWHTHW...TT], preserving frequency continuity across the 3 grids."""
+        freqs_t = freqs[0]
+        for dim, offset in enumerate((1, 2), start=1):  # H, W
+            length = rope_axes_dim[dim] * 3
+            idx = slice(offset, length, 3)
+            freqs_t[..., idx] = freqs[dim, ..., idx]
+        return freqs_t
 
-        std = 1.0 / math.sqrt(self.hidden_size)
-        torch.nn.init.trunc_normal_(self.mlp[2].weight, std=std, a=-3 * std, b=3 * std)
-        torch.nn.init.zeros_(self.mlp[2].bias)
+    def forward(self, position_ids, device, dtype):
+        if position_ids.ndim == 2:
+            position_ids = position_ids[None, ...].expand(3, position_ids.shape[0], -1)  # [3,B,N]
+        inv_freq_expanded = (
+            self.inv_freq[None, None, :, None].float().expand(3, position_ids.shape[1], -1, 1).to(device)
+        )  # [3,B,head_dim//2,1]
+        position_ids_expanded = position_ids[:, :, None, :].float()  # [3,B,1,N]
+        # Disable autocast so the position-id matmul runs in float32: under an ambient autocast it would run in
+        # bfloat16, which cannot represent consecutive integers past 256, collapsing positions onto the same
+        # frequency and degrading the rotary embedding.
+        with torch.autocast(device_type=position_ids.device.type, enabled=False):
+            freqs = inv_freq_expanded @ position_ids_expanded
+        freqs = freqs.transpose(2, 3)  # [3,B,N,head_dim//2]
+        freqs = self.apply_interleaved_mrope(freqs, self.rope_axes_dim)  # [B,N,head_dim//2]
+        emb = torch.cat((freqs, freqs), dim=-1)  # [B,N,head_dim]
+        return emb.cos().to(dtype=dtype), emb.sin().to(dtype=dtype)  # each: [B,N,head_dim]
 
-    @staticmethod
-    def timestep_embedding(t, dim, max_period=10000):
-        """Timestep embedding.
 
-        Args:
-            t: The t.
-            dim: The dim.
-            max_period: The max period.
-        """
-        half = dim // 2
-        freqs = torch.exp(-math.log(max_period) * torch.arange(start=0, end=half, dtype=torch.float32) / half).to(
-            device=t.device
-        )
-        args = t[:, None].float() * freqs[None]
-        embedding = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
-        if dim % 2:
-            embedding = torch.cat([embedding, torch.zeros_like(embedding[:, :1])], dim=-1)
-        return embedding
+class Cosmos3VLTextMLP(nn.Module):
+    def __init__(self, hidden_size: int, intermediate_size: int):
+        super().__init__()
+        self.gate_proj = nn.Linear(hidden_size, intermediate_size, bias=False)
+        self.up_proj = nn.Linear(hidden_size, intermediate_size, bias=False)
+        self.down_proj = nn.Linear(intermediate_size, hidden_size, bias=False)
+        self.act_fn = nn.SiLU()
 
-    def forward(self, t):
-        """Forward.
-
-        Args:
-            t: The t.
-        """
-        t_freq = self.timestep_embedding(t, self.frequency_embedding_size)
-        return self.linear_2(self.act(self.linear_1(t_freq)))
+    def forward(self, x):
+        return self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
 
 
 class DomainAwareLinear(nn.Module):
-    """Linear projection with one weight/bias pair per action embodiment domain."""
+    """Linear projection with one weight/bias pair per embodiment domain."""
 
     def __init__(self, input_size: int, output_size: int, num_domains: int) -> None:
-        """Init.
-
-        Args:
-            input_size: The input size.
-            output_size: The output size.
-            num_domains: The num domains.
-
-        Returns:
-            The return value.
-        """
         super().__init__()
-        self.input_size = int(input_size)
-        self.output_size = int(output_size)
-        self.num_domains = int(num_domains)
+        self.input_size = input_size
+        self.output_size = output_size
+        self.num_domains = num_domains
         self.fc = nn.Embedding(self.num_domains, self.output_size * self.input_size)
         self.bias = nn.Embedding(self.num_domains, self.output_size)
-        nn.init.xavier_uniform_(self.fc.weight)
-        nn.init.zeros_(self.bias.weight)
 
     def forward(self, x: torch.Tensor, domain_id: torch.Tensor) -> torch.Tensor:
-        """Forward.
-
-        Args:
-            x: The x.
-            domain_id: The domain id.
-
-        Returns:
-            The return value.
-        """
         if domain_id.ndim == 0:
             domain_id = domain_id.unsqueeze(0)
         domain_id = domain_id.to(device=x.device, dtype=torch.long).reshape(-1)
@@ -229,7 +173,6 @@ class DomainAwareLinear(nn.Module):
             )
         if torch.any((domain_id < 0) | (domain_id >= self.num_domains)):
             raise ValueError(f"Cosmos3 action domain_id must be in [0, {self.num_domains}), got {domain_id.tolist()}.")
-
         weight = self.fc(domain_id).view(domain_id.shape[0], self.input_size, self.output_size)
         bias = self.bias(domain_id).view(domain_id.shape[0], self.output_size)
         if x.ndim == 2:
@@ -239,587 +182,202 @@ class DomainAwareLinear(nn.Module):
         raise ValueError(f"Cosmos3 DomainAwareLinear expected rank-2 or rank-3 input, got {tuple(x.shape)}.")
 
 
-class LayerTypes:
-    """Layer types implementation."""
-    def __init__(self, is_moe: bool):
-        """Init.
+class Cosmos3PackedMoTAttention(nn.Module, AttentionModuleMixin):
+    """Dual-pathway packed attention for Qwen3VL MoT — separate projections for
+    understanding (causal) and generation (full) token streams."""
 
-        Args:
-            is_moe: The is moe.
-        """
-        self.is_moe = is_moe
-        if is_moe:  # TODO: moe is not yet tested
-            self.mlp = Qwen3VLMoeTextMLP
-            self.rms_norm = Qwen3VLMoeTextRMSNorm
-            self.rotary_embedding = Qwen3VLMoeTextRotaryEmbedding
-        else:
-            self.mlp = Cosmos3VLTextMLP
-            self.rms_norm = Cosmos3VLTextRMSNorm
-            self.rotary_embedding = Cosmos3VLTextRotaryEmbedding
+    _default_processor_cls = Cosmos3AttnProcessor
+    _available_processors = [Cosmos3AttnProcessor]
 
-
-class Cosmos3VLTextRotaryEmbedding(nn.Module):
-    """Cosmos vl text rotary embedding implementation."""
-    def __init__(self, config):
-        """Init.
-
-        Args:
-            config: The config.
-        """
+    def __init__(
+        self,
+        hidden_size: int,
+        head_dim: int,
+        num_attention_heads: int,
+        num_key_value_heads: int,
+        attention_bias: bool,
+        rms_norm_eps: float,
+        processor=None,
+    ):
         super().__init__()
-        if hasattr(config, "rope_scaling") and config.rope_scaling is not None:
-            self.rope_type = config.rope_scaling.get("rope_type", "default")
-        else:
-            self.rope_type = "default"
-        self.max_seq_len_cached = config.max_position_embeddings
-        self.original_max_seq_len = config.max_position_embeddings
+        self.hidden_size = hidden_size
+        self.head_dim = head_dim
+        self.num_attention_heads = num_attention_heads
+        self.num_key_value_heads = num_key_value_heads
+        self.num_key_value_groups = num_attention_heads // num_key_value_heads
 
-        self.config = config
-        self.rope_init_fn = ROPE_INIT_FUNCTIONS[self.rope_type]
+        # Understanding pathway. norm_q / norm_k are applied per-head (only on
+        # head_dim), so no reshape is needed after them.
+        self.to_q = nn.Linear(hidden_size, num_attention_heads * head_dim, bias=attention_bias)
+        self.to_k = nn.Linear(hidden_size, num_key_value_heads * head_dim, bias=attention_bias)
+        self.to_v = nn.Linear(hidden_size, num_key_value_heads * head_dim, bias=attention_bias)
+        self.to_out = nn.Linear(num_attention_heads * head_dim, hidden_size, bias=attention_bias)
+        self.norm_q = RMSNorm(head_dim, eps=rms_norm_eps, elementwise_affine=True, bias=False)
+        self.norm_k = RMSNorm(head_dim, eps=rms_norm_eps, elementwise_affine=True, bias=False)
 
-        self.mrope_section = (
-            config.rope_scaling.get("mrope_section", [24, 20, 20]) if config.rope_scaling is not None else [24, 20, 20]
-        )
+        # Generation pathway
+        self.add_q_proj = nn.Linear(hidden_size, num_attention_heads * head_dim, bias=attention_bias)
+        self.add_k_proj = nn.Linear(hidden_size, num_key_value_heads * head_dim, bias=attention_bias)
+        self.add_v_proj = nn.Linear(hidden_size, num_key_value_heads * head_dim, bias=attention_bias)
+        self.to_add_out = nn.Linear(num_attention_heads * head_dim, hidden_size, bias=attention_bias)
+        self.norm_added_q = RMSNorm(head_dim, eps=rms_norm_eps, elementwise_affine=True, bias=False)
+        self.norm_added_k = RMSNorm(head_dim, eps=rms_norm_eps, elementwise_affine=True, bias=False)
 
-    def init_weights(self, buffer_device: torch.device | None = None) -> None:
-        """Init weights.
-
-        Args:
-            buffer_device: The buffer device.
-
-        Returns:
-            The return value.
-        """
-        inv_freq, self.attention_scaling = self.rope_init_fn(self.config, buffer_device)
-        self.register_buffer("inv_freq", inv_freq, persistent=False)
-
-    def apply_interleaved_mrope(self, freqs, mrope_section):
-        """Apply interleaved MRoPE to 3D rotary embeddings.
-        Reorganizes frequency layout from chunked [TTT...HHH...WWW] to
-        interleaved [THTHWHTHW...TT], preserving frequency continuity.
-        args:
-            x: (3, bs, seq_len, head_dim // 2)
-            mrope_section: (3,)
-        returns:
-            x_t: (bs, seq_len, head_dim // 2)
-        """
-        freqs_t = freqs[0]  # just overwrite the first dimension T
-        for dim, offset in enumerate((1, 2), start=1):  # H, W
-            length = mrope_section[dim] * 3
-            idx = slice(offset, length, 3)
-            freqs_t[..., idx] = freqs[dim, ..., idx]
-        return freqs_t
-
-    @torch.no_grad()
-    @dynamic_rope_update  # power user: used with advanced RoPE types (e.g. dynamic rope)
-    def forward(self, x, position_ids):
-        """Forward.
-
-        Args:
-            x: The x.
-            position_ids: The position ids.
-        """
-        assert self.inv_freq.dtype == torch.float32, f"inv_freq must be float32, but got {self.inv_freq.dtype}"
-
-        # In contrast to other models, Cosmos3Omni has different position ids for the grids
-        # So we expand the inv_freq to shape (3, ...)
-        if position_ids.ndim == 2:
-            position_ids = position_ids[None, ...].expand(3, position_ids.shape[0], -1)  # [3,B,N]
-        inv_freq_expanded = (
-            self.inv_freq[None, None, :, None].float().expand(3, position_ids.shape[1], -1, 1).to(x.device)
-        )  # [3,B,head_dim//2,1]
-        position_ids_expanded = position_ids[:, :, None, :].float()  # [3,B,1,N]
-
-        freqs = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(2, 3)  # [3,B,N,head_dim//2]
-        freqs = self.apply_interleaved_mrope(freqs, self.mrope_section)  # [B,N,head_dim//2]
-        emb = torch.cat((freqs, freqs), dim=-1)  # [B,N,head_dim]
-        cos = emb.cos() * self.attention_scaling  # [B,N,head_dim]
-        sin = emb.sin() * self.attention_scaling  # [B,N,head_dim]
-
-        return cos.to(dtype=x.dtype), sin.to(dtype=x.dtype)  # each: [B,N,head_dim]
-
-
-class Cosmos3VLTextRMSNorm(nn.Module):
-    """Cosmos vl text rms norm implementation."""
-    def __init__(self, hidden_size: int, eps: float = 1e-6) -> None:
-        """
-        Cosmos3VLTextRMSNorm is equivalent to T5LayerNorm
-        """
-        super().__init__()
-        self.weight = nn.Parameter(torch.ones(hidden_size))
-        self.variance_epsilon = eps
-
-    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
-        """Forward.
-
-        Args:
-            hidden_states: The hidden states.
-
-        Returns:
-            The return value.
-        """
-        input_dtype = hidden_states.dtype
-        hidden_states = hidden_states.to(torch.float32)
-        variance = hidden_states.pow(2).mean(-1, keepdim=True)
-        hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
-        return self.weight * hidden_states.to(input_dtype)
-
-    def extra_repr(self) -> str:
-        """Extra repr.
-
-        Returns:
-            The return value.
-        """
-        return f"{tuple(self.weight.shape)}, eps={self.variance_epsilon}"
-
-
-class Cosmos3VLTextMLP(nn.Module):
-    """Cosmos vl text mlp implementation."""
-    def __init__(self, config):
-        """Init.
-
-        Args:
-            config: The config.
-        """
-        super().__init__()
-        self.config = config
-        self.hidden_size = config.hidden_size
-        self.intermediate_size = config.intermediate_size
-        self.gate_proj = nn.Linear(self.hidden_size, self.intermediate_size, bias=False)
-        self.up_proj = nn.Linear(self.hidden_size, self.intermediate_size, bias=False)
-        self.down_proj = nn.Linear(self.intermediate_size, self.hidden_size, bias=False)
-        self.act_fn = ACT2FN[config.hidden_act]
-
-    def forward(self, x):
-        """Forward.
-
-        Args:
-            x: The x.
-        """
-        down_proj = self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
-        return down_proj
-
-
-class Cosmos3VLTextAttention(nn.Module):
-    """Multi-headed attention from 'Attention Is All You Need' paper"""
-
-    def __init__(self, config, layer_idx: int):
-        """Init.
-
-        Args:
-            config: The config.
-            layer_idx: The layer idx.
-        """
-        super().__init__()
-        self.config = config
-        self.layer_idx = layer_idx
-        self.head_dim = getattr(config, "head_dim", config.hidden_size // config.num_attention_heads)
-        self.num_key_value_groups = config.num_attention_heads // config.num_key_value_heads
-        self.scaling = self.head_dim**-0.5
-        self.attention_dropout = config.attention_dropout
-        self.is_causal = True
-
-        self.to_q = nn.Linear(
-            config.hidden_size, config.num_attention_heads * self.head_dim, bias=config.attention_bias
-        )
-        self.to_k = nn.Linear(
-            config.hidden_size, config.num_key_value_heads * self.head_dim, bias=config.attention_bias
-        )
-        self.to_v = nn.Linear(
-            config.hidden_size, config.num_key_value_heads * self.head_dim, bias=config.attention_bias
-        )
-        self.to_out = nn.Linear(
-            config.num_attention_heads * self.head_dim, config.hidden_size, bias=config.attention_bias
-        )
-        self.norm_q = Cosmos3VLTextRMSNorm(self.head_dim, eps=config.rms_norm_eps)  # unlike olmo, only on the head dim!
-        self.norm_k = Cosmos3VLTextRMSNorm(
-            self.head_dim, eps=config.rms_norm_eps
-        )  # thus post norm_q does not need reshape
-
-
-class PackedAttentionMoT(Cosmos3VLTextAttention):
-    """
-    Dual-pathway packed attention for Qwen3VL MoT (Dense version).
-    Implements understanding and generation pathways with separate projections.
-
-    Note that this implementation is used for both Qwen3VL and Qwen3VL-MoE variants,
-    even though it derives from the dense version of Qwen3VLTextAttention.
-    """
-
-    def __init__(self, config, layer_idx: int, layer_types: LayerTypes):
-        """Init.
-
-        Args:
-            config: The config.
-            layer_idx: The layer idx.
-            layer_types: The layer types.
-        """
-        super().__init__(config, layer_idx)
-
-        # Add missing attributes for MoT compatibility
-        self.hidden_size = config.hidden_size
-        self.num_attention_heads = config.num_attention_heads
-        self.num_key_value_heads = config.num_key_value_heads
-        self.num_key_value_groups = self.num_attention_heads // self.num_key_value_heads
-        self.scaling = self.head_dim**-0.5
-        self.attention_dropout = config.attention_dropout
-
-        # Generation pathway projections (separate from understanding pathway)
-        # Qwen3VL already has query/key norms built in, so we add generation versions
-        self.norm_added_q = layer_types.rms_norm(self.head_dim, eps=config.rms_norm_eps)
-        self.norm_added_k = layer_types.rms_norm(self.head_dim, eps=config.rms_norm_eps)
-
-        # Generation pathway linear projections
-        self.add_q_proj = nn.Linear(
-            self.hidden_size, self.num_attention_heads * self.head_dim, bias=config.attention_bias
-        )
-        self.add_k_proj = nn.Linear(
-            self.hidden_size, self.num_key_value_heads * self.head_dim, bias=config.attention_bias
-        )
-        self.add_v_proj = nn.Linear(
-            self.hidden_size, self.num_key_value_heads * self.head_dim, bias=config.attention_bias
-        )
-        self.to_add_out = nn.Linear(
-            self.num_attention_heads * self.head_dim, self.hidden_size, bias=config.attention_bias
-        )
-        self.dispatch_attention_fn = CosmosAttnProcessor3_0()
-        self.cp_mesh = None
+        if processor is None:
+            processor = self._default_processor_cls()
+        self.set_processor(processor)
 
     def forward(
         self,
-        pack: FactoredSequencePack,
-        attention_mask,
-        packed_position_embeddings: Tuple[FactoredSequencePack, FactoredSequencePack],
-        dual_kv_cache=None,
-        natten_metadata: dict | None = None,
-    ) -> FactoredSequencePack:
-        """Forward pass with optional KV cache for autoregressive generation.
-
-        This method is used for frame 0 where we store K/V for both und and gen tokens.
-        For frame 1+, forward_with_kv_cache() is used instead (optimized path).
-
-        Args:
-            pack: Packed sequence with und/gen tokens
-            attention_mask: Attention mask (BlockMask or SplitInfo)
-            packed_position_embeddings: RoPE embeddings (cos, sin)
-            dual_kv_cache: Optional dual KV cache for AR generation (frame 0).
-        """
-
-        q_und_in = self.to_q(get_und_seq(pack))  # [N_und,num_heads*head_dim]
-        q_gen_in = self.add_q_proj(get_gen_seq(pack))  # [N_gen,num_heads*head_dim]
-
-        k_und_in = self.to_k(get_und_seq(pack))  # [N_und,num_kv_heads*head_dim]
-        k_gen_in = self.add_k_proj(get_gen_seq(pack))  # [N_gen,num_kv_heads*head_dim]
-
-        v_und_in = self.to_v(get_und_seq(pack))  # [N_und,num_kv_heads*head_dim]
-        v_gen_in = self.add_v_proj(get_gen_seq(pack))  # [N_gen,num_kv_heads*head_dim]
-
-        q_und = q_und_in.view(-1, self.num_attention_heads, self.head_dim)  # [N_und,num_heads,head_dim]
-        k_und = k_und_in.view(-1, self.num_key_value_heads, self.head_dim)  # [N_und,num_kv_heads,head_dim]
-        v_und = v_und_in.view(-1, self.num_key_value_heads, self.head_dim)  # [N_und,num_kv_heads,head_dim]
-
-        q_gen = q_gen_in.view(-1, self.num_attention_heads, self.head_dim)  # [N_gen,num_heads,head_dim]
-        k_gen = k_gen_in.view(-1, self.num_key_value_heads, self.head_dim)  # [N_gen,num_kv_heads,head_dim]
-        v_gen = v_gen_in.view(-1, self.num_key_value_heads, self.head_dim)  # [N_gen,num_kv_heads,head_dim]
-
-        q_und = self.norm_q(q_und)  # [N_und,num_heads,head_dim]
-        k_und = self.norm_k(k_und)  # [N_und,num_kv_heads,head_dim]
-
-        q_gen = self.norm_added_q(q_gen)  # [N_gen,num_heads,head_dim]
-        k_gen = self.norm_added_k(k_gen)  # [N_gen,num_kv_heads,head_dim]
-
-        if self.config.freeze_und:
-            q_und = q_und.detach()
-            k_und = k_und.detach()
-            v_und = v_und.detach()
-
-        # Attempted port: Apply RoPE (BAGEL qwen-2.5)
-        # Note: Position embeddings are now pre-squeezed at model level
-        packed_cos = packed_position_embeddings[0]
-        packed_sin = packed_position_embeddings[1]
-
-        q_und_, k_und_ = apply_rotary_pos_emb(
-            q_und,
-            k_und,
-            get_und_seq(packed_cos),
-            get_und_seq(packed_sin),
-            unsqueeze_dim=1,
-        )  # q_und_: [N_und,num_heads,head_dim], k_und_: [N_und,num_kv_heads,head_dim]
-        q_gen_, k_gen_ = apply_rotary_pos_emb(
-            q_gen,
-            k_gen,
-            get_gen_seq(packed_cos),
-            get_gen_seq(packed_sin),
-            unsqueeze_dim=1,
-        )  # q_gen_: [N_gen,num_heads,head_dim], k_gen_: [N_gen,num_kv_heads,head_dim]
-
-        # === KV CACHE INTEGRATION FOR AUTOREGRESSIVE GENERATION ===
-        # Frame 0: Store und and gen K/V (no fetching)
-        # Apply cache after RoPE (cached keys already have positional info)
-        # CP path: storage happens inside context_parallel_attention() after all-to-all,
-        #          so tensors are stored head-sharded [1,S,H/cp,D].
-        # Non-CP path: store here as [1,S,H,D] for fetch_kv() dim=1 compat.
-        if dual_kv_cache is not None and self.cp_mesh is None:
-            und_len = pack["_num_causal_tokens"]
-            gen_len = pack["_num_full_tokens"]
-            if not dual_kv_cache.und_cache.is_initialized:
-                dual_kv_cache.und_cache.store(
-                    k_und_[:und_len].unsqueeze(0), v_und[:und_len].unsqueeze(0)
-                )  # [1,S_und,H,D]
-            dual_kv_cache.gen_cache.store_kv(
-                k_gen_[:gen_len].unsqueeze(0), v_gen[:gen_len].unsqueeze(0), frame_idx=0
-            )  # [1,S_gen,H,D]
-
-        packed_query_states_ = from_und_gen_splits(q_und_, q_gen_, pack)  # [N_und+N_gen,num_heads,head_dim]
-        packed_key_states_ = from_und_gen_splits(k_und_, k_gen_, pack)  # [N_und+N_gen,num_kv_heads,head_dim]
-        packed_value_states_ = from_und_gen_splits(v_und, v_gen, pack)  # [N_und+N_gen,num_kv_heads,head_dim]
-
-        # CP: pass dual_kv_cache so context_parallel_attention() stores head-sharded K/V
-        dispatch_kwargs: dict = {}
-        if self.cp_mesh is not None and dual_kv_cache is not None:
-            dispatch_kwargs["dual_kv_cache"] = dual_kv_cache
-            dispatch_kwargs["frame_idx"] = 0
-
-        packed_attn_output = self.dispatch_attention_fn(
-            packed_query_states_,
-            packed_key_states_,
-            packed_value_states_,
-        )
-
-        # Apply projections directly to get final results
-        und_seq = self.to_out(get_und_seq(packed_attn_output))  # [N_und,hidden_size]
-        gen_seq = self.to_add_out(get_gen_seq(packed_attn_output))  # [N_gen,hidden_size]
-        return from_und_gen_splits(und_seq, gen_seq, pack)  # [N_und+N_gen,hidden_size]
+        und_seq: torch.Tensor,
+        gen_seq: torch.Tensor,
+        rotary_emb: tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        return self.processor(self, und_seq, gen_seq, rotary_emb)
 
 
 class Cosmos3VLTextMoTDecoderLayer(nn.Module):
     """
-    Qwen3VL text MoT (Mixture of Tokens) decoder layer.
-    Features dual-pathway attention for understanding vs generation.
+    Qwen3VL text MoT (Mixture of Tokens) decoder layer. Features dual-pathway attention for understanding vs
+    generation.
 
     This is used for both Dense and MoE models.
     """
 
     def __init__(
         self,
-        config,
-        layer_idx: int,
-        layer_types: LayerTypes,
+        hidden_size: int,
+        head_dim: int,
+        num_attention_heads: int,
+        num_key_value_heads: int,
+        intermediate_size: int,
+        attention_bias: bool,
+        rms_norm_eps: float,
     ):
-        """Init.
-
-        Args:
-            config: The config.
-            layer_idx: The layer idx.
-            layer_types: The layer types.
-        """
         super().__init__()
-        self.hidden_size = config.hidden_size
-        self.freeze_und = config.freeze_und
-        self.self_attn = PackedAttentionMoT(config, layer_idx, layer_types)
+        self.hidden_size = hidden_size
+        self.self_attn = Cosmos3PackedMoTAttention(
+            hidden_size=hidden_size,
+            head_dim=head_dim,
+            num_attention_heads=num_attention_heads,
+            num_key_value_heads=num_key_value_heads,
+            attention_bias=attention_bias,
+            rms_norm_eps=rms_norm_eps,
+        )
 
-        # TODO: Qwen3VLMoeTextSparseMoeBlock not supported yet
-        self.mlp = layer_types.mlp(config)
-        self.mlp_moe_gen = layer_types.mlp(config)
+        self.mlp = Cosmos3VLTextMLP(hidden_size=hidden_size, intermediate_size=intermediate_size)
+        self.mlp_moe_gen = Cosmos3VLTextMLP(hidden_size=hidden_size, intermediate_size=intermediate_size)
 
-        self.input_layernorm = layer_types.rms_norm(config.hidden_size, eps=config.rms_norm_eps)
-        self.input_layernorm_moe_gen = layer_types.rms_norm(config.hidden_size, eps=config.rms_norm_eps)
-        self.post_attention_layernorm = layer_types.rms_norm(config.hidden_size, eps=config.rms_norm_eps)
-        self.post_attention_layernorm_moe_gen = layer_types.rms_norm(config.hidden_size, eps=config.rms_norm_eps)
+        self.input_layernorm = RMSNorm(hidden_size, eps=rms_norm_eps, elementwise_affine=True, bias=False)
+        self.input_layernorm_moe_gen = RMSNorm(hidden_size, eps=rms_norm_eps, elementwise_affine=True, bias=False)
+        self.post_attention_layernorm = RMSNorm(hidden_size, eps=rms_norm_eps, elementwise_affine=True, bias=False)
+        self.post_attention_layernorm_moe_gen = RMSNorm(
+            hidden_size, eps=rms_norm_eps, elementwise_affine=True, bias=False
+        )
 
     def forward(
         self,
-        input: FactoredSequencePack,
-        attention_mask,
-        packed_position_embeddings: Tuple[FactoredSequencePack, FactoredSequencePack],
-        dual_kv_cache: None = None,
-        frame_idx: Optional[int] = None,
-        natten_metadata: dict | None = None,
-    ) -> FactoredSequencePack:
-        """Training forward pass with MoT routing - Attempted port from qwen2_mot
+        und_seq: torch.Tensor,
+        gen_seq: torch.Tensor,
+        rotary_emb: tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        und_norm = self.input_layernorm(und_seq)
+        gen_norm = self.input_layernorm_moe_gen(gen_seq)
 
-        Args:
-            input: Packed sequence with und/gen tokens
-            attention_mask: Attention mask
-            packed_position_embeddings: RoPE embeddings (cos, sin)
-            dual_kv_cache: Optional dual KV cache for AR generation
-            frame_idx: Current frame index (default: None, treated as 0)
-        """
+        und_attn_out, gen_attn_out = self.self_attn(und_norm, gen_norm, rotary_emb)
+        residual_und = und_seq + und_attn_out
+        residual_gen = gen_seq + gen_attn_out
 
-        # Handle None frame_idx as 0
-        if frame_idx is None:
-            frame_idx = 0
+        mlp_out_und = self.mlp(self.post_attention_layernorm(residual_und))
+        mlp_out_gen = self.mlp_moe_gen(self.post_attention_layernorm_moe_gen(residual_gen))
 
-        # TODO: support gen_only = True and AR generation
-        gen_only = False
-        # if dual_kv_cache is not None and isinstance(dual_kv_cache, DualKVCache):
-        #     gen_only = frame_idx > 0 and dual_kv_cache.und_cache.is_initialized
-
-        # Pre-Attention layernorm
-        pack_norm_out = from_und_gen_splits(
-            self.input_layernorm(get_und_seq(input)),  # [N_und,hidden_size]
-            self.input_layernorm_moe_gen(get_gen_seq(input)),  # [N_gen,hidden_size]
-            input,
-        )  # [N_und+N_gen,hidden_size]
-
-        # STANDARD PATH: Process both und and gen tokens (frame 0)
-        pack_attn_out = self.self_attn(
-            pack_norm_out,
-            attention_mask,
-            packed_position_embeddings,
-            dual_kv_cache,
-            natten_metadata=natten_metadata,
-        )
-        residual_und = get_und_seq(input) + get_und_seq(pack_attn_out)  # [N_und,hidden_size]
-        residual_gen = get_gen_seq(input) + get_gen_seq(pack_attn_out)  # [N_gen,hidden_size]
-
-        # STANDARD PATH: Process both und and gen tokens
-        ln_out_und = self.post_attention_layernorm(residual_und)  # [N_und,hidden_size]
-        ln_out_gen = self.post_attention_layernorm_moe_gen(residual_gen)  # [N_gen,hidden_size]
-
-        # UNPAD MLP INPUT ===============
-        # NOTE: This is only need for the MoE auxiliary loss computation and to avoid
-        #       artificial expert inbalance due to routing padding tokens.
-        gen_len = pack_attn_out["_num_full_tokens"]
-        und_len = pack_attn_out["_num_causal_tokens"]
-        ln_out_und_unpadded = ln_out_und[:und_len]  # [N_und_unpadded,hidden_size]
-        ln_out_gen_unpadded = ln_out_gen[:gen_len]  # [N_gen_unpadded,hidden_size]
-
-        mlp_out_und_unpadded = self.mlp(ln_out_und_unpadded)  # [N_und_unpadded,hidden_size]
-        mlp_out_gen_unpadded = self.mlp_moe_gen(ln_out_gen_unpadded)  # [N_gen_unpadded,hidden_size]
-
-        # PAD MLP OUTPUT ===============
-        mlp_out_und = torch.cat([mlp_out_und_unpadded, ln_out_und[und_len:]], dim=0)  # [N_und,hidden_size]
-        mlp_out_gen = torch.cat([mlp_out_gen_unpadded, ln_out_gen[gen_len:]], dim=0)  # [N_gen,hidden_size]
-
-        mlp_out_und_seq = residual_und + mlp_out_und  # [N_und,hidden_size]
-        mlp_out_gen_seq = residual_gen + mlp_out_gen  # [N_gen,hidden_size]
-
-        return from_und_gen_splits(mlp_out_und_seq, mlp_out_gen_seq, input)
+        return residual_und + mlp_out_und, residual_gen + mlp_out_gen
 
 
-class Cosmos3OmniTransformer(ModelMixin, ConfigMixin):
-    """Cosmos omni transformer implementation."""
+class Cosmos3OmniTransformer(ModelMixin, ConfigMixin, PeftAdapterMixin, AttentionMixin):
+    _supports_gradient_checkpointing = True
+    _no_split_modules = ["Cosmos3VLTextMoTDecoderLayer"]
+    _repeated_blocks = ["Cosmos3VLTextMoTDecoderLayer"]
+    _skip_layerwise_casting_patterns = ["embed_tokens", "time_embedder", "norm"]
+    _keep_in_fp32_modules = ["time_embedder"]
+    # `dtype` is injected into init_dict by ModelMixin.from_pretrained (configuration_utils.py:289),
+    # so __init__ must accept it. Excluding it here keeps save_pretrained from writing it into
+    # config.json — the value is a load-time runtime hint, not part of the model architecture.
+    ignore_for_config = ["dtype"]
+
     @register_to_config
     def __init__(
         self,
         attention_bias: bool = False,
         attention_dropout: float = 0.0,
-        dtype: str = "bfloat16",
-        freeze_und: bool = False,
+        dtype: str = "bfloat16",  # required by the loader (see `ignore_for_config` above); not read here
         head_dim: int = 128,
-        hidden_act: str = "silu",
         hidden_size: int = 4096,
-        initializer_range: float = 0.02,
         intermediate_size: int = 12288,
         base_fps: int = 24,
         enable_fps_modulation: bool = True,
-        joint_attn_implementation: str = "two_way",
         latent_channel: int = 48,
-        action_dim: int | None = None,
-        action_gen: bool = False,
-        max_action_dim: int = 32,
-        num_embodiment_domains: int = 32,
-        position_embedding_type: str = "unified_3d_mrope",
         unified_3d_mrope_reset_spatial_ids: bool = True,
         unified_3d_mrope_temporal_modality_margin: int = 15000,
-        video_temporal_causal: bool = False,
         latent_patch_size: int = 2,
-        max_position_embeddings: int = 262144,
-        model_type: str = "qwen3_vl_text",
         num_attention_heads: int = 32,
         num_hidden_layers: int = 36,
         num_key_value_heads: int = 8,
         patch_latent_dim: int = 192,
-        qk_norm: bool = False,
-        qk_norm_for_diffusion: bool = True,
-        qk_norm_for_text: bool = True,
         rms_norm_eps: float = 1e-6,
         rope_scaling: dict | None = None,
         rope_theta: float = 5000000.0,
+        action_dim: int | None = None,
+        action_gen: bool = False,
+        num_embodiment_domains: int = 32,
         sound_dim: int | None = None,
         sound_gen: bool = False,
         sound_latent_fps: float = 25.0,
-        temporal_compression_factor_sound: int = 1,
         timestep_scale: float = 0.001,
-        use_cache: bool = True,
-        use_moe: bool = True,
         vocab_size: int = 151936,
     ):
-        """Init.
-
-        Args:
-            attention_bias: The attention bias.
-            attention_dropout: The attention dropout.
-            dtype: The dtype.
-            freeze_und: The freeze und.
-            head_dim: The head dim.
-            hidden_act: The hidden act.
-            hidden_size: The hidden size.
-            initializer_range: The initializer range.
-            intermediate_size: The intermediate size.
-            base_fps: The base fps.
-            enable_fps_modulation: The enable fps modulation.
-            joint_attn_implementation: The joint attn implementation.
-            latent_channel: The latent channel.
-            action_dim: The action dim.
-            action_gen: The action gen.
-            max_action_dim: The max action dim.
-            num_embodiment_domains: The num embodiment domains.
-            position_embedding_type: The position embedding type.
-            unified_3d_mrope_reset_spatial_ids: The unified 3d mrope reset spatial ids.
-            unified_3d_mrope_temporal_modality_margin: The unified 3d mrope temporal modality margin.
-            video_temporal_causal: The video temporal causal.
-            latent_patch_size: The latent patch size.
-            max_position_embeddings: The max position embeddings.
-            model_type: The model type.
-            num_attention_heads: The num attention heads.
-            num_hidden_layers: The num hidden layers.
-            num_key_value_heads: The num key value heads.
-            patch_latent_dim: The patch latent dim.
-            qk_norm: The qk norm.
-            qk_norm_for_diffusion: The qk norm for diffusion.
-            qk_norm_for_text: The qk norm for text.
-            rms_norm_eps: The rms norm eps.
-            rope_scaling: The rope scaling.
-            rope_theta: The rope theta.
-            sound_dim: The sound dim.
-            sound_gen: The sound gen.
-            sound_latent_fps: The sound latent fps.
-            temporal_compression_factor_sound: The temporal compression factor sound.
-            timestep_scale: The timestep scale.
-            use_cache: The use cache.
-            use_moe: The use moe.
-            vocab_size: The vocab size.
-        """
         super().__init__()
 
-        if rope_scaling is None:
-            rope_scaling = {"mrope_interleaved": True, "mrope_section": [24, 20, 20], "rope_type": "default"}
-            self.register_to_config(rope_scaling=rope_scaling)
+        rope_axes_dim = rope_scaling.get("mrope_section", [24, 20, 20]) if rope_scaling is not None else [24, 20, 20]
+        self.register_to_config(rope_axes_dim=rope_axes_dim)
 
-        layer_types = LayerTypes(is_moe=False)
-        self.embed_tokens = nn.Embedding(self.config.vocab_size, self.config.hidden_size)
+        # Text-model layers live directly on the transformer (flat layout). The published
+        # checkpoint must be re-keyed with the leading `model.` prefix stripped — see
+        # scripts/build_flat_layout_repo.py for the rewrite.
+        self.embed_tokens = nn.Embedding(vocab_size, hidden_size)
         self.layers = nn.ModuleList(
             [
-                Cosmos3VLTextMoTDecoderLayer(self.config, layer_idx, layer_types)
-                for layer_idx in range(self.config.num_hidden_layers)
+                Cosmos3VLTextMoTDecoderLayer(
+                    hidden_size=hidden_size,
+                    head_dim=head_dim,
+                    num_attention_heads=num_attention_heads,
+                    num_key_value_heads=num_key_value_heads,
+                    intermediate_size=intermediate_size,
+                    attention_bias=attention_bias,
+                    rms_norm_eps=rms_norm_eps,
+                )
+                for _ in range(num_hidden_layers)
             ]
         )
-        # Understanding pathway final norm
-        self.norm = layer_types.rms_norm(self.config.hidden_size, eps=self.config.rms_norm_eps)
-        # Generation pathway final norm
-        self.norm_moe_gen = layer_types.rms_norm(self.config.hidden_size, eps=self.config.rms_norm_eps)
-        self.rotary_emb = Cosmos3VLTextRotaryEmbedding(config=self.config)
+        self.norm = RMSNorm(hidden_size, eps=rms_norm_eps, elementwise_affine=True, bias=False)
+        self.norm_moe_gen = RMSNorm(hidden_size, eps=rms_norm_eps, elementwise_affine=True, bias=False)
+        self.rotary_emb = Cosmos3VLTextRotaryEmbedding(
+            head_dim=head_dim, rope_theta=rope_theta, rope_axes_dim=rope_axes_dim
+        )
+
+        # Modality projection heads + timestep embedding.
         self.vocab_size = vocab_size
-        self.action_gen = action_gen
-        self.action_dim = int(max_action_dim if action_dim is None else action_dim)
-        self.num_embodiment_domains = int(num_embodiment_domains)
         self.lm_head = nn.Linear(hidden_size, vocab_size, bias=False)
         self.proj_in = nn.Linear(patch_latent_dim, hidden_size, bias=True)
         self.proj_out = nn.Linear(hidden_size, patch_latent_dim, bias=True)
-        self.time_embedder = TimestepEmbedder(hidden_size)
+        self.time_proj = Timesteps(num_channels=256, flip_sin_to_cos=True, downscale_freq_shift=0)
+        self.time_embedder = TimestepEmbedding(in_channels=256, time_embed_dim=hidden_size)
+        self.action_gen = action_gen
+        self.action_dim = action_dim
+        self.num_embodiment_domains = num_embodiment_domains
         if action_gen:
+            if self.action_dim is None:
+                raise ValueError("`action_dim` must be provided when `action_gen=True`.")
             self.action_proj_in = DomainAwareLinear(self.action_dim, hidden_size, self.num_embodiment_domains)
             self.action_proj_out = DomainAwareLinear(hidden_size, self.action_dim, self.num_embodiment_domains)
             self.action_modality_embed = nn.Parameter(torch.zeros(hidden_size))
@@ -830,201 +388,338 @@ class Cosmos3OmniTransformer(ModelMixin, ConfigMixin):
             self.audio_proj_out = nn.Linear(hidden_size, sound_dim, bias=True)
             self.audio_modality_embed = nn.Parameter(torch.zeros(hidden_size))
 
-    @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path, **kwargs):
-        """From pretrained.
+        self.gradient_checkpointing = False
 
-        Args:
-            pretrained_model_name_or_path: The pretrained model name or path.
-        """
-        model = super().from_pretrained(pretrained_model_name_or_path, **kwargs)
-        # inv_freq is a non-persistent buffer absent from the saved state_dict.
-        # Initialize it on CPU; it will move to the correct device with .to() / .cuda().
-        model.rotary_emb.init_weights(buffer_device=None)
-        return model
+    # -------------------------------------------------------------------------
+    # Pure-tensor packing/unpacking helpers (no layer state).
+    # -------------------------------------------------------------------------
+
+    def _apply_timestep_embeds_to_noisy_tokens(
+        self,
+        packed_tokens: torch.Tensor,
+        packed_timestep_embeds: torch.Tensor,
+        noisy_frame_indexes: list[torch.Tensor],
+        token_shapes: list[tuple[int, ...]],
+    ) -> torch.Tensor:
+        start_noisy_index = 0
+        flattened_noisy_frame_indexes: list[torch.Tensor] = []
+        for noisy_indexes_i, token_shape_i in zip(noisy_frame_indexes, token_shapes):
+            spatial_numel_i = math.prod(token_shape_i[1:])
+            spatial_indexes_i = torch.arange(spatial_numel_i, device=packed_tokens.device)
+            # Broadcast [N, 1] + [spatial_numel_i] → [N, spatial_numel_i]
+            frame_offsets = (noisy_indexes_i * spatial_numel_i).unsqueeze(-1) + spatial_indexes_i + start_noisy_index
+            flattened_noisy_frame_indexes.append(frame_offsets.flatten())
+            start_noisy_index += token_shape_i[0] * spatial_numel_i
+        flattened = torch.cat(flattened_noisy_frame_indexes, dim=0).unsqueeze(-1).expand(-1, packed_tokens.shape[1])
+        return packed_tokens.scatter_add(dim=0, index=flattened, src=packed_timestep_embeds)
+
+    def _patchify_and_pack_latents(
+        self,
+        tokens_vision: list[torch.Tensor],
+    ) -> tuple[torch.Tensor, list[tuple[int, int, int]]]:
+        p = self.config.latent_patch_size
+        latent_channel = self.config.latent_channel
+        packed_latent: list[torch.Tensor] = []
+        original_latent_shapes: list[tuple[int, int, int]] = []
+        for latent in tokens_vision:
+            latent = latent.squeeze(0)  # [C, T, H, W]
+            _, t_actual, h_actual, w_actual = latent.shape
+            original_latent_shapes.append((t_actual, h_actual, w_actual))
+            h_padded = ((h_actual + p - 1) // p) * p
+            w_padded = ((w_actual + p - 1) // p) * p
+            if h_padded != h_actual or w_padded != w_actual:
+                padded = torch.zeros(
+                    (latent_channel, t_actual, h_padded, w_padded),
+                    device=latent.device,
+                    dtype=latent.dtype,
+                )
+                padded[:, :, :h_actual, :w_actual] = latent
+                latent = padded
+            h_patches = h_padded // p
+            w_patches = w_padded // p
+            latent = latent.reshape(latent_channel, t_actual, h_patches, p, w_patches, p)
+            latent = torch.einsum("cthpwq->thwpqc", latent).reshape(-1, p * p * latent_channel)
+            packed_latent.append(latent)
+        return torch.cat(packed_latent, dim=0), original_latent_shapes
+
+    def _unpatchify_and_unpack_latents(
+        self,
+        packed_mse_preds: torch.Tensor,
+        token_shapes_vision: list[tuple[int, int, int]],
+        noisy_frame_indexes_vision: list[torch.Tensor],
+        original_latent_shapes: list[tuple[int, int, int]],
+    ) -> list[torch.Tensor]:
+        p = self.config.latent_patch_size
+        latent_channel = self.config.latent_channel
+        unpatchified_latents: list[torch.Tensor] = []
+        start_idx = 0
+        for token_shape, noisy_frame_indexes, original_shape in zip(
+            token_shapes_vision, noisy_frame_indexes_vision, original_latent_shapes
+        ):
+            t_c = token_shape[0]
+            _, h_orig, w_orig = original_shape
+            h_padded = ((h_orig + p - 1) // p) * p
+            w_padded = ((w_orig + p - 1) // p) * p
+            h_patches = h_padded // p
+            w_patches = w_padded // p
+            t_n = len(noisy_frame_indexes)
+            output_tensor = torch.zeros(
+                (latent_channel, t_c, h_orig, w_orig),
+                device=packed_mse_preds.device,
+                dtype=packed_mse_preds.dtype,
+            )
+            num_patches = t_n * h_patches * w_patches
+            if num_patches > 0:
+                end_idx = start_idx + num_patches
+                latent_patches = packed_mse_preds[start_idx:end_idx]
+                latent_patches = latent_patches.reshape(t_n, h_patches, w_patches, p, p, latent_channel)
+                latent = torch.einsum("thwpqc->cthpwq", latent_patches)
+                latent = latent.reshape(latent_channel, t_n, h_patches * p, w_patches * p)
+                latent = latent[:, :, :h_orig, :w_orig]
+                output_tensor[:, noisy_frame_indexes] = latent
+                start_idx = end_idx
+            unpatchified_latents.append(output_tensor.unsqueeze(0))
+        return unpatchified_latents
+
+    def _pack_sound_latents(
+        self,
+        tokens_sound: list[torch.Tensor],
+        token_shapes_sound: list[tuple[int, int, int]],
+    ) -> torch.Tensor:
+        """List of ``[C, T]`` tensors → packed ``[total_T, C]`` tensor."""
+        return torch.cat(
+            [sound[:, : shape[0]].permute(1, 0) for sound, shape in zip(tokens_sound, token_shapes_sound)],
+            dim=0,
+        )
+
+    def _unpack_sound_latents(
+        self,
+        packed_preds: torch.Tensor,
+        token_shapes_sound: list[tuple[int, int, int]],
+        noisy_frame_indexes_sound: list[torch.Tensor],
+    ) -> list[torch.Tensor]:
+        """Packed ``[total_noisy_T, C]`` predictions → list of ``[C, T]`` tensors (zeros at conditioned positions)."""
+        sound_dim = self.config.sound_dim
+        unpacked: list[torch.Tensor] = []
+        start_idx = 0
+        for shape, noisy_idxs in zip(token_shapes_sound, noisy_frame_indexes_sound):
+            T = shape[0]
+            output = torch.zeros((sound_dim, T), device=packed_preds.device, dtype=packed_preds.dtype)
+            t_n = len(noisy_idxs)
+            if t_n > 0:
+                output[:, noisy_idxs] = packed_preds[start_idx : start_idx + t_n].T
+                start_idx += t_n
+            unpacked.append(output)
+        return unpacked
+
+    def _pack_action_latents(
+        self,
+        tokens_action: list[torch.Tensor],
+        token_shapes_action: list[tuple[int, int, int]],
+        domain_ids_action: list[torch.Tensor],
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """List of ``[T, D]`` tensors → packed ``[total_T, D]`` plus per-token domain ids."""
+        packed: list[torch.Tensor] = []
+        domain_ids: list[torch.Tensor] = []
+        for action, shape, domain_id in zip(tokens_action, token_shapes_action, domain_ids_action):
+            token_count = shape[0]
+            packed.append(action[:token_count])
+            domain_ids.append(domain_id.reshape(1).expand(token_count))
+        return torch.cat(packed, dim=0), torch.cat(domain_ids, dim=0)
+
+    def _unpack_action_latents(
+        self,
+        packed_preds: torch.Tensor,
+        token_shapes_action: list[tuple[int, int, int]],
+        noisy_frame_indexes_action: list[torch.Tensor],
+    ) -> list[torch.Tensor]:
+        """Packed ``[total_noisy_T, D]`` predictions → list of ``[T, D]`` tensors."""
+        unpacked: list[torch.Tensor] = []
+        start_idx = 0
+        for shape, noisy_idxs in zip(token_shapes_action, noisy_frame_indexes_action):
+            T = shape[0]
+            output = torch.zeros((T, self.action_dim), device=packed_preds.device, dtype=packed_preds.dtype)
+            t_n = len(noisy_idxs)
+            if t_n > 0:
+                output[noisy_idxs] = packed_preds[start_idx : start_idx + t_n]
+                start_idx += t_n
+            unpacked.append(output)
+        return unpacked
+
+    # -------------------------------------------------------------------------
+    # forward: full per-step pass — encode text/vision/sound/action → run layers →
+    # decode vision/sound/action. Pipeline calls this once per CFG pass.
+    # -------------------------------------------------------------------------
 
     def forward(
         self,
-        pack: FactoredSequencePack,
-        attention_mask,
+        input_ids: torch.Tensor,
+        text_indexes: torch.Tensor,
         position_ids: torch.Tensor,
-        dual_kv_cache: None = None,
-        frame_idx: Optional[int] = None,
-        natten_metadata_list: list | None = None,
-    ) -> Tuple[FactoredSequencePack, None]:
-        """Training forward pass - simplified to match qwen3_mot.
+        und_len: int,
+        sequence_length: int,
+        vision_tokens: list[torch.Tensor],
+        vision_token_shapes: list[tuple[int, int, int]],
+        vision_sequence_indexes: torch.Tensor,
+        vision_mse_loss_indexes: torch.Tensor,
+        vision_timesteps: torch.Tensor,
+        vision_noisy_frame_indexes: list[torch.Tensor],
+        sound_tokens: list[torch.Tensor] | None = None,
+        sound_token_shapes: list[tuple[int, int, int]] | None = None,
+        sound_sequence_indexes: torch.Tensor | None = None,
+        sound_mse_loss_indexes: torch.Tensor | None = None,
+        sound_timesteps: torch.Tensor | None = None,
+        sound_noisy_frame_indexes: list[torch.Tensor] | None = None,
+        action_tokens: list[torch.Tensor] | None = None,
+        action_token_shapes: list[tuple[int, int, int]] | None = None,
+        action_sequence_indexes: torch.Tensor | None = None,
+        action_mse_loss_indexes: torch.Tensor | None = None,
+        action_timesteps: torch.Tensor | None = None,
+        action_noisy_frame_indexes: list[torch.Tensor] | None = None,
+        action_domain_ids: list[torch.Tensor] | None = None,
+    ) -> tuple[list[torch.Tensor], list[torch.Tensor] | None, list[torch.Tensor] | None]:
+        """Run a full denoising-step forward pass.
+
+        Args:
+            input_ids: Text token IDs placed at ``text_indexes`` in the joint sequence.
+            text_indexes: Indices of text tokens in the joint sequence.
+            position_ids: ``[3, sequence_length]`` mRoPE position IDs for the full joint sequence.
+            und_len: Length of the causal text (understanding) prefix; generation tokens follow.
+            sequence_length: Total length of the joint packed sequence.
+            vision_tokens: Per-item vision latent tensors before patchify.
+            vision_token_shapes: Patch grid shapes ``(T, H, W)`` per vision item.
+            vision_sequence_indexes: Indices of vision tokens in the joint sequence.
+            vision_mse_loss_indexes: Indices used to read vision predictions after the backbone.
+            vision_timesteps: Per-patch diffusion timesteps for vision tokens.
+            vision_noisy_frame_indexes: Noisy frame indices per vision item.
+            sound_tokens: Optional sound latent tensors before packing.
+            sound_token_shapes: Optional patch grid shapes for sound items.
+            sound_sequence_indexes: Optional indices of sound tokens in the joint sequence.
+            sound_mse_loss_indexes: Optional indices used to read sound predictions.
+            sound_timesteps: Optional per-token diffusion timesteps for sound.
+            sound_noisy_frame_indexes: Optional noisy frame indices per sound item.
+            action_tokens: Optional action latent tensors before packing.
+            action_token_shapes: Optional patch grid shapes ``(T, H, W)`` per action item.
+            action_sequence_indexes: Optional indices of action tokens in the joint sequence.
+            action_mse_loss_indexes: Optional indices used to read action predictions after the backbone.
+            action_timesteps: Optional per-token diffusion timesteps for action tokens.
+            action_noisy_frame_indexes: Optional noisy frame indices per action item.
+            action_domain_ids: Optional per-item domain IDs selecting the action head weights.
 
         Returns:
-            (outputs, None) — the None placeholder mirrors the (packed_outputs, lbl_metadata)
-            tuple returned by the original language_model so callers can unpack both.
+            ``(preds_vision, preds_sound, preds_action)`` — lists of per-modality predictions. Optional modalities
+            return ``None`` when their inputs are omitted.
         """
-        # Handle None frame_idx as 0
-        if frame_idx is None:
-            frame_idx = 0
+        has_sound = sound_tokens is not None and sound_sequence_indexes is not None
+        has_action = action_tokens is not None and action_sequence_indexes is not None
 
-        # Create position embeddings (Qwen3 style) - squeeze once at model level
-        # tensor below is only used for its dtype and device
-        device, dtype = get_device_and_dtype(pack)
-        _meta_tensor = torch.tensor([], dtype=dtype, device=device)  # [0]
+        # Embed text tokens into the joint hidden_states buffer at their sequence positions.
+        packed_text_embedding = self.embed_tokens(input_ids)
+        target_dtype = packed_text_embedding.dtype
+        hidden_states = packed_text_embedding.new_zeros(size=(sequence_length, self.config.hidden_size))
+        hidden_states[text_indexes] = packed_text_embedding
+
+        # Patchify + project vision latents, then add timestep embeddings to noisy frames.
+        packed_tokens_vision, original_latent_shapes = self._patchify_and_pack_latents(vision_tokens)
+        packed_tokens_vision = self.proj_in(packed_tokens_vision)
+        timesteps_vision = vision_timesteps * self.config.timestep_scale
+        packed_timestep_embeds_vision = self.time_embedder(self.time_proj(timesteps_vision))
+        packed_timestep_embeds_vision = packed_timestep_embeds_vision.to(target_dtype)
+        packed_tokens_vision = self._apply_timestep_embeds_to_noisy_tokens(
+            packed_tokens=packed_tokens_vision,
+            packed_timestep_embeds=packed_timestep_embeds_vision,
+            noisy_frame_indexes=vision_noisy_frame_indexes,
+            token_shapes=vision_token_shapes,
+        )
+        hidden_states[vision_sequence_indexes] = packed_tokens_vision
+
+        # Pack + project sound latents (when present); all sound frames are noisy.
+        if has_sound:
+            packed_tokens_sound = self._pack_sound_latents(sound_tokens, sound_token_shapes).to(target_dtype)
+            packed_tokens_sound = self.audio_proj_in(packed_tokens_sound) + self.audio_modality_embed
+            timesteps_sound = sound_timesteps * self.config.timestep_scale
+            packed_timestep_embeds_sound = self.time_embedder(self.time_proj(timesteps_sound))
+            packed_timestep_embeds_sound = packed_timestep_embeds_sound.to(target_dtype)
+            packed_tokens_sound = self._apply_timestep_embeds_to_noisy_tokens(
+                packed_tokens=packed_tokens_sound,
+                packed_timestep_embeds=packed_timestep_embeds_sound,
+                noisy_frame_indexes=sound_noisy_frame_indexes,
+                token_shapes=sound_token_shapes,
+            )
+            hidden_states[sound_sequence_indexes] = packed_tokens_sound
+
+        # Pack + project action latents (when present). Domain ids select the action head weights.
+        if has_action:
+            packed_tokens_action, per_token_domain_ids = self._pack_action_latents(
+                action_tokens, action_token_shapes, action_domain_ids
+            )
+            packed_tokens_action = packed_tokens_action.to(target_dtype)
+            per_token_domain_ids = per_token_domain_ids.to(device=packed_tokens_action.device)
+            packed_tokens_action = self.action_proj_in(packed_tokens_action, per_token_domain_ids)
+            packed_tokens_action = packed_tokens_action + self.action_modality_embed
+            if action_mse_loss_indexes.numel() > 0:
+                timesteps_action = action_timesteps * self.config.timestep_scale
+                packed_timestep_embeds_action = self.time_embedder(self.time_proj(timesteps_action))
+                packed_timestep_embeds_action = packed_timestep_embeds_action.to(target_dtype)
+                packed_tokens_action = self._apply_timestep_embeds_to_noisy_tokens(
+                    packed_tokens=packed_tokens_action,
+                    packed_timestep_embeds=packed_timestep_embeds_action,
+                    noisy_frame_indexes=action_noisy_frame_indexes,
+                    token_shapes=action_token_shapes,
+                )
+            hidden_states[action_sequence_indexes] = packed_tokens_action
+
+        # Compute rotary embeddings once for the joint sequence, then slice into und/gen halves.
+        _meta_tensor = torch.tensor([], dtype=hidden_states.dtype, device=hidden_states.device)
         cos, sin = self.rotary_emb(
-            _meta_tensor,
             position_ids=position_ids.unsqueeze(0) if position_ids.ndim == 1 else position_ids.unsqueeze(1),
-        )  # if ndim == 2, then the mrope position_ids is (3, seq_len), we need to put batch dimension in the middle to make it compatible with the rotary_emb
-        # cos, sin: [1,N,head_dim] (1D pos_ids) or [3,1,N,head_dim] (mrope pos_ids)
-        cos = cos.squeeze(0)  # [N,head_dim] or [3,N,head_dim]
-        sin = sin.squeeze(0)  # [N,head_dim] or [3,N,head_dim]
-        position_embeddings = (
-            from_joint(cos, pack),
-            from_joint(sin, pack),
+            device=hidden_states.device,
+            dtype=hidden_states.dtype,
+        )
+        # cos, sin: [1, N, head_dim] (1-D pos_ids) or [3, 1, N, head_dim] (mrope pos_ids)
+        cos = cos.squeeze(0)
+        sin = sin.squeeze(0)
+
+        und_seq = hidden_states[:und_len]
+        gen_seq = hidden_states[und_len:]
+        rotary_emb = (cos[:und_len], sin[:und_len], cos[und_len:], sin[und_len:])
+        for decoder_layer in self.layers:
+            if torch.is_grad_enabled() and self.gradient_checkpointing:
+                und_seq, gen_seq = self._gradient_checkpointing_func(
+                    decoder_layer.__call__, und_seq, gen_seq, rotary_emb
+                )
+            else:
+                und_seq, gen_seq = decoder_layer(und_seq, gen_seq, rotary_emb)
+        und_out = self.norm(und_seq)
+        gen_out = self.norm_moe_gen(gen_seq)
+        last_hidden_state = torch.cat([und_out, gen_out], dim=0)
+
+        # Decode vision predictions from the joint hidden state.
+        preds_vision_packed = self.proj_out(last_hidden_state[vision_mse_loss_indexes])
+        preds_vision = self._unpatchify_and_unpack_latents(
+            preds_vision_packed,
+            token_shapes_vision=vision_token_shapes,
+            noisy_frame_indexes_vision=vision_noisy_frame_indexes,
+            original_latent_shapes=original_latent_shapes,
         )
 
-        # TODO: Add lbl_metadata_all (we don't need it at inference)
-        hidden_states = pack
+        preds_sound: list[torch.Tensor] | None = None
+        if has_sound:
+            preds_sound_packed = self.audio_proj_out(last_hidden_state[sound_mse_loss_indexes])
+            preds_sound = self._unpack_sound_latents(preds_sound_packed, sound_token_shapes, sound_noisy_frame_indexes)
 
-        for i, decoder_layer in enumerate(self.layers):
-            hidden_states = decoder_layer(
-                hidden_states,
-                attention_mask,
-                position_embeddings,
-                dual_kv_cache[i] if dual_kv_cache is not None else None,
-                frame_idx,
-                natten_metadata=None if natten_metadata_list is None else natten_metadata_list[i],
+        preds_action: list[torch.Tensor] | None = None
+        if has_action:
+            per_noisy_domain_ids = [
+                domain_id.reshape(1).expand(len(noisy_idxs))
+                for domain_id, noisy_idxs in zip(action_domain_ids, action_noisy_frame_indexes)
+            ]
+            per_noisy_domain_ids = torch.cat(per_noisy_domain_ids, dim=0).to(device=last_hidden_state.device)
+            preds_action_packed = self.action_proj_out(
+                last_hidden_state[action_mse_loss_indexes], per_noisy_domain_ids
+            )
+            preds_action = self._unpack_action_latents(
+                preds_action_packed, action_token_shapes, action_noisy_frame_indexes
             )
 
-        outputs = zeros_like(hidden_states)  # [N_und+N_gen,hidden_size]
-        set_und_seq(outputs, self.norm(get_und_seq(hidden_states)))  # [N_und,hidden_size]
-        set_gen_seq(outputs, self.norm_moe_gen(get_gen_seq(hidden_states)))  # [N_gen,hidden_size]
-        return outputs, None
-
-
-@use_kernel_forward_from_hub("RMSNorm")
-class Qwen3VLMoeTextRMSNorm(nn.Module):
-    """Qwen vl moe text rms norm implementation."""
-    def __init__(self, hidden_size, eps=1e-6):
-        """
-        Qwen3VLMoeTextRMSNorm is equivalent to T5LayerNorm
-        """
-        super().__init__()
-        self.weight = nn.Parameter(torch.ones(hidden_size))
-        self.variance_epsilon = eps
-
-    def forward(self, hidden_states):
-        """Forward.
-
-        Args:
-            hidden_states: The hidden states.
-        """
-        input_dtype = hidden_states.dtype
-        hidden_states = hidden_states.to(torch.float32)
-        variance = hidden_states.pow(2).mean(-1, keepdim=True)
-        hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
-        return self.weight * hidden_states.to(input_dtype)
-
-    def extra_repr(self):
-        """Extra repr."""
-        return f"{tuple(self.weight.shape)}, eps={self.variance_epsilon}"
-
-
-class Qwen3VLMoeTextMLP(nn.Module):
-    """Qwen vl moe text mlp implementation."""
-    def __init__(self, config):
-        """Init.
-
-        Args:
-            config: The config.
-        """
-        super().__init__()
-        self.config = config
-        self.hidden_size = config.hidden_size
-        self.intermediate_size = config.intermediate_size
-        self.gate_proj = nn.Linear(self.hidden_size, self.intermediate_size, bias=False)
-        self.up_proj = nn.Linear(self.hidden_size, self.intermediate_size, bias=False)
-        self.down_proj = nn.Linear(self.intermediate_size, self.hidden_size, bias=False)
-        self.act_fn = ACT2FN[config.hidden_act]
-
-    def forward(self, x):
-        """Forward.
-
-        Args:
-            x: The x.
-        """
-        down_proj = self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
-        return down_proj
-
-
-class Qwen3VLMoeTextRotaryEmbedding(nn.Module):
-    """Qwen vl moe text rotary embedding implementation."""
-    def __init__(self, config):
-        """Init.
-
-        Args:
-            config: The config.
-        """
-        super().__init__()
-        if hasattr(config, "rope_scaling") and config.rope_scaling is not None:
-            self.rope_type = config.rope_scaling.get("rope_type", "default")
-        else:
-            self.rope_type = "default"
-        self.max_seq_len_cached = config.max_position_embeddings
-        self.original_max_seq_len = config.max_position_embeddings
-        self.mrope_section = config.rope_scaling.get("mrope_section", [24, 20, 20])
-
-        self.config = config
-        self.rope_init_fn = ROPE_INIT_FUNCTIONS[self.rope_type]
-
-    def init_weights(self, buffer_device: torch.device | None = None) -> None:
-        """Init weights.
-
-        Args:
-            buffer_device: The buffer device.
-
-        Returns:
-            The return value.
-        """
-        inv_freq, self.attention_scaling = self.rope_init_fn(self.config, buffer_device)
-        self.register_buffer("inv_freq", inv_freq, persistent=False)
-
-    def apply_interleaved_mrope(self, freqs, mrope_section):
-        """Apply interleaved MRoPE to 3D rotary embeddings.
-        Reorganizes frequency layout from chunked [TTT...HHH...WWW] to
-        interleaved [THTHWHTHW...TT], preserving frequency continuity.
-        args:
-            x: (3, bs, seq_len, head_dim // 2)
-            mrope_section: (3,)
-        returns:
-            x_t: (bs, seq_len, head_dim // 2)
-        """
-        freqs_t = freqs[0]  # just overwrite the first dimension T
-        for dim, offset in enumerate((1, 2), start=1):  # H, W
-            length = mrope_section[dim] * 3
-            idx = slice(offset, length, 3)
-            freqs_t[..., idx] = freqs[dim, ..., idx]
-        return freqs_t
-
-    @torch.no_grad()
-    @dynamic_rope_update  # power user: used with advanced RoPE types (e.g. dynamic rope)
-    def forward(self, x, position_ids):
-        """Forward.
-
-        Args:
-            x: The x.
-            position_ids: The position ids.
-        """
-        assert self.inv_freq.dtype == torch.float32, f"inv_freq must be float32, but got {self.inv_freq.dtype}"
-
-        # In contrast to other models, Qwen3VLMoe has different position ids for the grids
-        # So we expand the inv_freq to shape (3, ...)
-        if position_ids.ndim == 2:
-            position_ids = position_ids[None, ...].expand(3, position_ids.shape[0], -1)  # [3,B,N]
-        inv_freq_expanded = (
-            self.inv_freq[None, None, :, None].float().expand(3, position_ids.shape[1], -1, 1)
-        )  # [3,B,head_dim//2,1]
-        position_ids_expanded = position_ids[:, :, None, :].float()  # [3,B,1,N]
-
-        freqs = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(2, 3)  # [3,B,N,head_dim//2]
-        freqs = self.apply_interleaved_mrope(freqs, self.mrope_section)  # [B,N,head_dim//2]
-        emb = torch.cat((freqs, freqs), dim=-1)  # [B,N,head_dim]
-        cos = emb.cos() * self.attention_scaling  # [B,N,head_dim]
-        sin = emb.sin() * self.attention_scaling  # [B,N,head_dim]
-
-        return cos.to(dtype=x.dtype), sin.to(dtype=x.dtype)
+        return preds_vision, preds_sound, preds_action

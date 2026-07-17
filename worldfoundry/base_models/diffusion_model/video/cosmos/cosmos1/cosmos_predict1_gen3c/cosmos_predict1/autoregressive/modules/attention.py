@@ -19,13 +19,13 @@ import math
 from typing import Optional, Union
 
 import torch
-from worldfoundry.core.distributed.megatron_compat import parallel_state
+from cosmos_predict1.autoregressive.modules.embedding import RotaryPositionEmbedding
 from torch import nn
 from torch.distributed._functional_collectives import all_reduce
 
-from cosmos_predict1.autoregressive.modules.embedding import RotaryPositionEmbedding
 from worldfoundry.base_models.diffusion_model.video.cosmos.shared.autoregressive_normalization import create_norm
 from worldfoundry.core.attention import scaled_dot_product_attention as _worldfoundry_scaled_dot_product_attention
+from worldfoundry.core.distributed.megatron_compat import parallel_state
 
 
 class Attention(nn.Module):

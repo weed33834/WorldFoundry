@@ -22,11 +22,17 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from ...apps.trainer.run_config import Scheduler
 from ...models.nn.ops import IdentityLayer, ResidualBlock
 from ...models.utils import build_kwargs_from_config
 
 __all__ = ["apply_drop_func"]
+
+
+class _InferenceSchedulerStub:
+    PROGRESS = 1.0
+
+
+Scheduler = _InferenceSchedulerStub
 
 
 def apply_drop_func(network: nn.Module, drop_config: Optional[dict[str, Any]]) -> None:

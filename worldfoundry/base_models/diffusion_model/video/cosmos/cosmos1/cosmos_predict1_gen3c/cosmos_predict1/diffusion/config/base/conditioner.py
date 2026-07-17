@@ -19,15 +19,16 @@ from typing import Dict, List, Optional
 
 import attrs
 import torch
-
 from cosmos_predict1.diffusion.conditioner import BaseConditionEntry, TextAttr, VideoConditioner, VideoExtendConditioner
-from cosmos_predict1.utils.lazy_config import LazyCall as L
-from cosmos_predict1.utils.lazy_config import LazyDict
+
+from worldfoundry.core.configuration.lazy_config import LazyCall as L
+from worldfoundry.core.configuration.lazy_config import LazyDict
 
 
 @attrs.define(slots=False)
 class TextConfig:
     """Text config implementation."""
+
     obj: LazyDict = L(TextAttr)()  # No arguments
     dropout_rate: float = 0.2
     input_keys: List[str] = attrs.field(factory=lambda: ["t5_text_embeddings", "t5_text_mask"])
@@ -35,6 +36,7 @@ class TextConfig:
 
 class BooleanFlag(BaseConditionEntry):
     """Boolean flag implementation."""
+
     def __init__(self, output_key: Optional[str] = None):
         """Init.
 
@@ -75,6 +77,7 @@ class BooleanFlag(BaseConditionEntry):
 
 class ReMapkey(BaseConditionEntry):
     """Re mapkey implementation."""
+
     def __init__(self, output_key: Optional[str] = None, dtype: Optional[str] = None):
         """Init.
 
@@ -111,6 +114,7 @@ class ReMapkey(BaseConditionEntry):
 
 class FrameRepeatAttr(BaseConditionEntry):
     """Frame repeat attr implementation."""
+
     def __init__(self):
         """Init."""
         super().__init__()
@@ -187,6 +191,7 @@ class FrameRepeatConfig:
 @attrs.define(slots=False)
 class VideoCondBoolConfig:
     """Video cond bool config implementation."""
+
     obj: LazyDict = L(BooleanFlag)(output_key="video_cond_bool")
     dropout_rate: float = 0.2
     input_key: str = "fps"  # This is a placeholder, we never use this value

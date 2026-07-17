@@ -21,9 +21,9 @@ def async_call_func(func):
     return wrapper
 
 
-slice_func = lambda chunk_index, chunk_dim, chunk_size: [slice(None)] * chunk_dim + [
-    slice(chunk_index, chunk_index + chunk_size)
-]
+def slice_func(chunk_index, chunk_dim, chunk_size):
+    """Build an index that selects one chunk along ``chunk_dim``."""
+    return [slice(None)] * chunk_dim + [slice(chunk_index, chunk_index + chunk_size)]
 
 
 def async_call(fn):

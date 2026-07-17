@@ -4,28 +4,10 @@
 """Configuration schemas for models, data, and trainer using Hydra structured configs."""
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple, Type
+from typing import Any, Dict, List, Optional
 
 from hydra.core.config_store import ConfigStore
 from omegaconf import MISSING
-from torch import nn
-
-
-@dataclass
-class LossConfig:
-    """Configuration for a single loss in MultiTaskLoss.
-
-    Attributes:
-        loss_class: The loss class to instantiate.
-        weight: Weight to apply to this loss.
-        enabled: Whether this loss is enabled.
-        kwargs: Additional keyword arguments for the loss constructor.
-    """
-
-    loss_class: Type[nn.Module]
-    weight: float = 1.0
-    enabled: bool = True
-    kwargs: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -35,19 +17,9 @@ class ModelConfig:
     This is a minimal base configuration that all models should inherit from.
     It doesn't anticipate any specific attributes that specialized models might need.
 
-    Args:
-        freeze: List of module/parameter paths to freeze. None means no freezing.
-        log_params: Parameter logging configuration:
-            - None (default): No parameter logging
-            - [] (empty list): Log all trainable parameters
-            - ['module1', 'param.weight']: Log specific modules/parameters only
     """
 
     _target_: str = MISSING  # Must be specified by concrete model configs
-    freeze: Optional[List[str]] = None
-    log_params: Optional[List[str]] = None
-    log_every_n_steps: int = 50
-    gradient_checkpointing_config: Optional[Dict[str, Any]] = None
 
 
 @dataclass
@@ -62,9 +34,6 @@ class VGGTModelConfig(ModelConfig):
     patch_size: int = 14
     embed_dim: int = 1024
     dpt_chunk_size: Optional[int] = 24
-    loss: Optional[Dict[str, Any]] = None
-    conditioning_probs: Dict[str, float] = field(default_factory=dict)
-    aggregator_config: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -85,7 +54,6 @@ class DA3ModelConfig(ModelConfig):
 
     _target_: str = "dvlt.model.da3.model.DA3"
     da3_cfg: Dict[str, Any] = field(default_factory=dict)
-    loss: Optional[Dict[str, Any]] = None
 
 
 @dataclass
@@ -102,7 +70,6 @@ class DVLTModelConfig(ModelConfig):
     patch_size: int = 14
     embed_dim: int = 768
     num_steps: int = 16
-    min_steps: int = 8
     num_heads: int = 12
     mlp_ratio: float = 4.0
     num_register_tokens: int = 4
@@ -113,9 +80,6 @@ class DVLTModelConfig(ModelConfig):
     decoder_num_heads: int = 6
     camera_head: bool = True
     drop_path: float = 0.1
-    stochastic_depth: float = 0.3
-    stochastic_depth_mode: str = "random"  # "random" (drop individual steps) or "prefix" (contiguous)
-    sync_stochastic_depth: bool = True  # sync step count across ranks (less diversity, better GPU util)
     # Recurrence mode:
     #   "gated"          — per-step s_attn / s_mlp / s_out scaling (raptor, default)
     #   "no_sout"        — drops s_out
@@ -124,15 +88,11 @@ class DVLTModelConfig(ModelConfig):
     recurrence_mode: str = "gated"
     time_conditioning: str = "interval"  # "continuous" | "interval" (gated / no_sout modes only)
     k_sampling: Optional[str] = "linspace"  # None | "linspace" (variable-K linspace grid on [0,1])
-    k_sampler_beta_a: int = 2  # Beta(a, b) shape 'a' for K sampling; E[K] = min + a/(a+b) * span
-    k_sampler_beta_b: int = 1  # Beta(a, b) shape 'b' for K sampling
     inference_steps: Optional[int] = None  # override step count at inference (defaults to num_steps)
     decoder_head_type: str = "linear"  # "linear" (pixel-shuffle) | "conv" (Pi3X/MoGe progressive upsample)
     depth_head_type: Optional[str] = (
         "conv"  # overrides decoder_head_type for depth decoder; "conv" matches the released stage-2 checkpoint
     )
-    finetune_mode: Optional[str] = None  # "depth_output" | "depth_decoder" | "depth_decoder_recurrent" | "all_heads"
-    reset_depth_decoder_transformer: bool = False  # after load_pretrained, reinit depth_decoder proj_in/blocks/norm
     # Depth-decoder-only overrides (ray/camera heads stay at the shared decoder_* values so their
     # checkpoint weights keep loading). Leave None to inherit the shared decoder_* defaults.
     depth_decoder_depth: Optional[int] = None
@@ -144,7 +104,6 @@ class DVLTModelConfig(ModelConfig):
     world_points_from_rays: bool = (
         False  # override WORLD_POINTS <- WORLD_POINTS_DIRECT (= ray_origin + ray_dir * depth)
     )
-    loss: Optional[Dict[str, Any]] = None
 
 
 @dataclass
@@ -171,8 +130,6 @@ class DataConfig:
     """Data module configuration."""
 
     _target_: str = "dvlt.data.module.DataModule"
-    train_datasets: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    train_config: Dict[str, Any] = field(default_factory=dict)
     test_datasets: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     test_config: Dict[str, Any] = field(default_factory=dict)
     image_size: int = 518
@@ -181,11 +138,8 @@ class DataConfig:
     images_per_batch: int = 48
     images_per_element: Any = field(default_factory=lambda: (2, 24))  # Could be tuple or int
     aspect_ratios: Any = field(default_factory=lambda: (0.33, 1.0))  # Could be tuple or float
-    train_num_workers: int = 2
-    train_prefetch_factor: int = 2
     test_num_workers: int = 2
     collate_fn: str = "dvlt.data.collate.default_collate_fn"  # Reference as string
-    infinite_sampling: bool = True
     distributed_eval: bool = True
     pin_memory: bool = False
 
@@ -203,7 +157,7 @@ class UserConfig:
 
 @dataclass
 class TrainerConfig:
-    """Trainer configuration."""
+    """Inference runner configuration retained for upstream CLI compatibility."""
 
     _target_: str = "dvlt.engine.trainer.Trainer"
     # Callbacks
@@ -211,62 +165,18 @@ class TrainerConfig:
     # Prediction caching
     load_cached_predictions: bool = False
     write_predictions: bool = False
-    # Logging
     output_dir: str = "outputs"
     experiment_name: str = "unnamed"
     timestamp: Optional[str] = None
-    logging_dir: str = "logs"
-    experiment_logger: Tuple[str, ...] = ("wandb",)
-    wandb_project_name: str = "dvlt"
     tqdm: bool = False
     print_step_interval: int = 10
-    # Training loop
     seed: Optional[int] = None
-    max_train_steps: int = 50_000
-    validation_steps: int = 5000
-    validation_batches: int = 0
     ckpt_dir: str = ""
-    # Debugging
-    single_batch_overfit: bool = False
-    sanity_check: bool = False
-    # DDP
-    find_unused_parameters: bool = False
-    static_graph: bool = False
-    # Checkpointing
-    checkpointing_steps: int = 5000
-    checkpoints_total_limit: int = 2
-    resume_from_checkpoint: Optional[str] = None
-    # Training optimizations
-    gradient_accumulation_steps: int = 1
-    gradient_checkpointing: bool = False
-    gradient_bucket_view: bool = True
     allow_tf32: bool = False
     cudnn_deterministic: bool = False
     cudnn_benchmark: bool = True
     mixed_precision: str = "no"
     attn_backend: str = "auto"  # "auto", "flash", "fa3"
-    set_grads_to_none: bool = False
-    # Learning rate & scheduler
-    learning_rate: float = 1e-5
-    lr_scheduler: str = "constant"
-    lr_warmup_steps: int = 500
-    lr_num_cycles: float = 0.5
-    lr_power: float = 1.0
-    lr_min_ratio: float = 0.01
-    lr_param_group_multipliers: Optional[Dict[str, float]] = None
-    scale_lr: Optional[str] = None
-    # Optimizer
-    adam_beta1: float = 0.9
-    adam_beta2: float = 0.999
-    adam_weight_decay: float = 1e-2
-    adam_epsilon: float = 1e-08
-    max_grad_norm: float = 1.0
-    # Profiling
-    profiler: str = "minimal"
-    profiler_dir: str = "profiler_stats"
-    pytorch_profile_memory: bool = True
-    pytorch_with_stack: bool = True
-    pytorch_record_shapes: bool = True
 
 
 @dataclass

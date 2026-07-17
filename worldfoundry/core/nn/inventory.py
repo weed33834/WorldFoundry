@@ -77,11 +77,7 @@ def iter_foundation_layer_files(
         if not scope_path.exists():
             continue
         for current_root, dir_names, file_names in os.walk(scope_path):
-            dir_names[:] = [
-                name
-                for name in dir_names
-                if not _should_skip_dir(name, include_runtime=include_runtime)
-            ]
+            dir_names[:] = [name for name in dir_names if not _should_skip_dir(name, include_runtime=include_runtime)]
             current = Path(current_root)
             for file_name in file_names:
                 if not file_name.endswith(".py"):
@@ -173,11 +169,7 @@ def _duplicate_groups(
         if not value:
             continue
         grouped.setdefault(str(value), []).append(entry.path)
-    groups = tuple(
-        tuple(sorted(paths))
-        for paths in grouped.values()
-        if len(paths) > 1
-    )
+    groups = tuple(tuple(sorted(paths)) for paths in grouped.values() if len(paths) > 1)
     return tuple(sorted(groups, key=lambda group: (-len(group), group[0])))
 
 
@@ -233,7 +225,9 @@ def _is_reexport_only_ast(tree: ast.Module) -> bool:
     for node in tree.body:
         if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
             continue
-        if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == "__all__" for target in node.targets):
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == "__all__" for target in node.targets
+        ):
             continue
         if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.target.id == "__all__":
             continue

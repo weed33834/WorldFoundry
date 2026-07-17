@@ -20,24 +20,25 @@ from typing import Callable, Dict, Literal, Optional, Tuple
 
 import attrs
 import torch
-from einops import rearrange
-from megatron.core import parallel_state
-from torch import Tensor
-
 from cosmos_predict2._src.predict2.conditioner import DataType
 from cosmos_predict2._src.predict2.configs.video2world.defaults.conditioner import Video2WorldCondition
-from cosmos_predict2._src.predict2.models.denoise_prediction import DenoisePrediction
 from cosmos_predict2._src.predict2.models.text2world_model_rectified_flow import (
     Text2WorldCondition,
     Text2WorldModelRectifiedFlow,
     Text2WorldModelRectifiedFlowConfig,
 )
+from einops import rearrange
+from torch import Tensor
+
+from worldfoundry.base_models.diffusion_model.video.cosmos.shared.diffusion_types import DenoisePrediction
+from worldfoundry.core.distributed.megatron_compat import parallel_state
 
 NUM_CONDITIONAL_FRAMES_KEY: str = "num_conditional_frames"
 
 
 class ConditioningStrategy(str, Enum):
     """Conditioning strategy implementation."""
+
     FRAME_REPLACE = "frame_replace"  # First few frames of the video are replaced with the conditional frames
 
     def __str__(self) -> str:
@@ -52,6 +53,7 @@ class ConditioningStrategy(str, Enum):
 @attrs.define(slots=False)
 class Video2WorldModelRectifiedFlowConfig(Text2WorldModelRectifiedFlowConfig):
     """Video world model rectified flow config implementation."""
+
     min_num_conditional_frames: int = 1  # Minimum number of latent conditional frames
     max_num_conditional_frames: int = 2  # Maximum number of latent conditional frames
     conditional_frame_timestep: float = (
@@ -71,6 +73,7 @@ class Video2WorldModelRectifiedFlowConfig(Text2WorldModelRectifiedFlowConfig):
 
 class Video2WorldModelRectifiedFlow(Text2WorldModelRectifiedFlow):
     """Video world model rectified flow implementation."""
+
     def get_data_and_condition(
         self, data_batch: dict[str, torch.Tensor]
     ) -> Tuple[Tensor, Tensor, Video2WorldCondition]:

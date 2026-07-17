@@ -8,7 +8,10 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-from .vit import VisionTransformer, interpolate_pos_embed
+from worldfoundry.base_models.perception_core.captioning.tag2text.vit import (
+    VisionTransformer,
+    interpolate_pos_embed,
+)
 from .med import BertConfig, BertModel, BertLMHeadModel
 from transformers import BertTokenizer
 

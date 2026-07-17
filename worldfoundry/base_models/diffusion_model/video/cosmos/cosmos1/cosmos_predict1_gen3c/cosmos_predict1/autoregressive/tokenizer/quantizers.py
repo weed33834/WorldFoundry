@@ -21,7 +21,12 @@ import torch
 import torch.nn as nn
 from einops import rearrange
 
-from worldfoundry.base_models.diffusion_model.video.cosmos.shared.autoregressive_tokenizer_utils import default, pack_one, round_ste, unpack_one
+from worldfoundry.base_models.diffusion_model.video.cosmos.shared.autoregressive_tokenizer_utils import (
+    default,
+    pack_one,
+    round_ste,
+    unpack_one,
+)
 
 
 class FSQuantizer(nn.Module):

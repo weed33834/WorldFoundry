@@ -3,7 +3,6 @@ Author: Luigi Piccinelli
 Licensed under the CC-BY NC 4.0 license (http://creativecommons.org/licenses/by-nc/4.0/)
 """
 
-import importlib
 import warnings
 from math import ceil
 
@@ -18,7 +17,7 @@ from .models import encoder as mod
 from .models.decoder import Decoder
 from .utils.camera import BatchCamera, Camera
 from .utils.constants import IMAGENET_DATASET_MEAN, IMAGENET_DATASET_STD
-from .utils.misc import get_params, last_stack, match_gt
+from .utils.misc import last_stack, match_gt
 
 
 def orthonormal_init(num_tokens, dims):
@@ -136,7 +135,6 @@ class UniK3D(
         super().__init__()
         self.eps = eps
         self.build(config)
-        # self.build_losses(config)
 
     def pack_sequence(
         self,
@@ -168,39 +166,6 @@ class UniK3D(
             elif isinstance(value, BatchCamera):
                 inputs[key] = value.reshape(B, T)
         return inputs
-
-    def forward_train(self, inputs, image_metas):
-        """Forward train.
-
-        Args:
-            inputs: The inputs.
-            image_metas: The image metas.
-        """
-        losses = {"opt": {}, "stat": {}}
-        B, T = inputs["image"].shape[:2]
-        image_metas[0]["B"], image_metas[0]["T"] = B, T
-        inputs = self.pack_sequence(inputs)  # move from  B, T, ... -> B*T, ...
-
-        inputs, outputs = self.encode_decode(inputs, image_metas)
-        validity_mask = inputs["validity_mask"]
-
-        # be careful on possible NaNs in reconstruced 3D (unprojection out-of-bound)
-        pts_gt = inputs["camera"].reconstruct(inputs["depth"]) * validity_mask.float()
-        pts_gt = torch.where(pts_gt.isnan().any(dim=1, keepdim=True), 0.0, pts_gt)
-        mask_pts_gt_nan = ~pts_gt.isnan().any(dim=1, keepdim=True)
-        mask = inputs["depth_mask"].bool() & validity_mask.bool() & mask_pts_gt_nan.bool()
-
-        # compute loss!
-        inputs["distance"] = torch.norm(pts_gt, dim=1, keepdim=True)
-        inputs["points"] = pts_gt
-        inputs["depth_mask"] = mask
-        losses = self.compute_losses(outputs, inputs, image_metas)
-
-        outputs = self.unpack_sequence(outputs, B, T)
-        return (
-            outputs,
-            losses,
-        )
 
     def forward_test(self, inputs, image_metas):
         """Forward test.
@@ -235,10 +200,7 @@ class UniK3D(
             inputs: The inputs.
             image_metas: The image metas.
         """
-        if self.training:
-            return self.forward_train(inputs, image_metas)
-        else:
-            return self.forward_test(inputs, image_metas)
+        return self.forward_test(inputs, image_metas)
 
     def encode_decode(self, inputs, image_metas=[]):
         """Encode decode.
@@ -280,51 +242,6 @@ class UniK3D(
         outputs.update({"points": pts_3d, "depth": pts_3d[:, -1:]})
 
         return inputs, outputs
-
-    def compute_losses(self, outputs, inputs, image_metas):
-        """Compute losses.
-
-        Args:
-            outputs: The outputs.
-            inputs: The inputs.
-            image_metas: The image metas.
-        """
-        B, _, H, W = inputs["image"].shape
-        losses = {"opt": {}, "stat": {}}
-        losses_to_be_computed = list(self.losses.keys())
-
-        # depth loss
-        si = torch.tensor([x.get("si", False) for x in image_metas], device=self.device).reshape(B)
-        loss = self.losses["depth"]
-        depth_losses = loss(
-            outputs["distance"],
-            target=inputs["distance"],
-            mask=inputs["depth_mask"].clone(),
-            si=si,
-        )
-        losses["opt"][loss.name] = loss.weight * depth_losses.mean()
-        losses_to_be_computed.remove("depth")
-
-        loss = self.losses["camera"]
-        camera_losses = loss(outputs["rays"], target=inputs["rays"], mask=inputs["validity_mask"].bool())
-        losses["opt"][loss.name] = loss.weight * camera_losses.mean()
-        losses_to_be_computed.remove("camera")
-
-        # remaining losses, we expect no more losses to be computed
-        loss = self.losses["confidence"]
-        conf_losses = loss(
-            outputs["confidence"],
-            target_gt=inputs["depth"],
-            target_pred=outputs["depth"],
-            mask=inputs["depth_mask"].clone(),
-        )
-        # print(conf_losses, camera_losses, depth_losses)
-        losses["opt"][loss.name + "_conf"] = loss.weight * conf_losses.mean()
-        losses_to_be_computed.remove("confidence")
-
-        assert not losses_to_be_computed, f"Losses {losses_to_be_computed} not computed, revise `compute_loss` method"
-
-        return losses
 
     @torch.no_grad()
     def infer(
@@ -491,49 +408,6 @@ class UniK3D(
         self.stacking_fn = last_stack
         self.shape_constraints = config["data"]["shape_constraints"]
         self.interpolation_mode = "bilinear"
-
-    def build_losses(self, config):
-        """Build losses.
-
-        Args:
-            config: The config.
-        """
-        self.losses = {}
-        for loss_name, loss_config in config["training"]["losses"].items():
-            mod = importlib.import_module("unik3d.ops.losses")
-            loss_factory = getattr(mod, loss_config["name"])
-            self.losses[loss_name] = loss_factory.build(loss_config)
-
-    def get_params(self, config):
-        """Get params.
-
-        Args:
-            config: The config.
-        """
-        if hasattr(self.pixel_encoder, "get_params"):
-            encoder_p, _ = self.pixel_encoder.get_params(
-                config["model"]["pixel_encoder"]["lr"],
-                config["training"]["wd"],
-                config["training"]["ld"],
-            )
-        else:
-            encoder_p, _ = get_params(
-                self.pixel_encoder,
-                config["model"]["pixel_encoder"]["lr"],
-                config["training"]["wd"],
-            )
-        decoder_p = self.pixel_decoder.get_params(config["training"]["lr"], config["training"]["wd"])
-        return [*encoder_p, *decoder_p]
-
-    def step(self):
-        """Step."""
-        self.pixel_decoder.steps += 1
-
-    def parameters_grad(self):
-        """Parameters grad."""
-        for p in self.parameters():
-            if p.requires_grad:
-                yield p
 
     @property
     def device(self):

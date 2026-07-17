@@ -19,13 +19,13 @@ from typing import Optional
 
 import numpy as np
 import torch
+from cosmos_predict1.diffusion.module.attention import normalize
 from einops import rearrange, repeat
 from torch import nn
 from torch.distributed import ProcessGroup, get_process_group_ranks
 
-from cosmos_predict1.diffusion.module.attention import normalize
-from worldfoundry.core.distributed.context_parallel import split_inputs_cp
 from worldfoundry.base_models.diffusion_model.video.cosmos.shared.timm import trunc_normal_
+from worldfoundry.core.distributed.context_parallel import split_inputs_cp
 
 
 def get_1d_sincos_pos_embed_from_grid(embed_dim, pos):
@@ -51,6 +51,7 @@ def get_1d_sincos_pos_embed_from_grid(embed_dim, pos):
 
 class VideoPositionEmb(nn.Module):
     """Video position emb implementation."""
+
     def __init__(self):
         """Init."""
         super().__init__()
@@ -100,6 +101,7 @@ class VideoPositionEmb(nn.Module):
 
 class VideoRopePosition3DEmb(VideoPositionEmb):
     """Video rope position d emb implementation."""
+
     def __init__(
         self,
         *,  # enforce keyword arguments
@@ -176,12 +178,12 @@ class VideoRopePosition3DEmb(VideoPositionEmb):
 
         B, T, H, W, _ = B_T_H_W_C
         uniform_fps = (fps is None) or (fps.min() == fps.max())
-        assert (
-            uniform_fps or B == 1 or T == 1
-        ), "For video batch, batch size should be 1 for non-uniform fps. For image batch, T should be 1"
-        assert (
-            H <= self.max_h and W <= self.max_w
-        ), f"Input dimensions (H={H}, W={W}) exceed the maximum dimensions (max_h={self.max_h}, max_w={self.max_w})"
+        assert uniform_fps or B == 1 or T == 1, (
+            "For video batch, batch size should be 1 for non-uniform fps. For image batch, T should be 1"
+        )
+        assert H <= self.max_h and W <= self.max_w, (
+            f"Input dimensions (H={H}, W={W}) exceed the maximum dimensions (max_h={self.max_h}, max_w={self.max_w})"
+        )
         half_emb_h = torch.outer(self.seq[:H], h_spatial_freqs)
         half_emb_w = torch.outer(self.seq[:W], w_spatial_freqs)
 
@@ -207,6 +209,7 @@ class VideoRopePosition3DEmb(VideoPositionEmb):
 
 class LearnablePosEmbAxis(VideoPositionEmb):
     """Learnable pos emb axis implementation."""
+
     def __init__(
         self,
         *,  # enforce keyword arguments
@@ -263,6 +266,7 @@ class LearnablePosEmbAxis(VideoPositionEmb):
 
 class MultiviewVideoPositionEmb(nn.Module):
     """Multiview video position emb implementation."""
+
     def __init__(
         self,
     ):
@@ -324,6 +328,7 @@ class MultiviewVideoPositionEmb(nn.Module):
 
 class MultiviewVideoRopePosition3DEmb(MultiviewVideoPositionEmb):
     """Multiview video rope position d emb implementation."""
+
     def __init__(
         self,
         *,  # enforce keyword arguments
@@ -403,12 +408,12 @@ class MultiviewVideoRopePosition3DEmb(MultiviewVideoPositionEmb):
         uniform_fps = (fps is None) or (fps.min() == fps.max())
         assert uniform_fps  # only support uniform fps now
 
-        assert (
-            uniform_fps or B == 1 or T == 1
-        ), "For video batch, batch size should be 1 for non-uniform fps. For image batch, T should be 1"
-        assert (
-            H <= self.max_h and W <= self.max_w
-        ), f"Input dimensions (H={H}, W={W}) exceed the maximum dimensions (max_h={self.max_h}, max_w={self.max_w}) configured for positional embedding. Please adjust the input size or increase the maximum dimensions in the model configuration."
+        assert uniform_fps or B == 1 or T == 1, (
+            "For video batch, batch size should be 1 for non-uniform fps. For image batch, T should be 1"
+        )
+        assert H <= self.max_h and W <= self.max_w, (
+            f"Input dimensions (H={H}, W={W}) exceed the maximum dimensions (max_h={self.max_h}, max_w={self.max_w}) configured for positional embedding. Please adjust the input size or increase the maximum dimensions in the model configuration."
+        )
         half_emb_h = torch.outer(self.seq[:H], h_spatial_freqs)
         half_emb_w = torch.outer(self.seq[:W], w_spatial_freqs)
 
@@ -474,6 +479,7 @@ class MultiviewVideoRopePosition3DEmb(MultiviewVideoPositionEmb):
 
 class MultiviewSinCosPosEmbAxis(MultiviewVideoPositionEmb):
     """Multiview sin cos pos emb axis implementation."""
+
     def __init__(
         self,
         *,  # enforce keyword arguments

@@ -5,7 +5,8 @@ from typing import Callable, Optional
 import warnings
 
 from torch import Tensor, nn
-import torch.nn.functional as F
+
+from worldfoundry.core.kernels import silu_and_mul
 
 
 class SwiGLUFFN(nn.Module):
@@ -48,8 +49,7 @@ class SwiGLUFFN(nn.Module):
             The return value.
         """
         x12 = self.w12(x)
-        x1, x2 = x12.chunk(2, dim=-1)
-        hidden = F.silu(x1) * x2
+        hidden = silu_and_mul(x12)
         return self.w3(hidden)
 
 

@@ -9,10 +9,8 @@ by SkyReels/Wan2.1-style Avatar and Video-Action models. It specifically support
    causal self-attention calculation across GPUs, enabling high-resolution 3D generation.
 """
 
-import numpy as np
 import torch
 import torch.cuda.amp as amp
-import torch.distributed as dist
 import torch.nn as nn
 from einops import rearrange
 from xfuser.core.distributed import (
@@ -22,6 +20,7 @@ from xfuser.core.distributed import (
 )
 from xfuser.core.long_ctx_attention import xFuserLongContextAttention
 
+from worldfoundry.core.attention.sequence_parallel_rope import pad_freqs
 from worldfoundry.core.nn import sinusoidal_embedding_1d
 
 
@@ -54,7 +53,7 @@ def _calculate_x_ref_attn_map(visual_q, ref_k, ref_target_masks, mode="mean", at
     x_ref_attn_maps = []
     ref_target_masks = ref_target_masks.to(visual_q.dtype)
     x_ref_attn_map_source = x_ref_attn_map_source.to(visual_q.dtype)
-    
+
     for ref_target_mask in ref_target_masks:
         ref_target_mask = ref_target_mask[None, None, None, ...]
         x_ref_attnmap = x_ref_attn_map_source * ref_target_mask
@@ -98,20 +97,11 @@ def get_attn_map_with_target(visual_q, ref_k, shape, ref_target_masks=None, spli
     return x_ref_attn_maps / split_num
 
 
-def pad_freqs(original_tensor, target_len):
-    """Pads precomputed RoPE frequencies with ones to match a dynamically extended target length."""
-    seq_len, s1, s2 = original_tensor.shape
-    pad_size = target_len - seq_len
-    padding_tensor = torch.ones(pad_size, s1, s2, dtype=original_tensor.dtype, device=original_tensor.device)
-    padded_tensor = torch.cat([original_tensor, padding_tensor], dim=0)
-    return padded_tensor
-
-
 @amp.autocast(enabled=False)
 def rope_apply(x, grid_sizes, freqs):
     """Applies complex Rotary Position Embeddings (RoPE) to multi-dimensional temporal grids.
 
-    Calculates rotary multiplications in double precision (float64) to prevent precision decay 
+    Calculates rotary multiplications in double precision (float64) to prevent precision decay
     in extremely long video/3D context windows.
 
     Args:
@@ -124,7 +114,6 @@ def rope_apply(x, grid_sizes, freqs):
     """
     output = []
     for i, freqs_i_rank in enumerate(freqs):
-
         # precompute multipliers
         x_i = x[i].to(torch.float64).unflatten(-1, (-1, 2))  # .reshape(s, n, -1, 2)
         x_i_sin = x_i[..., 0] * freqs_i_rank[..., 0] - x_i[..., 1] * freqs_i_rank[..., 1]
@@ -135,40 +124,6 @@ def rope_apply(x, grid_sizes, freqs):
         output.append(x_i)
     return torch.stack(output)
 
-
-def usp_dit_forward_avatar(
-    self,
-    x,
-    t,
-    context,
-    seq_len,
-    clip_fea=None,
-    y=None,
-    audio=None,
-    ref_target_masks=None,
-    audio_mask=None,
-    block_offload: bool = False,
-):
-    """
-    x:              A list of videos each with shape [C, T, H, W].
-    t:              [B].
-    context:        A list of text embeddings each with shape [L, C].
-    """
-
-    assert clip_fea is not None and y is not None
-    # params
-    device = self.patch_embedding.weight.device
-    if self.freqs.device != device:
-        self.freqs = self.freqs.to(device)
-
-    _, T, H, W = x[0].shape
-    N_t = T // self.patch_size[0]
-    N_h = H // self.patch_size[1]
-    N_w = W // self.patch_size[2]
-
-    if y is not None:
-        x = [torch.cat([u, v], dim=0) for u, v in zip(x, y)]
-    x[0] = x[0].to(context[0].dtype)
 
 def usp_dit_forward_avatar(
     self,
@@ -212,8 +167,7 @@ def usp_dit_forward_avatar(
     if self.freqs.device != device:
         self.freqs = self.freqs.to(device)
 
-    _, T, H, W = x[0].shape
-    N_t = T // self.patch_size[0]
+    _, _, H, W = x[0].shape
     N_h = H // self.patch_size[1]
     N_w = W // self.patch_size[2]
 
@@ -240,10 +194,10 @@ def usp_dit_forward_avatar(
     sp_rank = get_sequence_parallel_rank()
     s = x.size(1) // sp_size
     c = self.dim // self.num_heads // 2
-    
+
     # Divide base frequencies into [T, H, W] axes for 3D RoPE
     freqs = self.freqs.cuda().split([c - 2 * (c // 3), c // 3, c // 3], dim=1)
-    
+
     freqs_l = []
     for i, (f, h, w) in enumerate(grid_sizes.tolist()):
         seq_len_current = f * h * w
@@ -268,7 +222,7 @@ def usp_dit_forward_avatar(
     context = self.text_embedding(
         torch.stack([torch.cat([u, u.new_zeros(self.text_len - u.size(0), u.size(1))]) for u in context])
     )
-    
+
     if clip_fea is not None:
         context_clip = self.img_emb(clip_fea)
         context = torch.concat([context_clip, context], dim=1)
@@ -344,8 +298,8 @@ def usp_attn_forward_avatar(
     """Custom Attention forward pass for sequence-parallel architectures.
 
     Orchestrates Rotary Position Embeddings (RoPE), precision casting, and invokes the underlying
-    Yunchang/xFuser LongContextAttention primitives for extremely long sequence modeling without 
-    OOM crashes. 
+    Yunchang/xFuser LongContextAttention primitives for extremely long sequence modeling without
+    OOM crashes.
     It also generates the global reference-key attention maps using target-masks.
     """
     b, s, n, d = *x.shape[:2], self.num_heads, self.head_dim

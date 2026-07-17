@@ -15,7 +15,9 @@ from worldfoundry.core import (
 )
 
 from .multi_modality.models import InternVideo2_Stage2
-from .multi_modality.models.backbones.bert.tokenization_bert import BertTokenizer
+from worldfoundry.base_models.llm_mllm_core.mllm.umt.models.backbones.bert.tokenization_bert import (
+    BertTokenizer,
+)
 from .multi_modality.models.backbones.internvideo2.pos_embed import (
     interpolate_pos_embed_internvideo2_new,
 )

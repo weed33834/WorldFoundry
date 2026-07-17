@@ -23,6 +23,7 @@
 # Updated by Jim Fan
 
 """ANSII Color formatting for output in terminal."""
+
 import io
 import os
 from typing import List, Optional, Union

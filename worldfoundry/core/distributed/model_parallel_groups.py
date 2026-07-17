@@ -83,7 +83,9 @@ def get_nccl_options(pg_name, nccl_comm_cfgs):
         return None
 
 
-def generate_masked_orthogonal_rank_groups(world_size: int, parallel_size: List[int], mask: List[bool]) -> List[List[int]]:
+def generate_masked_orthogonal_rank_groups(
+    world_size: int, parallel_size: List[int], mask: List[bool]
+) -> List[List[int]]:
     """Generate orthogonal parallel groups based on the parallel size and mask.
 
     Arguments:
@@ -159,9 +161,9 @@ def generate_masked_orthogonal_rank_groups(world_size: int, parallel_size: List[
         idx = [(index // d) % s for s, d in zip(shape, stride)]
         # stride is a prefix_product result. And the value of stride[-1]
         # is not used.
-        assert (
-            sum([x * y for x, y in zip(idx, stride[:-1])]) == index
-        ), "idx {} with shape {} mismatch the return idx {}".format(index, shape, idx)
+        assert sum([x * y for x, y in zip(idx, stride[:-1])]) == index, (
+            "idx {} with shape {} mismatch the return idx {}".format(index, shape, idx)
+        )
         return idx
 
     masked_shape = [s for s, m in zip(parallel_size, mask) if m]
@@ -324,7 +326,9 @@ def initialize_model_parallel(
         try:
             import yaml
         except ImportError:
-            raise RuntimeError("Cannot import `yaml`. Setting custom nccl communicator configs " "requires the yaml package.")
+            raise RuntimeError(
+                "Cannot import `yaml`. Setting custom nccl communicator configs requires the yaml package."
+            )
 
         with open(nccl_communicator_config_path, "r") as stream:
             nccl_comm_cfgs = yaml.safe_load(stream)
@@ -391,11 +395,13 @@ def initialize_model_parallel(
     # Build the tensor + context parallel groups.
     global _TENSOR_MODEL_PARALLEL_GROUP_WITH_CP
     global _TENSOR_MODEL_PARALLEL_GLOBAL_RANKS_WITH_CP
-    assert (
-        _TENSOR_MODEL_PARALLEL_GROUP_WITH_CP is None
-    ), "tensor model parallel group with context parallel is already initialized"
+    assert _TENSOR_MODEL_PARALLEL_GROUP_WITH_CP is None, (
+        "tensor model parallel group with context parallel is already initialized"
+    )
     for ranks in rank_generator.get_ranks("tp-cp"):
-        group = torch.distributed.new_group(ranks, timeout=timeout, pg_options=get_nccl_options("tp_cp", nccl_comm_cfgs))
+        group = torch.distributed.new_group(
+            ranks, timeout=timeout, pg_options=get_nccl_options("tp_cp", nccl_comm_cfgs)
+        )
         if rank in ranks:
             _TENSOR_MODEL_PARALLEL_GROUP_WITH_CP = group
             _TENSOR_MODEL_PARALLEL_GLOBAL_RANKS_WITH_CP = ranks
@@ -415,11 +421,15 @@ def initialize_model_parallel(
     global _TENSOR_AND_DATA_PARALLEL_GROUP_WITH_CP
     assert _TENSOR_AND_DATA_PARALLEL_GROUP is None, "Tensor + data parallel group is already initialized"
     for ranks in rank_generator.get_ranks("tp-cp-dp"):
-        group = torch.distributed.new_group(ranks, timeout=timeout, pg_options=get_nccl_options("tp_cp_dp", nccl_comm_cfgs))
+        group = torch.distributed.new_group(
+            ranks, timeout=timeout, pg_options=get_nccl_options("tp_cp_dp", nccl_comm_cfgs)
+        )
         if rank in ranks:
             _TENSOR_AND_DATA_PARALLEL_GROUP_WITH_CP = group
     for ranks in rank_generator.get_ranks("tp-dp"):
-        group = torch.distributed.new_group(ranks, timeout=timeout, pg_options=get_nccl_options("tp_dp", nccl_comm_cfgs))
+        group = torch.distributed.new_group(
+            ranks, timeout=timeout, pg_options=get_nccl_options("tp_dp", nccl_comm_cfgs)
+        )
         if rank in ranks:
             _TENSOR_AND_DATA_PARALLEL_GROUP = group
 
@@ -457,9 +467,9 @@ def get_tp_group(check_initialized=True, with_context_parallel=False):
     if check_initialized:
         assert _TENSOR_MODEL_PARALLEL_GROUP is not None, "tensor model parallel group is not initialized"
     if with_context_parallel:
-        assert (
-            _TENSOR_MODEL_PARALLEL_GROUP_WITH_CP is not None
-        ), "tensor model parallel group with context parallel combined is not initialized"
+        assert _TENSOR_MODEL_PARALLEL_GROUP_WITH_CP is not None, (
+            "tensor model parallel group with context parallel combined is not initialized"
+        )
         return _TENSOR_MODEL_PARALLEL_GROUP_WITH_CP
     else:
         assert _TENSOR_MODEL_PARALLEL_GROUP is not None, "tensor model parallel group is not initialized"
@@ -475,9 +485,9 @@ def get_pp_group():
 def get_dp_group(with_context_parallel=False):
     """Get the data parallel group the caller rank belongs to."""
     if with_context_parallel:
-        assert (
-            _DATA_PARALLEL_GROUP_WITH_CP is not None
-        ), "data parallel group with context parallel combined is not initialized"
+        assert _DATA_PARALLEL_GROUP_WITH_CP is not None, (
+            "data parallel group with context parallel combined is not initialized"
+        )
         return _DATA_PARALLEL_GROUP_WITH_CP
     else:
         assert _DATA_PARALLEL_GROUP is not None, "data parallel group is not initialized"
@@ -487,9 +497,9 @@ def get_dp_group(with_context_parallel=False):
 def get_dp_group_gloo(with_context_parallel=False):
     """Get the data parallel group-gloo the caller rank belongs to."""
     if with_context_parallel:
-        assert (
-            _DATA_PARALLEL_GROUP_WITH_CP_GLOO is not None
-        ), "data parallel group-gloo with context parallel combined is not initialized"
+        assert _DATA_PARALLEL_GROUP_WITH_CP_GLOO is not None, (
+            "data parallel group-gloo with context parallel combined is not initialized"
+        )
         return _DATA_PARALLEL_GROUP_WITH_CP_GLOO
     else:
         assert _DATA_PARALLEL_GROUP_GLOO is not None, "data parallel group-gloo is not initialized"
@@ -538,9 +548,9 @@ def get_tensor_model_parallel_src_rank(with_context_parallel=False):
     in the tensor model parallel group."""
     assert _TENSOR_MODEL_PARALLEL_GLOBAL_RANKS is not None, "Tensor model parallel group is not initialized"
     if with_context_parallel:
-        assert (
-            _TENSOR_MODEL_PARALLEL_GLOBAL_RANKS_WITH_CP is not None
-        ), "Tensor model parallel group with context parallel combined is not initialized"
+        assert _TENSOR_MODEL_PARALLEL_GLOBAL_RANKS_WITH_CP is not None, (
+            "Tensor model parallel group with context parallel combined is not initialized"
+        )
         return _TENSOR_MODEL_PARALLEL_GLOBAL_RANKS_WITH_CP[0]
     else:
         return _TENSOR_MODEL_PARALLEL_GLOBAL_RANKS[0]
@@ -549,9 +559,9 @@ def get_tensor_model_parallel_src_rank(with_context_parallel=False):
 def get_tensor_model_parallel_ranks(with_context_parallel=False):
     """Return all global ranks for the tensor model parallel group."""
     if with_context_parallel:
-        assert (
-            _TENSOR_MODEL_PARALLEL_GLOBAL_RANKS_WITH_CP is not None
-        ), "Tensor model parallel group with context parallel combined is not initialized"
+        assert _TENSOR_MODEL_PARALLEL_GLOBAL_RANKS_WITH_CP is not None, (
+            "Tensor model parallel group with context parallel combined is not initialized"
+        )
         return _TENSOR_MODEL_PARALLEL_GLOBAL_RANKS_WITH_CP
     else:
         assert _TENSOR_MODEL_PARALLEL_GLOBAL_RANKS is not None, "Tensor model parallel group is not initialized"
@@ -563,9 +573,9 @@ def get_tensor_model_parallel_last_rank(with_context_parallel=False):
     in the tensor model parallel group."""
     assert _TENSOR_MODEL_PARALLEL_GLOBAL_RANKS is not None, "Tensor model parallel group is not initialized"
     if with_context_parallel:
-        assert (
-            _TENSOR_MODEL_PARALLEL_GLOBAL_RANKS_WITH_CP is not None
-        ), "Tensor model parallel group with context parallel combined is not initialized"
+        assert _TENSOR_MODEL_PARALLEL_GLOBAL_RANKS_WITH_CP is not None, (
+            "Tensor model parallel group with context parallel combined is not initialized"
+        )
         return _TENSOR_MODEL_PARALLEL_GLOBAL_RANKS_WITH_CP[-1]
     else:
         return _TENSOR_MODEL_PARALLEL_GLOBAL_RANKS[-1]

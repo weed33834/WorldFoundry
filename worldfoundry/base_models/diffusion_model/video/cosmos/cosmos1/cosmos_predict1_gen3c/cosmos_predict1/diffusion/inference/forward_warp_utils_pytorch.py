@@ -15,11 +15,13 @@
 
 """Module for base_models -> diffusion_model -> video -> cosmos -> cosmos1 -> cosmos_predict1_gen3c -> cosmos_predict1 -> diffusion -> inference -> forward_warp_utils_pytorch.py functionality."""
 
+import os
 from typing import Optional, Tuple
+
 import numpy as np
 import torch
-import os
 import torch.nn.functional as F
+
 try:
     import warp as wp
 except ImportError:
@@ -28,23 +30,26 @@ except ImportError:
 _warp_initialized = False
 _ray_triangle_intersection_func = None
 
+
 def _init_warp():
     """Helper function to init warp."""
     global _warp_initialized, _ray_triangle_intersection_func
-    
+
     if not _warp_initialized:
         print(f"Initializing Warp library (local_rank {os.getenv('LOCAL_RANK')})...")
         wp.init()
         _warp_initialized = True
         print(f"Warp library initialized successfully (local_rank {os.getenv('LOCAL_RANK')})")
-    
+
     if _ray_triangle_intersection_func is None:
         try:
             from .ray_triangle_intersection_warp import ray_triangle_intersection_warp
+
             _ray_triangle_intersection_func = ray_triangle_intersection_warp
             print(f"Warp: ray_triangle_intersection_warp kernel loaded (local_rank {os.getenv('LOCAL_RANK')})")
         except ImportError:
             from ray_triangle_intersection_warp import ray_triangle_intersection_warp
+
             _ray_triangle_intersection_func = ray_triangle_intersection_warp
             print(f"Warp: ray_triangle_intersection_warp kernel loaded (local_rank {os.getenv('LOCAL_RANK')})")
 
@@ -52,87 +57,88 @@ def _init_warp():
 def points_to_mesh(points, mask, resolution=None):
     """
     Convert a grid of 3D points to a triangle mesh based on mask.
-    
+
     Args:
         points: Tensor of shape [H, W, 3] containing 3D points
         mask: Tensor of shape [H, W] containing binary mask
         resolution: Optional tuple (new_H, new_W) to resize to
-    
+
     Returns:
         vertices: Tensor of shape [N, 3] containing unique vertices
         faces: Tensor of shape [M, 3] containing triangle indices
     """
     H, W = points.shape[:2]
-    
+
     # Resize if resolution is provided
     if resolution is not None:
         new_H, new_W = resolution
         # Resize points using bilinear interpolation
         points = points.permute(2, 0, 1).unsqueeze(0)  # [1, 3, H, W]
-        points = F.interpolate(points, size=(new_H, new_W), mode='bilinear', align_corners=False)
+        points = F.interpolate(points, size=(new_H, new_W), mode="bilinear", align_corners=False)
         points = points.squeeze(0).permute(1, 2, 0)  # [new_H, new_W, 3]
-        
+
         # Resize mask using nearest neighbor
         mask = mask.unsqueeze(0).unsqueeze(0).float()  # [1, 1, H, W]
-        mask = F.interpolate(mask, size=(new_H, new_W), mode='nearest')
+        mask = F.interpolate(mask, size=(new_H, new_W), mode="nearest")
         mask = mask.squeeze(0).squeeze(0).bool()  # [new_H, new_W]
-        
+
         H, W = new_H, new_W
-    
+
     # Create vertex indices grid
     vertex_indices = torch.arange(H * W, device=points.device).reshape(H, W)
-    
+
     # Find 2x2 patches where at least one vertex is in the mask
     # Create shifted views for efficient neighbor checking
     mask_tl = mask[:-1, :-1]  # top-left
-    mask_tr = mask[:-1, 1:]   # top-right
-    mask_bl = mask[1:, :-1]   # bottom-left
-    mask_br = mask[1:, 1:]    # bottom-right
-    
+    mask_tr = mask[:-1, 1:]  # top-right
+    mask_bl = mask[1:, :-1]  # bottom-left
+    mask_br = mask[1:, 1:]  # bottom-right
+
     # A patch is valid if any of its 4 vertices is in the mask
     valid_patches = mask_tl | mask_tr | mask_bl | mask_br  # [H-1, W-1]
-    
+
     # Get indices of valid patches
     valid_h, valid_w = torch.where(valid_patches)
-    
+
     # For each valid patch, create two triangles
     # Triangle 1: (u,v), (u,v+1), (u+1,v)
     # Triangle 2: (u,v+1), (u+1,v+1), (u+1,v)
     n_valid = len(valid_h)
-    
+
     if n_valid == 0:
         # No valid patches, return empty mesh
         return torch.empty((0, 3), device=points.device), torch.empty((0, 3), dtype=torch.long, device=points.device)
-    
+
     # Vectorized triangle creation
-    idx_tl = vertex_indices[valid_h, valid_w]        # top-left
-    idx_tr = vertex_indices[valid_h, valid_w + 1]    # top-right
-    idx_bl = vertex_indices[valid_h + 1, valid_w]    # bottom-left
+    idx_tl = vertex_indices[valid_h, valid_w]  # top-left
+    idx_tr = vertex_indices[valid_h, valid_w + 1]  # top-right
+    idx_bl = vertex_indices[valid_h + 1, valid_w]  # bottom-left
     idx_br = vertex_indices[valid_h + 1, valid_w + 1]  # bottom-right
-    
+
     # Create faces (2 triangles per patch)
     faces1 = torch.stack([idx_tl, idx_tr, idx_bl], dim=1)  # [n_valid, 3]
     faces2 = torch.stack([idx_tr, idx_br, idx_bl], dim=1)  # [n_valid, 3]
     faces = torch.cat([faces1, faces2], dim=0)  # [2*n_valid, 3]
-    
+
     # Flatten points to get vertices
     vertices = points.reshape(-1, 3)  # [H*W, 3]
-    
+
     # Optional: Remove unused vertices and remap faces
     # First, find which vertices are actually used
     used_vertices = torch.unique(faces.flatten())
-    
+
     # Create a mapping from old indices to new indices
     new_idx_map = torch.full((H * W,), -1, dtype=torch.long, device=points.device)
     new_idx_map[used_vertices] = torch.arange(len(used_vertices), device=points.device)
-    
+
     # Extract only used vertices
     vertices = vertices[used_vertices]
-    
+
     # Remap face indices
     faces = new_idx_map[faces.flatten()].reshape(-1, 3)
-    
+
     return vertices, faces
+
 
 def get_max_exponent_for_dtype(dtype):
     """Get max exponent for dtype.
@@ -151,6 +157,7 @@ def get_max_exponent_for_dtype(dtype):
         return 700.0  # Safe maximum exponent for float64
     else:
         return 80.0  # Default safe value
+
 
 def inverse_with_conversion(mtx):
     """Inverse with conversion.
@@ -232,7 +239,9 @@ def forward_warp(
     if depth1 is None:
         assert world_points1.shape == (b, h, w, 3)
         if foreground_masking:
-            trans_points1, cam_points_target = project_points(world_points1, transformation2, intrinsic2, return_cam_points=True)
+            trans_points1, cam_points_target = project_points(
+                world_points1, transformation2, intrinsic2, return_cam_points=True
+            )
         else:
             trans_points1 = project_points(world_points1, transformation2, intrinsic2)
     else:
@@ -299,54 +308,52 @@ def forward_warp(
         for batch_idx in range(b):
             assert boundary_mask is not None
             mesh_mask = boundary_mask[batch_idx]
-            
+
             mesh_downsample_factor = 4
             vertices_masked, faces_masked = points_to_mesh(
-                cam_points_target[batch_idx], 
-                mesh_mask, 
-                resolution=(h // mesh_downsample_factor, w // mesh_downsample_factor)
+                cam_points_target[batch_idx],
+                mesh_mask,
+                resolution=(h // mesh_downsample_factor, w // mesh_downsample_factor),
             )
-            
+
             if vertices_masked.shape[0] == 0 or faces_masked.shape[0] == 0:
                 continue
-            
+
             ray_scale_factor = 1
             ray_downsampled_h = h // ray_scale_factor
             ray_downsampled_w = w // ray_scale_factor
-            current_intrinsic_batch = intrinsic2[batch_idx:batch_idx+1]
+            current_intrinsic_batch = intrinsic2[batch_idx : batch_idx + 1]
             scaled_intrinsic = current_intrinsic_batch.clone()
-            
+
             scaled_intrinsic[0, 0, 0] /= ray_scale_factor  # fx
             scaled_intrinsic[0, 1, 1] /= ray_scale_factor  # fy
             scaled_intrinsic[0, 0, 2] /= ray_scale_factor  # cx
             scaled_intrinsic[0, 1, 2] /= ray_scale_factor  # cy
-            
+
             camera_rays = get_camera_rays(ray_downsampled_h, ray_downsampled_w, scaled_intrinsic)  # (1, h_ds, w_ds, 3)
             camera_rays = camera_rays[0]  # (h_ds, w_ds, 3)
-            
+
             ray_origins = torch.zeros((ray_downsampled_h, ray_downsampled_w, 3), device=device, dtype=dtype)
-            
-            mesh_depth = ray_triangle_intersection(
-                ray_origins,
-                camera_rays,
-                vertices_masked,
-                faces_masked,
-                device
-            ) 
+
+            mesh_depth = ray_triangle_intersection(ray_origins, camera_rays, vertices_masked, faces_masked, device)
             ray_z = camera_rays[:, :, 2]  # (h, w)
             mesh_z_depth = mesh_depth * ray_z  # Convert to z-depth
-            mesh_z_depth = F.interpolate(mesh_z_depth.unsqueeze(0).unsqueeze(0), size=(h, w), mode='bilinear').squeeze(0).squeeze(0)
-            
+            mesh_z_depth = (
+                F.interpolate(mesh_z_depth.unsqueeze(0).unsqueeze(0), size=(h, w), mode="bilinear")
+                .squeeze(0)
+                .squeeze(0)
+            )
+
             warped_depth_batch = warped_depth2[batch_idx]  # (h, w)
 
-            
             mesh_valid = mesh_z_depth > 0
             mesh_closer = ((mesh_z_depth + 0.02) < warped_depth_batch) & mesh_valid
-            
+
             mask2[batch_idx, 0] = mask2[batch_idx, 0] * (~mesh_closer).float()
             warped_frame2[batch_idx] = (warped_frame2[batch_idx] + 1) * (~mesh_closer.unsqueeze(0)).float() - 1
             warped_depth2[batch_idx] = warped_depth2[batch_idx] * (~mesh_closer.unsqueeze(0)).float()
     return warped_frame2, mask2, warped_depth2, flow12
+
 
 def reliable_depth_mask_range_batch(depth, window_size=5, ratio_thresh=0.05, eps=1e-6):
     """Reliable depth mask range batch.
@@ -358,20 +365,23 @@ def reliable_depth_mask_range_batch(depth, window_size=5, ratio_thresh=0.05, eps
         eps: The eps.
     """
     assert window_size % 2 == 1, "Window size must be odd."
-    if depth.dim() == 3:   # Input shape: (B, H, W)
+    if depth.dim() == 3:  # Input shape: (B, H, W)
         depth_unsq = depth.unsqueeze(1)
     elif depth.dim() == 4:  # Already has shape (B, 1, H, W)
         depth_unsq = depth
     else:
         raise ValueError("depth tensor must be of shape (B, H, W) or (B, 1, H, W)")
-    
+
     local_max = torch.nn.functional.max_pool2d(depth_unsq, kernel_size=window_size, stride=1, padding=window_size // 2)
-    local_min = -torch.nn.functional.max_pool2d(-depth_unsq, kernel_size=window_size, stride=1, padding=window_size // 2)
+    local_min = -torch.nn.functional.max_pool2d(
+        -depth_unsq, kernel_size=window_size, stride=1, padding=window_size // 2
+    )
     local_mean = torch.nn.functional.avg_pool2d(depth_unsq, kernel_size=window_size, stride=1, padding=window_size // 2)
     ratio = (local_max - local_min) / (local_mean + eps)
     reliable_mask = (ratio < ratio_thresh) & (depth_unsq > 0)
-    
+
     return reliable_mask
+
 
 def double_forward_warp(
     frame1: torch.Tensor,
@@ -382,12 +392,12 @@ def double_forward_warp(
 ):
     """
     Double projection using forward warping with your APIs.
-    
+
     1. Warps frame1 from the original view (identity transformation)
        to the target view defined by double_proj_w2cs.
     2. Computes a warped flow field and then warps the intermediate result
        back to the original view using the original depth.
-       
+
     :param frame1: (b, 3, h, w) original image.
     :param mask1: (b, 1, h, w) valid mask.
     :param depth1: (b, 1, h, w) depth map.
@@ -428,11 +438,13 @@ def double_forward_warp(
     return twice_warped_frame1, twice_warped_mask1, warped_frame2, mask2
 
 
-def unproject_points(depth: torch.Tensor, 
-                     w2c: torch.Tensor, 
-                     intrinsic: torch.Tensor, 
-                     is_depth: bool = True, 
-                     mask: Optional[torch.Tensor] = None):
+def unproject_points(
+    depth: torch.Tensor,
+    w2c: torch.Tensor,
+    intrinsic: torch.Tensor,
+    is_depth: bool = True,
+    mask: Optional[torch.Tensor] = None,
+):
     """Unproject points.
 
     Args:
@@ -457,7 +469,6 @@ def unproject_points(depth: torch.Tensor,
 
     b_idx, y_idx, x_idx = idx[:, 0], idx[:, 1], idx[:, 2]
 
-
     intrinsic_inv = inverse_with_conversion(intrinsic)  # (b, 3, 3)
 
     x_valid = x_idx.to(dtype)
@@ -476,8 +487,7 @@ def unproject_points(depth: torch.Tensor,
         direction = unnormalized_pos / (norm_val + 1e-8)
         world_points_cam = depth_valid * direction
 
-    ones_h = torch.ones((world_points_cam.shape[0], 1, 1), 
-                        device=device, dtype=dtype)
+    ones_h = torch.ones((world_points_cam.shape[0], 1, 1), device=device, dtype=dtype)
     world_points_homo = torch.cat([world_points_cam, ones_h], dim=1)  # (N, 4, 1)
 
     trans = inverse_with_conversion(w2c)  # (b, 4, 4)
@@ -489,7 +499,10 @@ def unproject_points(depth: torch.Tensor,
     out_points[b_idx, y_idx, x_idx, :] = sparse_points
     return out_points
 
-def project_points(world_points: torch.Tensor, w2c: torch.Tensor, intrinsic: torch.Tensor, return_cam_points: bool = False):
+
+def project_points(
+    world_points: torch.Tensor, w2c: torch.Tensor, intrinsic: torch.Tensor, return_cam_points: bool = False
+):
     """
     Projects 3D world points back into 2D pixel space.
     """
@@ -604,7 +617,7 @@ def compute_transformed_points(
     trans_world_homo = torch.matmul(trans_4d, world_points_homo)  # (b, h, w, 4, 1)
     trans_world = trans_world_homo[:, :, :, :3]  # (b, h, w, 3, 1)
     trans_norm_points = torch.matmul(intrinsic2_4d, trans_world)  # (b, h, w, 3, 1)
-    
+
     if return_cam_points:
         # Return both projected points and camera space points
         cam_points = trans_world.squeeze(-1)  # (b, h, w, 3)
@@ -676,7 +689,7 @@ def bilinear_splatting(
     # Calculate depth weights, preventing overflow and removing saturation
     # Clamp depth to be non-negative before log1p
     clamped_depth1 = torch.clamp(depth1, min=0)
-    log_depth1 = torch.log1p(clamped_depth1) # Use log1p for better precision near 0
+    log_depth1 = torch.log1p(clamped_depth1)  # Use log1p for better precision near 0
     # Normalize and scale log depth
     exponent = log_depth1 / (log_depth1.max() + 1e-7) * depth_weight_scale
     # Clamp exponent before exp to prevent overflow
@@ -684,7 +697,6 @@ def bilinear_splatting(
     clamped_exponent = torch.clamp(exponent, max=max_exponent)
     # Compute depth weights with added epsilon for stability when dividing later
     depth_weights = torch.exp(clamped_exponent) + 1e-7
-
 
     weight_nw = torch.moveaxis(prox_weight_nw * mask1 * flow12_mask / depth_weights, [0, 1, 2, 3], [0, 3, 1, 2])
     weight_sw = torch.moveaxis(prox_weight_sw * mask1 * flow12_mask / depth_weights, [0, 1, 2, 3], [0, 3, 1, 2])
@@ -734,6 +746,7 @@ def bilinear_splatting(
         warped_frame2 = torch.clamp(warped_frame2, min=-1, max=1)
     return warped_frame2, mask2
 
+
 def create_grid(b: int, h: int, w: int, device="cpu", dtype=torch.float) -> torch.Tensor:
     """
     Create a dense grid of (x,y) coordinates of shape (b, 2, h, w).
@@ -742,20 +755,19 @@ def create_grid(b: int, h: int, w: int, device="cpu", dtype=torch.float) -> torc
     y = torch.arange(0, h, device=device, dtype=dtype).view(1, 1, h, 1).expand(b, 1, h, w)
     return torch.cat([x, y], dim=1)
 
+
 def ray_triangle_intersection(
     ray_origins: torch.Tensor,  # (H, W, 3)
     ray_directions: torch.Tensor,  # (H, W, 3)
     vertices: torch.Tensor,  # (N, 3)
     faces: torch.Tensor,  # (M, 3)
-    device: torch.device
+    device: torch.device,
 ) -> torch.Tensor:
     """
     Compute ray-triangle intersections for all rays and triangles.
     Returns depth map of shape (H, W) with intersection distances.
-    
+
     Uses NVIDIA Warp acceleration for fast performance.
     """
     _init_warp()
-    return _ray_triangle_intersection_func(
-        ray_origins, ray_directions, vertices, faces, device
-    )
+    return _ray_triangle_intersection_func(ray_origins, ray_directions, vertices, faces, device)

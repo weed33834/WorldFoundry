@@ -137,7 +137,18 @@ class WanLayerNorm(nn.LayerNorm):
         Args:
             x(Tensor): Shape [B, L, C]
         """
-        return super().forward(x.float()).type_as(x)
+        # Newer PyTorch requires affine parameters to match the FP32 input
+        # used for numerically stable normalization.  Wan checkpoints are
+        # commonly converted wholesale to BF16, including this norm's
+        # optional weight and bias, so cast all norm operands together and
+        # restore the activation dtype afterwards.
+        return torch.nn.functional.layer_norm(
+            x.float(),
+            self.normalized_shape,
+            self.weight.float() if self.weight is not None else None,
+            self.bias.float() if self.bias is not None else None,
+            self.eps,
+        ).type_as(x)
 
 
 class WanSelfAttention(nn.Module):
@@ -215,7 +226,7 @@ class WanSelfAttention(nn.Module):
 class WanCrossAttention(WanSelfAttention):
     """Wan cross attention implementation."""
 
-    def forward(self, x, context, context_lens):
+    def forward(self, x, context, context_lens, crossattn_cache=None):
         r"""
         Args:
             x(Tensor): Shape [B, L1, C]
@@ -226,8 +237,14 @@ class WanCrossAttention(WanSelfAttention):
 
         # compute query, key, value
         q = self.norm_q(self.q(x)).view(b, -1, n, d)
-        k = self.norm_k(self.k(context)).view(b, -1, n, d)
-        v = self.v(context).view(b, -1, n, d)
+        if crossattn_cache is not None and crossattn_cache.get("is_init", False):
+            k = crossattn_cache["k"]
+            v = crossattn_cache["v"]
+        else:
+            k = self.norm_k(self.k(context)).view(b, -1, n, d)
+            v = self.v(context).view(b, -1, n, d)
+            if crossattn_cache is not None:
+                crossattn_cache.update(is_init=True, k=k, v=v)
 
         # compute attention
         x = flash_attention(q, k, v, k_lens=context_lens)

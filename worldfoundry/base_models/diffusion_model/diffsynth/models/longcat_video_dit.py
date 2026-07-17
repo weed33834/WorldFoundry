@@ -13,6 +13,7 @@ from einops import rearrange, repeat
 from .wan_video_dit import flash_attention
 from worldfoundry.core.device import get_device_type
 from worldfoundry.core.gradient import gradient_checkpoint_forward
+from worldfoundry.core.kernels import silu_mul
 
 
 class RMSNorm_FP32(torch.nn.Module):
@@ -538,7 +539,7 @@ class FeedForwardSwiGLU(nn.Module):
         Args:
             x: The x.
         """
-        return self.w2(F.silu(self.w1(x)) * self.w3(x))
+        return self.w2(silu_mul(self.w1(x), self.w3(x)))
 
 
 class TimestepEmbedder(nn.Module):

@@ -32,6 +32,7 @@ except ModuleNotFoundError:
     FLASH_ATTN_2_AVAILABLE = False
 
 import warnings
+
 from worldfoundry.core.attention import scaled_dot_product_attention as _worldfoundry_scaled_dot_product_attention
 
 __all__ = [

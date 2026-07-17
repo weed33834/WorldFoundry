@@ -105,16 +105,26 @@ def causal_attention_mask(query_len: int, key_len: int | None = None, *, include
     return np.tri(q_len, k_len, k=diagonal, dtype=bool)
 
 
-def sinusoidal_embedding_1d(dim: int, position: torch.Tensor) -> torch.Tensor:
-    """Return cosine/sine timestep embeddings used by diffusion transformers."""
+def sinusoidal_embedding_1d(
+    dim: int,
+    position: torch.Tensor,
+    max_period: float = 10000.0,
+) -> torch.Tensor:
+    """Return cosine/sine timestep embeddings used by diffusion transformers.
+
+    ``max_period`` is explicit because action-flow policies often use a much
+    shorter period than image/video diffusion transformers.
+    """
 
     if int(dim) % 2:
         raise ValueError("dim must be even for sinusoidal embeddings.")
     half = int(dim) // 2
     position_dtype = position.dtype
     position = position.to(torch.float64)
+    if float(max_period) <= 0:
+        raise ValueError("max_period must be positive")
     frequencies = torch.pow(
-        10000,
+        float(max_period),
         -torch.arange(half, device=position.device, dtype=torch.float64).div(half),
     )
     sinusoid = torch.outer(position, frequencies)
@@ -134,7 +144,6 @@ from worldfoundry.core.nn.stochastic_depth import (  # noqa: E402
     drop_add_residual_stochastic_depth,
     get_branges_scales,
 )
-
 
 __all__ = [
     "TransformerShapeSpec",

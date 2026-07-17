@@ -17,13 +17,13 @@
 """Module for base_models -> three_dimensions -> general_3d -> vipe -> pipeline -> __init__.py functionality."""
 
 import copy
-import importlib
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Sequence, cast
 
 from omegaconf import DictConfig
 
+from worldfoundry.base_models.three_dimensions.general_3d.vipe._imports import import_config_module
 from worldfoundry.base_models.three_dimensions.general_3d.vipe.config import BaseConfigSchema
 from worldfoundry.base_models.three_dimensions.general_3d.vipe.streams.base import MultiviewVideoList, VideoStream
 
@@ -135,7 +135,7 @@ def make_pipeline_cls(config: DictConfig | BaseConfigSchema) -> type[Pipeline]:
     """
     config = _as_dictconfig(config)
     module_path, class_name = config.instance.rsplit(".", 1)
-    module = importlib.import_module(module_path)
+    module = import_config_module(module_path)
     return getattr(module, class_name)
 
 

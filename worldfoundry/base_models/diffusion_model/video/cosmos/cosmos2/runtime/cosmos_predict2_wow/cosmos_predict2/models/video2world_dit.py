@@ -18,13 +18,13 @@
 from typing import List, Optional, Tuple
 
 import torch
-
 from cosmos_predict2.conditioner import DataType
-from cosmos_predict2.models.text2image_dit import MiniTrainDIT
+from cosmos_predict2.models.text2image_dit import InferenceDiT
 
 
-class MinimalV1LVGDiT(MiniTrainDIT):
+class MinimalV1LVGDiT(InferenceDiT):
     """Minimal lvg di t implementation."""
+
     def __init__(self, *args, **kwargs):
         """Init."""
         assert "in_channels" in kwargs, "in_channels must be provided"

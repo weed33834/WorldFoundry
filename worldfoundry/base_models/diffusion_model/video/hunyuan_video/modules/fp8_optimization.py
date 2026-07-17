@@ -6,6 +6,8 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
+from worldfoundry.core.checkpoint import load_tensor_state_dict
+
 def get_fp_maxval(bits=8, mantissa_bit=3, sign_bits=1):
     """Get fp maxval.
 
@@ -124,7 +126,7 @@ def convert_fp8_linear(module, dit_weight_path, original_dtype, params_to_keep={
     # loading fp8 mapping file
     fp8_map_path = dit_weight_path.replace('.pt', '_map.pt')
     if os.path.exists(fp8_map_path):
-        fp8_map = torch.load(fp8_map_path, map_location=lambda storage, loc: storage)
+        fp8_map = load_tensor_state_dict(fp8_map_path)
     else:
         raise ValueError(f"Invalid fp8_map path: {fp8_map_path}.")
 

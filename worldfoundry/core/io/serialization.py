@@ -16,7 +16,6 @@ import yaml
 from .media import suffix_for_uri
 from .storage import read_binary_uri, read_text_uri, write_binary_uri, write_text_uri
 
-
 _TEXT_FORMATS = {"txt", "text"}
 _JSON_FORMATS = {"json"}
 _YAML_FORMATS = {"yaml", "yml"}
@@ -44,7 +43,22 @@ def _callable_reference(value: Any) -> str:
 
 
 def jsonable(value: Any) -> Any:
-    """Convert common Python objects into JSON-serializable values."""
+    """Recursively convert common runtime objects into JSON-safe values.
+
+    Args:
+        value: Dataclass, ``to_dict`` object, path, mapping, sequence, tensor/
+            array-like object with ``tolist``, callable, primitive, or fallback
+            object.
+
+    Returns:
+        A tree containing only JSON-compatible primitives and containers.
+
+    Notes:
+        Mapping keys are stringified, sets become lists, callables become a
+        module/qualified-name record, and otherwise unsupported objects fall
+        back to ``repr``. This is evidence serialization, not a reversible
+        object codec.
+    """
 
     if is_dataclass(value) and not isinstance(value, type):
         return jsonable(asdict(value))
@@ -375,7 +389,9 @@ def _write_bytes_or_return(data: bytes, file: str | Path | IO[Any] | None) -> by
     return None
 
 
-def _load_image(file: str | Path | IO[Any], *, fmt: str = "pil", size: int | tuple[int, int] | None = None, **kwargs: Any) -> Any:
+def _load_image(
+    file: str | Path | IO[Any], *, fmt: str = "pil", size: int | tuple[int, int] | None = None, **kwargs: Any
+) -> Any:
     from PIL import Image
 
     image = Image.open(io.BytesIO(_read_bytes(file)))
@@ -456,23 +472,24 @@ def _dump_video(
 
 def _torch_load_from_bytes(data: bytes, **kwargs: Any) -> Any:
     import pickle
+
     import torch
 
     allow_unsafe_pickle_fallback = bool(kwargs.pop("allow_unsafe_pickle_fallback", False))
+    kwargs.setdefault("weights_only", True)
     try:
         return torch.load(io.BytesIO(data), **kwargs)
     except TypeError as exc:
-        if "weights_only" not in str(exc) or "weights_only" not in kwargs:
-            raise
-        fallback_kwargs = dict(kwargs)
-        fallback_kwargs.pop("weights_only")
-        return torch.load(io.BytesIO(data), **fallback_kwargs)
+        # Fail closed when the installed PyTorch does not support a requested
+        # safety option.  Removing ``weights_only`` here would silently turn a
+        # tensor-only load into unrestricted pickle execution.
+        if "weights_only" in str(exc) and "weights_only" in kwargs:
+            raise RuntimeError(
+                "the installed PyTorch does not support safe weights-only deserialization"
+            ) from exc
+        raise
     except pickle.UnpicklingError as exc:
-        if not (
-            kwargs.get("weights_only")
-            and allow_unsafe_pickle_fallback
-            and "Weights only load failed" in str(exc)
-        ):
+        if not (kwargs.get("weights_only") and allow_unsafe_pickle_fallback and "Weights only load failed" in str(exc)):
             raise
         kwargs["weights_only"] = False
         return torch.load(io.BytesIO(data), **kwargs)

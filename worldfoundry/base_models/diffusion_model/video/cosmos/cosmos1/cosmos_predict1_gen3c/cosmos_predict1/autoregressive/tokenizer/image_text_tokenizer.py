@@ -20,11 +20,11 @@ from typing import Any, Dict, List, Optional, Union
 import numpy as np
 import torch
 import transformers
-from transformers import AutoImageProcessor
-from transformers.image_utils import ImageInput, is_valid_image, load_image
-
 from cosmos_predict1.autoregressive.tokenizer.text_tokenizer import TextTokenizer
 from cosmos_predict1.utils import log
+from PIL import Image
+from transformers import AutoImageProcessor
+from transformers.image_utils import ImageInput, is_valid_image, load_image
 
 # Configuration for different vision-language models
 IMAGE_CONFIGS = {
@@ -52,9 +52,7 @@ def is_image_or_image_url(elem):
     return is_url(elem) or is_valid_image(elem)
 
 
-def load_image_list(
-    image_list: List[Union[str, "PIL.Image.Image"]], timeout: Optional[float] = None
-) -> List["PIL.Image.Image"]:
+def load_image_list(image_list: List[Union[str, Image.Image]], timeout: Optional[float] = None) -> List[Image.Image]:
     """
     Load a list of images.
 

@@ -37,8 +37,6 @@ from argparse import ArgumentParser, Namespace
 from typing import Any
 
 import numpy as np
-from loguru import logger as logging
-
 from cosmos_predict1.tokenizer.inference.image_lib import ImageTokenizer
 from cosmos_predict1.tokenizer.inference.utils import (
     get_filepaths,
@@ -48,6 +46,7 @@ from cosmos_predict1.tokenizer.inference.utils import (
     write_image,
 )
 from cosmos_predict1.tokenizer.networks import TokenizerConfigs
+from loguru import logger as logging
 
 
 def _parse_args() -> tuple[Namespace, dict[str, Any]]:

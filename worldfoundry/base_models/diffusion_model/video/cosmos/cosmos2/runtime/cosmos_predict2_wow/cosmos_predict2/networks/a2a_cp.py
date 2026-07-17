@@ -19,13 +19,12 @@ from typing import Any, Callable, List, Tuple, Union
 
 import torch
 import torch.distributed as dist
+from cosmos_predict2.networks.flash_attention import flash_attention
+from cosmos_predict2.networks.neighborhood_attn import NeighborhoodAttention
 from einops import rearrange
 from torch import Tensor
 from torch.distributed import ProcessGroup
 from torch.nn import Module
-
-from cosmos_predict2.networks.flash_attention import flash_attention
-from cosmos_predict2.networks.neighborhood_attn import NeighborhoodAttention
 
 
 def post_all2all(local_seq_2_local_head, seq_world_size):
@@ -35,6 +34,7 @@ def post_all2all(local_seq_2_local_head, seq_world_size):
         local_seq_2_local_head: The local seq 2 local head.
         seq_world_size: The seq world size.
     """
+
     def post_func(input):
         """Post func.
 
@@ -66,9 +66,9 @@ def single_all_to_all(input, local_seq_2_local_head, group, async_op=False):
     # b, s, n, h
     if local_seq_2_local_head:
         bs, local_seq_len, num_total_head, head_dim = input.shape
-        assert (
-            num_total_head % seq_world_size == 0
-        ), f"Number of heads ({num_total_head}) must be divisible by the sequence parallel size ({seq_world_size})!"
+        assert num_total_head % seq_world_size == 0, (
+            f"Number of heads ({num_total_head}) must be divisible by the sequence parallel size ({seq_world_size})!"
+        )
         input_t = rearrange(
             input, "bs seq_len (w h) d -> w bs seq_len h d", w=seq_world_size, h=num_total_head // seq_world_size
         ).contiguous()
@@ -137,6 +137,7 @@ def async_a2a_communicate(
 
 class _SeqAllToAll(torch.autograd.Function):
     """Seq all to all implementation."""
+
     @staticmethod
     def forward(ctx: Any, group: dist.ProcessGroup, input: Tensor, local_seq_2_local_head: bool) -> Tensor:
         """Forward.
@@ -170,6 +171,7 @@ class _SeqAllToAll(torch.autograd.Function):
 
 class _SeqAllToAllQKV(torch.autograd.Function):
     """Seq all to all qkv implementation."""
+
     @staticmethod
     def forward(
         ctx: Any,
@@ -283,6 +285,7 @@ class DistributedAttention(torch.nn.Module):
 
 class MinimalA2AAttnOp(DistributedAttention):
     """Minimal a attn op implementation."""
+
     def __init__(self, *args, **kwargs):
         """Init."""
         del args, kwargs
@@ -316,6 +319,7 @@ class MinimalA2AAttnOp(DistributedAttention):
 
 class NattenA2AAttnOp(MinimalA2AAttnOp):
     """Natten a attn op implementation."""
+
     def __init__(self, *args, **kwargs):
         """Init."""
         super(NattenA2AAttnOp, self).__init__(None)

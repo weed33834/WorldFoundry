@@ -14,10 +14,29 @@ from worldfoundry.core.model_loading import load_torch_state_dict
 from worldfoundry.core.attention import scaled_dot_product_attention as _worldfoundry_scaled_dot_product_attention
 
 __all__ = [
+    "WAN_2P2_VAE_MEAN",
+    "WAN_2P2_VAE_STD",
     "Wan2_2_VAE",
 ]
 
 CACHE_T = 2
+
+WAN_2P2_VAE_MEAN = (
+    -0.2289, -0.0052, -0.1323, -0.2339, -0.2799, 0.0174, 0.1838, 0.1557,
+    -0.1382, 0.0542, 0.2813, 0.0891, 0.1570, -0.0098, 0.0375, -0.1825,
+    -0.2246, -0.1207, -0.0698, 0.5109, 0.2665, -0.2108, -0.2158, 0.2502,
+    -0.2055, -0.0322, 0.1109, 0.1567, -0.0729, 0.0899, -0.2799, -0.1230,
+    -0.0313, -0.1649, 0.0117, 0.0723, -0.2839, -0.2083, -0.0520, 0.3748,
+    0.0152, 0.1957, 0.1433, -0.2944, 0.3573, -0.0548, -0.1681, -0.0667,
+)
+WAN_2P2_VAE_STD = (
+    0.4765, 1.0364, 0.4514, 1.1677, 0.5313, 0.4990, 0.4818, 0.5013,
+    0.8158, 1.0344, 0.5894, 1.0901, 0.6885, 0.6165, 0.8454, 0.4978,
+    0.5759, 0.3523, 0.7135, 0.6804, 0.5833, 1.4146, 0.8986, 0.5659,
+    0.7069, 0.5338, 0.4889, 0.4917, 0.4069, 0.4999, 0.6866, 0.4093,
+    0.5709, 0.6065, 0.6415, 0.4944, 0.5726, 1.2042, 0.5458, 1.6887,
+    0.3971, 1.0600, 0.3943, 0.5537, 0.5444, 0.4089, 0.7468, 0.7744,
+)
 
 
 class CausalConv3d(nn.Conv3d):
@@ -1004,6 +1023,11 @@ class WanVAE_(nn.Module):
         x_recon = self.decode(mu, scale)
         return x_recon, mu
 
+    def _clear_encoder_cache(self):
+        self._enc_conv_num = count_conv3d(self.encoder)
+        self._enc_conv_idx = [0]
+        self._enc_feat_map = [None] * self._enc_conv_num
+
     def encode(self, x, scale):
         """Encode.
 
@@ -1011,7 +1035,7 @@ class WanVAE_(nn.Module):
             x: The x.
             scale: The scale.
         """
-        self.clear_cache()
+        self._clear_encoder_cache()
         x = patchify(x, patch_size=2)
         t = x.shape[2]
         iter_ = 1 + (t - 1) // 4
@@ -1036,7 +1060,7 @@ class WanVAE_(nn.Module):
                 1, self.z_dim, 1, 1, 1)
         else:
             mu = (mu - scale[0]) * scale[1]
-        self.clear_cache()
+        self._clear_encoder_cache()
         return mu
 
     def decode(self, z, scale):
@@ -1073,6 +1097,30 @@ class WanVAE_(nn.Module):
         out = unpatchify(out, patch_size=2)
         self.clear_cache()
         return out
+
+    def cached_decode(self, z, scale):
+        """Decode a latent chunk while retaining temporal decoder state."""
+        if isinstance(scale[0], torch.Tensor):
+            z = z / scale[1].view(1, self.z_dim, 1, 1, 1) + scale[0].view(
+                1, self.z_dim, 1, 1, 1
+            )
+        else:
+            z = z / scale[1] + scale[0]
+        x = self.conv2(z)
+        first_call = self._feat_map[0] is None
+        output = None
+        for index in range(z.shape[2]):
+            self._conv_idx = [0]
+            chunk = self.decoder(
+                x[:, :, index:index + 1],
+                feat_cache=self._feat_map,
+                feat_idx=self._conv_idx,
+                **({"first_chunk": True} if first_call and index == 0 else {}),
+            )
+            output = chunk if output is None else torch.cat((output, chunk), dim=2)
+        if output is None:
+            raise ValueError("Cannot decode an empty latent sequence.")
+        return unpatchify(output, patch_size=2)
 
     def reparameterize(self, mu, log_var):
         """Reparameterize.
@@ -1130,7 +1178,9 @@ def _video_vae(pretrained_path=None, z_dim=16, dim=160, device="cpu", **kwargs):
     )
     cfg.update(**kwargs)
 
-    # init model
+    if pretrained_path is None:
+        return WanVAE_(**cfg)
+
     with torch.device("meta"):
         model = WanVAE_(**cfg)
 
@@ -1177,114 +1227,8 @@ class Wan2_2_VAE:
         self.device = device
         self.cfg = WanVAEConfig()
 
-        mean = torch.tensor(
-            [
-                -0.2289,
-                -0.0052,
-                -0.1323,
-                -0.2339,
-                -0.2799,
-                0.0174,
-                0.1838,
-                0.1557,
-                -0.1382,
-                0.0542,
-                0.2813,
-                0.0891,
-                0.1570,
-                -0.0098,
-                0.0375,
-                -0.1825,
-                -0.2246,
-                -0.1207,
-                -0.0698,
-                0.5109,
-                0.2665,
-                -0.2108,
-                -0.2158,
-                0.2502,
-                -0.2055,
-                -0.0322,
-                0.1109,
-                0.1567,
-                -0.0729,
-                0.0899,
-                -0.2799,
-                -0.1230,
-                -0.0313,
-                -0.1649,
-                0.0117,
-                0.0723,
-                -0.2839,
-                -0.2083,
-                -0.0520,
-                0.3748,
-                0.0152,
-                0.1957,
-                0.1433,
-                -0.2944,
-                0.3573,
-                -0.0548,
-                -0.1681,
-                -0.0667,
-            ],
-            dtype=dtype,
-            device=device,
-        )
-        std = torch.tensor(
-            [
-                0.4765,
-                1.0364,
-                0.4514,
-                1.1677,
-                0.5313,
-                0.4990,
-                0.4818,
-                0.5013,
-                0.8158,
-                1.0344,
-                0.5894,
-                1.0901,
-                0.6885,
-                0.6165,
-                0.8454,
-                0.4978,
-                0.5759,
-                0.3523,
-                0.7135,
-                0.6804,
-                0.5833,
-                1.4146,
-                0.8986,
-                0.5659,
-                0.7069,
-                0.5338,
-                0.4889,
-                0.4917,
-                0.4069,
-                0.4999,
-                0.6866,
-                0.4093,
-                0.5709,
-                0.6065,
-                0.6415,
-                0.4944,
-                0.5726,
-                1.2042,
-                0.5458,
-                1.6887,
-                0.3971,
-                1.0600,
-                0.3943,
-                0.5537,
-                0.5444,
-                0.4089,
-                0.7468,
-                0.7744,
-            ],
-            dtype=dtype,
-            device=device,
-        )
+        mean = torch.tensor(WAN_2P2_VAE_MEAN, dtype=dtype, device=device)
+        std = torch.tensor(WAN_2P2_VAE_STD, dtype=dtype, device=device)
         self.scale = [mean, 1.0 / std]
 
         # init model

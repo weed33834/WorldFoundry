@@ -16,7 +16,6 @@
 """Module for base_models -> three_dimensions -> general_3d -> vipe -> streams -> base.py functionality."""
 
 import copy
-import importlib
 import logging
 from dataclasses import dataclass
 from enum import Enum
@@ -27,6 +26,7 @@ import torch
 from omegaconf import DictConfig
 from torch.utils.data import IterableDataset
 
+from worldfoundry.base_models.three_dimensions.general_3d.vipe._imports import import_config_module
 from worldfoundry.base_models.three_dimensions.general_3d.vipe.config import BaseConfigSchema
 from worldfoundry.base_models.three_dimensions.general_3d.vipe.ext.lietorch import SE3
 from worldfoundry.base_models.three_dimensions.general_3d.vipe.utils.cameras import CameraType
@@ -821,7 +821,7 @@ class StreamList:
         if isinstance(config, BaseConfigSchema):
             config = config.to_dictconfig()
         module_path, class_name = config.instance.rsplit(".", 1)
-        module = importlib.import_module(module_path)
+        module = import_config_module(module_path)
         config = copy.deepcopy(config)
         del config.instance
         return getattr(module, class_name)(**cast(dict[str, Any], config))

@@ -25,9 +25,7 @@ logger = logging.getLogger(__name__)
 def pad_freqs(original_tensor, target_len):
     s1, s2, seq_len, s3 = original_tensor.shape
     pad_size = target_len - seq_len
-    padding_tensor = torch.ones(
-        s1, s2, pad_size, s3, dtype=original_tensor.dtype, device=original_tensor.device
-    )
+    padding_tensor = torch.ones(s1, s2, pad_size, s3, dtype=original_tensor.dtype, device=original_tensor.device)
     padded_tensor = torch.cat([original_tensor, padding_tensor], dim=2)
     return padded_tensor
 
@@ -39,9 +37,7 @@ class xFuserWanAttnProcessor2_0:
         from xfuser.core.long_ctx_attention import xFuserLongContextAttention
         from yunchang.kernels import AttnType
 
-        self.hybrid_seq_parallel_attn = xFuserLongContextAttention(
-            attn_type=AttnType.FA, use_pack_qkv=True
-        )
+        self.hybrid_seq_parallel_attn = xFuserLongContextAttention(attn_type=AttnType.FA, use_pack_qkv=True)
 
     def __call__(
         self,
@@ -78,9 +74,7 @@ class xFuserWanAttnProcessor2_0:
         if rotary_emb is not None:
 
             def apply_rotary_emb(hidden_states: torch.Tensor, freqs: torch.Tensor):
-                x_rotated = torch.view_as_complex(
-                    hidden_states.to(torch.float64).unflatten(3, (-1, 2))
-                )
+                x_rotated = torch.view_as_complex(hidden_states.to(torch.float64).unflatten(3, (-1, 2)))
                 x_out = torch.view_as_real(x_rotated * freqs).flatten(3, 4)
                 return x_out.type_as(hidden_states)
 
@@ -150,13 +144,8 @@ def parallelize_transformer(pipe: DiffusionPipeline):
             # weight the lora layers by setting `lora_scale` for each PEFT layer
             scale_lora_layers(self, lora_scale)
         else:
-            if (
-                attention_kwargs is not None
-                and attention_kwargs.get("scale", None) is not None
-            ):
-                logger.warning(
-                    "Passing `scale` via `attention_kwargs` when not using the PEFT backend is ineffective."
-                )
+            if attention_kwargs is not None and attention_kwargs.get("scale", None) is not None:
+                logger.warning("Passing `scale` via `attention_kwargs` when not using the PEFT backend is ineffective.")
 
         batch_size, num_channels, num_frames, height, width = hidden_states.shape
         p_t, p_h, p_w = self.config.patch_size
@@ -174,35 +163,27 @@ def parallelize_transformer(pipe: DiffusionPipeline):
             timestep_proj,
             encoder_hidden_states,
             encoder_hidden_states_image,
-        ) = self.condition_embedder(
-            timestep, encoder_hidden_states, encoder_hidden_states_image
-        )
+        ) = self.condition_embedder(timestep, encoder_hidden_states, encoder_hidden_states_image)
         timestep_proj = timestep_proj.unflatten(1, (6, -1))
 
         if encoder_hidden_states_image is not None:
-            encoder_hidden_states = torch.concat(
-                [encoder_hidden_states_image, encoder_hidden_states], dim=1
-            )
+            encoder_hidden_states = torch.concat([encoder_hidden_states_image, encoder_hidden_states], dim=1)
 
         # Sequence parallel: chunk tensors across ranks
-        hidden_states = torch.chunk(
-            hidden_states, get_classifier_free_guidance_world_size(), dim=0
-        )[get_classifier_free_guidance_rank()]
-        hidden_states = torch.chunk(
-            hidden_states, get_sequence_parallel_world_size(), dim=-2
-        )[get_sequence_parallel_rank()]
-        rotary_emb = torch.chunk(
-            rotary_emb, get_sequence_parallel_world_size(), dim=-2
-        )[get_sequence_parallel_rank()]
-        encoder_hidden_states = torch.chunk(
-            encoder_hidden_states, get_classifier_free_guidance_world_size(), dim=0
-        )[get_classifier_free_guidance_rank()]
-        timestep_proj = torch.chunk(
-            timestep_proj, get_classifier_free_guidance_world_size(), dim=0
-        )[get_classifier_free_guidance_rank()]
-        temb = torch.chunk(temb, get_classifier_free_guidance_world_size(), dim=0)[
+        hidden_states = torch.chunk(hidden_states, get_classifier_free_guidance_world_size(), dim=0)[
             get_classifier_free_guidance_rank()
         ]
+        hidden_states = torch.chunk(hidden_states, get_sequence_parallel_world_size(), dim=-2)[
+            get_sequence_parallel_rank()
+        ]
+        rotary_emb = torch.chunk(rotary_emb, get_sequence_parallel_world_size(), dim=-2)[get_sequence_parallel_rank()]
+        encoder_hidden_states = torch.chunk(encoder_hidden_states, get_classifier_free_guidance_world_size(), dim=0)[
+            get_classifier_free_guidance_rank()
+        ]
+        timestep_proj = torch.chunk(timestep_proj, get_classifier_free_guidance_world_size(), dim=0)[
+            get_classifier_free_guidance_rank()
+        ]
+        temb = torch.chunk(temb, get_classifier_free_guidance_world_size(), dim=0)[get_classifier_free_guidance_rank()]
 
         # 4. Transformer blocks
         if torch.is_grad_enabled() and self.gradient_checkpointing:
@@ -216,15 +197,11 @@ def parallelize_transformer(pipe: DiffusionPipeline):
                 )
         else:
             for block in self.blocks:
-                hidden_states = block(
-                    hidden_states, encoder_hidden_states, timestep_proj, rotary_emb
-                )
+                hidden_states = block(hidden_states, encoder_hidden_states, timestep_proj, rotary_emb)
 
         # 5. Output norm, projection & unpatchify
         shift, scale = (self.scale_shift_table.cuda() + temb.unsqueeze(1)).chunk(2, dim=1)
-        hidden_states = (
-            self.norm_out(hidden_states.float()) * (1 + scale) + shift
-        ).type_as(hidden_states)
+        hidden_states = (self.norm_out(hidden_states.float()) * (1 + scale) + shift).type_as(hidden_states)
         hidden_states = self.proj_out(hidden_states)
 
         # Sequence parallel: all_gather to restore full tensor

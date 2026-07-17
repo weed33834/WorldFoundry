@@ -18,11 +18,11 @@
 from typing import Optional
 
 import attrs
-
 from cosmos_predict1.autoregressive.tokenizer.discrete_video import DiscreteVideoFSQStateDictTokenizer
 from cosmos_predict1.autoregressive.tokenizer.networks import CausalDiscreteVideoTokenizer
-from cosmos_predict1.utils.lazy_config import LazyCall as L
-from cosmos_predict1.utils.lazy_config import LazyDict
+
+from worldfoundry.core.configuration.lazy_config import LazyCall as L
+from worldfoundry.core.configuration.lazy_config import LazyDict
 
 
 def create_discrete_video_fsq_tokenizer_state_dict_config(

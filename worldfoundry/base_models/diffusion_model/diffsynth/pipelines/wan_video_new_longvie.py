@@ -374,14 +374,15 @@ class LongViePipeline(BasePipeline):
         """
         import torch.distributed as dist
         from xfuser.core.distributed import initialize_model_parallel, init_distributed_environment
-        dist.init_process_group(backend="nccl", init_method="env://")
+        if not dist.is_initialized():
+            dist.init_process_group(backend="nccl", init_method="env://")
         init_distributed_environment(rank=dist.get_rank(), world_size=dist.get_world_size())
         initialize_model_parallel(
             sequence_parallel_degree=dist.get_world_size(),
             ring_degree=ring_degree,
             ulysses_degree=ulysses_degree,
         )
-        torch.cuda.set_device(dist.get_rank())
+        torch.cuda.set_device(int(os.getenv("LOCAL_RANK", str(dist.get_rank())) or dist.get_rank()))
 
 
     def enable_usp(self):

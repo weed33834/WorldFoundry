@@ -20,11 +20,14 @@ import gc
 from typing import List
 
 import torch
-
 from cosmos_predict1.autoregressive.configs.inference.inference_config import DiffusionDecoderSamplingConfig
 from cosmos_predict1.autoregressive.diffusion_decoder.model import LatentDiffusionDecoderModel
-from worldfoundry.base_models.diffusion_model.video.cosmos.shared.autoregressive_diffusion_decoder_utils import linear_blend_video_list, split_with_overlap
 from cosmos_predict1.utils import log
+
+from worldfoundry.base_models.diffusion_model.video.cosmos.shared.autoregressive_diffusion_decoder_utils import (
+    linear_blend_video_list,
+    split_with_overlap,
+)
 
 
 def diffusion_decoder_process_tokens(

@@ -14,19 +14,20 @@
 # limitations under the License.
 
 """The causal continuous video tokenizer with VAE or AE formulation for 3D data.."""
-from collections import OrderedDict, namedtuple
 
-from loguru import logger as logging
-from torch import nn
+from collections import OrderedDict, namedtuple
 
 from cosmos_predict1.tokenizer.modules import ContinuousFormulation, Decoder3DType, Encoder3DType
 from cosmos_predict1.tokenizer.modules.layers3d import CausalConv3d
+from loguru import logger as logging
+from torch import nn
 
 NetworkEval = namedtuple("NetworkEval", ["reconstructions", "posteriors", "latent"])
 
 
 class CausalContinuousVideoTokenizer(nn.Module):
     """Causal continuous video tokenizer implementation."""
+
     def __init__(self, z_channels: int, z_factor: int, latent_channels: int, **kwargs) -> None:
         """Init.
 

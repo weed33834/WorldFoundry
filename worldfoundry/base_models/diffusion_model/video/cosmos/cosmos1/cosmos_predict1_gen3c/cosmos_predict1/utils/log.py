@@ -61,7 +61,7 @@ def init_loguru_stdout() -> None:
     logger.add(
         lambda msg: tqdm.write(msg, end=""),
         level=LEVEL,
-        format="[<green>{time:MM-DD HH:mm:ss}</green>|" f"{machine_format}" f"{message_format}",
+        format=f"[<green>{{time:MM-DD HH:mm:ss}}</green>|{machine_format}{message_format}",
         filter=_rank0_only_filter,
     )
 
@@ -81,7 +81,7 @@ def init_loguru_file(path: str) -> None:
         path,
         encoding="utf8",
         level=LEVEL,
-        format="[<green>{time:MM-DD HH:mm:ss}</green>|" f"{machine_format}" f"{message_format}",
+        format=f"[<green>{{time:MM-DD HH:mm:ss}}</green>|{machine_format}{message_format}",
         rotation="100 MB",
         filter=lambda result: _rank0_only_filter(result) or not RANK0_ONLY,
         enqueue=True,
@@ -101,8 +101,7 @@ def get_machine_format() -> str:
         rank = dist.get_rank()
         world_size = dist.get_world_size()
         machine_format = (
-            f"<red>[Node{node_id:<3}/{num_nodes:<3}][RANK{rank:<5}/{world_size:<5}]"
-            "[{process.name:<8}]</red>| "
+            f"<red>[Node{node_id:<3}/{num_nodes:<3}][RANK{rank:<5}/{world_size:<5}][{{process.name:<8}}]</red>| "
         )
     return machine_format
 

@@ -22,6 +22,7 @@ from transformers import SiglipModel, SiglipProcessor
 
 class SigLIPEncoder(torch.nn.Module):
     """Sig lip encoder implementation."""
+
     def __init__(
         self,
         checkpoint_dir: str,

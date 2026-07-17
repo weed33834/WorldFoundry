@@ -19,20 +19,20 @@ from copy import deepcopy
 from enum import Enum
 
 import attrs
-
 from cosmos_predict2.conditioner import BooleanFlag, ReMapkey, TextAttr
-from cosmos_predict2.configs.base.defaults.ema import EMAConfig
 from cosmos_predict2.configs.vid2vid.defaults.conditioner import Vid2VidConditioner
 from cosmos_predict2.models.text2image_dit import SACConfig
 from cosmos_predict2.models.video2world_dit import MinimalV1LVGDiT
 from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
-from imaginaire.config import make_freezable
-from imaginaire.lazy_config import LazyCall as L
-from imaginaire.lazy_config import LazyDict
+
+from worldfoundry.core.configuration import EMAConfig, make_freezable
+from worldfoundry.core.configuration.lazy_config import LazyCall as L
+from worldfoundry.core.configuration.lazy_config import LazyDict
 
 
 class ConditioningStrategy(str, Enum):
     """Conditioning strategy implementation."""
+
     FRAME_REPLACE = "frame_replace"  # First few frames of the video are replaced with the conditional frames
     CHANNEL_CONCAT = "channel_concat"  # First few frames of the video are concatenated in the channel dimension
 
@@ -49,6 +49,7 @@ class ConditioningStrategy(str, Enum):
 @attrs.define(slots=False)
 class SolverTimestampConfig:
     """Solver timestamp config implementation."""
+
     nfe: int = 35
     t_min: float = 0.002
     t_max: float = 80.0
@@ -60,6 +61,7 @@ class SolverTimestampConfig:
 @attrs.define(slots=False)
 class CosmosReason1Config:
     """Cosmos reason config implementation."""
+
     checkpoint_dir: str
     offload_model_to_cpu: bool = True
     enabled: bool = True
@@ -69,6 +71,7 @@ class CosmosReason1Config:
 @attrs.define(slots=False)
 class CosmosGuardrailConfig:
     """Cosmos guardrail config implementation."""
+
     checkpoint_dir: str
     offload_model_to_cpu: bool = True
     enabled: bool = True
@@ -78,6 +81,7 @@ class CosmosGuardrailConfig:
 @attrs.define(slots=False)
 class Video2WorldPipelineConfig:
     """Video world pipeline config implementation."""
+
     adjust_video_noise: bool
     conditioner: LazyDict
     conditioning_strategy: str

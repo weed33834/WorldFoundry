@@ -15,11 +15,11 @@
 
 """Module for base_models -> diffusion_model -> video -> cosmos -> cosmos1 -> cosmos_predict1_gen3c -> cosmos_predict1 -> autoregressive -> diffusion_decoder -> config -> inference -> cosmos_diffusiondecoder_7b.py functionality."""
 
+from cosmos_predict1.autoregressive.diffusion_decoder.network import DiffusionDecoderGeneralDIT
 from hydra.core.config_store import ConfigStore
 
-from cosmos_predict1.autoregressive.diffusion_decoder.network import DiffusionDecoderGeneralDIT
-from cosmos_predict1.utils.lazy_config import LazyCall as L
-from cosmos_predict1.utils.lazy_config import LazyDict
+from worldfoundry.core.configuration.lazy_config import LazyCall as L
+from worldfoundry.core.configuration.lazy_config import LazyDict
 
 num_frames = 57
 Cosmos_DiffusionDecoder_7B_INFERENCE_ONLY: LazyDict = LazyDict(

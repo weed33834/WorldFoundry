@@ -20,8 +20,8 @@ from .runtime_env import (
     prepare_gen3c_checkpoint_root,
     project_root,
     resolve_gen3c_checkpoint_arg,
-    resolve_gen3c_runtime_root,
     resolve_gen3c_moge_pretrained,
+    resolve_gen3c_runtime_root,
 )
 
 
@@ -129,9 +129,7 @@ class Gen3CRuntime:
         if moge_path is not None and str(moge_path).strip():
             raise ValueError("MoGe runtime is packaged in-tree; pass `moge_pretrained` for weights only.")
         resolved_checkpoint_dir = prepare_gen3c_checkpoint_root(checkpoint_arg)
-        resolved_moge_pretrained = resolve_gen3c_moge_pretrained(
-            moge_pretrained or DEFAULT_GEN3C_MOGE1_REPO
-        )
+        resolved_moge_pretrained = resolve_gen3c_moge_pretrained(moge_pretrained or DEFAULT_GEN3C_MOGE1_REPO)
         defaults = {
             "default_trajectory": default_trajectory,
             "default_camera_rotation": default_camera_rotation,
@@ -217,18 +215,11 @@ class Gen3CRuntime:
             image_rgb.save(image_path)
 
         trajectory = str(
-            trajectory
-            or kwargs.pop("default_trajectory", None)
-            or self.defaults.get("default_trajectory", "left")
+            trajectory or kwargs.pop("default_trajectory", None) or self.defaults.get("default_trajectory", "left")
         )
-        camera_rotation = str(
-            camera_rotation
-            or self.defaults.get("default_camera_rotation", "center_facing")
-        )
+        camera_rotation = str(camera_rotation or self.defaults.get("default_camera_rotation", "center_facing"))
         movement_distance = float(
-            movement_distance
-            if movement_distance is not None
-            else self.defaults.get("default_movement_distance", 0.3)
+            movement_distance if movement_distance is not None else self.defaults.get("default_movement_distance", 0.3)
         )
 
         num_gpus = int(kwargs.pop("num_gpus", self.defaults.get("num_gpus", 1)))
@@ -265,10 +256,7 @@ class Gen3CRuntime:
             print(completed.stdout, end="")
         if completed.returncode != 0:
             tail = "\n".join((completed.stdout or "").splitlines()[-80:])
-            raise RuntimeError(
-                f"GEN3C runner exited with status {completed.returncode}; "
-                f"see {log_path}\n{tail}"
-            )
+            raise RuntimeError(f"GEN3C runner exited with status {completed.returncode}; see {log_path}\n{tail}")
 
         result_path = output_root / "result.json"
         if not result_path.is_file():
@@ -290,9 +278,7 @@ class Gen3CRuntime:
             "fps": int(metadata.get("fps", self.defaults.get("fps", 24))),
             "prompt": metadata.get("prompt", prompt or ""),
             "negative_prompt": metadata.get("negative_prompt"),
-            "num_video_frames": int(
-                metadata.get("num_video_frames", self.defaults.get("num_video_frames", 121))
-            ),
+            "num_video_frames": int(metadata.get("num_video_frames", self.defaults.get("num_video_frames", 121))),
             "checkpoint_dir": self.checkpoint_dir,
             "model_root": self.model_root,
             "moge_pretrained": self.moge_pretrained,

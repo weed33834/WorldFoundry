@@ -19,10 +19,10 @@ import argparse
 import os
 
 import torch
-
 from cosmos_predict1.diffusion.inference.inference_utils import add_common_arguments, remove_argument, validate_args
 from cosmos_predict1.diffusion.inference.world_generation_pipeline import DiffusionText2WorldMultiviewGenerationPipeline
 from cosmos_predict1.utils import log, misc
+
 from worldfoundry.base_models.diffusion_model.video.cosmos.shared.io import read_prompts_from_file, save_video
 
 torch.enable_grad(False)
@@ -128,9 +128,8 @@ def demo(args):
     validate_args(args, inference_type)
 
     if args.num_gpus > 1:
-        from worldfoundry.core.distributed.megatron_compat import parallel_state
-
         from worldfoundry.core.distributed import torch_process_group as distributed
+        from worldfoundry.core.distributed.megatron_compat import parallel_state
 
         distributed.init()
         parallel_state.initialize_model_parallel(context_parallel_size=args.num_gpus)

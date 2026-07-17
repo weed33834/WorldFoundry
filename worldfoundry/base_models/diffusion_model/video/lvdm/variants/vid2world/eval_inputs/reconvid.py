@@ -18,17 +18,17 @@ import json
 from torch import Tensor
 from typing import Optional, List, Tuple
 import math
-from worldfoundry.synthesis.visual_generation.world_model.vid2world.vid2world_runtime.nvm_utils.eval_inputs import (
+from worldfoundry.synthesis.visual_generation.world_model.vid2world.nvm_utils.eval_inputs import (
     RECONEvalDataset,
     RECONVIDDataset,
 )
-from worldfoundry.synthesis.visual_generation.world_model.vid2world.vid2world_runtime.nvm_utils.misc import (
+from worldfoundry.synthesis.visual_generation.world_model.vid2world.nvm_utils.misc import (
     transform,
 )
 
 
 _VID2WORLD_RUNTIME_ROOT = str(
-    files("worldfoundry.synthesis.visual_generation.world_model.vid2world.vid2world_runtime")
+    files("worldfoundry.synthesis.visual_generation.world_model.vid2world")
 )
 
 class RECONVID(Dataset):

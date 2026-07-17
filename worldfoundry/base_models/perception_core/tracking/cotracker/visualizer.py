@@ -4,16 +4,29 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
+import colorsys
 import os
-import numpy as np
-import imageio
-import torch
 
-from matplotlib import cm
+import imageio
+import numpy as np
+import torch
 import torch.nn.functional as F
 import torchvision.transforms as transforms
-import matplotlib.pyplot as plt
 from PIL import Image, ImageDraw
+
+
+def _normalize(value, minimum, maximum):
+    scale = max(float(maximum - minimum), 1e-8)
+    return float(np.clip((float(value) - float(minimum)) / scale, 0.0, 1.0))
+
+
+def _rainbow(value):
+    return (*colorsys.hsv_to_rgb(float(value), 1.0, 1.0), 1.0)
+
+
+def _cool(value):
+    value = float(np.clip(value, 0.0, 1.0))
+    return (value, 1.0 - value, 1.0, 1.0)
 
 
 def read_video_from_path(path):
@@ -74,9 +87,9 @@ class Visualizer:
         self.mode = mode
         self.save_dir = save_dir
         if mode == "rainbow":
-            self.color_map = cm.get_cmap("gist_rainbow")
+            self.color_map = _rainbow
         elif mode == "cool":
-            self.color_map = cm.get_cmap(mode)
+            self.color_map = _cool
         self.show_first_frame = show_first_frame
         self.grayscale = grayscale
         self.tracks_leave_trace = tracks_leave_trace
@@ -198,13 +211,12 @@ class Visualizer:
                     tracks[query_frame, :, 1].min(),
                     tracks[query_frame, :, 1].max(),
                 )
-                norm = plt.Normalize(y_min, y_max)
                 for n in range(N):
                     if isinstance(query_frame, torch.Tensor):
                         query_frame_ = query_frame[n]
                     else:
                         query_frame_ = query_frame
-                    color = self.color_map(norm(tracks[query_frame_, n, 1]))
+                    color = self.color_map(_normalize(tracks[query_frame_, n, 1], y_min, y_max))
                     color = np.array(color[:3])[None] * 255
                     vector_colors[:, n] = np.repeat(color, T, axis=0)
             else:
@@ -220,10 +232,9 @@ class Visualizer:
                     tracks[0, segm_mask > 0, 1].min(),
                     tracks[0, segm_mask > 0, 1].max(),
                 )
-                norm = plt.Normalize(y_min, y_max)
                 for n in range(N):
                     if segm_mask[n] > 0:
-                        color = self.color_map(norm(tracks[0, n, 1]))
+                        color = self.color_map(_normalize(tracks[0, n, 1], y_min, y_max))
                         color = np.array(color[:3])[None] * 255
                         vector_colors[:, n] = np.repeat(color, T, axis=0)
 

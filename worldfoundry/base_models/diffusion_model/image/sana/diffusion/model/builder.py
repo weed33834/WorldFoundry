@@ -40,13 +40,10 @@ from transformers import (
 )
 from transformers import logging as transformers_logging
 
-from diffusion.data.datasets.video.sana_video_data import SanaZipDataset
-from diffusion.model.dc_ae.efficientvit.ae_model_zoo import DCAE_HF, DCAEWithTemporal_HF
 from diffusion.model.utils import set_fp32_attention, set_grad_checkpoint
-from worldfoundry.base_models.diffusion_model.video.wan.wan_2p2.modules.vae2_2 import Wan2_2_VAE
-from worldfoundry.base_models.diffusion_model.video.wan.media_encoders.linear_clip import CLIPModel
-from worldfoundry.base_models.diffusion_model.video.wan.vae.linear_wan import WanVAE
-from worldfoundry.base_models.llm_mllm_core.mllm.qwen.qwen_vl_embedder import QwenVLEmbedder
+from worldfoundry.core.checkpoint import load_weights_only, require_mapping
+from worldfoundry.core.io import hf_download_or_fpath
+from worldfoundry.core.model_loading.file import load_state_dict as _load_sana_state_dict
 
 MODELS = Registry("models")
 
@@ -63,6 +60,13 @@ def _prefer_local_hf_repo(repo_id: str) -> str:
         The return value.
     """
     repo_key = repo_id.replace("/", "--")
+
+    def is_pretrained_repo(path: Path) -> bool:
+        # Encoder-only repositories expose config.json at the root, while
+        # diffusers pipelines such as LTX-2 expose model_index.json and keep
+        # the component config under a subfolder (``vae/config.json``).
+        return (path / "config.json").is_file() or (path / "model_index.json").is_file()
+
     roots = []
     if os.environ.get("WORLDFOUNDRY_HFD_ROOT"):
         roots.append(Path(os.environ["WORLDFOUNDRY_HFD_ROOT"]).expanduser())
@@ -86,9 +90,9 @@ def _prefer_local_hf_repo(repo_id: str) -> str:
             if snapshots.is_dir():
                 revisions = sorted((path for path in snapshots.iterdir() if path.is_dir()), key=lambda path: path.stat().st_mtime, reverse=True)
                 for revision in revisions:
-                    if (revision / "config.json").exists():
+                    if is_pretrained_repo(revision):
                         return str(revision)
-            if (candidate / "config.json").exists():
+            if is_pretrained_repo(candidate):
                 return str(candidate)
     return repo_id
 
@@ -150,6 +154,8 @@ def get_tokenizer_and_text_encoder(name="T5", device="cuda"):
             .to(device)
         )
     elif "Qwen" in name:
+        from worldfoundry.base_models.llm_mllm_core.mllm.qwen.qwen_vl_embedder import QwenVLEmbedder
+
         text_handler = QwenVLEmbedder(model_id=model_ref, device=device)
         return None, text_handler
     else:
@@ -171,6 +177,8 @@ def get_image_encoder(name, model_path, tokenizer_path=None, device="cuda", dtyp
         config: The config.
     """
     if name == "CLIP":
+        from worldfoundry.base_models.diffusion_model.video.wan.media_encoders.linear_clip import CLIPModel
+
         image_encoder = CLIPModel(dtype, device, model_path, tokenizer_path)
     elif name == "flux-siglip":
         image_encoder = SiglipVisionModel.from_pretrained(model_path, subfolder="image_encoder", torch_dtype=dtype).to(
@@ -229,10 +237,14 @@ def get_vae(name, model_path, device="cuda", dtype=None, config=None):
             vae.config.shift_factor = 0
         return vae.to(dtype)
     elif ("dc-ae" in name and not "st-dc-ae" in name) or "dc-vae" in name:
+        from diffusion.model.dc_ae.efficientvit.ae_model_zoo import DCAE_HF
+
         print(colored(f"[DC-AE] Loading model from {model_path}", attrs=["bold"]))
         dc_ae = DCAE_HF.from_pretrained(model_path).to(device).eval()
         return dc_ae.to(dtype)
     elif "st-dc-ae" in name:
+        from diffusion.model.dc_ae.efficientvit.ae_model_zoo import DCAEWithTemporal_HF
+
         print(colored(f"[ST-DC-AE] Loading model from {model_path}", attrs=["bold"]))
         dc_ae = DCAEWithTemporal_HF.from_pretrained(model_path, model_name=name).to(device).eval()
         if config.scaling_factor is not None:
@@ -244,6 +256,8 @@ def get_vae(name, model_path, device="cuda", dtype=None, config=None):
         dc_ae = AutoencoderDC.from_pretrained(model_path).to(device).eval()
         return dc_ae.to(dtype)
     elif "WanVAE" in name:
+        from worldfoundry.base_models.diffusion_model.video.wan.vae.linear_wan import WanVAE
+
         assert config is not None, "config.vae is required for WanVAE"
         print(colored(f"[WanVAE] Loading model from {model_path}", attrs=["bold"]))
         vae = WanVAE(
@@ -254,6 +268,8 @@ def get_vae(name, model_path, device="cuda", dtype=None, config=None):
         )
         return vae
     elif "Wan2_2_VAE" in name:
+        from worldfoundry.base_models.diffusion_model.video.wan.wan_2p2.modules.vae2_2 import Wan2_2_VAE
+
         assert config is not None, "config.vae is required for Wan2_2_VAE"
         print(colored(f"[Wan2_2_VAE] Loading model from {model_path}", attrs=["bold"]))
         vae = Wan2_2_VAE(
@@ -263,12 +279,32 @@ def get_vae(name, model_path, device="cuda", dtype=None, config=None):
             device=device,
         )
         return vae
+    elif "LTX2VAE_chunk_tile" in name:
+        # Public LTX-2 VAE loaded through the in-tree causal wrapper so long
+        # SANA-Streaming inference can use temporal-only chunk tiling.
+        from diffusion.model.ltx2.causal_vae import AutoencoderKLCausalLTX2Video
+
+        assert config is not None, "config.vae is required for LTX2VAE_chunk_tile"
+        vae_ref = _prefer_local_hf_repo(config.vae_pretrained)
+        print(colored(f"[LTX2VAE_chunk_tile] Loading model from {vae_ref}", attrs=["bold"]))
+        vae = (
+            AutoencoderKLCausalLTX2Video.from_pretrained(
+                vae_ref,
+                subfolder="vae",
+                torch_dtype=dtype,
+            )
+            .to(device)
+            .eval()
+        )
+        vae.enable_tiling(tile_sample_min_num_frames=24, tile_sample_stride_num_frames=8)
+        return vae
     elif "LTX2VAE_diffusers" in name:
         # Use diffusers AutoencoderKLLTX2Video for LTX2
         assert config is not None, "config.vae is required for LTX2VAE_diffusers"
-        print(colored(f"[LTX2VAE_diffusers] Loading model from {config.vae_pretrained}", attrs=["bold"]))
+        vae_ref = _prefer_local_hf_repo(config.vae_pretrained)
+        print(colored(f"[LTX2VAE_diffusers] Loading model from {vae_ref}", attrs=["bold"]))
         vae = (
-            AutoencoderKLLTX2Video.from_pretrained(config.vae_pretrained, subfolder="vae", torch_dtype=dtype)
+            AutoencoderKLLTX2Video.from_pretrained(vae_ref, subfolder="vae", torch_dtype=dtype)
             .to(device)
             .eval()
         )
@@ -324,7 +360,9 @@ def vae_encode(name, vae, images, sample_posterior=True, device="cuda", cache_ke
                 ):
                     vae_zip_file = os.path.join(ae.cfg.cache_dir, dataset_name, os.path.basename(zip_file))
                     if os.path.exists(vae_zip_file):
-                        z_vae_cache = SanaZipDataset.open_zip_file(vae_zip_file)
+                        from diffusion.data.zip_cache import open_zip_file
+
+                        z_vae_cache = open_zip_file(vae_zip_file)
                         with z_vae_cache.open(key + ".npz", "r") as f:
                             z.append(np.load(f)["z"] if "z" in np.load(f) else np.load(f))
                 z = torch.from_numpy(np.stack(z)).to(device)
@@ -374,7 +412,9 @@ def vae_encode(name, vae, images, sample_posterior=True, device="cuda", cache_ke
                     vae_zip_file = os.path.join(ae.cfg.cache_dir, dataset_name, os.path.basename(zip_file))
 
                     if os.path.exists(vae_zip_file):
-                        z_vae_cache = SanaZipDataset.open_zip_file(vae_zip_file)
+                        from diffusion.data.zip_cache import open_zip_file
+
+                        z_vae_cache = open_zip_file(vae_zip_file)
                         with z_vae_cache.open(key + ".npz", "r") as f:
                             z.append(np.load(f)["z"] if "z" in np.load(f) else np.load(f))
                 z = [torch.from_numpy(_z).to(device) for _z in z]
@@ -402,6 +442,12 @@ def vae_encode(name, vae, images, sample_posterior=True, device="cuda", cache_ke
         ae = vae
         z = ae.encode(images.to(device))
         z = torch.stack(z, dim=0)
+    elif "LTX2VAE_chunk_tile" in name:
+        posterior = vae.encode(images.to(device=vae.device, dtype=vae.dtype), causal=True).latent_dist
+        z = posterior.mode()
+        latents_mean = vae.latents_mean.view(1, -1, 1, 1, 1).to(z.device, z.dtype)
+        latents_std = vae.latents_std.view(1, -1, 1, 1, 1).to(z.device, z.dtype)
+        z = (z - latents_mean) * vae.config.scaling_factor / latents_std
     elif "LTX2VAE_diffusers" in name:
         # LTX2VAE_diffusers (diffusers AutoencoderKLLTX2Video) expects input shape (B, C, T, H, W) with value range [-1, 1]
         posterior = vae.encode(images.to(device=vae.device, dtype=vae.dtype)).latent_dist
@@ -461,6 +507,12 @@ def vae_decode(name, vae, latent):
         samples = vae.decode(latent)
     elif "Wan2_2_VAE" in name:
         samples = vae.decode(latent)
+    elif "LTX2VAE_chunk_tile" in name:
+        latents_mean = vae.latents_mean.view(1, -1, 1, 1, 1).to(latent.device, latent.dtype)
+        latents_std = vae.latents_std.view(1, -1, 1, 1, 1).to(latent.device, latent.dtype)
+        latent = latent * latents_std / vae.config.scaling_factor + latents_mean
+        latent = latent.to(vae.dtype)
+        samples = vae.decode_chunk_tile(latent, temb=None, causal=False, return_dict=False)[0]
     elif "LTX2VAE_diffusers" in name:
         # LTX2VAE_diffusers (diffusers AutoencoderKLLTX2Video)
         # Denormalize latents: z = z * std / scaling_factor + mean
@@ -474,3 +526,17 @@ def vae_decode(name, vae, latent):
         print(f"{name} decode error")
         exit()
     return samples
+
+
+def find_model(model_name: str):
+    """Load a Sana checkpoint from a local path or ``hf://`` URI."""
+    print(colored(f"[Sana] Loading model from {model_name}", attrs=["bold"]))
+    local_path = str(hf_download_or_fpath(model_name))
+    assert os.path.isfile(local_path), f"Could not find Sana checkpoint at {local_path}"
+    print(colored(f"[Sana] Loaded model from {local_path}", attrs=["bold"]))
+    if local_path.endswith((".safetensors", ".safetensors.index.json")):
+        return {"state_dict": _load_sana_state_dict(local_path, device="cpu")}
+    return require_mapping(
+        load_weights_only(local_path, map_location="cpu"),
+        source=local_path,
+    )

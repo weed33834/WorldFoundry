@@ -25,7 +25,9 @@ import math
 import ast
 
 from .multimodal_encoder.builder import build_vision_tower
-from .multimodal_projector.builder import build_vision_projector
+from worldfoundry.base_models.perception_core.video_text.vqa_score.models.vqascore_models._shared.multimodal_projector import (
+    build_vision_projector,
+)
 
 # Model Constants
 IGNORE_INDEX = -100

@@ -11,6 +11,17 @@ import torch
 
 @dataclass(frozen=True)
 class PackedCoreAttnParams:
+    """Cumulative ranges and maximum lengths for packed self-attention.
+
+    Args:
+        q_range: Device-side query range boundaries.
+        k_range: Device-side key range boundaries.
+        np_q_range: CPU/Numpy query boundaries used by planning code.
+        np_k_range: CPU/Numpy key boundaries used by planning code.
+        max_seqlen_q: Maximum query segment length.
+        max_seqlen_k: Maximum key segment length.
+    """
+
     q_range: torch.Tensor
     k_range: torch.Tensor
     np_q_range: np.ndarray
@@ -21,6 +32,17 @@ class PackedCoreAttnParams:
 
 @dataclass(frozen=True)
 class PackedCrossAttnParams:
+    """Optional cumulative ranges for packed cross-attention.
+
+    Args:
+        q_ranges: Query segment ranges.
+        kv_ranges: Key/value segment ranges.
+        cu_seqlens_q: Cumulative query lengths for varlen kernels.
+        cu_seqlens_kv: Cumulative key/value lengths for varlen kernels.
+        max_seqlen_q: Maximum query segment length.
+        max_seqlen_kv: Maximum key/value segment length.
+    """
+
     q_ranges: torch.Tensor | None = None
     kv_ranges: torch.Tensor | None = None
     cu_seqlens_q: torch.Tensor | None = None
@@ -31,6 +53,14 @@ class PackedCrossAttnParams:
 
 @dataclass(frozen=True)
 class ModelMetaArgs:
+    """Context-parallel layout metadata carried between pre/post processing.
+
+    The fields describe spatial size, padding and per-rank splits, denoising
+    ranges, optional feature-prefix behavior, CUDA-graph mode, and the packed
+    self/cross-attention range objects. Model integrations normally construct
+    this once per request and pass it unchanged through transformer blocks.
+    """
+
     H: int
     W: int
     cp_pad_size: int

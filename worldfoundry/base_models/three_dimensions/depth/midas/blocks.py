@@ -2,6 +2,7 @@
 
 import torch
 import torch.nn as nn
+from timm import create_model
 
 from .backbones.beit import (
     _make_pretrained_beitl16_512,
@@ -194,11 +195,10 @@ def _make_pretrained_efficientnet_lite3(use_pretrained, exportable=False):
         use_pretrained: The use pretrained.
         exportable: The exportable.
     """
-    efficientnet = torch.hub.load(
-        "rwightman/gen-efficientnet-pytorch",
+    efficientnet = create_model(
         "tf_efficientnet_lite3",
         pretrained=use_pretrained,
-        exportable=exportable
+        exportable=exportable,
     )
     return _make_efficientnet_backbone(efficientnet)
 
@@ -211,8 +211,11 @@ def _make_efficientnet_backbone(effnet):
     """
     pretrained = nn.Module()
 
+    # Modern timm folds the stem activation into ``bn1``. Keep an identity
+    # slot so official MiDaS checkpoint module indices remain unchanged.
+    stem_activation = getattr(effnet, "act1", nn.Identity())
     pretrained.layer1 = nn.Sequential(
-        effnet.conv_stem, effnet.bn1, effnet.act1, *effnet.blocks[0:2]
+        effnet.conv_stem, effnet.bn1, stem_activation, *effnet.blocks[0:2]
     )
     pretrained.layer2 = nn.Sequential(*effnet.blocks[2:3])
     pretrained.layer3 = nn.Sequential(*effnet.blocks[3:5])

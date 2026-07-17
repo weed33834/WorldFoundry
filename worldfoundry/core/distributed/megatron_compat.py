@@ -4,8 +4,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import torch
+
 try:
     from megatron.core import ModelParallelConfig, mpu, parallel_state
+    from megatron.core.tensor_parallel import ColumnParallelLinear, RowParallelLinear, VocabParallelEmbedding
+    from megatron.core.tensor_parallel.mappings import (
+        reduce_from_tensor_model_parallel_region,
+        reduce_scatter_to_sequence_parallel_region,
+    )
+    from megatron.core.tensor_parallel.random import model_parallel_cuda_manual_seed
+    from megatron.core.tensor_parallel.utils import VocabUtility
 except Exception:  # pragma: no cover - Megatron is optional for many runtimes.
 
     @dataclass
@@ -134,5 +143,68 @@ except Exception:  # pragma: no cover - Megatron is optional for many runtimes.
     parallel_state = _NoParallelState()
     mpu = parallel_state
 
+    class VocabUtility:
+        """Single-process vocabulary partition helper."""
 
-__all__ = ["ModelParallelConfig", "mpu", "parallel_state"]
+        @staticmethod
+        def vocab_range_from_global_vocab_size(global_size: int, rank: int, world_size: int) -> tuple[int, int]:
+            if global_size % world_size != 0:
+                raise ValueError(
+                    f"vocabulary size {global_size} must be divisible by tensor parallel size {world_size}"
+                )
+            partition_size = global_size // world_size
+            return rank * partition_size, (rank + 1) * partition_size
+
+    class VocabParallelEmbedding(torch.nn.Embedding):
+        """Megatron-compatible embedding for single-process inference."""
+
+        def __init__(self, num_embeddings, embedding_dim, *, init_method=None, config=None, **kwargs):
+            del config, kwargs
+            super().__init__(num_embeddings, embedding_dim)
+            self.tensor_model_parallel_size = 1
+            self.vocab_start_index = 0
+            self.vocab_end_index = num_embeddings
+            if init_method is not None:
+                init_method(self.weight)
+
+    class _LinearBase(torch.nn.Linear):
+        def __init__(self, input_size, output_size, *, bias=True, init_method=None, config=None, **kwargs):
+            del config, kwargs
+            super().__init__(input_size, output_size, bias=bias)
+            if init_method is not None:
+                init_method(self.weight)
+
+        def forward(self, input_: torch.Tensor, *args, **kwargs):
+            del args, kwargs
+            return super().forward(input_), None
+
+    class ColumnParallelLinear(_LinearBase):
+        """Megatron-compatible column linear for single-process inference."""
+
+    class RowParallelLinear(_LinearBase):
+        """Megatron-compatible row linear for single-process inference."""
+
+    def reduce_from_tensor_model_parallel_region(tensor):
+        return tensor
+
+    def reduce_scatter_to_sequence_parallel_region(tensor):
+        return tensor
+
+    def model_parallel_cuda_manual_seed(seed: int) -> None:
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+
+
+__all__ = [
+    "ColumnParallelLinear",
+    "ModelParallelConfig",
+    "RowParallelLinear",
+    "VocabParallelEmbedding",
+    "VocabUtility",
+    "model_parallel_cuda_manual_seed",
+    "mpu",
+    "parallel_state",
+    "reduce_from_tensor_model_parallel_region",
+    "reduce_scatter_to_sequence_parallel_region",
+]

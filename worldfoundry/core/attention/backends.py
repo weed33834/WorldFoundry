@@ -1,6 +1,6 @@
 """Attention backend capability probes shared by inference dispatchers.
 
-This module is responsible for safely, lightly, and side-effect-freely probing and 
+This module is responsible for safely, lightly, and side-effect-freely probing and
 dispatching the optimal Attention computation backend in the current runtime environment.
 
 Core Architectural Design:
@@ -88,13 +88,15 @@ _BACKEND_ALIASES: Mapping[str, str] = {
     "sage_sla_attn": "sage_sla_attention",
     "sage_sla_attention": "sage_sla_attention",
 }
-_DEFAULT_PRIORITY = (
+_DEFAULT_PRIORITY = (_TORCH,)
+_REPORT_PRIORITY = (
     "flash_attention_3",
     "flash_attention_2",
     "sage_attention",
     "xformers",
     _TORCH,
 )
+_EXPLICIT_PRIORITY = ("sage_attention_3",)
 _EXPERIMENTAL_PRIORITY = (
     "video_sparse_attention",
     "vmoba_attention",
@@ -111,11 +113,7 @@ def attention_backend_from_env(environ: Mapping[str, str] | None = None) -> str:
     falling back to `"auto"` if neither is specified.
     """
     env = os.environ if environ is None else environ
-    value = (
-        env.get("WORLDFOUNDRY_ATTENTION_IMPLEMENTATION")
-        or env.get("WORLDFOUNDRY_ATTENTION_BACKEND")
-        or _AUTO
-    )
+    value = env.get("WORLDFOUNDRY_ATTENTION_IMPLEMENTATION") or env.get("WORLDFOUNDRY_ATTENTION_BACKEND") or _AUTO
     return normalize_attention_backend(value)
 
 
@@ -137,56 +135,72 @@ def normalize_attention_backend(value: str | None) -> str:
     return canonical
 
 
-@lru_cache(maxsize=1)
-def probe_attention_backends() -> dict[str, AttentionKernelCapability]:
+def probe_attention_backends(device: torch.device | str | int | None = None) -> dict[str, AttentionKernelCapability]:
     """Probe installed attention packages and hardware compatibility.
 
-    Uses `lru_cache` to ensure the probing process executes exactly once over the
-    process lifecycle, avoiding CPU bottlenecks from repetitive importlib and PyTorch queries.
+    Results are cached by runtime and compute capability, rather than globally.
+    This keeps mixed A100/H100 nodes correct when the active tensor/device
+    changes after module import.
     """
-    flash_gpu = gpu_supports_flash_attention()
-    cuda = torch.cuda.is_available()
+
+    capability = _cuda_compute_capability(device)
+    hip = bool(getattr(torch.version, "hip", None))
+    accelerator = _torch_cuda_accelerator_available(device)
+    return _probe_attention_backends_cached(capability, hip, accelerator)
+
+
+@lru_cache(maxsize=16)
+def _probe_attention_backends_cached(
+    capability: tuple[int, int] | None,
+    hip: bool,
+    accelerator: bool,
+) -> dict[str, AttentionKernelCapability]:
+    nvidia_cuda = capability is not None and not hip
+    flash_gpu = capability is not None and capability[0] in {8, 9}
+    flash3_gpu = capability == (9, 0)
+    sage_gpu = capability is not None and capability[0] in {8, 9}
+    sage3_gpu = capability in {(10, 0), (12, 0), (12, 1)}
     return {
         "flash_attention_3": _package_capability(
             name="flash_attention_3",
             package="flash_attn_interface",
-            usable_if=flash_gpu,
+            usable_if=flash3_gpu,
             unavailable_reason="flash_attn_interface is not installed",
-            unusable_reason="FlashAttention requires CUDA with compute capability >= 8.0",
+            unusable_reason="FlashAttention 3 requires NVIDIA Hopper (SM90)",
         ),
         "flash_attention_2": _package_capability(
             name="flash_attention_2",
             package="flash_attn",
             usable_if=flash_gpu,
             unavailable_reason="flash_attn is not installed",
-            unusable_reason="FlashAttention requires CUDA with compute capability >= 8.0",
+            unusable_reason="FlashAttention 2 requires a supported NVIDIA Ampere, Ada, or Hopper GPU",
         ),
         "sage_attention": _package_capability(
             name="sage_attention",
             package="sageattention",
-            usable_if=cuda,
+            usable_if=sage_gpu,
             unavailable_reason="sageattention is not installed",
-            unusable_reason="SageAttention requires CUDA",
+            unusable_reason="SageAttention requires a supported NVIDIA Ampere, Ada, or Hopper GPU",
         ),
         "sage_attention_3": _package_capability(
             name="sage_attention_3",
-            package="sageattention",
-            usable_if=cuda,
-            unavailable_reason="sageattention is not installed",
-            unusable_reason="SageAttention 3 requires CUDA and a compatible Blackwell runtime",
+            package="sageattn3",
+            usable_if=sage3_gpu,
+            unavailable_reason="the in-tree sageattn3 extension is not built",
+            unusable_reason="SageAttention 3 requires an explicitly supported NVIDIA Blackwell target",
         ),
         "xformers": _package_capability(
             name="xformers",
             package="xformers.ops",
-            usable_if=cuda,
+            usable_if=accelerator,
             unavailable_reason="xformers is not installed",
-            unusable_reason="xFormers attention requires CUDA",
+            unusable_reason="xFormers attention requires a CUDA or ROCm accelerator build",
         ),
         "video_sparse_attention": _package_capability(
             name="video_sparse_attention",
             package="video_sparse_attention_kernels",
             import_name=_VIDEO_SPARSE_KERNEL_IMPORT,
-            usable_if=cuda,
+            usable_if=nvidia_cuda,
             unavailable_reason="video sparse attention kernel package is not installed",
             unusable_reason="Video sparse attention requires CUDA and model-specific kernels",
         ),
@@ -194,7 +208,7 @@ def probe_attention_backends() -> dict[str, AttentionKernelCapability]:
             name="vmoba_attention",
             package="vmoba_attention_kernels",
             import_name=_VIDEO_SPARSE_KERNEL_IMPORT,
-            usable_if=cuda,
+            usable_if=nvidia_cuda,
             unavailable_reason="V-MoBA attention kernel package is not installed",
             unusable_reason="V-MoBA attention requires CUDA and model-specific kernels",
         ),
@@ -202,7 +216,7 @@ def probe_attention_backends() -> dict[str, AttentionKernelCapability]:
             name="sla_attention",
             package="sparse_linear_attention_kernels",
             import_name=_VIDEO_SPARSE_KERNEL_IMPORT,
-            usable_if=cuda,
+            usable_if=nvidia_cuda,
             unavailable_reason="sparse linear attention kernel package is not installed",
             unusable_reason="Sparse linear attention requires CUDA and model-specific kernels",
         ),
@@ -210,7 +224,7 @@ def probe_attention_backends() -> dict[str, AttentionKernelCapability]:
             name="sage_sla_attention",
             package="sage_sparse_linear_attention_kernels",
             import_name=_VIDEO_SPARSE_KERNEL_IMPORT,
-            usable_if=cuda,
+            usable_if=nvidia_cuda,
             unavailable_reason="SageSLA attention kernel package is not installed",
             unusable_reason="SageSLA attention requires CUDA and model-specific kernels",
         ),
@@ -218,7 +232,15 @@ def probe_attention_backends() -> dict[str, AttentionKernelCapability]:
     }
 
 
-def resolve_attention_backend(preferred: str | None = None) -> str:
+# Preserve the cache invalidation hook exposed by the previous cached public
+# function; tests and long-running plugin hosts use it after environment changes.
+setattr(probe_attention_backends, "cache_clear", _probe_attention_backends_cached.cache_clear)
+
+
+def resolve_attention_backend(
+    preferred: str | None = None,
+    device: torch.device | str | int | None = None,
+) -> str:
     """Resolve the highest priority usable backend, falling back gracefully to PyTorch SDPA.
 
     If `"auto"` is preferred, traverses priority list to select the first runnable package.
@@ -226,7 +248,7 @@ def resolve_attention_backend(preferred: str | None = None) -> str:
     `"torch"` SDPA to ensure robust execution.
     """
     requested = attention_backend_from_env() if preferred is None else normalize_attention_backend(preferred)
-    capabilities = probe_attention_backends()
+    capabilities = probe_attention_backends(device)
     if requested == _AUTO:
         for name in _DEFAULT_PRIORITY:
             if capabilities[name].usable:
@@ -243,32 +265,101 @@ def resolve_attention_backend(preferred: str | None = None) -> str:
     return _TORCH
 
 
-def attention_backend_capability(name: str) -> AttentionKernelCapability:
+def resolve_transformers_attention_implementation(
+    preferred: str | None = None,
+    device: torch.device | str | int | None = None,
+) -> str:
+    """Resolve a backend name accepted by Transformers model configs.
+
+    Transformers currently exposes portable ``eager``/``sdpa`` paths and the
+    separately installed ``flash_attention_2`` provider.  WorldFoundry has a
+    wider backend vocabulary (including FA3 and model-specific kernels), so a
+    small adapter is needed before writing ``config._attn_implementation``.
+    Unsupported or unavailable providers conservatively map to PyTorch SDPA.
+    """
+
+    requested = attention_backend_from_env() if preferred is None else str(preferred)
+    normalized = requested.strip().lower().replace("-", "_")
+    if normalized == "eager":
+        return "eager"
+    resolved = resolve_attention_backend(requested, device)
+    return "flash_attention_2" if resolved == "flash_attention_2" else "sdpa"
+
+
+def attention_backend_capability(
+    name: str,
+    device: torch.device | str | int | None = None,
+) -> AttentionKernelCapability:
     """Retrieve runtime capability metadata for a single normalized backend."""
     canonical = normalize_attention_backend(name)
     if canonical in {_AUTO, _FLASH_AUTO}:
-        canonical = resolve_attention_backend(canonical)
-    return probe_attention_backends()[canonical]
+        canonical = resolve_attention_backend(canonical, device)
+    return probe_attention_backends(device)[canonical]
 
 
 def attention_backend_report() -> tuple[AttentionKernelCapability, ...]:
     """Retrieve capability status of all registered backends, ordered by dispatch priority."""
     capabilities = probe_attention_backends()
-    return tuple(capabilities[name] for name in (*_DEFAULT_PRIORITY, *_EXPERIMENTAL_PRIORITY) if name in capabilities)
+    return tuple(
+        capabilities[name]
+        for name in (*_REPORT_PRIORITY, *_EXPLICIT_PRIORITY, *_EXPERIMENTAL_PRIORITY)
+        if name in capabilities
+    )
 
 
-def gpu_supports_flash_attention() -> bool:
+def gpu_supports_flash_attention(device: torch.device | str | int | None = None) -> bool:
     """Determine if the active CUDA device is architecturally capable of running FlashAttention.
 
-    FlashAttention requires Ampere (SM80), Ada Lovelace (SM89), Hopper (SM90), or newer architectures
-    with native hardware tensor core support.
+    This in-tree FA2 path targets NVIDIA Ampere (SM8x), Ada (SM89), and
+    Hopper (SM90). Blackwell kernels are resolved separately because SM100/103
+    and SM120 are not binary-compatible feature targets.
     """
+    capability = _cuda_compute_capability(device)
+    if capability is None:
+        return False
+    # The in-tree FA2 dispatcher is validated for NVIDIA Ampere/Ada/Hopper.
+    # Blackwell data-center (SM100/103) and client (SM120) kernels require
+    # separate providers and must not inherit this compatibility decision.
+    return capability[0] in {8, 9}
+
+
+def gpu_supports_flash_attention_3(device: torch.device | str | int | None = None) -> bool:
+    """Return whether the active device is a validated FA3 target.
+
+    FA3 is a Hopper-specific provider in WorldFoundry.  Importability of the
+    ``flash_attn_interface`` module alone is not sufficient: Ampere, Ada and
+    Blackwell builds use different kernel targets.
+    """
+
+    return _cuda_compute_capability(device) == (9, 0)
+
+
+def _cuda_compute_capability(
+    device: torch.device | str | int | None = None,
+) -> tuple[int, int] | None:
+    """Return an NVIDIA CUDA capability without mistaking ROCm for CUDA."""
+
+    if getattr(torch.version, "hip", None):
+        return None
+    if not torch.cuda.is_available():
+        return None
+    try:
+        major, minor = torch.cuda.get_device_capability(device)
+        return int(major), int(minor)
+    except Exception:
+        return None
+
+
+def _torch_cuda_accelerator_available(device: torch.device | str | int | None = None) -> bool:
+    """Return whether *device* refers to PyTorch's CUDA/HIP accelerator API."""
+
     if not torch.cuda.is_available():
         return False
+    if device is None or isinstance(device, int):
+        return True
     try:
-        # Major compute capability >= 8
-        return torch.cuda.get_device_capability()[0] >= 8
-    except Exception:
+        return torch.device(device).type == "cuda"
+    except (TypeError, RuntimeError):
         return False
 
 
@@ -291,9 +382,13 @@ def _package_capability(
     except ModuleNotFoundError:
         available = False
     if not available:
-        return AttentionKernelCapability(name=name, package=package, available=False, usable=False, reason=unavailable_reason)
+        return AttentionKernelCapability(
+            name=name, package=package, available=False, usable=False, reason=unavailable_reason
+        )
     if not usable_if:
-        return AttentionKernelCapability(name=name, package=package, available=True, usable=False, reason=unusable_reason)
+        return AttentionKernelCapability(
+            name=name, package=package, available=True, usable=False, reason=unusable_reason
+        )
     return AttentionKernelCapability(name=name, package=package, available=True, usable=True)
 
 
@@ -306,4 +401,5 @@ __all__ = [
     "normalize_attention_backend",
     "probe_attention_backends",
     "resolve_attention_backend",
+    "resolve_transformers_attention_implementation",
 ]

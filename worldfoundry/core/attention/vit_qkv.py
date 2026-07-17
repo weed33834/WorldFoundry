@@ -55,7 +55,13 @@ class QKVSelfAttention(nn.Module):
 
         q, k, v = qkv.unbind(0)
 
-        x = scaled_dot_product_attention(q, k, v, attn_bias)
+        x = scaled_dot_product_attention(
+            q,
+            k,
+            v,
+            attn_bias,
+            dropout_p=self.attn_drop.p if self.training else 0.0,
+        )
         x = x.permute(0, 2, 1, 3).reshape(b, n, c)
 
         x = self.proj(x)
@@ -108,11 +114,7 @@ class QKNormRopeSelfAttention(QKVSelfAttention):
                 k,
                 v,
                 dropout_p=self.attn_drop.p if self.training else 0.0,
-                attn_mask=(
-                    (attn_mask)[:, None].repeat(1, self.num_heads, 1, 1)
-                    if attn_mask is not None
-                    else None
-                ),
+                attn_mask=((attn_mask)[:, None].repeat(1, self.num_heads, 1, 1) if attn_mask is not None else None),
             )
         else:
             q = q * self.scale

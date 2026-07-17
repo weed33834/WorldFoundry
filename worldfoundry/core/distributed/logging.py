@@ -26,12 +26,19 @@ class DistributedLogger:
 
 distributed_logger = DistributedLogger.get_logger()
 
+try:  # Keep the shared distributed helpers usable in minimal model environments.
+    from loguru import logger as _backend_logger
+except ImportError:  # pragma: no cover - exercised in isolated runtime environments.
+    _backend_logger = distributed_logger
+
 
 def print_per_rank(message: object) -> None:
+    """Emit one informational log record from every calling rank."""
     distributed_logger.info(message)
 
 
 def print_rank_0(message: object) -> None:
+    """Emit one informational record on rank zero, or in a non-distributed process."""
     if torch.distributed.is_available() and torch.distributed.is_initialized():
         if torch.distributed.get_rank() == 0:
             distributed_logger.info(message)
@@ -39,4 +46,51 @@ def print_rank_0(message: object) -> None:
         distributed_logger.info(message)
 
 
-__all__ = ["DistributedLogger", "distributed_logger", "print_per_rank", "print_rank_0"]
+class _RankAwareLog:
+    """Loguru-compatible facade for model code that supports rank-zero filtering."""
+
+    logger = _backend_logger
+
+    @staticmethod
+    def _enabled(rank0_only: bool) -> bool:
+        return not rank0_only or not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+
+    def _write(self, level: str, message, *args, rank0_only: bool = False, **kwargs) -> None:
+        if self._enabled(rank0_only):
+            method = getattr(_backend_logger, "info" if level == "success" else level)
+            if _backend_logger is distributed_logger:
+                # Loguru call sites commonly use ``{}`` placeholders and keyword
+                # options that the stdlib logger does not accept.
+                try:
+                    message = str(message).format(*args)
+                    args = ()
+                except (IndexError, KeyError, ValueError):
+                    pass
+                kwargs = {key: value for key, value in kwargs.items() if key in {"exc_info", "stack_info", "stacklevel", "extra"}}
+            method(message, *args, **kwargs)
+
+    def debug(self, message, *args, **kwargs):
+        self._write("debug", message, *args, **kwargs)
+
+    def info(self, message, *args, **kwargs):
+        self._write("info", message, *args, **kwargs)
+
+    def warning(self, message, *args, **kwargs):
+        self._write("warning", message, *args, **kwargs)
+
+    warn = warning
+
+    def error(self, message, *args, **kwargs):
+        self._write("error", message, *args, **kwargs)
+
+    def critical(self, message, *args, **kwargs):
+        self._write("critical", message, *args, **kwargs)
+
+    def success(self, message, *args, **kwargs):
+        self._write("success", message, *args, **kwargs)
+
+
+log = _RankAwareLog()
+
+
+__all__ = ["DistributedLogger", "distributed_logger", "log", "print_per_rank", "print_rank_0"]

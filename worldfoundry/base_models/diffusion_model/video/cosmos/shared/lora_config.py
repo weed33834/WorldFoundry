@@ -16,6 +16,7 @@
 
 """Module for base_models -> diffusion_model -> video -> cosmos -> shared -> lora_config.py functionality."""
 
+
 def get_fa_ca_qv_lora_config(first_nblocks=28, rank=8, scale=1):
     """
     Get a LoRA configuration for the Self-Attention (FA) and Cross-Attention (CA) blocks in the model.

@@ -15,16 +15,16 @@
 
 """Module for base_models -> diffusion_model -> video -> cosmos -> cosmos1 -> cosmos_predict1_gen3c -> cosmos_predict1 -> autoregressive -> configs -> inference -> inference_config.py functionality."""
 
-from typing import Any, List, Optional, Union
+from typing import Any, List, Union
 
 import attrs
-
 from cosmos_predict1.autoregressive.configs.base.model import ModelConfig, TokenizerConfig
 
 
 @attrs.define(slots=False)
 class DataShapeConfig:
     """Data shape config implementation."""
+
     latent_shape: list = []
     num_video_frames: Union[None, int] = None
     height: Union[None, int] = None

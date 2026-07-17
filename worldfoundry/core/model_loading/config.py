@@ -1,8 +1,8 @@
 """Model checkpoint path resolution and device/dtype placement config."""
 
-from dataclasses import dataclass
 import glob
 import os
+from dataclasses import dataclass
 from typing import Dict, Optional, Union
 
 import torch
@@ -12,7 +12,30 @@ from worldfoundry.core.io.paths import local_model_root_path
 
 @dataclass
 class ModelConfig:
-    """Resolved model source, download policy, and VRAM placement settings."""
+    """Resolved model source, download policy, and VRAM placement settings.
+
+    Args:
+        path: Existing checkpoint path or paths. When set, no model-hub lookup
+            is needed.
+        model_id: Hugging Face or ModelScope repository identifier.
+        origin_file_pattern: Optional allow-pattern within the model repository.
+        download_source: ``"huggingface"`` or ``"modelscope"``; defaults from
+            ``WORLDFOUNDRY_DOWNLOAD_SOURCE`` and then to Hugging Face.
+        local_model_path: Local repository cache root. Defaults through
+            ``WORLDFOUNDRY_MODEL_DIR``.
+        skip_download: Reuse local files without contacting the model hub.
+        offload_device: Device used while weights are inactive.
+        offload_dtype: Dtype used while weights are inactive.
+        onload_device: First-stage prefetch device.
+        onload_dtype: First-stage prefetch dtype.
+        preparing_device: Second-stage prefetch device.
+        preparing_dtype: Second-stage prefetch dtype.
+        computation_device: Device used for forward execution.
+        computation_dtype: Dtype used for forward execution.
+        clear_parameters: Compatibility flag for loaders that release source
+            tensors after assignment.
+        state_dict: Optional already-loaded weights, bypassing file loading.
+    """
 
     path: Union[str, list[str]] = None
     model_id: str = None
@@ -30,20 +53,25 @@ class ModelConfig:
     computation_dtype: Optional[torch.dtype] = None
     clear_parameters: bool = False
     state_dict: Dict[str, torch.Tensor] = None
-    
+
     def check_input(self):
+        """Require either a concrete path or a model-hub identifier."""
         if self.path is None and self.model_id is None:
-            raise ValueError(f"""No valid model files. Please use `ModelConfig(path="xxx")` or `ModelConfig(model_id="xxx/yyy", origin_file_pattern="zzz")`. `skip_download=True` only supports the first one.""")
-    
+            raise ValueError(
+                """No valid model files. Please use `ModelConfig(path="xxx")` or `ModelConfig(model_id="xxx/yyy", origin_file_pattern="zzz")`. `skip_download=True` only supports the first one."""
+            )
+
     def parse_original_file_pattern(self):
+        """Normalize the repository allow-pattern to a glob-compatible value."""
         if self.origin_file_pattern in [None, "", "./"]:
             return "*"
         elif self.origin_file_pattern.endswith("/"):
             return self.origin_file_pattern + "*"
         else:
             return self.origin_file_pattern
-        
+
     def parse_download_source(self):
+        """Resolve the configured model hub, including the environment override."""
         if self.download_source is None:
             if os.environ.get("WORLDFOUNDRY_DOWNLOAD_SOURCE") is not None:
                 return os.environ["WORLDFOUNDRY_DOWNLOAD_SOURCE"]
@@ -51,8 +79,9 @@ class ModelConfig:
                 return "huggingface"
         else:
             return self.download_source
-        
+
     def parse_skip_download(self):
+        """Resolve offline behavior from the field or environment."""
         if self.skip_download is None:
             if os.environ.get("WORLDFOUNDRY_SKIP_MODEL_DOWNLOAD") is not None:
                 if os.environ["WORLDFOUNDRY_SKIP_MODEL_DOWNLOAD"].lower() == "true":
@@ -65,6 +94,7 @@ class ModelConfig:
             return self.skip_download
 
     def download(self):
+        """Download missing repository files into ``local_model_path``."""
         origin_file_pattern = self.parse_original_file_pattern()
         downloaded_files = glob.glob(origin_file_pattern, root_dir=os.path.join(self.local_model_path, self.model_id))
         download_source = self.parse_download_source()
@@ -76,7 +106,7 @@ class ModelConfig:
                 local_dir=os.path.join(self.local_model_path, self.model_id),
                 allow_file_pattern=origin_file_pattern,
                 ignore_file_pattern=downloaded_files,
-                local_files_only=False
+                local_files_only=False,
             )
         elif download_source.lower() == "huggingface":
             from huggingface_hub import snapshot_download as hf_snapshot_download
@@ -86,12 +116,13 @@ class ModelConfig:
                 local_dir=os.path.join(self.local_model_path, self.model_id),
                 allow_patterns=origin_file_pattern,
                 ignore_patterns=downloaded_files,
-                local_files_only=False
+                local_files_only=False,
             )
         else:
             raise ValueError("`download_source` should be `modelscope` or `huggingface`.")
-        
+
     def require_downloading(self, use_usp: bool = False):
+        """Return whether this rank should contact the configured model hub."""
         if self.path is not None:
             return False
         skip_download = self.parse_skip_download()
@@ -100,12 +131,18 @@ class ModelConfig:
 
             skip_download = skip_download or dist.get_rank() != 0
         return not skip_download
-        
+
     def reset_local_model_path(self):
+        """Apply the canonical WorldFoundry model directory when needed."""
         if os.environ.get("WORLDFOUNDRY_MODEL_DIR") is not None or self.local_model_path is None:
             self.local_model_path = str(local_model_root_path())
 
     def download_if_necessary(self, use_usp: bool = False):
+        """Materialize the configured source and replace ``path`` with local files.
+
+        In USP execution only rank zero downloads; all ranks synchronize before
+        the final local path is resolved.
+        """
         self.check_input()
         self.reset_local_model_path()
         if self.require_downloading(use_usp=use_usp):
@@ -123,6 +160,7 @@ class ModelConfig:
             self.path = self.path[0]
 
     def vram_config(self):
+        """Return placement fields in the mapping expected by VRAM wrappers."""
         return {
             "offload_device": self.offload_device,
             "offload_dtype": self.offload_dtype,

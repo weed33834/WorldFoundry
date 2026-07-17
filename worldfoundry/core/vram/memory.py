@@ -104,17 +104,22 @@ def move_model_to_device_with_memory_preservation(
     preserved_memory_gb: float = 0,
 ) -> None:
     print(f"Moving {model.__class__.__name__} to {target_device} with preserved memory: {preserved_memory_gb} GB")
+    if preserved_memory_gb < 0:
+        raise ValueError("preserved_memory_gb must be non-negative")
 
-    for module in model.modules():
-        if get_cuda_free_memory_gb(target_device) <= preserved_memory_gb:
-            torch.cuda.empty_cache()
-            return
+    target = _normalize_device(target_device)
+    original = _uniform_model_device(model)
+    if target.type == "cuda":
+        required_gb = _model_transfer_bytes(model, target) / (1024**3)
+        available_gb = get_cuda_free_memory_gb(target)
+        if available_gb - required_gb < preserved_memory_gb:
+            raise RuntimeError(
+                f"Insufficient memory to move {model.__class__.__name__} atomically to {target}: "
+                f"available={available_gb:.2f} GiB, required~={required_gb:.2f} GiB, "
+                f"preserve={preserved_memory_gb:.2f} GiB"
+            )
 
-        if hasattr(module, "weight"):
-            module.to(device=target_device)
-
-    model.to(device=target_device)
-    torch.cuda.empty_cache()
+    _move_model_with_rollback(model, target=target, original=original)
 
 
 def offload_model_from_device_for_memory_preservation(
@@ -123,17 +128,84 @@ def offload_model_from_device_for_memory_preservation(
     preserved_memory_gb: float = 0,
 ) -> None:
     print(f"Offloading {model.__class__.__name__} from {target_device} to preserve memory: {preserved_memory_gb} GB")
+    if preserved_memory_gb < 0:
+        raise ValueError("preserved_memory_gb must be non-negative")
+    if get_cuda_free_memory_gb(target_device) >= preserved_memory_gb:
+        return
 
-    for module in model.modules():
-        if get_cuda_free_memory_gb(target_device) >= preserved_memory_gb:
-            torch.cuda.empty_cache()
-            return
+    original = _uniform_model_device(model)
+    _move_model_with_rollback(model, target=cpu, original=original)
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
-        if hasattr(module, "weight"):
-            module.to(device=cpu)
 
-    model.to(device=cpu)
-    torch.cuda.empty_cache()
+def _normalize_device(device) -> torch.device:
+    normalized = torch.device(device)
+    if normalized.type == "cuda" and normalized.index is None and torch.cuda.is_available():
+        return torch.device("cuda", torch.cuda.current_device())
+    return normalized
+
+
+def _model_tensors(model: torch.nn.Module):
+    for parameter in model.parameters():
+        yield parameter
+        # Module._apply (and therefore Module.to) migrates existing gradients
+        # alongside parameters. Include them in both capacity preflight and
+        # device-uniformity validation.
+        if parameter.grad is not None:
+            yield parameter.grad
+    yield from model.buffers()
+
+
+def _uniform_model_device(model: torch.nn.Module) -> torch.device:
+    devices = {tensor.device for tensor in _model_tensors(model)}
+    if not devices:
+        return cpu
+    if len(devices) != 1:
+        rendered = ", ".join(sorted(str(device) for device in devices))
+        raise RuntimeError(
+            f"Refusing to migrate mixed-device {model.__class__.__name__}; "
+            f"found tensors on: {rendered}"
+        )
+    device = next(iter(devices))
+    if device.type == "meta":
+        raise RuntimeError("Meta-initialized modules require to_empty() and cannot use the VRAM preservation mover")
+    return device
+
+
+def _model_transfer_bytes(model: torch.nn.Module, target: torch.device) -> int:
+    return sum(
+        tensor.numel() * tensor.element_size()
+        for tensor in _model_tensors(model)
+        if tensor.device != target
+    )
+
+
+def _move_model_with_rollback(
+    model: torch.nn.Module,
+    *,
+    target: torch.device,
+    original: torch.device,
+) -> None:
+    if target == original:
+        return
+    try:
+        model.to(device=target)
+        moved = _uniform_model_device(model)
+        if moved != target:
+            raise RuntimeError(f"migration ended on {moved}, expected {target}")
+    except Exception as move_error:
+        try:
+            model.to(device=original)
+            restored = _uniform_model_device(model)
+            if restored != original:
+                raise RuntimeError(f"rollback ended on {restored}, expected {original}")
+        except Exception as rollback_error:
+            raise RuntimeError(
+                f"Failed to move {model.__class__.__name__} to {target}; "
+                f"rollback to {original} also failed: {rollback_error}"
+            ) from move_error
+        raise
 
 
 def unload_complete_models(*models: torch.nn.Module) -> None:
@@ -142,7 +214,8 @@ def unload_complete_models(*models: torch.nn.Module) -> None:
         print(f"Unloaded {model.__class__.__name__} as complete.")
 
     gpu_complete_modules.clear()
-    torch.cuda.empty_cache()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
 
 def load_model_as_complete(model: torch.nn.Module, target_device, unload: bool = True) -> None:

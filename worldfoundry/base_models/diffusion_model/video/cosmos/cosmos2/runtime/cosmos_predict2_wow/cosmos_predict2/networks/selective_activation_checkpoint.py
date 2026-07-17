@@ -70,6 +70,7 @@ def mm_only_context_fn():
 @dataclass
 class SACConfig:
     """Sac config implementation."""
+
     mode: str = "mm_only"
     every_n_blocks: int = 1
 

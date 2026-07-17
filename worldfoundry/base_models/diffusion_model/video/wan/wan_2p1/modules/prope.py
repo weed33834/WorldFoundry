@@ -186,17 +186,21 @@ def _prepare_apply_fns_all_dim(
 
 def _apply_tiled_projmat(
     feats: torch.Tensor,  # (batch, num_heads, seqlen, feat_dim)
-    matrix: torch.Tensor,  # (batch, cameras, D, D)
+    matrix: torch.Tensor,  # (batch, cameras, D, D) or (batch, seqlen, D, D)
 ) -> torch.Tensor:
     """Apply projection matrix to features."""
     # - seqlen => (cameras, patches_x * patches_y)
     # - feat_dim => (feat_dim // 4, 4)
     (batch, num_heads, seqlen, feat_dim) = feats.shape
+    D = matrix.shape[-1]
+    assert feat_dim % D == 0
+    if matrix.shape[1] == seqlen:
+        values = feats.reshape(batch, num_heads, seqlen, feat_dim // D, D)
+        return torch.einsum("btij,bntpj->bntpi", matrix, values).reshape(feats.shape)
+
     cameras = matrix.shape[1]
     assert seqlen >= cameras and seqlen % cameras == 0
-    D = matrix.shape[-1]
     assert matrix.shape == (batch, cameras, D, D)
-    assert feat_dim % D == 0
     return torch.einsum(
         "bcij,bncpkj->bncpki",
         matrix,

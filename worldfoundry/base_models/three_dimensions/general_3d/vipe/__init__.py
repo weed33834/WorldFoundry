@@ -28,7 +28,15 @@ except ModuleNotFoundError:
 if TYPE_CHECKING:
     from worldfoundry.base_models.three_dimensions.general_3d.vipe.pipeline import make_pipeline as make_pipeline
 
-__all__ = ["__version__", "__version_info__", "get_config_path", "make_pipeline"]
+__all__ = [
+    "__version__",
+    "__version_info__",
+    "get_config_path",
+    "infer_pose",
+    "infer_poses",
+    "make_pipeline",
+    "preflight",
+]
 
 
 def _version_info(version_string: str) -> tuple[int, ...]:
@@ -47,7 +55,7 @@ def _version_info(version_string: str) -> tuple[int, ...]:
 try:
     __version__ = version("nvidia-vipe")
 except PackageNotFoundError:
-    __version__ = "0.0.0+unknown"
+    __version__ = "1.1.0+worldfoundry"
 __version_info__ = _version_info(__version__)
 
 if OmegaConf is not None:
@@ -70,4 +78,8 @@ def __getattr__(name: str) -> Any:
         from worldfoundry.base_models.three_dimensions.general_3d.vipe.pipeline import make_pipeline
 
         return make_pipeline
+    if name in {"infer_pose", "infer_poses", "preflight"}:
+        from worldfoundry.base_models.three_dimensions.general_3d.vipe.runtime import infer_pose, infer_poses, preflight
+
+        return {"infer_pose": infer_pose, "infer_poses": infer_poses, "preflight": preflight}[name]
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -25,7 +25,6 @@ from torch.distributed.utils import _p_assert
 
 from worldfoundry.core.distributed import torch_process_group as distributed
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -93,13 +92,9 @@ def hsdp_device_mesh(replica_group_size=None, sharding_group_size=None, device=N
 
     device = device or "cuda"
     if world_size % sharding_group_size != 0:
-        raise ValueError(
-            f"World size {world_size} is not divisible by sharding group size {sharding_group_size}."
-        )
+        raise ValueError(f"World size {world_size} is not divisible by sharding group size {sharding_group_size}.")
     if (world_size // sharding_group_size) % replica_group_size != 0:
-        raise ValueError(
-            f"Replica group size {replica_group_size} does not divide the available replica groups."
-        )
+        raise ValueError(f"Replica group size {replica_group_size} does not divide the available replica groups.")
 
     device_mesh = init_device_mesh(
         device,

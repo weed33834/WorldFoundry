@@ -20,28 +20,26 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 
 import torch
-from einops import rearrange
-from hydra.core.config_store import ConfigStore
-from torch.distributed import get_process_group_ranks
-
-from cosmos_predict2._src.imaginaire.lazy_config import LazyCall as L
-from cosmos_predict2._src.imaginaire.lazy_config import LazyDict
-from worldfoundry.core.distributed.context_parallel import broadcast_split_tensor, find_split
 from cosmos_predict2._src.predict2.conditioner import (
     BooleanFlag,
     GeneralConditioner,
     ReMapkey,
     Text2WorldCondition,
     TextAttr,
-    TextAttrEmptyStringDrop,
 )
-from cosmos_predict2._src.predict2.models.video2world_wan2pt1_model import WAN2PT1_I2V_COND_LATENT_KEY
-from cosmos_predict2._src.predict2.networks.clip import Wan2pt1CLIPEmb
+from einops import rearrange
+from hydra.core.config_store import ConfigStore
+from torch.distributed import get_process_group_ranks
+
+from worldfoundry.core.configuration.lazy_config import LazyCall as L
+from worldfoundry.core.configuration.lazy_config import LazyDict
+from worldfoundry.core.distributed.context_parallel import broadcast_split_tensor, find_split
 
 
 @dataclass(frozen=True)
 class Video2WorldCondition(Text2WorldCondition):
     """Video world condition implementation."""
+
     use_video_condition: bool = False
     # the following two attributes are used to set the video condition; during training, inference
     gt_frames: Optional[torch.Tensor] = None
@@ -275,6 +273,7 @@ class Video2WorldConditionV2(Video2WorldCondition):
 
 class Video2WorldConditioner(GeneralConditioner):
     """Video world conditioner implementation."""
+
     def forward(
         self,
         batch: Dict,
@@ -295,6 +294,7 @@ class Video2WorldConditioner(GeneralConditioner):
 
 class Video2WorldConditionerV2(GeneralConditioner):
     """Video world conditioner implementation."""
+
     def forward(
         self,
         batch: Dict,
@@ -347,85 +347,6 @@ VideoPredictionConditionerV2: LazyDict = L(Video2WorldConditionerV2)(
 )
 
 
-@dataclass(frozen=True)
-class VideoPredictionWan2pt1Condition(Text2WorldCondition):
-    """Video prediction wan pt condition implementation."""
-    frame_cond_crossattn_emb_B_L_D: Optional[torch.Tensor] = None
-    y_B_C_T_H_W: Optional[torch.Tensor] = None  # image condition
-    # latent_condition: Optional[torch.Tensor] = None # latent condition
-
-    def broadcast(self, process_group: torch.distributed.ProcessGroup) -> "Video2WorldCondition":
-        """Broadcasts and splits the condition across the checkpoint parallelism group.
-        For most condition, such asT2VCondition, we do not need split.
-
-        Args:
-            process_group: The process group for broadcast and split
-
-        Returns:
-            A new BaseCondition instance with the broadcasted and split condition.
-        """
-        if self.is_broadcasted:
-            return self
-
-        y_B_C_T_H_W = self.y_B_C_T_H_W
-        kwargs = self.to_dict(skip_underscore=False)
-        kwargs["y_B_C_T_H_W"] = None
-        new_condition = Text2WorldCondition.broadcast(
-            type(self)(**kwargs),
-            process_group,
-        )
-        kwargs = new_condition.to_dict(skip_underscore=False)
-        if process_group is not None:
-            y_B_C_T_H_W = broadcast_split_tensor(y_B_C_T_H_W, seq_dim=2, process_group=process_group)
-        kwargs["y_B_C_T_H_W"] = y_B_C_T_H_W
-        return type(self)(**kwargs)
-
-
-class VideoPredictionWan2pt1Conditioner(GeneralConditioner):
-    """Video prediction wan pt conditioner implementation."""
-    def forward(
-        self,
-        batch: Dict,
-        override_dropout_rate: Optional[Dict[str, float]] = None,
-    ) -> VideoPredictionWan2pt1Condition:
-        """Forward.
-
-        Args:
-            batch: The batch.
-            override_dropout_rate: The override dropout rate.
-
-        Returns:
-            The return value.
-        """
-        output = super()._forward(batch, override_dropout_rate)
-        return VideoPredictionWan2pt1Condition(**output)
-
-
-VideoConditionerFpsPaddingEmptyStringDrppConfig: LazyDict = L(VideoPredictionWan2pt1Conditioner)(
-    text=L(TextAttrEmptyStringDrop)(
-        input_key=["t5_text_embeddings"],
-        dropout_rate=0.2,
-    ),
-    fps=L(ReMapkey)(
-        input_key="fps",
-        output_key="fps",
-        dropout_rate=0.0,
-        dtype=None,
-    ),
-    padding_mask=L(ReMapkey)(
-        input_key="padding_mask",
-        output_key="padding_mask",
-        dropout_rate=0.0,
-        dtype=None,
-    ),
-    wanclip=L(Wan2pt1CLIPEmb)(
-        input_key=["images", "video", WAN2PT1_I2V_COND_LATENT_KEY],
-        dropout_rate=0.0,
-        dtype="bfloat16",
-    ),
-)
-
-
 def register_conditioner():
     """Register conditioner."""
     cs = ConfigStore.instance()
@@ -441,11 +362,4 @@ def register_conditioner():
         package="model.config.conditioner",
         name="video_prediction_conditioner_v2",
         node=VideoPredictionConditionerV2,
-    )
-
-    cs.store(
-        group="conditioner",
-        package="model.config.conditioner",
-        name="wan2pt1_video_prediction_conditioner_empty_string_drop",
-        node=VideoConditionerFpsPaddingEmptyStringDrppConfig,
     )

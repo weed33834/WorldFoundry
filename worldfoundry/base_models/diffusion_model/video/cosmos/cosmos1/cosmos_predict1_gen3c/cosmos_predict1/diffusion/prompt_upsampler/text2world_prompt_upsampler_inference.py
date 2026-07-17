@@ -19,6 +19,7 @@ Command:
     CUDA_HOME=$CONDA_PREFIX PYTHONPATH=$(pwd) python cosmos_predict1/diffusion/prompt_upsampler/text2world_prompt_upsampler_inference.py
 
 """
+
 import argparse
 import os
 import re

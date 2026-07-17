@@ -20,10 +20,10 @@ import os
 
 import imageio
 import torch
-
 from cosmos_predict1.autoregressive.inference.world_generation_pipeline import ARVideo2WorldGenerationPipeline
 from cosmos_predict1.autoregressive.utils.inference import add_common_arguments, load_vision_input, validate_args
 from cosmos_predict1.utils import log
+
 from worldfoundry.base_models.diffusion_model.video.cosmos.shared.io import read_prompts_from_file
 
 
@@ -84,9 +84,8 @@ def main(args):
     sampling_config = validate_args(args, inference_type)
 
     if args.num_gpus > 1:
-        from worldfoundry.core.distributed.megatron_compat import parallel_state
-
         from worldfoundry.core.distributed import torch_process_group as distributed
+        from worldfoundry.core.distributed.megatron_compat import parallel_state
 
         distributed.init()
 

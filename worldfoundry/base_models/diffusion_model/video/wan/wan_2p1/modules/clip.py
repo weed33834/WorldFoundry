@@ -67,7 +67,19 @@ class LayerNorm(nn.LayerNorm):
         Args:
             x: The x.
         """
-        return super().forward(x.float()).type_as(x)
+        # Keep the numerically sensitive normalization in FP32 even after
+        # Accelerate has materialized/offloaded this module in BF16.  Calling
+        # ``nn.LayerNorm.forward`` with an FP32 input and BF16 affine weights
+        # is rejected by current PyTorch kernels, so cast the affine operands
+        # explicitly and restore the activation dtype afterwards.
+        output = F.layer_norm(
+            x.float(),
+            self.normalized_shape,
+            None if self.weight is None else self.weight.float(),
+            None if self.bias is None else self.bias.float(),
+            self.eps,
+        )
+        return output.to(dtype=x.dtype)
 
 
 class SelfAttention(nn.Module):

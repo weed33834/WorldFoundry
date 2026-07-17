@@ -26,16 +26,15 @@ import numpy as np
 import omegaconf.errors
 import torch
 import torchvision.transforms.functional as transforms_F
-from omegaconf import OmegaConf
-
 from cosmos_predict1.diffusion.model.model_t2w import DiffusionT2WModel
 from cosmos_predict1.diffusion.model.model_v2w import DiffusionV2WModel
 from cosmos_predict1.diffusion.model.model_v2w_multiview import DiffusionMultiviewV2WModel
-from cosmos_predict1.diffusion.model.model_world_interpolator import DiffusionWorldInterpolatorWModel
-ExtendDiffusionModel = DiffusionV2WModel
 from cosmos_predict1.utils import log
-from cosmos_predict1.utils.config_helper import get_config_module, override
+
 from worldfoundry.base_models.diffusion_model.video.cosmos.shared.io import load_from_fileobj
+from worldfoundry.core.configuration.hydra import get_config_module, override
+
+ExtendDiffusionModel = DiffusionV2WModel
 
 TORCH_VERSION: Tuple[int, ...] = tuple(int(x) for x in torch.__version__.split(".")[:2])
 if TORCH_VERSION >= (1, 11):
@@ -204,9 +203,9 @@ def validate_args(args: argparse.Namespace, inference_type: str) -> None:
     if inference_type == "text2world" or (inference_type == "video2world" and args.disable_prompt_upsampler):
         assert args.prompt or args.batch_input_path, "--prompt or --batch_input_path must be provided."
     if (inference_type == "video2world" or inference_type == "world_interpolator") and not args.batch_input_path:
-        assert (
-            args.input_image_or_video_path
-        ), "--input_image_or_video_path must be provided for single video generation."
+        assert args.input_image_or_video_path, (
+            "--input_image_or_video_path must be provided for single video generation."
+        )
 
 
 class _IncompatibleKeys(
@@ -220,6 +219,7 @@ class _IncompatibleKeys(
     )
 ):
     """Incompatible keys implementation."""
+
     pass
 
 
@@ -727,9 +727,9 @@ def compute_num_latent_frames(model: DiffusionV2WModel, num_input_frames: int, d
     if num_input_frames % model.tokenizer.video_vae.latent_chunk_duration == 1:
         num_latent_frames += 1
     elif num_input_frames % model.tokenizer.video_vae.latent_chunk_duration > 1:
-        assert (
-            num_input_frames % model.tokenizer.video_vae.pixel_chunk_duration - 1
-        ) % downsample_factor == 0, f"num_input_frames % model.tokenizer.video_vae.pixel_chunk_duration - 1 must be divisible by {downsample_factor}"
+        assert (num_input_frames % model.tokenizer.video_vae.pixel_chunk_duration - 1) % downsample_factor == 0, (
+            f"num_input_frames % model.tokenizer.video_vae.pixel_chunk_duration - 1 must be divisible by {downsample_factor}"
+        )
         num_latent_frames += (
             1 + (num_input_frames % model.tokenizer.video_vae.pixel_chunk_duration - 1) // downsample_factor
         )
@@ -768,12 +768,12 @@ def create_condition_latent_from_input_frames(
         f"Create condition latent from input frames {input_frames.shape}, value {input_frames.min()}, {input_frames.max()}, dtype {input_frames.dtype}"
     )
 
-    assert (
-        input_frames.shape[2] >= num_frames_condition
-    ), f"input_frames not enough for condition, require at least {num_frames_condition}, get {input_frames.shape[2]}, {input_frames.shape}"
-    assert (
-        num_frames_encode >= num_frames_condition
-    ), f"num_frames_encode should be larger than num_frames_condition, get {num_frames_encode}, {num_frames_condition}"
+    assert input_frames.shape[2] >= num_frames_condition, (
+        f"input_frames not enough for condition, require at least {num_frames_condition}, get {input_frames.shape[2]}, {input_frames.shape}"
+    )
+    assert num_frames_encode >= num_frames_condition, (
+        f"num_frames_encode should be larger than num_frames_condition, get {num_frames_encode}, {num_frames_condition}"
+    )
 
     # Put the conditioal frames to the begining of the video, and pad the end with zero
     if model.config.conditioner.video_cond_bool.condition_location == "first_and_last_1":
@@ -856,7 +856,7 @@ def get_condition_latent(
         state_shape[-2] * model.tokenizer.spatial_compression_factor,
         state_shape[-1] * model.tokenizer.spatial_compression_factor,
     )
-    if type(input_image_or_video_path) == str:
+    if isinstance(input_image_or_video_path, str):
         input_path_format = input_image_or_video_path.split(".")[-1]
         input_frames = read_video_or_image_into_frames_BCTHW(
             input_image_or_video_path,

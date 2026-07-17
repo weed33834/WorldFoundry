@@ -60,10 +60,10 @@ def _stagger_torchrun_imports() -> None:
 
 _stagger_torchrun_imports()
 
-import cv2
-import numpy as np
-import torch
-import torch.nn.functional as F
+import cv2  # noqa: E402
+import numpy as np  # noqa: E402
+import torch  # noqa: E402
+import torch.nn.functional as F  # noqa: E402
 
 torch.enable_grad(False)
 
@@ -249,9 +249,9 @@ def _initialize_context_parallel(num_gpus: int):
         return None, None
 
     try:
-        from megatron.core import parallel_state
-
         from cosmos_predict1.utils import distributed
+
+        from worldfoundry.core.distributed.megatron_compat import parallel_state
     except Exception:
         from worldfoundry.core.distributed import torch_process_group as distributed
         from worldfoundry.core.distributed.megatron_compat import parallel_state
@@ -331,13 +331,11 @@ def _predict_moge_depth(current_image_path: str, target_h: int, target_w: int, d
 
     depth_pred_h, depth_pred_w = 720, 1280
     input_image_for_depth_resized = cv2.resize(input_image_rgb, (depth_pred_w, depth_pred_h))
-    input_image_for_depth_tensor_chw = (
-        torch.tensor(
-            input_image_for_depth_resized / 255.0,
-            dtype=torch.float32,
-            device=device,
-        ).permute(2, 0, 1)
-    )
+    input_image_for_depth_tensor_chw = torch.tensor(
+        input_image_for_depth_resized / 255.0,
+        dtype=torch.float32,
+        device=device,
+    ).permute(2, 0, 1)
     moge_output_full = moge_model.infer(input_image_for_depth_tensor_chw)
     moge_depth_hw_full = moge_output_full["depth"]
     moge_intrinsics_33_full_normalized = moge_output_full["intrinsics"]
@@ -357,17 +355,26 @@ def _predict_moge_depth(current_image_path: str, target_h: int, target_w: int, d
     height_scale_factor = target_h / depth_pred_h
     width_scale_factor = target_w / depth_pred_w
 
-    moge_depth_hw = F.interpolate(
-        moge_depth_hw_full.unsqueeze(0).unsqueeze(0),
-        size=(target_h, target_w),
-        mode="bilinear",
-        align_corners=False,
-    ).squeeze(0).squeeze(0)
-    moge_mask_hw = F.interpolate(
-        moge_mask_hw_full.unsqueeze(0).unsqueeze(0).to(torch.float32),
-        size=(target_h, target_w),
-        mode="nearest",
-    ).squeeze(0).squeeze(0).to(torch.bool)
+    moge_depth_hw = (
+        F.interpolate(
+            moge_depth_hw_full.unsqueeze(0).unsqueeze(0),
+            size=(target_h, target_w),
+            mode="bilinear",
+            align_corners=False,
+        )
+        .squeeze(0)
+        .squeeze(0)
+    )
+    moge_mask_hw = (
+        F.interpolate(
+            moge_mask_hw_full.unsqueeze(0).unsqueeze(0).to(torch.float32),
+            size=(target_h, target_w),
+            mode="nearest",
+        )
+        .squeeze(0)
+        .squeeze(0)
+        .to(torch.bool)
+    )
     input_image_tensor_chw_target_res = F.interpolate(
         input_image_for_depth_tensor_chw.unsqueeze(0),
         size=(target_h, target_w),
@@ -438,15 +445,9 @@ def main() -> None:
     from cosmos_predict1.diffusion.inference.camera_utils import generate_camera_trajectory
     from cosmos_predict1.diffusion.inference.gen3c_pipeline import Gen3cPipeline
     from cosmos_predict1.utils import misc
-    try:
-        from cosmos_predict1.utils.io import save_video
-    except ImportError:
-        from worldfoundry.base_models.diffusion_model.video.cosmos.shared.io import save_video
 
-    try:
-        from moge.model.v1 import MoGeModel
-    except ImportError:
-        from worldfoundry.base_models.three_dimensions.depth.moge.model.v1 import MoGeModel
+    from worldfoundry.base_models.diffusion_model.video.cosmos.shared.io import save_video
+    from worldfoundry.base_models.three_dimensions.depth.moge.model.v1 import MoGeModel
 
     _rank0_print(
         "WorldFoundry GEN3C runtime: "
@@ -578,9 +579,7 @@ def main() -> None:
             if args.save_buffer:
                 all_rendered_warps.append(rendered_warp_images[:, 1:].clone().cpu())
 
-            pred_image_for_depth_bcthw_minus1_1 = (
-                pred_image_for_depth_chw_0_1.unsqueeze(0).unsqueeze(2) * 2 - 1
-            )
+            pred_image_for_depth_bcthw_minus1_1 = pred_image_for_depth_chw_0_1.unsqueeze(0).unsqueeze(2) * 2 - 1
             generated_output = pipeline.generate(
                 prompt=args.prompt,
                 image_path=pred_image_for_depth_bcthw_minus1_1,

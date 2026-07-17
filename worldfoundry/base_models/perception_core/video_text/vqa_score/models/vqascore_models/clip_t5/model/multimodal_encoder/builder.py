@@ -1,5 +1,7 @@
 import os
-from .clip_encoder import CLIPVisionTower
+from worldfoundry.base_models.perception_core.video_text.vqa_score.models.vqascore_models._shared.clip_encoder import (
+    CLIPVisionTower,
+)
 
 
 def build_vision_tower(vision_tower_cfg, **kwargs):

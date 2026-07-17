@@ -1,5 +1,7 @@
 from .pipelines import HunyuanVideoPipeline
-from .schedulers import FlowMatchDiscreteScheduler
+from worldfoundry.base_models.diffusion_model.video.hunyuan_video.official_hunyuan_video_runtime.hyvideo.diffusion.schedulers.scheduling_flow_match_discrete import (
+    FlowMatchDiscreteScheduler,
+)
 from .flow.transport import *
 
 def create_transport(

@@ -64,6 +64,7 @@ class TokenizerConfigs(Enum):
 
 class TokenizerModels(Enum):
     """Tokenizer models implementation."""
+
     CI = ContinuousImageTokenizer
     DI = DiscreteImageTokenizer
     CV = CausalContinuousVideoTokenizer

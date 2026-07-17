@@ -2,12 +2,23 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from functools import wraps
 import logging
 import os
 import time
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from functools import wraps
 from typing import Callable
+
+
+@dataclass
+class BenchmarkTimes:
+    model_invocation: float = 0.0
+    total: float = 0.0
+
+    @property
+    def overhead(self) -> float:
+        return self.total - self.model_invocation
 
 
 def utc_now_iso() -> str:
@@ -76,4 +87,4 @@ class CudaSyncTimer:
         return wrapper
 
 
-__all__ = ["CudaSyncTimer", "utc_now_iso"]
+__all__ = ["BenchmarkTimes", "CudaSyncTimer", "utc_now_iso"]

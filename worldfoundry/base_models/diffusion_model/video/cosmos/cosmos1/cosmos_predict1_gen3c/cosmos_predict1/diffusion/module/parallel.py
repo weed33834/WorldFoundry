@@ -16,12 +16,12 @@
 """Module for base_models -> diffusion_model -> video -> cosmos -> cosmos1 -> cosmos_predict1_gen3c -> cosmos_predict1 -> diffusion -> module -> parallel.py functionality."""
 
 import torch
-from worldfoundry.core.distributed.megatron_compat import parallel_state
+from cosmos_predict1.utils import distributed
 from torch import Tensor
 from torch.distributed import ProcessGroup, all_gather, broadcast_object_list, get_process_group_ranks, get_world_size
 from torch.distributed.utils import _verify_param_shape_across_processes
 
-from cosmos_predict1.utils import distributed
+from worldfoundry.core.distributed.megatron_compat import parallel_state
 
 
 def split_inputs_cp(x: Tensor, seq_dim: int, cp_group: ProcessGroup) -> Tensor:

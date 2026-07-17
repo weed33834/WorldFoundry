@@ -15,10 +15,10 @@
 
 """SDPA-backed attention with selectable QKV layout and kernel backend."""
 
-from dataclasses import dataclass
+import os
 from contextlib import nullcontext
-from typing import Any
-from typing import Literal
+from dataclasses import dataclass
+from typing import Any, Literal
 
 import torch
 import torch.nn.functional as F
@@ -62,6 +62,54 @@ def attention_backend_context(
     return _sdpa_kernel_context(backend=backend, backends=backends)
 
 
+def native_sdpa_priority(
+    device: torch.device | str | None = None,
+    *,
+    has_mask: bool = False,
+) -> tuple[str, ...]:
+    """Return an exact PyTorch SDPA order for one workload.
+
+    Unmasked CUDA attention uses PyTorch's shape-aware dispatcher: cuDNN and
+    FlashAttention cross over at different sequence/head shapes even on one
+    GPU. Masked attention prefers cuDNN explicitly because PyTorch releases can
+    otherwise choose the slower memory-efficient path despite cuDNN supporting
+    the mask. The environment override remains available for offline tuning.
+    """
+
+    configured = os.getenv("WORLDFOUNDRY_NATIVE_SDPA_PRIORITY", "").strip()
+    if configured:
+        known = {"cudnn", "flash", "efficient", "math"}
+        requested = tuple(
+            item.strip().lower().replace("_attention", "")
+            for item in configured.split(",")
+            if item.strip()
+        )
+        invalid = tuple(item for item in requested if item not in known)
+        if invalid:
+            raise ValueError(f"Unknown native SDPA backends: {invalid}")
+        return requested
+
+    parsed = torch.device("cuda", torch.cuda.current_device()) if device is None and torch.cuda.is_available() else torch.device(device or "cpu")
+    if parsed.type != "cuda":
+        return ("math",)
+    if getattr(torch.version, "hip", None) is not None:
+        # Let PyTorch/AOTriton choose on ROCm until CDNA/RDNA-specific orders
+        # are physically qualified by the project.
+        return ()
+    try:
+        major, _minor = torch.cuda.get_device_capability(parsed)
+    except (AssertionError, RuntimeError, TypeError, ValueError):
+        return ()
+    if major >= 8:
+        if has_mask or major in {10, 12}:
+            # PyTorch's default order can reach efficient/math before cuDNN on
+            # Blackwell even though cuDNN is the architecture-native exact
+            # path. Hopper remains shape-dispatched when no mask is present.
+            return ("cudnn", "flash", "efficient", "math")
+        return ()
+    return ("efficient", "math")
+
+
 def scaled_dot_product_attention(
     query: Any,
     key: Any,
@@ -75,7 +123,48 @@ def scaled_dot_product_attention(
     backend: Literal["math", "efficient", "cudnn", "flash"] | Any | None = None,
     backends: Any = None,
 ) -> Any:
-    """Compute scaled dot-product attention with PyTorch SDPA when available."""
+    """Compute exact scaled dot-product attention through one stable core API.
+
+    The function mirrors PyTorch SDPA, adds explicit backend selection, and
+    preserves compatibility with PyTorch versions that do not yet accept
+    ``enable_gqa``. When native SDPA is unavailable it evaluates the same
+    attention equation with matmul, softmax, and an optional dropout.
+
+    Args:
+        query: Query tensor shaped ``(..., query_length, head_dim)``. The
+            common layout is ``(batch, heads, query_length, head_dim)``.
+        key: Key tensor shaped ``(..., key_length, head_dim)``.
+        value: Value tensor shaped ``(..., key_length, value_dim)``.
+        *args: Backward-compatible positional values for ``attn_mask``,
+            ``dropout_p``, ``is_causal``, and ``scale``, in that order.
+        attn_mask: Boolean keep-mask or additive attention bias broadcastable
+            to the attention score shape.
+        dropout_p: Probability applied to attention weights. Pass ``0.0`` at
+            inference time; SDPA applies a non-zero value even in eval mode.
+        is_causal: Apply a lower-triangular causal mask.
+        scale: Softmax scale. ``None`` uses ``1 / sqrt(head_dim)``.
+        enable_gqa: Expand key/value heads when query has a compatible larger
+            head count.
+        backend: One requested PyTorch SDPA backend: ``math``, ``efficient``,
+            ``cudnn``, or ``flash``.
+        backends: Ordered backend collection. Takes precedence over
+            ``backend`` and is useful when an explicit fallback order is
+            required.
+
+    Returns:
+        Attention values with the query prefix shape and ``value.shape[-1]``
+        as the final dimension.
+
+    Raises:
+        TypeError: More than four compatibility positional options are given.
+        ValueError: Grouped-query attention head counts are incompatible.
+
+    Notes:
+        Prefer this function for already split heads. For flattened
+        ``(batch, sequence, hidden)`` tensors, use
+        ``flattened_multihead_attention`` so reshape and mask normalization
+        stay centralized.
+    """
 
     if args:
         if len(args) > 4:
@@ -103,13 +192,14 @@ def scaled_dot_product_attention(
         context = _sdpa_kernel_context(backend=backend, backends=backends)
         with context:
             try:
-                return sdpa(query, key, value, **kwargs)
+                output = sdpa(query, key, value, **kwargs)
             except TypeError:
                 if "enable_gqa" not in kwargs:
                     raise
                 key, value = _repeat_key_value_for_gqa(key, value, query)
                 kwargs.pop("enable_gqa", None)
-                return sdpa(query, key, value, **kwargs)
+                output = sdpa(query, key, value, **kwargs)
+        return _zero_fully_masked_rows(output, attn_mask, query, key)
 
     if enable_gqa:
         key, value = _repeat_key_value_for_gqa(key, value, query)
@@ -129,7 +219,89 @@ def scaled_dot_product_attention(
     weights = torch.softmax(scores, dim=-1)
     if dropout_p:
         weights = F.dropout(weights, p=float(dropout_p), training=True)
-    return torch.matmul(weights, value)
+    output = torch.matmul(weights, value)
+    return _zero_fully_masked_rows(output, attn_mask, query, key)
+
+
+def _zero_fully_masked_rows(
+    output: Any,
+    attn_mask: Any,
+    query: Any,
+    key: Any,
+) -> Any:
+    """Make all-false boolean rows backend-independent.
+
+    CUDA SDPA backends do not all agree on the result of a query row whose
+    boolean keep-mask contains no keys. In particular, cuDNN attention can
+    return non-zero values while the math backend returns zeros. Rectangular
+    bottom-right causal windows naturally create such leading rows when the
+    query is longer than the key, so normalize them at the shared boundary.
+    """
+
+    if not isinstance(attn_mask, torch.Tensor) or attn_mask.dtype is not torch.bool:
+        return output
+    score_shape = (*query.shape[:-1], key.shape[-2])
+    valid_rows = torch.broadcast_to(attn_mask, score_shape).any(dim=-1, keepdim=True)
+    return torch.where(valid_rows, output, torch.zeros_like(output))
+
+
+def flattened_multihead_attention(
+    query: Tensor,
+    key: Tensor,
+    value: Tensor,
+    num_heads: int,
+    *,
+    attn_mask: Tensor | None = None,
+    dropout_p: float = 0.0,
+    is_causal: bool = False,
+    scale: float | None = None,
+    backend: Literal["math", "efficient", "cudnn", "flash"] | Any | None = None,
+    backends: Any = None,
+) -> Tensor:
+    """Apply SDPA to flattened ``[B, S, H*D]`` Q/K/V tensors.
+
+    This is the shared layout adapter for diffusion transformers. Model code
+    should keep projections/RoPE/mask construction locally and delegate the
+    generic head reshape, mask canonicalization, backend context, and output
+    merge here.
+    """
+
+    if query.ndim != 3 or key.ndim != 3 or value.ndim != 3:
+        raise ValueError("flattened attention expects [B, S, hidden] Q/K/V tensors")
+    if query.shape[0] != key.shape[0] or key.shape[:2] != value.shape[:2]:
+        raise ValueError("query, key and value must have compatible batch/sequence shapes")
+    heads = int(num_heads)
+    if heads <= 0:
+        raise ValueError("num_heads must be positive")
+    if query.shape[-1] % heads or key.shape[-1] % heads or value.shape[-1] % heads:
+        raise ValueError("all hidden dimensions must be divisible by num_heads")
+    query_head_dim = query.shape[-1] // heads
+    key_head_dim = key.shape[-1] // heads
+    value_head_dim = value.shape[-1] // heads
+    if query_head_dim != key_head_dim:
+        raise ValueError("query and key head dimensions must match")
+
+    batch = query.shape[0]
+    query_heads = query.view(batch, -1, heads, query_head_dim).transpose(1, 2)
+    key_heads = key.view(batch, -1, heads, key_head_dim).transpose(1, 2)
+    value_heads = value.view(batch, -1, heads, value_head_dim).transpose(1, 2)
+    if attn_mask is not None:
+        if attn_mask.ndim == 2:
+            attn_mask = attn_mask.unsqueeze(0).unsqueeze(0)
+        elif attn_mask.ndim == 3:
+            attn_mask = attn_mask.unsqueeze(1)
+    output = scaled_dot_product_attention(
+        query_heads,
+        key_heads,
+        value_heads,
+        attn_mask=attn_mask,
+        dropout_p=dropout_p,
+        is_causal=is_causal,
+        scale=scale,
+        backend=backend,
+        backends=backends,
+    )
+    return output.transpose(1, 2).reshape(batch, -1, heads * value_head_dim)
 
 
 def _repeat_key_value_for_gqa(key: Any, value: Any, query: Any) -> tuple[Any, Any]:
@@ -158,12 +330,15 @@ def _sdpa_kernel_context(*, backend: Any = None, backends: Any = None) -> Any:
     if not resolved:
         return nullcontext()
     try:
-        return sdpa_kernel(backends=resolved, set_priority_order=True)
+        return sdpa_kernel(backends=resolved, set_priority=True)
     except TypeError:
         try:
-            return sdpa_kernel(backends=resolved)
+            return sdpa_kernel(backends=resolved, set_priority_order=True)
         except TypeError:
-            return sdpa_kernel(resolved)
+            try:
+                return sdpa_kernel(backends=resolved)
+            except TypeError:
+                return sdpa_kernel(resolved)
 
 
 def _resolve_sdpa_backends(requested: Any) -> list[Any]:
@@ -205,9 +380,7 @@ class NativeAttention(torch.nn.Module):
         """
         super().__init__()
         assert qkv_format in ["bhsd", "bshd"], f"Invalid qkv format: {qkv_format}"
-        assert backend in ["math", "efficient", "cudnn", "flash"], (
-            f"Invalid backend: {backend}"
-        )
+        assert backend in ["math", "efficient", "cudnn", "flash"], f"Invalid backend: {backend}"
         self.qkv_format = qkv_format
         self.backend = backend
         self.device_mesh: DeviceMesh | None = None
@@ -223,8 +396,7 @@ class NativeAttention(torch.nn.Module):
         else:
             if _context_parallel is None:
                 raise RuntimeError(
-                    "NativeAttention context parallel requires "
-                    "torch.distributed.tensor.experimental.context_parallel."
+                    "NativeAttention context parallel requires torch.distributed.tensor.experimental.context_parallel."
                 )
             self.device_mesh = DeviceMesh.from_group(cp_group, device_type="cuda")
 
@@ -315,5 +487,7 @@ __all__ = [
     "AttentionBackendInfo",
     "NativeAttention",
     "attention_backend_info",
+    "flattened_multihead_attention",
+    "native_sdpa_priority",
     "scaled_dot_product_attention",
 ]

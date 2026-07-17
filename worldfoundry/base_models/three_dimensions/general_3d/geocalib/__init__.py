@@ -2,6 +2,18 @@
 # https://github.com/cvg/GeoCalib
 # Licensed under the Apache-2.0 License. See THIRD_PARTY_LICENSES.md for details.
 
-"""Module for base_models -> three_dimensions -> general_3d -> geocalib -> __init__.py functionality."""
+"""GeoCalib and AutoLevel base-model integrations."""
 
-from .extractor import GeoCalib
+__all__ = ["FlowEstimator", "GeoCalib", "preprocess_image"]
+
+
+def __getattr__(name):
+    if name == "GeoCalib":
+        from .extractor import GeoCalib
+
+        return GeoCalib
+    if name in {"FlowEstimator", "preprocess_image"}:
+        from .autolevel import FlowEstimator, preprocess_image
+
+        return {"FlowEstimator": FlowEstimator, "preprocess_image": preprocess_image}[name]
+    raise AttributeError(name)

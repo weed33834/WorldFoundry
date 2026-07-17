@@ -8,6 +8,7 @@ from typing import Tuple, Optional
 from einops import rearrange
 from worldfoundry.core.model_loading import hash_state_dict_keys
 from worldfoundry.core.attention import packed_sequence_attention as flash_attention
+from worldfoundry.core.kernels import layer_norm_scale_shift, residual_gate_add
 from .wan_video_camera_controller import SimpleAdapter
 
 
@@ -243,7 +244,7 @@ class GateModule(nn.Module):
             gate: The gate.
             residual: The residual.
         """
-        return x + gate * residual
+        return residual_gate_add(x, residual, gate)
 
 class DiTBlock(nn.Module):
     """Di t block implementation."""
@@ -285,10 +286,10 @@ class DiTBlock(nn.Module):
         # msa: multi-head self-attention  mlp: multi-layer perceptron
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = (
             self.modulation.to(dtype=t_mod.dtype, device=t_mod.device) + t_mod).chunk(6, dim=1)
-        input_x = modulate(self.norm1(x), shift_msa, scale_msa)
+        input_x = layer_norm_scale_shift(x, scale_msa, shift_msa, eps=self.norm1.eps)
         x = self.gate(x, gate_msa, self.self_attn(input_x, freqs))
         x = x + self.cross_attn(self.norm3(x), context)
-        input_x = modulate(self.norm2(x), shift_mlp, scale_mlp)
+        input_x = layer_norm_scale_shift(x, scale_mlp, shift_mlp, eps=self.norm2.eps)
         x = self.gate(x, gate_mlp, self.ffn(input_x))
         return x
 
@@ -352,7 +353,7 @@ class Head(nn.Module):
             t_mod: The t mod.
         """
         shift, scale = (self.modulation.to(dtype=t_mod.dtype, device=t_mod.device) + t_mod).chunk(2, dim=1)
-        x = (self.head(self.norm(x) * (1 + scale) + shift))
+        x = self.head(layer_norm_scale_shift(x, scale, shift, eps=self.norm.eps))
         return x
 
 

@@ -26,6 +26,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from timm.models.layers import DropPath
 
+from worldfoundry.core.checkpoint import load_weights_only, require_tensor
+
 from diffusion.model.builder import MODELS
 from diffusion.model.nets.basic_modules import GLUMBConv, GLUMBConvTemp, Mlp
 from diffusion.model.nets.sana_blocks import (
@@ -1474,7 +1476,10 @@ class SanaMSVideoCamCtrl(Sana):
         if path is None:
             self.diagonal_mask = self.prepare_flexattention(*args, **kwargs)
         else:
-            self.diagonal_mask = torch.load(path, map_location="cpu")
+            self.diagonal_mask = require_tensor(
+                load_weights_only(path),
+                source=f"Sana diagonal mask {path}",
+            )
 
     def initialize(self):
         """Initialize."""

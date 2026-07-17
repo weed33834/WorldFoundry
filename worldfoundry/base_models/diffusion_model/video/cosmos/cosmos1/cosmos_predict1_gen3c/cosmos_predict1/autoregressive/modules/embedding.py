@@ -21,6 +21,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 import torch
 from einops import rearrange, repeat
+
 from worldfoundry.core.distributed.megatron_compat import parallel_state
 
 
@@ -452,9 +453,9 @@ class RotaryPositionEmbeddingPytorch(RotaryPositionEmbedding):
             cos_cached = self.cos_cached[:, input_pos]
             sin_cached = self.sin_cached[:, input_pos]
         else:
-            assert (
-                self.cos_cached.shape[1] >= seq_len
-            ), f"Invalid sequence length; cos_cached.shape {self.cos_cached.shape}, seq_len {seq_len}."
+            assert self.cos_cached.shape[1] >= seq_len, (
+                f"Invalid sequence length; cos_cached.shape {self.cos_cached.shape}, seq_len {seq_len}."
+            )
             cos_cached = self.cos_cached[:, :seq_len, ...]
             sin_cached = self.sin_cached[:, :seq_len, ...]
         xq = q * cos_cached + self.rotate_half(q) * sin_cached
@@ -618,9 +619,9 @@ class RotaryPositionEmbeddingPytorchV1(RotaryPositionEmbedding):
             cos_cached = self.cos_cached[:, input_pos]
             sin_cached = self.sin_cached[:, input_pos]
         else:
-            assert (
-                self.cos_cached.shape[1] >= seq_len
-            ), f"Invalid sequence length; cos_cached.shape {self.cos_cached.shape}, seq_len {seq_len}."
+            assert self.cos_cached.shape[1] >= seq_len, (
+                f"Invalid sequence length; cos_cached.shape {self.cos_cached.shape}, seq_len {seq_len}."
+            )
             cos_cached = self.cos_cached[:, :seq_len, ...]
             sin_cached = self.sin_cached[:, :seq_len, ...]
         xq = q * cos_cached + self.rotate_half(q) * sin_cached
@@ -631,6 +632,7 @@ class RotaryPositionEmbeddingPytorchV1(RotaryPositionEmbedding):
 
 class SinCosPosEmbAxisTE(torch.nn.Module):
     """Sin cos pos emb axis te implementation."""
+
     def __init__(
         self,
         dim: int,

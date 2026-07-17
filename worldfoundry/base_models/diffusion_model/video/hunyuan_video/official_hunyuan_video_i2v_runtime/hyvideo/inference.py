@@ -15,14 +15,22 @@ from hyvideo.modules import load_model
 from hyvideo.text_encoder import TextEncoder
 from hyvideo.utils.data_utils import align_to, get_closest_ratio, generate_crop_size_list
 from hyvideo.utils.lora_utils import load_lora_for_pipeline
-from hyvideo.modules.posemb_layers import get_nd_rotary_pos_embed
-from hyvideo.modules.fp8_optimization import convert_fp8_linear
-from hyvideo.diffusion.schedulers import FlowMatchDiscreteScheduler
+from worldfoundry.base_models.diffusion_model.video.hunyuan_video.official_hunyuan_video_runtime.hyvideo.modules.fp8_optimization import (
+    convert_fp8_linear,
+)
+from worldfoundry.base_models.diffusion_model.video.hunyuan_video.official_hunyuan_video_runtime.hyvideo.modules.posemb_layers import (
+    get_nd_rotary_pos_embed,
+)
+from worldfoundry.base_models.diffusion_model.video.hunyuan_video.official_hunyuan_video_runtime.hyvideo.diffusion.schedulers.scheduling_flow_match_discrete import (
+    FlowMatchDiscreteScheduler,
+)
 from hyvideo.diffusion.pipelines import HunyuanVideoPipeline
 import torchvision.transforms as transforms
 from PIL import Image
 import numpy as np
 from safetensors.torch import load_file
+
+from worldfoundry.core.checkpoint import load_weights_only, tensor_state_dict
 
 try:
     import xfuser
@@ -492,7 +500,7 @@ class Inference(object):
         if not model_path.exists():
             raise ValueError(f"model_path not exists: {model_path}")
         logger.info(f"Loading torch model {model_path}...")
-        state_dict = torch.load(model_path, map_location=lambda storage, loc: storage)
+        state_dict = load_weights_only(model_path)
 
         if bare_model == "unknown" and ("ema" in state_dict or "module" in state_dict):
             bare_model = False
@@ -501,6 +509,11 @@ class Inference(object):
                 state_dict = state_dict[load_key]
             else:
                 raise KeyError(f"Missing key: `{load_key}` in the checkpoint: {model_path}")
+        state_dict = tensor_state_dict(
+            state_dict,
+            source=str(model_path),
+            wrapper_keys=(),
+        )
         model.load_state_dict(state_dict, strict=True)
         return model
 

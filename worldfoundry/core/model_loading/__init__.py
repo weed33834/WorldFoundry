@@ -6,6 +6,7 @@ from importlib import import_module
 from typing import Any
 
 _EXPORT_MODULES = {
+    "InferenceModel": "worldfoundry.core.model_loading.inference_model",
     "ModelConfig": "worldfoundry.core.model_loading.config",
     "convert_keys_dict_to_single_str": "worldfoundry.core.model_loading.file",
     "convert_state_dict_keys_to_single_str": "worldfoundry.core.model_loading.file",
@@ -19,10 +20,12 @@ _EXPORT_MODULES = {
     "load_model_loader_registry": "worldfoundry.core.model_loading.registry_config",
     "load_model_with_disk_offload": "worldfoundry.core.model_loading.model",
     "load_state_dict": "worldfoundry.core.model_loading.file",
+    "load_state_dict_non_strict": "worldfoundry.core.model_loading.state_dict",
     "load_state_dict_from_folder": "worldfoundry.core.model_loading.file",
     "load_state_dict_from_safetensors_index": "worldfoundry.core.model_loading.file",
     "load_torch_checkpoint": "worldfoundry.core.model_loading.file",
     "load_torch_state_dict": "worldfoundry.core.model_loading.file",
+    "non_strict_load_model": "worldfoundry.core.model_loading.state_dict",
     "search_for_embeddings": "worldfoundry.core.model_loading.file",
     "search_for_files": "worldfoundry.core.model_loading.file",
     "search_parameter": "worldfoundry.core.model_loading.file",

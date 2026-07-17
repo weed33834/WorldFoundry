@@ -25,6 +25,10 @@ class SanaVariant:
     default_steps: int | None = None
     default_cfg_scale: float | None = None
     default_fps: int | None = None
+    default_num_frames: int | None = None
+    default_height: int | None = None
+    default_width: int | None = None
+    mode: str | None = None
     notes: str = ""
 
     @property
@@ -34,7 +38,7 @@ class SanaVariant:
         Returns:
             The return value.
         """
-        return "generated_video" if self.task == "text-to-video" else "generated_image"
+        return "generated_video" if self.task in {"text-to-video", "video-to-video"} else "generated_image"
 
     @property
     def default_extension(self) -> str:
@@ -326,6 +330,44 @@ SANA_VARIANTS: Mapping[str, SanaVariant] = {
         default_fps=16,
         notes="Official LongSANA LongLive inference runs through the Sana video CLI with the longsana 480p config.",
     ),
+    "sana-streaming-2b-720p": SanaVariant(
+        model_id="sana-streaming-2b-720p",
+        display_name="SANA-Streaming 2B 720p",
+        task="video-to-video",
+        runner="streaming",
+        config_path="sana_streaming/sana_streaming_2b_720p.yaml",
+        model_path="hf://Efficient-Large-Model/SANA-Streaming/dit/sana_streaming_ar.pth",
+        resolution="720p",
+        repo_id="Efficient-Large-Model/SANA-Streaming",
+        default_steps=4,
+        default_cfg_scale=1.0,
+        default_fps=16,
+        default_num_frames=969,
+        default_height=704,
+        default_width=1280,
+        mode="long_streaming",
+        notes="Official BF16 minute-length streaming video-to-video editing route.",
+    ),
+    "sana-streaming-bidirectional-2b-720p": SanaVariant(
+        model_id="sana-streaming-bidirectional-2b-720p",
+        display_name="SANA-Streaming Bidirectional 2B 720p",
+        task="video-to-video",
+        runner="streaming",
+        config_path="sana_streaming/sana_streaming_bidirectional_2b_720p.yaml",
+        model_path=(
+            "hf://Efficient-Large-Model/SANA-Streaming_bidirectional/dit/sana_bidirectional_short.pth"
+        ),
+        resolution="720p",
+        repo_id="Efficient-Large-Model/SANA-Streaming_bidirectional",
+        default_steps=50,
+        default_cfg_scale=6.0,
+        default_fps=16,
+        default_num_frames=81,
+        default_height=704,
+        default_width=1280,
+        mode="bidirectional_short",
+        notes="Official BF16 short-video bidirectional video-to-video editing route.",
+    ),
 }
 
 SANA_ALIASES: Mapping[str, str] = {
@@ -345,6 +387,11 @@ SANA_ALIASES: Mapping[str, str] = {
     "sana-video-480p": "sana-video-2b-480p",
     "sana-video-720p": "sana-video-2b-720p",
     "longsana-video": "longsana-video-2b-480p",
+    "sana-streaming": "sana-streaming-2b-720p",
+    "sana-streaming-long": "sana-streaming-2b-720p",
+    "sana-streaming-720p": "sana-streaming-2b-720p",
+    "sana-streaming-bidirectional": "sana-streaming-bidirectional-2b-720p",
+    "sana-streaming-short": "sana-streaming-bidirectional-2b-720p",
 }
 
 

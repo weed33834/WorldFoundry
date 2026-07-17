@@ -141,14 +141,19 @@ class Splatt3RRuntime:
         from worldfoundry.base_models.three_dimensions.general_3d.splatt3r.splatt3r_runtime.model import (
             MAST3RGaussians,
         )
+        from omegaconf import OmegaConf
 
         device = self.device if str(self.device).startswith("cuda") and torch.cuda.is_available() else "cpu"
-        self._model = MAST3RGaussians.load_from_checkpoint(
-            self._resolve_checkpoint(),
-            device,
-            strict=False,
-            weights_only=False,
-        )
+        checkpoint = torch.load(self._resolve_checkpoint(), map_location="cpu", weights_only=False)
+        hyper_parameters = checkpoint.get("hyper_parameters", {}) if isinstance(checkpoint, dict) else {}
+        config_payload = hyper_parameters.get("config", {}) if isinstance(hyper_parameters, Mapping) else {}
+        config = OmegaConf.create(config_payload)
+        if "use_offsets" not in config:
+            config.use_offsets = False
+        self._model = MAST3RGaussians(config)
+        state_dict = checkpoint.get("state_dict", checkpoint)
+        self._model.load_state_dict(state_dict, strict=False)
+        self._model.to(device)
         self._model.eval()
         self.device = device
         return self._model

@@ -90,6 +90,7 @@ class RMSNorm(nn.Module):
             weight: The weight.
             eps: The eps.
         """
+
         def _norm(x, eps):
             """Helper function to norm.
 

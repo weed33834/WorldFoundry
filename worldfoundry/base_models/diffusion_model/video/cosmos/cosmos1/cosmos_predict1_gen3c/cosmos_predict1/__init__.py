@@ -9,7 +9,6 @@ from worldfoundry.base_models.diffusion_model.video.cosmos.shared.predict1_impor
     ensure_predict1_import_path,
 )
 
-
 SOURCE_ROOT = Path(__file__).resolve().parent.parent
 
 

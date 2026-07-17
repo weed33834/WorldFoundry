@@ -39,6 +39,7 @@ from .utils import Normalize, nonlinearity
 
 class Upsample(nn.Module):
     """Upsample implementation."""
+
     def __init__(self, in_channels: int):
         """Init.
 
@@ -63,6 +64,7 @@ class Upsample(nn.Module):
 
 class Downsample(nn.Module):
     """Downsample implementation."""
+
     def __init__(self, in_channels: int):
         """Init.
 
@@ -88,6 +90,7 @@ class Downsample(nn.Module):
 
 class ResnetBlock(nn.Module):
     """Resnet block implementation."""
+
     def __init__(
         self,
         *,
@@ -138,6 +141,7 @@ class ResnetBlock(nn.Module):
 
 class AttnBlock(nn.Module):
     """Attn block implementation."""
+
     def __init__(self, in_channels: int):
         """Init.
 
@@ -189,6 +193,7 @@ class AttnBlock(nn.Module):
 
 class Encoder(nn.Module):
     """Encoder implementation."""
+
     def __init__(
         self,
         in_channels: int,
@@ -226,9 +231,9 @@ class Encoder(nn.Module):
 
         # calculate the number of downsample operations
         self.num_downsamples = int(math.log2(spatial_compression)) - int(math.log2(patch_size))
-        assert (
-            self.num_downsamples <= self.num_resolutions
-        ), f"we can only downsample {self.num_resolutions} times at most"
+        assert self.num_downsamples <= self.num_resolutions, (
+            f"we can only downsample {self.num_resolutions} times at most"
+        )
 
         # downsampling
         self.conv_in = torch.nn.Conv2d(in_channels, channels, kernel_size=3, stride=1, padding=1)
@@ -308,6 +313,7 @@ class Encoder(nn.Module):
 
 class Decoder(nn.Module):
     """Decoder implementation."""
+
     def __init__(
         self,
         out_channels: int,

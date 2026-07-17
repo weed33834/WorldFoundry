@@ -23,6 +23,7 @@ from torchvision.transforms import GaussianBlur
 
 class BasePipeline(torch.nn.Module):
     """Base pipeline implementation."""
+
     def __init__(self, device="cuda", torch_dtype=torch.float16, height_division_factor=64, width_division_factor=64):
         """Init.
 

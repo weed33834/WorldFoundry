@@ -92,6 +92,7 @@ def _create_adj_groups(
 
 class _ModulePlugin:
     """Module plugin implementation."""
+
     def __init__(self, module, module_id, plugin_config, cp_group, grid_shape, in_row_adj_groups, in_col_adj_groups):
         """Init.
 
@@ -174,6 +175,7 @@ class _ModulePlugin:
 
 class _Conv3DSafeNewPlugin(_ModulePlugin):
     """Conv d safe new plugin implementation."""
+
     def __init__(
         self,
         module,
@@ -366,6 +368,7 @@ class _Conv3DSafeNewPlugin(_ModulePlugin):
 
 class _Conv2DSafeNewPlugin(_ModulePlugin):
     """Conv d safe new plugin implementation."""
+
     def __init__(
         self,
         module,
@@ -552,6 +555,7 @@ class _Conv2DSafeNewPlugin(_ModulePlugin):
 
 class _Conv2DSafeNewPluginStride2(_ModulePlugin):
     """Conv d safe new plugin stride implementation."""
+
     def __init__(
         self,
         module,
@@ -757,6 +761,7 @@ class _Conv2DSafeNewPluginStride2(_ModulePlugin):
 
 class _WanAttentionPlugin(_ModulePlugin):
     """Wan attention plugin implementation."""
+
     def __init__(
         self,
         module,
@@ -833,6 +838,7 @@ class _WanAttentionPlugin(_ModulePlugin):
 
 class _ResamplePlugin(_ModulePlugin):
     """Resample plugin implementation."""
+
     def __init__(
         self,
         module,

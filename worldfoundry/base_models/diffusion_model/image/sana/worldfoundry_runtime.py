@@ -8,11 +8,10 @@ import os
 import shutil
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from worldfoundry.core.io.paths import checkpoint_root_path
+from worldfoundry.core.io.paths import checkpoint_root_path, resolve_local_hf_model_path
 from worldfoundry.base_models.diffusion_model.video.wan import wan_variant_root
 
 from .variants import SANA_VARIANTS, config_root, get_sana_variant, runtime_root
@@ -20,6 +19,9 @@ from .variants import SANA_VARIANTS, config_root, get_sana_variant, runtime_root
 _SANA_PACKAGE_DIR = Path(__file__).resolve().parent
 SANA_WM_RUNTIME_DIR = _SANA_PACKAGE_DIR
 SANA_WM_OFFICIAL_ENTRYPOINT = _SANA_PACKAGE_DIR / "inference_video_scripts" / "inference_sana_wm.py"
+SANA_STREAMING_OFFICIAL_ENTRYPOINT = (
+    _SANA_PACKAGE_DIR / "inference_video_scripts" / "v2v" / "inference_sana_streaming.py"
+)
 
 
 class SanaRuntime:
@@ -166,9 +168,24 @@ class SanaRuntime:
         if existing:
             pythonpath_parts.append(existing)
         env = os.environ.copy()
+        for name in (
+            "WORLDFOUNDRY_HF_LOCAL_FILES_ONLY",
+            "HF_HUB_OFFLINE",
+            "TRANSFORMERS_OFFLINE",
+            "DIFFUSERS_OFFLINE",
+        ):
+            value = env.get(name)
+            if value is not None and value.strip().lower() not in {"1", "true", "yes", "on"}:
+                raise ValueError(
+                    f"Sana inference requires offline model loading; {name}={value!r} is not allowed."
+                )
         env["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)
         env["WORLDFOUNDRY_SANA_CONFIG_ROOT"] = str(self._config_root())
         env.setdefault("TOKENIZERS_PARALLELISM", "false")
+        env["WORLDFOUNDRY_HF_LOCAL_FILES_ONLY"] = "1"
+        env["HF_HUB_OFFLINE"] = "1"
+        env["TRANSFORMERS_OFFLINE"] = "1"
+        env["DIFFUSERS_OFFLINE"] = "1"
         return env
 
     def _resolve_config_path(self, value: str | Path) -> Path:
@@ -225,6 +242,27 @@ class SanaRuntime:
             local_file = cls._local_hf_file(value)
             if local_file is not None:
                 return str(local_file), True
+            if value.startswith("hf://"):
+                raise FileNotFoundError(
+                    f"Sana local asset is missing for {value!r}. "
+                    "Pre-download the pinned repository before inference."
+                )
+            direct_checkpoint = checkpoint_root_path(value)
+            if direct_checkpoint.is_dir():
+                return str(direct_checkpoint.resolve()), True
+            is_repo_id = (
+                value.count("/") == 1
+                and not value.startswith(("/", ".", "~"))
+                and "://" not in value
+            )
+            if is_repo_id:
+                try:
+                    return str(resolve_local_hf_model_path(value)), True
+                except FileNotFoundError as exc:
+                    raise FileNotFoundError(
+                        f"Sana checkpoint repository {value!r} is not staged locally. "
+                        "Pre-download the pinned repository before inference."
+                    ) from exc
             return value, False
         if isinstance(value, list):
             changed = False
@@ -325,7 +363,10 @@ class SanaRuntime:
         for candidate in candidates:
             if candidate and (candidate / "model_index.json").is_file():
                 return str(candidate.resolve())
-        return repo_id
+        raise FileNotFoundError(
+            f"Sana diffusers checkpoint {repo_id!r} is not staged locally. "
+            "Pre-download the pinned repository before inference."
+        )
 
     def _plan_path(self, output_path: str | Path | None) -> Path:
         """Helper function to plan path.
@@ -395,6 +436,25 @@ class SanaRuntime:
         image.save(target)
         return str(target)
 
+    def _materialize_video(self, video: Any) -> str:
+        """Resolve a source video path accepted by the official V2V runner."""
+        if isinstance(video, Mapping):
+            video = video.get("video_path") or video.get("path") or video.get("uri")
+        if video is None:
+            raise ValueError(f"{self.model_id} requires a source video input.")
+        if not isinstance(video, (str, os.PathLike)):
+            raise TypeError(
+                f"{self.model_id} expects video to be a local path or hf:// URI, got {type(video).__name__}."
+            )
+        value = str(video)
+        if value.startswith("hf://"):
+            local_file = self._local_hf_file(value)
+            return str(local_file) if local_file is not None else value
+        path = Path(value).expanduser()
+        if not path.is_file():
+            raise FileNotFoundError(f"SANA-Streaming source video not found: {path}")
+        return str(path.resolve())
+
     @staticmethod
     def _latest_artifact(work_dir: Path, suffixes: tuple[str, ...]) -> Path:
         """Helper function to latest artifact.
@@ -463,21 +523,38 @@ class SanaRuntime:
             The return value.
         """
         root = self._runtime_root()
-        completed = subprocess.run(
-            argv,
-            cwd=str(root),
-            env=self._subprocess_env(),
-            check=False,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
         log_path = target.with_suffix(target.suffix + ".sana.log")
         log_path.parent.mkdir(parents=True, exist_ok=True)
-        log_path.write_text(completed.stdout or "", encoding="utf-8")
-        if completed.returncode != 0:
+        # Write output as it arrives.  The former subprocess.run(..., PIPE)
+        # implementation kept every line in memory and left a minutes-long
+        # CPFS/model startup looking completely silent until process exit.
+        with log_path.open("w", encoding="utf-8", buffering=1) as log_file:
+            process = subprocess.Popen(
+                argv,
+                cwd=str(root),
+                env=self._subprocess_env(),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+            )
+            try:
+                assert process.stdout is not None
+                for line in process.stdout:
+                    log_file.write(line)
+                    log_file.flush()
+                returncode = process.wait()
+            except BaseException:
+                process.terminate()
+                try:
+                    process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+                raise
+        if returncode != 0:
             raise RuntimeError(
-                f"Sana runner for {self.model_id} failed with code {completed.returncode}; see {log_path}"
+                f"Sana runner for {self.model_id} failed with code {returncode}; see {log_path}"
             )
         del work_dir
 
@@ -514,16 +591,18 @@ class SanaRuntime:
         ):
             diffusers.SanaVideoCausalTransformer3DModel = diffusers.SanaVideoTransformer3DModel
 
-        local_files_only = os.environ.get("WORLDFOUNDRY_HF_LOCAL_FILES_ONLY", "").lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
+        requested_local_only = os.environ.get("WORLDFOUNDRY_HF_LOCAL_FILES_ONLY")
+        if requested_local_only is not None and requested_local_only.strip().lower() not in {
+            "1", "true", "yes", "on"
+        }:
+            raise ValueError(
+                "Sana inference does not allow WORLDFOUNDRY_HF_LOCAL_FILES_ONLY=false."
+            )
         dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
-        load_kwargs: dict[str, Any] = {"torch_dtype": dtype}
-        if not Path(str(model_ref)).exists():
-            load_kwargs["local_files_only"] = local_files_only
+        load_kwargs: dict[str, Any] = {
+            "torch_dtype": dtype,
+            "local_files_only": True,
+        }
         pipe = SanaVideoPipeline.from_pretrained(model_ref, **load_kwargs)
         pipe.to(self.device)
         if hasattr(pipe, "enable_vae_tiling"):
@@ -556,6 +635,8 @@ class SanaRuntime:
 
     def _video_default_size(self) -> tuple[int, int]:
         """Return the official default video size for the selected Sana video variant."""
+        if self.variant.default_height is not None and self.variant.default_width is not None:
+            return self.variant.default_height, self.variant.default_width
         if self.variant.resolution == "720p":
             return 720, 1280
         return 480, 832
@@ -576,13 +657,20 @@ class SanaRuntime:
         Returns:
             The return value.
         """
+        local_model_path = self._local_hf_file(self.model_path)
+        if self.model_path.startswith("hf://") and local_model_path is None:
+            raise FileNotFoundError(
+                f"Sana checkpoint {self.model_path!r} is not staged locally. "
+                "Pre-download the pinned repository before inference."
+            )
+        resolved_model_path = str(local_model_path) if local_model_path is not None else self.model_path
         argv = [
             self.python_executable,
             str(script),
             "--config",
             str(config_path),
             "--model_path",
-            self.model_path,
+            resolved_model_path,
             "--work_dir",
             str(work_dir),
             "--sample_nums",
@@ -693,12 +781,85 @@ class SanaRuntime:
             argv.extend(["--num_frames", str(num_frames)])
         return argv
 
+    def _streaming_command(
+        self,
+        *,
+        config_path: Path,
+        work_dir: Path,
+        prompt: str,
+        video_path: str,
+        seed: int,
+        cfg_scale: float,
+        step: int,
+        fps: int,
+        num_frames: int,
+        height: int,
+        width: int,
+        negative_prompt: str | None,
+        flow_shift: float | None,
+        motion_score: int | None,
+        num_cached_blocks: int,
+        sink_token: bool,
+    ) -> list[str]:
+        """Build the official SANA-Streaming V2V CLI invocation."""
+        local_model_path = self._local_hf_file(self.model_path)
+        if self.model_path.startswith("hf://") and local_model_path is None:
+            raise FileNotFoundError(
+                f"SANA-Streaming checkpoint {self.model_path!r} is not staged locally. "
+                "Pre-download the pinned repository before inference."
+            )
+        resolved_model_path = str(local_model_path) if local_model_path is not None else self.model_path
+        argv = [
+            self.python_executable,
+            str(SANA_STREAMING_OFFICIAL_ENTRYPOINT),
+            "--mode",
+            str(self.variant.mode or "long_streaming"),
+            "--config",
+            str(config_path),
+            "--model_path",
+            resolved_model_path,
+            "--prompt",
+            prompt,
+            "--video_path",
+            video_path,
+            "--output_dir",
+            str(work_dir),
+            "--output_name",
+            "sana_streaming_output.mp4",
+            "--num_frames",
+            str(num_frames),
+            "--height",
+            str(height),
+            "--width",
+            str(width),
+            "--fps",
+            str(fps),
+            "--step",
+            str(step),
+            "--cfg_scale",
+            str(cfg_scale),
+            "--seed",
+            str(seed),
+            "--num_cached_blocks",
+            str(num_cached_blocks),
+            "--sink_token",
+            str(sink_token).lower(),
+        ]
+        if negative_prompt is not None:
+            argv.extend(["--negative_prompt", negative_prompt])
+        if flow_shift is not None:
+            argv.extend(["--flow_shift", str(flow_shift)])
+        if motion_score is not None:
+            argv.extend(["--motion_score", str(motion_score)])
+        return argv
+
     def _plan(
         self,
         *,
         prompt: str,
         output_path: str | Path | None,
         command: list[str] | None = None,
+        source_video_path: str | None = None,
     ) -> dict[str, Any]:
         """Helper function to plan.
 
@@ -719,6 +880,8 @@ class SanaRuntime:
             "command": command,
             "notes": self.variant.notes,
         }
+        if source_video_path is not None:
+            payload["source_video_path"] = source_video_path
         if output_path is not None:
             target = self._plan_path(output_path)
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -737,7 +900,7 @@ class SanaRuntime:
         **kwargs: Any,
     ) -> dict[str, Any]:
         """Run one Sana variant or return an explicit execution plan."""
-        del video, interactions
+        del interactions
         seed_value = kwargs.pop("seed", 42)
         seed = int(42 if seed_value is None else seed_value)
         cfg_scale = float(kwargs.pop("cfg_scale", kwargs.pop("guidance_scale", self.variant.default_cfg_scale or 4.5)))
@@ -756,6 +919,7 @@ class SanaRuntime:
         target = self._target_path(output_path, self.variant.default_extension)
         prompt_file = self._write_prompt_file(prompt, work_dir)
         config_path = self._materialize_config(work_dir)
+        source_video_path: str | None = None
 
         if self.variant.runner in {"image", "sprint"}:
             command = self._image_command(
@@ -840,11 +1004,43 @@ class SanaRuntime:
                 num_frames=num_frames,
             )
             suffixes = (".mp4",)
+        elif self.variant.runner == "streaming":
+            source_video = kwargs.pop("video_path", kwargs.pop("source_video", video))
+            source_video_path = self._materialize_video(source_video)
+            fps_value = int(fps or self.variant.default_fps or 16)
+            default_height, default_width = self._video_default_size()
+            resolved_num_frames = int(num_frames or self.variant.default_num_frames or 969)
+            resolved_height = int(height or default_height)
+            resolved_width = int(width or default_width)
+            command = self._streaming_command(
+                config_path=config_path,
+                work_dir=work_dir,
+                prompt=prompt,
+                video_path=source_video_path,
+                seed=seed,
+                cfg_scale=cfg_scale,
+                step=int(step or self.variant.default_steps or 4),
+                fps=fps_value,
+                num_frames=resolved_num_frames,
+                height=resolved_height,
+                width=resolved_width,
+                negative_prompt=kwargs.pop("negative_prompt", None),
+                flow_shift=kwargs.pop("flow_shift", None),
+                motion_score=kwargs.pop("motion_score", None),
+                num_cached_blocks=int(kwargs.pop("num_cached_blocks", 2)),
+                sink_token=bool(kwargs.pop("sink_token", True)),
+            )
+            suffixes = (".mp4",)
         else:
             raise ValueError(f"Unsupported Sana runner {self.variant.runner!r} for {self.model_id}.")
 
         if plan_only:
-            return self._plan(prompt=prompt, output_path=output_path, command=command)
+            return self._plan(
+                prompt=prompt,
+                output_path=output_path,
+                command=command,
+                source_video_path=source_video_path,
+            )
 
         self._run_subprocess(command, work_dir, target)
         source = self._latest_artifact(work_dir, suffixes)
@@ -866,10 +1062,12 @@ class SanaRuntime:
             "source_config_path": str(self._resolve_config_path(self.config_path)),
             "model_path": self.model_path,
             "prompt": prompt,
+            "source_video_path": source_video_path,
         }
 
 
 __all__ = [
+    "SANA_STREAMING_OFFICIAL_ENTRYPOINT",
     "SANA_WM_OFFICIAL_ENTRYPOINT",
     "SANA_WM_RUNTIME_DIR",
     "SanaRuntime",

@@ -120,13 +120,11 @@ from glob import glob
 import mediapy
 import numpy as np
 import torch
-from loguru import logger
-
-from worldfoundry.core.distributed import torch_process_group as distributed
 from cosmos_predict2._src.predict2.action.inference.inference_pipeline import (
     _DEFAULT_NEGATIVE_PROMPT,
     ActionVideo2WorldInference,
 )
+from loguru import logger
 
 _IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", "webp"]
 _VIDEO_EXTENSIONS = [".mp4"]
@@ -230,7 +228,6 @@ def main():
 
     # Determine supported extensions based on num_latent_conditional_frames
     if args.num_latent_conditional_frames > 1:
-        supported_extensions = _VIDEO_EXTENSIONS
         # Check if input folder contains any videos
         has_videos = False
         for file_name in os.listdir(args.input_root):
@@ -248,7 +245,6 @@ def main():
 
         logger.info(f"Using video-only mode with {args.num_latent_conditional_frames} conditional frames")
     elif args.num_latent_conditional_frames == 1:
-        supported_extensions = _IMAGE_EXTENSIONS + _VIDEO_EXTENSIONS
         logger.info(f"Using image+video mode with {args.num_latent_conditional_frames} conditional frame")
 
     # Initialize the inference handler with context parallel support
@@ -263,10 +259,6 @@ def main():
     input_video_path = os.path.join(args.input_video_root)
 
     # Only process files on rank 0 if using distributed processing
-    rank0 = True
-    if args.context_parallel_size > 1:
-        rank0 = distributed.get_rank() == 0
-
     # pdb.set_trace()
     video_list = glob(os.path.join(input_video_path, "*.mp4"))
     input_json_list = [video_path.replace(".mp4", "_actions.npy") for video_path in video_list]

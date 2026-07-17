@@ -38,7 +38,7 @@ class SchedulerInterface(ABC):
         alpha_prod_t = alphas_cumprod[timestep].reshape(-1, 1, 1, 1)
         beta_prod_t = 1 - alpha_prod_t
 
-        noise_pred = (xt - alpha_prod_t ** 0.5 * x0) / beta_prod_t ** 0.5
+        noise_pred = (xt - alpha_prod_t**0.5 * x0) / beta_prod_t**0.5
         return noise_pred.to(original_dtype)
 
     def convert_noise_to_x0(
@@ -57,7 +57,7 @@ class SchedulerInterface(ABC):
         alpha_prod_t = alphas_cumprod[timestep].reshape(-1, 1, 1, 1)
         beta_prod_t = 1 - alpha_prod_t
 
-        x0_pred = (xt - beta_prod_t ** 0.5 * noise) / alpha_prod_t ** 0.5
+        x0_pred = (xt - beta_prod_t**0.5 * noise) / alpha_prod_t**0.5
         return x0_pred.to(original_dtype)
 
     def convert_velocity_to_x0(
@@ -76,7 +76,7 @@ class SchedulerInterface(ABC):
         alpha_prod_t = alphas_cumprod[timestep].reshape(-1, 1, 1, 1)
         beta_prod_t = 1 - alpha_prod_t
 
-        x0_pred = alpha_prod_t ** 0.5 * xt - beta_prod_t ** 0.5 * velocity
+        x0_pred = alpha_prod_t**0.5 * xt - beta_prod_t**0.5 * velocity
         return x0_pred.to(original_dtype)
 
 

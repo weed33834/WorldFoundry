@@ -25,6 +25,7 @@ from timm.models.vision_transformer import Mlp
 
 from diffusion.model.act import build_act, get_act_name
 from diffusion.model.norms import build_norm, get_norm_name
+from diffusion.model.registry import FFN_BLOCKS
 from diffusion.model.utils import get_same_padding, val2tuple
 
 
@@ -424,6 +425,7 @@ class ChunkGLUMBConvTemp(GLUMBConvTemp):
         return x_out
 
 
+@FFN_BLOCKS.register_module()
 class CachedGLUMBConvTemp(GLUMBConvTemp):
     """Cached glumb conv temp implementation."""
     def __init__(self, *args, **kwargs):
@@ -455,15 +457,26 @@ class CachedGLUMBConvTemp(GLUMBConvTemp):
         padding_size = self.t_conv.kernel_size[0] // 2
         x_t_conv_in = x_reshaped
         padded_size = 0
-        # Use internal cache with the same logic as before
+        # Tconv state lives in the last slot of the per-block KV cache list.
+        # This is compatible with both the legacy three-slot cache and the
+        # fixed-RoPE cache where q/k/v occupy indices 0..2.
         if kv_cache is not None:
-            if kv_cache[2] is not None:
+            if kv_cache[-1] is not None:
+                cached_tconv = kv_cache[-1][:, :, -padding_size:]
+                expected = (B, C, H * W)
+                actual = (cached_tconv.shape[0], cached_tconv.shape[1], cached_tconv.shape[3])
+                if actual != expected:
+                    raise RuntimeError(
+                        "CachedGLUMBConvTemp cache layout mismatch: "
+                        f"expected (batch, channels, spatial)={expected}, got {actual}; "
+                        f"cache_slots={len(kv_cache)}, HW={HW}"
+                    )
                 # Use previous chunk's temporal convolution cache
-                x_t_conv_in = torch.cat([kv_cache[2], x_reshaped], dim=2)  # B,C,P+T,HW
-                padded_size = kv_cache[2].shape[2]
+                x_t_conv_in = torch.cat([cached_tconv, x_reshaped], dim=2)  # B,C,P+T,HW
+                padded_size = x_t_conv_in.shape[2] - x_reshaped.shape[2]
 
             if save_kv_cache:  # Save current chunk's cache for next chunk
-                kv_cache[2] = x_reshaped[:, :, -padding_size:, :].detach().clone()
+                kv_cache[-1] = x_reshaped[:, :, -padding_size:, :].detach().clone()
 
         t_conv_out = self.t_conv(x_t_conv_in)[:, :, padded_size:]
         x_out = x_reshaped + t_conv_out

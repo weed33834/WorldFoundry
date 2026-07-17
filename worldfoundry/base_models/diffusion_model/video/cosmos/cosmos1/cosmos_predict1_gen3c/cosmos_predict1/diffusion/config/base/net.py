@@ -19,8 +19,9 @@ import copy
 
 from cosmos_predict1.diffusion.networks.general_dit import GeneralDIT
 from cosmos_predict1.diffusion.networks.general_dit_multiview import MultiviewGeneralDIT
-from cosmos_predict1.utils.lazy_config import LazyCall as L
-from cosmos_predict1.utils.lazy_config import LazyDict
+
+from worldfoundry.core.configuration.lazy_config import LazyCall as L
+from worldfoundry.core.configuration.lazy_config import LazyDict
 
 FADITV2Config: LazyDict = L(GeneralDIT)(
     max_img_h=240,

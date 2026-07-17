@@ -30,6 +30,7 @@ from worldfoundry.base_models.diffusion_model.video.cosmos.shared.runge_kutta im
 
 class RectifiedFlowAB2Scheduler(KDPM2DiscreteScheduler):
     """Rectified flow scheduler implementation."""
+
     @register_to_config
     def __init__(
         self,

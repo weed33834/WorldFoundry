@@ -5,11 +5,12 @@ from __future__ import annotations
 from importlib import import_module
 from typing import Any
 
-
 _EXPORT_MODULES = {
     "AttentionBackendInfo": "worldfoundry.core.attention.native",
     "DropPath": "worldfoundry.core.nn.layers",
+    "DomainAwareLinear": "worldfoundry.core.nn.layers",
     "FlowMatchScheduler": "worldfoundry.core.nn.diffusion_schedulers",
+    "InferenceCheckpointModule": "worldfoundry.core.nn.checkpoint_compat",
     "LayerNorm2d": "worldfoundry.core.nn.layers",
     "LayerScale": "worldfoundry.core.nn.layers",
     "SamHeadMLP": "worldfoundry.core.nn.layers",
@@ -45,6 +46,7 @@ _EXPORT_MODULES = {
     "merge_attention_heads": "worldfoundry.core.nn.transformer",
     "make_2tuple": "worldfoundry.core.nn.layers",
     "mlp_hidden_size": "worldfoundry.core.nn.transformer",
+    "named_apply": "worldfoundry.core.nn.module_utils",
     "patchify_image": "worldfoundry.core.nn.patching",
     "rms_norm": "worldfoundry.core.nn.normalization",
     "rotary_frequencies": "worldfoundry.core.attention.rope",

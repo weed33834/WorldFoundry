@@ -18,19 +18,20 @@ from pathlib import Path
 
 import numpy as np
 import torch
-
-from cosmos_predict2._src.imaginaire.auxiliary.guardrail.common import presets as guardrail_presets
-from cosmos_predict2._src.imaginaire.flags import VALIDATION
-from cosmos_predict2._src.imaginaire.lazy_config.lazy import LazyConfig
-from worldfoundry.core.distributed import torch_process_group as distributed
-from cosmos_predict2._src.imaginaire.utils import log
+from cosmos_predict2._src.predict2.guardrail.common import presets as guardrail_presets
 from cosmos_predict2._src.predict2.inference.video2world import Video2WorldInference
 from cosmos_predict2.config import InferenceArguments, SetupArguments, path_to_str
+
+from worldfoundry.core.configuration.flags import VALIDATION
+from worldfoundry.core.configuration.lazy_config import LazyConfig
+from worldfoundry.core.distributed import torch_process_group as distributed
+from worldfoundry.core.distributed.logging import log
 from worldfoundry.studio.visualization.plugins.media.cosmos_predict2 import save_img_or_video
 
 
 class Inference:
     """Inference implementation."""
+
     def __init__(self, args: SetupArguments):
         """Init.
 
@@ -141,7 +142,7 @@ class Inference:
         # Choose generation mode based on autoregressive flag
         video: torch.Tensor
         if sample.enable_autoregressive:
-            log.info(f"Generating video with autoregressive mode...")
+            log.info("Generating video with autoregressive mode...")
             video = self.pipe.generate_autoregressive_from_batch(
                 prompt=sample.prompt,
                 input_path=path_to_str(sample.input_path),
@@ -156,7 +157,7 @@ class Inference:
                 num_steps=sample.num_steps,
             )
         else:
-            log.info(f"Generating video with standard mode...")
+            log.info("Generating video with standard mode...")
             video = self.pipe.generate_vid2world(
                 prompt=sample.prompt,
                 input_path=path_to_str(sample.input_path),

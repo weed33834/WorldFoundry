@@ -16,10 +16,12 @@
 """Module for base_models -> three_dimensions -> general_3d -> vipe -> ext -> __init__.py functionality."""
 
 import os
+import sys
 
-from torch.utils.cpp_extension import load
-
-from worldfoundry.base_models.three_dimensions.general_3d.vipe.ext.specs import get_cpp_flags, get_cuda_flags, get_sources
+from worldfoundry.base_models.three_dimensions.general_3d.vipe.ext.build import (
+    NativeExtensionUnavailable,
+    load_native_extension,
+)
 
 
 class _MissingVipeExtModule:
@@ -75,28 +77,14 @@ class _MissingVipeExt:
 
 
 try:
-    import vipe_ext as _C
-
+    _C = load_native_extension(
+        build_if_missing=os.environ.get("VIPE_EXT_JIT", "0") == "1",
+        verbose=os.environ.get("VIPE_EXT_VERBOSE", "0") == "1",
+    )
     vipe_ext_not_found = False
-except ImportError:
+except NativeExtensionUnavailable as exc:
     vipe_ext_not_found = True
-
-if vipe_ext_not_found or os.environ.get("VIPE_EXT_JIT", "0") == "1":
-    sources = get_sources()
-    if sources:
-        _C = load(
-            name="vipe_ext_jit",
-            sources=sources,
-            extra_cflags=get_cpp_flags(),
-            extra_cuda_cflags=get_cuda_flags(),
-            verbose=True,
-        )
-    else:
-        _C = _MissingVipeExt(
-            "No C++/CUDA sources were found in the vendored VIPE extension tree; "
-            "pure-Python VIPE helpers remain importable, but SLAM/scatter kernels "
-            "must be built or installed before use."
-        )
+    _C = _MissingVipeExt(str(exc))
 
 # Reference to submodules
 droid_net_ext = _C.droid_net_ext
@@ -106,3 +94,8 @@ slam_ext = _C.slam_ext
 scatter_ext = _C.scatter_ext
 lietorch_ext = _C.lietorch_ext
 corr_ext = _C.corr_ext
+
+if not vipe_ext_not_found:
+    # Some upstream consumers import the pybind submodule directly. The
+    # extension still has one canonical binary; this is only an import alias.
+    sys.modules.setdefault("lietorch_ext", lietorch_ext)

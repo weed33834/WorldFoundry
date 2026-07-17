@@ -16,9 +16,10 @@
 """Module for base_models -> diffusion_model -> video -> cosmos -> cosmos1 -> cosmos_predict1_gen3c -> cosmos_predict1 -> diffusion -> utils -> peft -> peft.py functionality."""
 
 from cosmos_predict1.diffusion.utils.peft.lora_attn import build_attn_lora
-from worldfoundry.base_models.diffusion_model.video.cosmos.shared.customization_manager import CustomizationType
 from cosmos_predict1.utils import log
 from cosmos_predict1.utils.misc import count_params
+
+from worldfoundry.base_models.diffusion_model.video.cosmos.shared.customization_manager import CustomizationType
 
 
 def get_all_lora_params(model):

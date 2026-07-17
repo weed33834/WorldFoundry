@@ -28,6 +28,14 @@ class TensorAndHandler:
 
 
 class PPScheduler:
+    """Minimal point-to-point scheduler for adjacent pipeline stages.
+
+    The scheduler owns a CUDA receive buffer queue and exposes synchronous and
+    asynchronous helpers around the model-parallel pipeline group. Initialize
+    the process-wide instance with ``init_pp_scheduler`` and retrieve it with
+    ``pp_scheduler``.
+    """
+
     def __init__(self):
         """Initialize an instance of the PPScheduler class"""
 
@@ -57,7 +65,9 @@ class PPScheduler:
         Returns:
             torch.distributed.Work: The handle for the receive operation.
         """
-        handle = torch.distributed.irecv(buffer, src=mpu.get_pipeline_model_parallel_prev_rank(), group=mpu.get_pp_group())
+        handle = torch.distributed.irecv(
+            buffer, src=mpu.get_pipeline_model_parallel_prev_rank(), group=mpu.get_pp_group()
+        )
         return handle
 
     def recv_prev_data(self, shape: torch.Size, dtype: torch.dtype) -> torch.Tensor:

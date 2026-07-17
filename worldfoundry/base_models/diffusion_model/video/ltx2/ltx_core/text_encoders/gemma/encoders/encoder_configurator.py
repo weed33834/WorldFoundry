@@ -45,12 +45,25 @@ class EmbeddingsProcessorConfigurator(ModelConfigurator[EmbeddingsProcessor]):
         audio_connector = AudioEmbeddings1DConnectorConfigurator.from_config(config)
 
         # Create feature extractor
-        feature_extractor = _create_feature_extractor(transformer_config)
+        feature_extractor = _create_feature_extractor(transformer_config, is_av=True)
 
         return EmbeddingsProcessor(
             video_connector=video_connector,
             audio_connector=audio_connector,
             feature_extractor=feature_extractor,
+        )
+
+
+class VideoEmbeddingsProcessorConfigurator(ModelConfigurator[EmbeddingsProcessor]):
+    """Create the canonical LTX text connector for a video-only checkpoint."""
+
+    @classmethod
+    def from_config(cls, config: dict) -> EmbeddingsProcessor:
+        transformer_config = config.get("transformer", {})
+        return EmbeddingsProcessor(
+            video_connector=Embeddings1DConnectorConfigurator.from_config(config),
+            audio_connector=None,
+            feature_extractor=_create_feature_extractor(transformer_config, is_av=False),
         )
 
 
@@ -62,7 +75,7 @@ _V2_EXPECTED_CONFIG = {
 }
 
 
-def _create_feature_extractor(transformer_config: dict) -> torch.nn.Module:
+def _create_feature_extractor(transformer_config: dict, *, is_av: bool) -> torch.nn.Module:
     """Select and create the appropriate feature extractor based on config.
     Detection logic:
     - V1: V2 config keys absent → projection lives in transformer
@@ -77,7 +90,7 @@ def _create_feature_extractor(transformer_config: dict) -> torch.nn.Module:
     overlapping_keys = transformer_config.keys() & _V2_EXPECTED_CONFIG.keys()
     if not overlapping_keys:
         aggregate_embed = torch.nn.Linear(flat_dim, embedding_dim, bias=False)
-        return FeatureExtractorV1(aggregate_embed=aggregate_embed, is_av=True)
+        return FeatureExtractorV1(aggregate_embed=aggregate_embed, is_av=is_av)
 
     missing_keys = _V2_EXPECTED_CONFIG.keys() - overlapping_keys
     if missing_keys:
@@ -93,11 +106,19 @@ def _create_feature_extractor(transformer_config: dict) -> torch.nn.Module:
         )
 
     video_inner_dim = transformer_config["num_attention_heads"] * transformer_config["attention_head_dim"]
-    audio_inner_dim = transformer_config["audio_num_attention_heads"] * transformer_config["audio_attention_head_dim"]
+    audio_inner_dim = (
+        transformer_config["audio_num_attention_heads"] * transformer_config["audio_attention_head_dim"]
+        if is_av
+        else None
+    )
     return FeatureExtractorV2(
         video_aggregate_embed=torch.nn.Linear(flat_dim, video_inner_dim, bias=True),
         embedding_dim=embedding_dim,
-        audio_aggregate_embed=torch.nn.Linear(flat_dim, audio_inner_dim, bias=True),
+        audio_aggregate_embed=(
+            torch.nn.Linear(flat_dim, audio_inner_dim, bias=True)
+            if audio_inner_dim is not None
+            else None
+        ),
     )
 
 
@@ -169,8 +190,10 @@ VIDEO_ONLY_EMBEDDINGS_PROCESSOR_KEY_OPS = (
     .with_matching(prefix="text_embedding_projection.video_aggregate_embed.")
     .with_replacement("text_embedding_projection.video_aggregate_embed.", "feature_extractor.video_aggregate_embed.")
     # 2. Map the connectors
+    .with_matching(prefix="model.diffusion_model.video_embeddings_connector.")
     .with_matching(prefix="model.diffusion_model.embeddings_connector.")
-    .with_replacement("model.diffusion_model.embeddings_connector.", "embeddings_processor.video_connector.")
+    .with_replacement("model.diffusion_model.video_embeddings_connector.", "video_connector.")
+    .with_replacement("model.diffusion_model.embeddings_connector.", "video_connector.")
 )
 
 

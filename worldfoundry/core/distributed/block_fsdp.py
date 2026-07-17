@@ -18,21 +18,20 @@ def shard_model(
     process_group=None,
     sharding_strategy=ShardingStrategy.FULL_SHARD,
     sync_module_states=True,
-    use_lora=False
+    use_lora=False,
 ):
     model = FSDP(
         module=model,
         process_group=process_group,
         sharding_strategy=sharding_strategy,
-        auto_wrap_policy=partial(
-            lambda_auto_wrap_policy, lambda_fn=lambda m: m in model.blocks),
-        mixed_precision=MixedPrecision(
-            param_dtype=param_dtype,
-            reduce_dtype=reduce_dtype,
-            buffer_dtype=buffer_dtype),
+        auto_wrap_policy=partial(lambda_auto_wrap_policy, lambda_fn=lambda m: m in model.blocks),
+        mixed_precision=MixedPrecision(param_dtype=param_dtype, reduce_dtype=reduce_dtype, buffer_dtype=buffer_dtype),
         device_id=device_id,
+        forward_prefetch=True,
+        limit_all_gathers=True,
         sync_module_states=sync_module_states,
-        use_orig_params=True if use_lora else False)
+        use_orig_params=True if use_lora else False,
+    )
     return model
 
 
@@ -50,15 +49,14 @@ def shard_model_orig_params(
         module=model,
         process_group=process_group,
         sharding_strategy=sharding_strategy,
-        auto_wrap_policy=partial(
-            lambda_auto_wrap_policy, lambda_fn=lambda m: m in model.blocks),
-        mixed_precision=MixedPrecision(
-            param_dtype=param_dtype,
-            reduce_dtype=reduce_dtype,
-            buffer_dtype=buffer_dtype),
+        auto_wrap_policy=partial(lambda_auto_wrap_policy, lambda_fn=lambda m: m in model.blocks),
+        mixed_precision=MixedPrecision(param_dtype=param_dtype, reduce_dtype=reduce_dtype, buffer_dtype=buffer_dtype),
         device_id=device_id,
+        forward_prefetch=True,
+        limit_all_gathers=True,
         sync_module_states=sync_module_states,
-        use_orig_params=True)
+        use_orig_params=True,
+    )
 
 
 def free_model(model):

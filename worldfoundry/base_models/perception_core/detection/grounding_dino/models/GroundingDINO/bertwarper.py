@@ -8,12 +8,20 @@
 """Module for base_models -> perception_core -> detection -> grounding_dino -> models -> GroundingDINO -> bertwarper.py functionality."""
 
 import torch
+import inspect
 import torch.nn.functional as F
 import torch.utils.checkpoint as checkpoint
 from torch import Tensor, nn
 from torchvision.ops.boxes import nms
 from transformers import BertConfig, BertModel, BertPreTrainedModel
 from transformers.modeling_outputs import BaseModelOutputWithPoolingAndCrossAttentions
+
+from worldfoundry.core.nn.transformers_compat import prepare_head_mask
+
+# Keep the private helper name used by the in-tree GroundingDINO compatibility
+# tests and by older callers.  Newer Transformers versions removed the model
+# method, so both the wrapper and direct callers must share the same fallback.
+_prepare_head_mask = prepare_head_mask
 
 
 class BertModelWarper(nn.Module):
@@ -33,8 +41,9 @@ class BertModelWarper(nn.Module):
         self.pooler = bert_model.pooler
 
         self.get_extended_attention_mask = bert_model.get_extended_attention_mask
+        self._extended_mask_uses_dtype = "dtype" in inspect.signature(self.get_extended_attention_mask).parameters
         self.invert_attention_mask = bert_model.invert_attention_mask
-        self.get_head_mask = bert_model.get_head_mask
+        self.get_head_mask = getattr(bert_model, "get_head_mask", prepare_head_mask)
 
     def forward(
         self,
@@ -114,9 +123,12 @@ class BertModelWarper(nn.Module):
 
         # We can provide a self-attention mask of dimensions [batch_size, from_seq_length, to_seq_length]
         # ourselves in which case we just need to make it broadcastable to all heads.
-        extended_attention_mask: torch.Tensor = self.get_extended_attention_mask(
-            attention_mask, input_shape, device
-        )
+        if self._extended_mask_uses_dtype:
+            extended_attention_mask = self.get_extended_attention_mask(
+                attention_mask, input_shape, dtype=self.embeddings.word_embeddings.weight.dtype
+            )
+        else:
+            extended_attention_mask = self.get_extended_attention_mask(attention_mask, input_shape, device)
 
         # If a 2D or 3D attention mask is provided for the cross-attention
         # we need to make broadcastable to [batch_size, num_heads, seq_length, seq_length]

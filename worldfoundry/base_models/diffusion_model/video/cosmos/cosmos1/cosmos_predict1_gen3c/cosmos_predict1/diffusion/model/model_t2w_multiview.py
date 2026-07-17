@@ -15,19 +15,17 @@
 
 """Module for base_models -> diffusion_model -> video -> cosmos -> cosmos1 -> cosmos_predict1_gen3c -> cosmos_predict1 -> diffusion -> model -> model_t2w_multiview.py functionality."""
 
-from typing import Optional, Union
-
 import torch
+from cosmos_predict1.diffusion.model.model_t2w import DiffusionT2WModel
 from einops import rearrange
 from torch import Tensor
 
-from cosmos_predict1.diffusion.model.model_t2w import DiffusionT2WModel
 from worldfoundry.core.distributed.context_parallel import cat_outputs_cp, split_inputs_cp
-from cosmos_predict1.utils import log, misc
 
 
 class DiffusionMultiviewT2WModel(DiffusionT2WModel):
     """Diffusion multiview w model implementation."""
+
     def __init__(self, config):
         """Init.
 

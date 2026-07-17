@@ -15,21 +15,20 @@
 
 """Module for base_models -> diffusion_model -> video -> cosmos -> cosmos1 -> cosmos_predict1_gen3c -> cosmos_predict1 -> diffusion -> networks -> general_dit_video_conditioned_multiview.py functionality."""
 
-from typing import Optional, Tuple
+from typing import Optional
 
 import torch
-from einops import rearrange
-from torch import nn
-from torchvision import transforms
-
 from cosmos_predict1.diffusion.conditioner import DataType
-from worldfoundry.core.distributed.context_parallel import split_inputs_cp
 from cosmos_predict1.diffusion.networks.general_dit_multiview import MultiviewGeneralDIT
 from cosmos_predict1.utils import log
+from einops import rearrange
+
+from worldfoundry.core.distributed.context_parallel import split_inputs_cp
 
 
 class MultiviewVideoExtendGeneralDIT(MultiviewGeneralDIT):
     """Multiview video extend general dit implementation."""
+
     def __init__(self, *args, in_channels, **kwargs):
         """Init."""
         # extra channel for video condition mask
@@ -61,9 +60,9 @@ class MultiviewVideoExtendGeneralDIT(MultiviewGeneralDIT):
         B, C, T, H, W = x.shape
 
         if data_type == DataType.VIDEO:
-            assert (
-                condition_video_input_mask is not None
-            ), "condition_video_input_mask is required for video data type; check if your model_obj is extend_model.FSDPDiffusionModel or the base DiffusionModel"
+            assert condition_video_input_mask is not None, (
+                "condition_video_input_mask is required for video data type; check if your model_obj is extend_model.FSDPDiffusionModel or the base DiffusionModel"
+            )
             if self.cp_group is not None:
                 condition_video_input_mask = rearrange(
                     condition_video_input_mask, "B C (V T) H W -> B C V T H W", V=self.n_views

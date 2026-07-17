@@ -57,16 +57,15 @@ from typing import TYPE_CHECKING
 
 import torch
 import torchvision
-from einops import rearrange
-from megatron.core import parallel_state
-from PIL import Image
-
-from cosmos_predict2._src.imaginaire.flags import INTERNAL
-from worldfoundry.core.distributed import torch_process_group as distributed
-from cosmos_predict2._src.imaginaire.utils import log
-from worldfoundry.core.io import read_video as core_read_video
 from cosmos_predict2._src.predict2.inference.get_t5_emb import get_text_embedding
 from cosmos_predict2._src.predict2.utils.model_loader import load_model_from_checkpoint
+from PIL import Image
+
+from worldfoundry.core.configuration.flags import INTERNAL
+from worldfoundry.core.distributed import torch_process_group as distributed
+from worldfoundry.core.distributed.logging import log
+from worldfoundry.core.distributed.megatron_compat import parallel_state
+from worldfoundry.core.io import read_video as core_read_video
 
 _IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp"]
 _VIDEO_EXTENSIONS = [".mp4"]
@@ -573,7 +572,7 @@ class Video2WorldInference:
                 "num_input_video": num_input_video,
                 "num_output_video": num_output_video,
             }
-        
+
         # lam_video = rearrange(data_batch["lam_video"], "b (p t) h w c -> (b p) t h w c", t=2)
         # lam_input = {"videos": lam_video}
         # with torch.no_grad():
@@ -875,7 +874,8 @@ class Video2WorldInference:
         """Clean up distributed resources."""
         if self.context_parallel_size > 1:
             import torch.distributed as dist
-            from megatron.core import parallel_state
+
+            from worldfoundry.core.distributed.megatron_compat import parallel_state
 
             if parallel_state.is_initialized():
                 parallel_state.destroy_model_parallel()

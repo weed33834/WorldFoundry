@@ -48,9 +48,7 @@ class S3FileSystem(FileSystemBase):
         self.s3_client = boto3.client("s3", **config)
 
     @contextmanager
-    def create_stream(
-        self, path: Union[str, os.PathLike], mode: str
-    ) -> Generator[io.IOBase, None, None]:
+    def create_stream(self, path: Union[str, os.PathLike], mode: str) -> Generator[io.IOBase, None, None]:
         """Open an S3 object as a binary stream.
 
         For ``"rb"`` the object is downloaded into an in-memory buffer; for
@@ -85,18 +83,14 @@ class S3FileSystem(FileSystemBase):
         else:
             raise ValueError(f"Unsupported mode: {mode}")
 
-    def concat_path(
-        self, path: Union[str, os.PathLike], suffix: str
-    ) -> Union[str, os.PathLike]:
+    def concat_path(self, path: Union[str, os.PathLike], suffix: str) -> Union[str, os.PathLike]:
         """Concatenate S3 path with suffix."""
         path_str = str(path)
         if path_str.endswith("/"):
             return f"{path_str}{suffix}"
         return f"{path_str}/{suffix}"
 
-    def rename(
-        self, path: Union[str, os.PathLike], new_path: Union[str, os.PathLike]
-    ) -> None:
+    def rename(self, path: Union[str, os.PathLike], new_path: Union[str, os.PathLike]) -> None:
         """Move an S3 object via copy + delete (S3 has no rename primitive)."""
         src_bucket, src_key = self._parse_s3_uri(str(path))
         dst_bucket, dst_key = self._parse_s3_uri(str(new_path))
@@ -187,18 +181,14 @@ class S3FileSystem(FileSystemBase):
                     out.append(suffix)
         return sorted(out)
 
-    def download_to_local(
-        self, s3_uri: Union[str, os.PathLike], local_path: Union[str, os.PathLike]
-    ) -> None:
+    def download_to_local(self, s3_uri: Union[str, os.PathLike], local_path: Union[str, os.PathLike]) -> None:
         """Download a file from S3 to local."""
         bucket, key = self._parse_s3_uri(str(s3_uri))
         local_path_str = str(local_path)
         os.makedirs(os.path.dirname(local_path_str), exist_ok=True)
         self.s3_client.download_file(bucket, key, local_path_str)
 
-    def head_object(
-        self, s3_uri: Union[str, os.PathLike], checksum_mode: bool = False
-    ) -> dict[str, Any]:
+    def head_object(self, s3_uri: Union[str, os.PathLike], checksum_mode: bool = False) -> dict[str, Any]:
         """Get the metadata of a file in S3."""
         bucket, key = self._parse_s3_uri(str(s3_uri))
         kwargs: dict[str, Any] = {"Bucket": bucket, "Key": key}

@@ -255,6 +255,85 @@ def save_video_frames(video_frames, output_path: str | Path, fps: int = 16, **kw
     write_video(video_frames, output_path, fps=fps, **kwargs)
 
 
+def save_video_h264(
+    video_frames,
+    output_path: str | Path,
+    *,
+    fps: float = 16.0,
+    crf: int = 18,
+    preset: str = "medium",
+) -> None:
+    """Write THWC RGB frames as a local H.264/yuv420p MP4 with system FFmpeg.
+
+    This explicit path is useful for inference runtimes that require H.264 but
+    should not depend on ImageIO's optional ``imageio-ffmpeg`` plugin.
+    """
+
+    import shutil
+    import subprocess
+
+    frames = coerce_video_frames(video_frames)
+    if int(frames.shape[0]) == 0:
+        return
+    if parse_uri_scheme(output_path) != "file":
+        raise ValueError("save_video_h264 currently supports local output paths only")
+
+    target = uri_to_local_path(output_path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    ffmpeg_bin = shutil.which("ffmpeg")
+    if ffmpeg_bin is None:
+        raise RuntimeError("ffmpeg not found in PATH; cannot encode H.264 output video")
+
+    frame_count, height, width, _ = frames.shape
+    command = [
+        ffmpeg_bin,
+        "-y",
+        "-f",
+        "rawvideo",
+        "-pix_fmt",
+        "rgb24",
+        "-s",
+        f"{width}x{height}",
+        "-r",
+        str(float(fps)),
+        "-i",
+        "-",
+        "-an",
+        "-c:v",
+        "libx264",
+        "-preset",
+        str(preset),
+        "-crf",
+        str(int(crf)),
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
+        str(target),
+    ]
+    process = subprocess.Popen(
+        command,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+    )
+    try:
+        assert process.stdin is not None
+        for index in range(frame_count):
+            process.stdin.write(frames[index].tobytes())
+        process.stdin.close()
+        assert process.stderr is not None
+        stderr = process.stderr.read()
+        process.wait()
+    except Exception:
+        process.kill()
+        process.wait()
+        raise
+    if process.returncode != 0:
+        message = stderr.decode("utf-8", errors="ignore")
+        raise RuntimeError(f"ffmpeg H.264 encode failed for {target}: {message}")
+
+
 def save_image_or_video_tensor(
     tensor,
     save_path,
@@ -419,7 +498,12 @@ def materialize_video_input(
 
     if isinstance(video_input, (str, os.PathLike)):
         candidate = uri_to_local_path(video_input) if parse_uri_scheme(video_input) == "file" else None
-        if candidate is not None and candidate.exists() and candidate.is_file() and candidate.suffix.lower() in VIDEO_EXTENSIONS:
+        if (
+            candidate is not None
+            and candidate.exists()
+            and candidate.is_file()
+            and candidate.suffix.lower() in VIDEO_EXTENSIONS
+        ):
             return str(candidate.resolve())
 
     if output_dir is None:

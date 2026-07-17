@@ -11,7 +11,11 @@ from diffusers.models.normalization import RMSNorm
 from einops import rearrange, repeat
 from torchvision import transforms
 
-from worldfoundry.core.distributed.sequence_parallel_runtime import get_sequence_parallel_group, split_forward_gather_backward
+from worldfoundry.core.distributed.sequence_parallel_runtime import (
+    get_sequence_parallel_group,
+    split_forward_gather_backward,
+)
+
 from .transformer_cosmos import CosmosPatchEmbed, CosmosTransformerBlock
 from .transformer_cosmos2_5 import Cosmos25AttnProcessor2_0, Cosmos25RotaryPosEmbed, Cosmos25TimeEmbed
 
@@ -59,8 +63,8 @@ class Cosmos25ControlNet3DModel(ModelMixin, ConfigMixin):
             Whether to concatenate a padding mask to the input.
     """
 
-    _skip_layerwise_casting_patterns = ['patch_embed', 'norm']
-    _no_split_modules = ['CosmosTransformerBlock']
+    _skip_layerwise_casting_patterns = ["patch_embed", "norm"]
+    _no_split_modules = ["CosmosTransformerBlock"]
 
     @register_to_config
     def __init__(
@@ -108,7 +112,9 @@ class Cosmos25ControlNet3DModel(ModelMixin, ConfigMixin):
         self.control_patch_embed = CosmosPatchEmbed(control_in_channels, hidden_size, patch_size, bias=False)
 
         # Rotary Positional Embedding
-        self.rope = Cosmos25RotaryPosEmbed(hidden_size=attention_head_dim, max_size=max_size, patch_size=patch_size, rope_scale=rope_scale)
+        self.rope = Cosmos25RotaryPosEmbed(
+            hidden_size=attention_head_dim, max_size=max_size, patch_size=patch_size, rope_scale=rope_scale
+        )
 
         # Text Embedding Projection
         self.text_embed = nn.Sequential(
@@ -129,7 +135,7 @@ class Cosmos25ControlNet3DModel(ModelMixin, ConfigMixin):
                 cross_attention_dim=text_embed_dim,
                 mlp_ratio=mlp_ratio,
                 adaln_lora_dim=adaln_lora_dim,
-                qk_norm='rms_norm',
+                qk_norm="rms_norm",
                 out_bias=False,
             )
             transformer_blocks[str(block_id)] = transformer_block
@@ -241,14 +247,14 @@ class Cosmos25ControlNet3DModel(ModelMixin, ConfigMixin):
         # Prepare time embeddings
         timestep = timestep.flatten()
         embedded_timestep, temb = self.time_embed(hidden_states, timestep)
-        embedded_timestep = rearrange(embedded_timestep, '(B T) C -> B T C', B=batch_size)
-        temb = rearrange(temb, '(B T) C -> B T C', B=batch_size)
+        embedded_timestep = rearrange(embedded_timestep, "(B T) C -> B T C", B=batch_size)
+        temb = rearrange(temb, "(B T) C -> B T C", B=batch_size)
         embedded_timestep = self.time_norm(embedded_timestep)
         # Repeat time embeddings for each patch
         temb, embedded_timestep = (
             repeat(
                 x,
-                'B T C -> B (T T2 H W) C',
+                "B T C -> B (T T2 H W) C",
                 T=x.shape[1],
                 T2=post_patch_num_frames if x.shape[1] == 1 else 1,
                 H=post_patch_height,

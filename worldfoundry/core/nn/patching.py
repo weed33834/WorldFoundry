@@ -58,7 +58,9 @@ class PatchGridSpec:
         return gh * gw
 
 
-def patchify_image(value: Any, patch_size: int | Sequence[int], *, layout: ImageLayout = "nchw") -> tuple[Any, PatchGridSpec]:
+def patchify_image(
+    value: Any, patch_size: int | Sequence[int], *, layout: ImageLayout = "nchw"
+) -> tuple[Any, PatchGridSpec]:
     """Convert an image tensor into flattened 2D patch tokens.
 
     ``layout="nchw"`` expects ``(..., C, H, W)`` and ``layout="nhwc"`` expects

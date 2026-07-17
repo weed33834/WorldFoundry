@@ -10,8 +10,11 @@ from pathlib import Path
 
 from hydra import initialize_config_dir
 from hydra.core.global_hydra import GlobalHydra
+
 from worldfoundry.base_models.capabilities import BASE_MODEL_CAPABILITIES
 from worldfoundry.core.io.paths import resolve_data_path
+
+from .video_tracker import SAM2MaskTracker, stage_video_frames
 
 if not GlobalHydra.instance().is_initialized():
     initialize_config_dir(
@@ -30,4 +33,4 @@ def config_name() -> str:
     return "configs/sam2.1/sam2.1_hiera_b+.yaml"
 
 
-__all__ = ["checkpoint_path", "config_name"]
+__all__ = ["SAM2MaskTracker", "checkpoint_path", "config_name", "stage_video_frames"]

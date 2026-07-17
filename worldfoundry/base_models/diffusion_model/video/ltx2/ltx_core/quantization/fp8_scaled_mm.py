@@ -10,7 +10,10 @@ from worldfoundry.base_models.diffusion_model.video.ltx2.ltx_core.loader.module_
 from worldfoundry.base_models.diffusion_model.video.ltx2.ltx_core.loader.primitives import StateDict
 from worldfoundry.base_models.diffusion_model.video.ltx2.ltx_core.model.transformer import LTXModel
 from worldfoundry.base_models.diffusion_model.video.ltx2.ltx_core.quantization.policy import QuantizationPolicy
-from worldfoundry.base_models.diffusion_model.video.ltx2.ltx_core.quantization.trtllm_scaled_usable import trtllm_scaled_mm_usable
+from worldfoundry.base_models.diffusion_model.video.ltx2.ltx_core.quantization.trtllm_scaled_usable import (
+    trtllm_scaled_mm_usable,
+)
+from worldfoundry.core.kernels.capabilities import kernel_device_profile
 
 
 def _read_safetensors_dtypes(path: str) -> dict[str, str]:
@@ -50,7 +53,17 @@ class FP8Linear(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         origin_shape = x.shape
 
-        if trtllm_scaled_mm_usable():
+        profile = kernel_device_profile(x.device)
+        fp8_gemm_usable = (
+            x.is_cuda
+            and profile.supports_fp8
+            and self.in_features % 16 == 0
+            and self.out_features % 16 == 0
+        )
+        if not fp8_gemm_usable:
+            dense_weight = self.weight.to(dtype=x.dtype) * self.weight_scale.to(dtype=x.dtype)
+            output = torch.nn.functional.linear(x, dense_weight, None)
+        elif trtllm_scaled_mm_usable():
             qinput, cur_input_scale = torch.ops.tensorrt_llm.static_quantize_e4m3_per_tensor(x, self.input_scale)
             if qinput.dim() == 3:
                 qinput = qinput.reshape(-1, qinput.shape[-1])
@@ -98,7 +111,9 @@ def quantize_weight_to_fp8_per_tensor(weight: torch.Tensor) -> tuple[torch.Tenso
     fp8_max = torch.finfo(torch.float8_e4m3fn).max
 
     max_abs = torch.amax(torch.abs(weight_fp32))
-    scale = fp8_max / max_abs
+    # A zero tensor must use the identity decode scale.  ``448 / 0`` would
+    # otherwise produce inf and turn ``0 * inf`` into NaN during quantization.
+    scale = torch.where(max_abs > 0, fp8_max / max_abs, torch.ones_like(max_abs))
 
     @torch.compiler.disable
     def _quantize(

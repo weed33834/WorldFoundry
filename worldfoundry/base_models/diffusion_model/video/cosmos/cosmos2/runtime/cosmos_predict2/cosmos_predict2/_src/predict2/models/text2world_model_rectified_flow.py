@@ -27,49 +27,44 @@ import attrs
 import numpy as np
 import torch
 import tqdm
+from cosmos_predict2._src.predict2.conditioner import DataType, Text2WorldCondition
+from cosmos_predict2._src.predict2.models.fm_solvers_unipc import FlowUniPCMultistepScheduler
+from cosmos_predict2._src.predict2.text_encoders.text_encoder import TextEncoder, TextEncoderConfig
+from cosmos_predict2._src.predict2.tokenizers.base_vae import BaseVAE
 from einops import rearrange
-from megatron.core import parallel_state
 from torch import Tensor
 from torch.distributed._composable.fsdp import FSDPModule, fully_shard
 from torch.distributed._tensor.api import DTensor
 from torch.distributed.device_mesh import DeviceMesh
 from torch.nn.modules.module import _IncompatibleKeys
-from torch.nn.utils.clip_grad import clip_grad_norm_
 
-from cosmos_predict2._src.imaginaire.flags import INTERNAL
-from cosmos_predict2._src.imaginaire.lazy_config import LazyDict
-from cosmos_predict2._src.imaginaire.lazy_config import instantiate as lazy_instantiate
-from cosmos_predict2._src.imaginaire.model import ImaginaireModel
-from cosmos_predict2._src.imaginaire.utils import log, misc
-from cosmos_predict2._src.imaginaire.utils.checkpointer import non_strict_load_model
+from worldfoundry.base_models.diffusion_model.video.cosmos.shared.diffusion_types import DenoisePrediction
+from worldfoundry.base_models.diffusion_model.video.cosmos.shared.scm_scaling import (
+    EDM_sCMWrapper,
+    RectifiedFlow_sCMWrapper,
+)
+from worldfoundry.core.configuration import EMAConfig
+from worldfoundry.core.configuration.flags import INTERNAL
+from worldfoundry.core.configuration.lazy_config import LazyDict
+from worldfoundry.core.configuration.lazy_config import instantiate as lazy_instantiate
+from worldfoundry.core.distributed import (
+    DTensorFastEmaModelUpdater,
+    FastEmaModelUpdater,
+    broadcast_dtensor_model_states,
+)
 from worldfoundry.core.distributed.context_parallel import (
     broadcast,
     broadcast_split_tensor,
     cat_outputs_cp,
     find_split,
 )
-from cosmos_predict2._src.imaginaire.utils.count_params import count_params
-from cosmos_predict2._src.imaginaire.utils.denoise_prediction import DenoisePrediction
-from cosmos_predict2._src.imaginaire.utils.ema import FastEmaModelUpdater
 from worldfoundry.core.distributed.fsdp_runtime import hsdp_device_mesh
-from cosmos_predict2._src.imaginaire.utils.optim_instantiate import get_base_scheduler
-from cosmos_predict2._src.predict2.conditioner import DataType, Text2WorldCondition
-from cosmos_predict2._src.predict2.datasets.utils import VIDEO_RES_SIZE_INFO
-from cosmos_predict2._src.predict2.models.fm_solvers_unipc import FlowUniPCMultistepScheduler
-from cosmos_predict2._src.predict2.models.text2world_model import EMAConfig
-from cosmos_predict2._src.predict2.modules.denoiser_scaling import (
-    EDM_sCMWrapper,
-    RectifiedFlow_sCMWrapper,
-)
-from worldfoundry.base_models.diffusion_model.video.cosmos.shared.model_weights_stats import WeightTrainingStat
-from cosmos_predict2._src.predict2.schedulers.rectified_flow import RectifiedFlow
-from cosmos_predict2._src.predict2.text_encoders.text_encoder import TextEncoder, TextEncoderConfig
-from cosmos_predict2._src.predict2.tokenizers.base_vae import BaseVAE
-from cosmos_predict2._src.predict2.utils.dtensor_helper import (
-    DTensorFastEmaModelUpdater,
-    broadcast_dtensor_model_states,
-)
-from external.lam.model import LAM
+from worldfoundry.core.distributed.logging import log
+from worldfoundry.core.distributed.megatron_compat import parallel_state
+from worldfoundry.core.io.resolutions import VIDEO_RES_SIZE_INFO
+from worldfoundry.core.model_loading import InferenceModel, non_strict_load_model
+from worldfoundry.core.utils import count_parameters as count_params
+from worldfoundry.core.utils import inference_runtime as misc
 
 IS_PREPROCESSED_KEY = "is_preprocessed"
 
@@ -83,7 +78,7 @@ class Text2WorldModelRectifiedFlowConfig:
     tokenizer: LazyDict = None
     conditioner: LazyDict = None
     net: LazyDict = None
-    ema: EMAConfig = EMAConfig()
+    ema: EMAConfig = EMAConfig(enabled=True)
 
     fsdp_shard_size: int = 1
     precision: str = "bfloat16"
@@ -107,9 +102,6 @@ class Text2WorldModelRectifiedFlowConfig:
 
     shift: int = 5
     use_dynamic_shift: bool = False
-    train_time_distribution: str = "logitnormal"
-    train_time_weight: str = "uniform"
-
     use_high_sigma_strategy: bool = False  # Whether to use high sigma strategy
     high_sigma_ratio: float = 0.05  # Ratio of high sigma frames
     high_sigma_timesteps_min: int = 980
@@ -122,7 +114,7 @@ class Text2WorldModelRectifiedFlowConfig:
         assert self.text_encoder_class in ["T5", "umT5", "reason1_2B", "reason1_7B", "reason1p1_7B"]
 
 
-class Text2WorldModelRectifiedFlow(ImaginaireModel):
+class Text2WorldModelRectifiedFlow(InferenceModel):
     """
     Diffusion model.
     """
@@ -183,33 +175,6 @@ class Text2WorldModelRectifiedFlow(ImaginaireModel):
         self.text_encoder = None
         if self.config.text_encoder_config is not None and self.config.text_encoder_config.compute_online:
             self.text_encoder = TextEncoder(self.config.text_encoder_config)
-
-        self.lam = LAM(
-            image_channels=3,
-            lam_model_dim=1024,
-            lam_latent_dim=32,
-            lam_patch_size=16,
-            lam_enc_blocks=24,
-            lam_dec_blocks=24,
-            lam_num_heads=16,
-            ckpt_path="checkpoints/DreamDojo/LAM_400k.ckpt",
-        )
-
-        # 7. training states
-        if parallel_state.is_initialized():
-            self.data_parallel_size = parallel_state.get_data_parallel_world_size()
-        else:
-            self.data_parallel_size = 1
-
-        self.rectified_flow = RectifiedFlow(
-            velocity_field=self.net,
-            train_time_distribution=config.train_time_distribution,
-            use_dynamic_shift=config.use_dynamic_shift,
-            shift=config.shift,
-            train_time_weight_method=config.train_time_weight,
-            device=torch.device("cuda"),
-            dtype=self.tensor_kwargs_fp32["dtype"],
-        )
 
     def setup_data_key(self) -> None:
         """Setup data key.
@@ -331,38 +296,10 @@ class Text2WorldModelRectifiedFlow(ImaginaireModel):
             # Copy weights from net to net_ema after both are properly initialized
             self.net_ema_worker.copy_to(src_model=self.net, tgt_model=self.net_ema)
 
-    def init_optimizer_scheduler(
-        self, optimizer_config: LazyDict, scheduler_config: LazyDict
-    ) -> tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LRScheduler]:
-        """Creates the optimizer and scheduler for the model.
+    # ------------------------ runtime setup ------------------------
 
-        Args:
-            config_model (ModelConfig): The config object for the model.
-
-        Returns:
-            optimizer (torch.optim.Optimizer): The model optimizer.
-            scheduler (torch.optim.lr_scheduler.LRScheduler): The optimization scheduler.
-        """
-        optimizer = lazy_instantiate(optimizer_config, model=self.net)
-        scheduler = get_base_scheduler(optimizer, self, scheduler_config)
-        return optimizer, scheduler
-
-    # ------------------------ training hooks ------------------------
-    def on_before_zero_grad(
-        self, optimizer: torch.optim.Optimizer, scheduler: torch.optim.lr_scheduler.LRScheduler, iteration: int
-    ) -> None:
-        """
-        update the net_ema
-        """
-        del scheduler, optimizer
-
-        if self.config.ema.enabled:
-            # calculate beta for EMA update
-            ema_beta = self.ema_beta(iteration)
-            self.net_ema_worker.update_average(self.net, self.net_ema, beta=ema_beta)
-
-    def on_train_start(self, memory_format: torch.memory_format = torch.preserve_format) -> None:
-        """On train start.
+    def prepare_runtime(self, memory_format: torch.memory_format = torch.preserve_format) -> None:
+        """Prepare model components for inference.
 
         Args:
             memory_format: The memory format.
@@ -381,7 +318,7 @@ class Text2WorldModelRectifiedFlow(ImaginaireModel):
                 log.warning(
                     "torch.compile in Pytorch version older than 2.3 doesn't work well with activation checkpointing.\n"
                     "It's very likely there will be no significant speedup from torch.compile.\n"
-                    "Please use at least 24.04 Pytorch container, or imaginaire4:v7 container."
+                    "Please use at least 24.04 Pytorch container, or the WorldFoundry unified CUDA environment."
                 )
             # Increasing cache size. It's required because of the model size and dynamic input shapes resulting in
             # multiple different triton kernels. For 28 TransformerBlocks, the cache limit of 256 should be enough for
@@ -396,39 +333,7 @@ class Text2WorldModelRectifiedFlow(ImaginaireModel):
             # dynamic=True currently throws errors in pytorch 2.3.
             self.net = torch.compile(self.net, dynamic=False, disable=not self.config.use_torch_compile)
 
-    # ------------------------ training ------------------------
-
-    def training_step(
-        self, data_batch: dict[str, torch.Tensor], iteration: int
-    ) -> tuple[dict[str, torch.Tensor], torch.Tensor]:
-        """
-        Performs a single training step for the diffusion model.
-
-        This method is responsible for executing one iteration of the model's training. It involves:
-        1. Adding noise to the input data using the SDE process.
-        2. Passing the noisy data through the network to generate predictions.
-        3. Computing the loss based on the difference between the predictions and the original data, \
-            considering any configured loss weighting.
-
-        Args:
-            data_batch (dict): raw data batch draw from the training data loader.
-            iteration (int): Current iteration number.
-
-        Returns:
-            tuple: A tuple containing two elements:
-                - dict: additional data that used to debug / logging / callbacks
-                - Tensor: The computed loss for the training step as a PyTorch Tensor.
-
-        Raises:
-            AssertionError: If the class is conditional, \
-                but no number of classes is specified in the network configuration.
-
-        Notes:
-            - The method handles different types of conditioning
-            - The method also supports Kendall's loss
-        """
-        self._update_train_stats(data_batch)
-        return self.forward(data_batch)
+    # ------------------------ inference helpers ------------------------
 
     @staticmethod
     def get_context_parallel_group():
@@ -476,23 +381,6 @@ class Text2WorldModelRectifiedFlow(ImaginaireModel):
             self.net.disable_context_parallel()
 
         return x0_B_C_T_H_W, condition, epsilon_B_C_T_H_W, sigma_B_T
-
-    def _update_train_stats(self, data_batch: dict[str, torch.Tensor]) -> None:
-        """Helper function to update train stats.
-
-        Args:
-            data_batch: The data batch.
-
-        Returns:
-            The return value.
-        """
-        is_image = self.is_image_batch(data_batch)
-        input_key = self.input_image_key if is_image else self.input_data_key
-        if isinstance(self.net, WeightTrainingStat):
-            if is_image:
-                self.net.accum_image_sample_counter += data_batch[input_key].shape[0] * self.data_parallel_size
-            else:
-                self.net.accum_video_sample_counter += data_batch[input_key].shape[0] * self.data_parallel_size
 
     # ------------------------ Sampling ------------------------
 
@@ -893,112 +781,6 @@ class Text2WorldModelRectifiedFlow(ImaginaireModel):
                 samples = rearrange(samples, "b c (t h w) -> b c t h w", t=state_shape[1], h=state_shape[2])
         return torch.nan_to_num(samples)
 
-    @torch.no_grad()
-    def validation_step(
-        self, data: dict[str, torch.Tensor], iteration: int
-    ) -> tuple[dict[str, torch.Tensor], torch.Tensor]:
-        """Validation step.
-
-        Args:
-            data: The data.
-            iteration: The iteration.
-
-        Returns:
-            The return value.
-        """
-        return self.forward(data)
-
-    def forward(self, data_batch: dict[str, torch.Tensor]) -> tuple[dict[str, torch.Tensor], torch.Tensor]:
-        """Forward.
-
-        Args:
-            data_batch: The data batch.
-
-        Returns:
-            The return value.
-        """
-        # Obtain text embeddings online
-        if self.config.text_encoder_config is not None and self.config.text_encoder_config.compute_online:
-            text_embeddings = self.text_encoder.compute_text_embeddings_online(data_batch, self.input_caption_key)
-            data_batch["t5_text_embeddings"] = text_embeddings
-            data_batch["t5_text_mask"] = torch.ones(text_embeddings.shape[0], text_embeddings.shape[1], device="cuda")
-
-        lam_video = rearrange(data_batch["lam_video"], "b (p t) h w c -> (b p) t h w c", t=2)
-        lam_input = {"videos": lam_video}
-        with torch.no_grad():
-            outputs = self.lam.lam(lam_input)
-        latent_action = outputs["z_rep"].squeeze().to(data_batch["action"].dtype).detach()
-        latent_action = rearrange(latent_action, "(t b) d -> b t d", t=data_batch["action"].shape[1])
-        data_batch["action"][:, :, -32:] = data_batch["action"][:, :, -32:] * latent_action
-
-        # Get the input data to noise and denoise~(image, video) and the corresponding conditioner.
-        _, x0_B_C_T_H_W, condition = self.get_data_and_condition(data_batch)
-
-        # Sample pertubation noise levels and N(0, 1) noises
-        epsilon_B_C_T_H_W = torch.randn(x0_B_C_T_H_W.size(), **self.tensor_kwargs_fp32)
-        batch_size = x0_B_C_T_H_W.size()[0]
-        t_B = self.rectified_flow.sample_train_time(batch_size).to(**self.tensor_kwargs_fp32)
-        t_B = rearrange(t_B, "b -> b 1")  # add a dimension for T, all frames share the same sigma
-
-        x0_B_C_T_H_W, condition, epsilon_B_C_T_H_W, t_B = self.broadcast_split_for_model_parallelsim(
-            x0_B_C_T_H_W, condition, epsilon_B_C_T_H_W, t_B
-        )
-        timesteps = self.rectified_flow.get_discrete_timestamp(t_B, self.tensor_kwargs_fp32)
-
-        if self.config.use_high_sigma_strategy:
-            # Use high sigma strategy
-            mask = torch.rand(timesteps.shape, device=timesteps.device) < self.config.high_sigma_ratio
-
-            candidate_timesteps = self.rectified_flow.noise_scheduler.timesteps.to(device=timesteps.device)
-            candidate_timesteps = candidate_timesteps[
-                (candidate_timesteps >= self.config.high_sigma_timesteps_min)
-                & (candidate_timesteps <= self.config.high_sigma_timesteps_max)
-            ]
-
-            if len(candidate_timesteps) > 0:
-                # Sample timesteps.shape values from candidate_timesteps with replacement
-                new_timesteps = candidate_timesteps[torch.randint(0, len(candidate_timesteps), timesteps.shape)]
-                timesteps = torch.where(mask, new_timesteps, timesteps)
-            else:
-                raise ValueError("No candidate timesteps found for high sigma strategy")
-
-        sigmas = self.rectified_flow.get_sigmas(
-            timesteps,
-            self.tensor_kwargs_fp32,
-        )
-
-        timesteps = rearrange(timesteps, "b -> b 1")
-        sigmas = rearrange(sigmas, "b -> b 1")
-        xt_B_C_T_H_W, vt_B_C_T_H_W = self.rectified_flow.get_interpolation(epsilon_B_C_T_H_W, x0_B_C_T_H_W, sigmas)
-
-        vt_pred_B_C_T_H_W = self.denoise(
-            noise=epsilon_B_C_T_H_W,
-            xt_B_C_T_H_W=xt_B_C_T_H_W.to(**self.tensor_kwargs),
-            timesteps_B_T=timesteps,
-            condition=condition,
-        )
-
-        time_weights_B = self.rectified_flow.train_time_weight(timesteps, self.tensor_kwargs_fp32)
-        per_instance_loss = torch.mean(
-            (vt_pred_B_C_T_H_W - vt_B_C_T_H_W) ** 2, dim=list(range(1, vt_pred_B_C_T_H_W.dim()))
-        )
-        per_instance_motion_consistency_loss = torch.mean(
-            ((vt_pred_B_C_T_H_W[:, 1:] - vt_pred_B_C_T_H_W[:, :-1]) - (vt_B_C_T_H_W[:, 1:] - vt_B_C_T_H_W[:, :-1])) ** 2, dim=list(range(1, vt_pred_B_C_T_H_W.dim()))
-        )
-        per_instance_loss = per_instance_loss + per_instance_motion_consistency_loss * 0.1
-
-        loss = torch.mean(time_weights_B * per_instance_loss)
-        output_batch = {
-            "x0": x0_B_C_T_H_W,
-            "xt": xt_B_C_T_H_W,
-            "sigma": sigmas,
-            "condition": condition,
-            "model_pred": vt_pred_B_C_T_H_W,
-            "edm_loss": loss,
-        }
-
-        return output_batch, loss
-
     def get_data_and_condition(self, data_batch: dict[str, torch.Tensor]) -> Tuple[Tensor, Tensor, Text2WorldCondition]:
         """Get data and condition.
 
@@ -1154,14 +936,6 @@ class Text2WorldModelRectifiedFlow(ImaginaireModel):
             return 0.0
         return (1 - 1 / (iteration + 1)) ** (self.ema_exp_coefficient + 1)
 
-    def model_param_stats(self) -> Dict[str, int]:
-        """Model param stats.
-
-        Returns:
-            The return value.
-        """
-        return {"total_learnable_param_num": self._param_count}
-
     def is_image_batch(self, data_batch: dict[str, Tensor]) -> bool:
         """We hanlde two types of data_batch. One comes from a joint_dataloader where "dataset_name" can be used to differenciate image_batch and video_batch.
         Another comes from a dataloader which we by default assumes as video_data for video model training.
@@ -1286,29 +1060,6 @@ class Text2WorldModelRectifiedFlow(ImaginaireModel):
                 self.net_ema_worker.restore(self.net.parameters())
                 if context is not None:
                     log.info(f"{context}: Restored training weights")
-
-    def clip_grad_norm_(
-        self,
-        max_norm: float,
-        norm_type: float = 2.0,
-        error_if_nonfinite: bool = False,
-        foreach: Optional[bool] = None,
-    ):
-        """Clip grad norm.
-
-        Args:
-            max_norm: The max norm.
-            norm_type: The norm type.
-            error_if_nonfinite: The error if nonfinite.
-            foreach: The foreach.
-        """
-        return clip_grad_norm_(
-            self.net.parameters(),
-            max_norm,
-            norm_type=norm_type,
-            error_if_nonfinite=error_if_nonfinite,
-            foreach=foreach,
-        )
 
     def add_lora(
         self,

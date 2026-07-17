@@ -12,14 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 from collections import OrderedDict
 from typing import List
 
 import torch
 from tqdm import tqdm
 
+from worldfoundry.runtime.compile_cache import CompilePolicy, compile_callable_cached
+
 
 class ParallelHelper:
+    """Distribute video tiles by cost and reconstruct their global ordering.
+
+    In non-distributed execution every tile remains local. With a process group,
+    larger tiles are round-robin balanced across ranks and decoded frame tensors
+    are gathered with explicit count, dtype, and shape metadata.
+    """
+
     def __init__(self):
         pass
 
@@ -64,6 +74,24 @@ class ParallelHelper:
             return cur_rank_tile_idxs, global_tile_idxs
 
     @staticmethod
+    def _all_gather_fixed(
+        tensor: torch.Tensor,
+        *,
+        world_size: int,
+        parallel_group: torch.distributed.ProcessGroup = None,
+    ) -> torch.Tensor:
+        """Gather equal-shaped tensors into ``[world_size, ...]`` storage."""
+
+        tensor = tensor.contiguous()
+        if hasattr(torch.distributed, "all_gather_into_tensor"):
+            output = tensor.new_empty((world_size * tensor.shape[0], *tensor.shape[1:]))
+            torch.distributed.all_gather_into_tensor(output, tensor, group=parallel_group)
+            return output.reshape(world_size, *tensor.shape)
+        outputs = [torch.empty_like(tensor) for _ in range(world_size)]
+        torch.distributed.all_gather(outputs, tensor, group=parallel_group)
+        return torch.stack(outputs, dim=0)
+
+    @staticmethod
     def gather_frames(
         frames: List[torch.Tensor], global_tile_idxs: List[int], parallel_group: torch.distributed.ProcessGroup = None
     ) -> List[torch.Tensor]:
@@ -84,48 +112,94 @@ class ParallelHelper:
         """
         if not torch.distributed.is_initialized():
             return frames
+        world_size = torch.distributed.get_world_size(group=parallel_group)
+        if frames:
+            device = frames[0].device
+        elif "nccl" in str(torch.distributed.get_backend(parallel_group)).lower() and torch.cuda.is_available():
+            device = torch.device("cuda", torch.cuda.current_device())
         else:
-            #  assert len(frames) > 0
-            # Communicate shapes
-            if len(frames) == 0:
-                cur_rank_shapes = []
-            else:
-                cur_rank_shapes = [frame.shape for frame in frames]
-            all_rank_shapes = [None] * torch.distributed.get_world_size(group=parallel_group)
-            torch.distributed.all_gather_object(all_rank_shapes, cur_rank_shapes, group=parallel_group)
+            device = torch.device("cpu")
+        dtype_codes = {
+            torch.float16: 1,
+            torch.bfloat16: 2,
+            torch.float32: 3,
+            torch.float64: 4,
+            torch.uint8: 5,
+            torch.int32: 6,
+            torch.int64: 7,
+        }
+        code_dtypes = {code: dtype for dtype, code in dtype_codes.items()}
+        if frames:
+            dtype = frames[0].dtype
+            if dtype not in dtype_codes:
+                raise TypeError(f"Unsupported distributed tile dtype: {dtype}")
+            if any(frame.ndim != 5 or frame.dtype != dtype or frame.device != device for frame in frames):
+                raise ValueError("Distributed tile frames must share one 5D shape contract, dtype, and device")
+            local_dtype_code = dtype_codes[dtype]
+        else:
+            local_dtype_code = 0
 
-            all_rank_sizes = []
-            total_size = []
-            for per_rank_shapes in all_rank_shapes:
-                per_rank_sizes = []
-                per_rank_total_size = 0
-                for shape in per_rank_shapes:
-                    per_rank_sizes.append(shape[0] * shape[1] * shape[2] * shape[3] * shape[4])
-                    per_rank_total_size += shape[0] * shape[1] * shape[2] * shape[3] * shape[4]
-                all_rank_sizes.append(per_rank_sizes)
-                total_size.append(per_rank_total_size)
+        local_header = torch.tensor(
+            (len(frames), local_dtype_code),
+            dtype=torch.int64,
+            device=device,
+        ).view(1, 2)
+        headers = ParallelHelper._all_gather_fixed(
+            local_header,
+            world_size=world_size,
+            parallel_group=parallel_group,
+        ).reshape(world_size, 2)
+        counts = [int(value) for value in headers[:, 0].tolist()]
+        total_count = sum(counts)
+        if total_count == 0:
+            if global_tile_idxs:
+                raise ValueError("Tile index metadata is non-empty but no distributed rank produced a frame")
+            return []
+        nonzero_dtype_codes = {int(value) for value in headers[:, 1].tolist() if int(value)}
+        if len(nonzero_dtype_codes) != 1:
+            raise RuntimeError(f"Distributed tile ranks disagree on dtype: {sorted(nonzero_dtype_codes)}")
+        dtype = code_dtypes[nonzero_dtype_codes.pop()]
 
-            # Gather all frames
-            if len(frames) == 0:
-                flattened_frames = torch.zeros([0], dtype=torch.bfloat16, device="cuda")
-            else:
-                flattened_frames = torch.cat([frame.flatten().contiguous() for frame in frames], dim=0)
-                assert flattened_frames.dtype == torch.bfloat16
-            gather_tensors = [
-                torch.zeros(total_size[i], dtype=torch.bfloat16, device="cuda")
-                for i in range(torch.distributed.get_world_size(group=parallel_group))
-            ]
-            torch.distributed.all_gather(gather_tensors, flattened_frames, group=parallel_group)
+        max_count = max(counts, default=0)
+        local_shapes = torch.zeros((max_count, 5), dtype=torch.int64, device=device)
+        for index, frame in enumerate(frames):
+            local_shapes[index] = torch.tensor(frame.shape, dtype=torch.int64, device=device)
+        gathered_shapes = ParallelHelper._all_gather_fixed(
+            local_shapes,
+            world_size=world_size,
+            parallel_group=parallel_group,
+        )
+        all_rank_shapes = [
+            [tuple(int(value) for value in gathered_shapes[rank, index].tolist()) for index in range(count)]
+            for rank, count in enumerate(counts)
+        ]
+        total_sizes = [sum(math.prod(shape) for shape in shapes) for shapes in all_rank_shapes]
+        max_total_size = max(total_sizes, default=0)
 
-            result_frames = []
-            for idx, per_rank_shapes in enumerate(all_rank_shapes):
-                offset = 0
-                for j, shape in enumerate(per_rank_shapes):
-                    result_frames.append(gather_tensors[idx][offset : offset + all_rank_sizes[idx][j]].view(shape))
-                    offset += all_rank_sizes[idx][j]
-            result_frames_dict = OrderedDict((idx, frame) for idx, frame in zip(global_tile_idxs, result_frames))
-            result_frames = list(OrderedDict(sorted(result_frames_dict.items())).values())
-            return result_frames
+        flattened = torch.cat([frame.reshape(-1) for frame in frames]) if frames else torch.empty(0, dtype=dtype, device=device)
+        padded = torch.zeros(max_total_size, dtype=dtype, device=device)
+        if flattened.numel():
+            padded[: flattened.numel()].copy_(flattened)
+        gathered_data = ParallelHelper._all_gather_fixed(
+            padded.view(1, -1),
+            world_size=world_size,
+            parallel_group=parallel_group,
+        ).reshape(world_size, max_total_size)
+
+        result_frames = []
+        for rank, shapes in enumerate(all_rank_shapes):
+            offset = 0
+            for shape in shapes:
+                size = math.prod(shape)
+                result_frames.append(gathered_data[rank, offset : offset + size].view(shape))
+                offset += size
+        if len(global_tile_idxs) != len(result_frames):
+            raise ValueError(
+                "Distributed tile index count does not match gathered frames: "
+                f"{len(global_tile_idxs)} != {len(result_frames)}"
+            )
+        result_frames_dict = OrderedDict((idx, frame) for idx, frame in zip(global_tile_idxs, result_frames))
+        return list(OrderedDict(sorted(result_frames_dict.items())).values())
 
     @staticmethod
     def index_undot(index: int, loop_size: List[int]) -> List[int]:
@@ -179,6 +253,14 @@ class ParallelHelper:
 
 
 class TileProcessor:
+    """Encode or decode large videos through overlapping spatiotemporal tiles.
+
+    The processor derives latent tile sizes from codec downsample factors,
+    schedules tiles locally or across ``parallel_group``, and linearly blends
+    temporal/vertical/horizontal overlaps to suppress seams. ``encode_fn`` and
+    ``decode_fn`` remain model-owned callables.
+    """
+
     def __init__(
         self,
         encode_fn,
@@ -226,6 +308,22 @@ class TileProcessor:
         self.temporal_tile_overlap_factor = temporal_tile_overlap_factor
         self.sr_ratio = sr_ratio
         self.parallel_group = parallel_group
+        blend_policy = CompilePolicy(dynamic=False)
+        self._blend_t_compiled = compile_callable_cached(
+            self.blend_t,
+            policy=blend_policy,
+            namespace="video-tiling",
+        )
+        self._blend_v_compiled = compile_callable_cached(
+            self.blend_v,
+            policy=blend_policy,
+            namespace="video-tiling",
+        )
+        self._blend_h_compiled = compile_callable_cached(
+            self.blend_h,
+            policy=blend_policy,
+            namespace="video-tiling",
+        )
 
     def blend_t(self, a: torch.Tensor, b: torch.Tensor, blend_extent: int) -> torch.Tensor:
         blend_extent = min(a.shape[2], b.shape[2], blend_extent)
@@ -419,17 +517,19 @@ class TileProcessor:
             # Blend with previous tiles if applicable
             if f > 0:
                 idx = ParallelHelper.index_dot([f - 1, i, j], for_loop_size)
-                tile = torch.compile(self.blend_t, dynamic=False)(frames[idx], tile, blend_extent_t)
+                tile = self._blend_t_compiled(frames[idx], tile, blend_extent_t)
             if i > 0:
                 idx = ParallelHelper.index_dot([f, i - 1, j], for_loop_size)
-                tile = torch.compile(self.blend_v, dynamic=False)(frames[idx], tile, blend_extent_h)
+                tile = self._blend_v_compiled(frames[idx], tile, blend_extent_h)
             if j > 0:
                 idx = ParallelHelper.index_dot([f, i, j - 1], for_loop_size)
-                tile = torch.compile(self.blend_h, dynamic=False)(frames[idx], tile, blend_extent_w)
+                tile = self._blend_h_compiled(frames[idx], tile, blend_extent_w)
             result_frames.append(tile[:, :, :frame_limit, :height_limit, :width_limit])
 
         # Gather and concatenate the final result frames
-        result_frames = ParallelHelper.gather_frames(result_frames, global_tile_index_list, parallel_group=self.parallel_group)
+        result_frames = ParallelHelper.gather_frames(
+            result_frames, global_tile_index_list, parallel_group=self.parallel_group
+        )
         assert len(result_frames) == total_tile_size
 
         concat_frames = []

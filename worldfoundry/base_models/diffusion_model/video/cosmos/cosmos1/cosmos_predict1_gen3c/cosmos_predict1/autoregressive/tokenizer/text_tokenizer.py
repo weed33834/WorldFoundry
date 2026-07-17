@@ -19,9 +19,8 @@ from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
-from transformers import AutoTokenizer
-
 from cosmos_predict1.utils import log
+from transformers import AutoTokenizer
 
 
 def get_tokenizer_path(model_family: str, is_instruct_model: bool = False):
@@ -313,7 +312,6 @@ class TextTokenizer:
         if generation_prefix:
             formatted_text: str = formatted_text + generation_prefix
             log.debug(
-                f"Adding generation prefix: {generation_prefix} to the formatted text\n"
-                f"Formatted text: {formatted_text}"
+                f"Adding generation prefix: {generation_prefix} to the formatted text\nFormatted text: {formatted_text}"
             )
         return formatted_text

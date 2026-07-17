@@ -23,4 +23,4 @@ def get_state_at_time(pc,viewpoint_camera):
                                                                  rotations, opacity, shs,
                                                                  time)
 
-    return means3D_final, scales_final, rotations_final, opacity, shs_final
+    return means3D_final, scales_final, rotations_final, opacity_final, shs_final

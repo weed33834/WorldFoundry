@@ -59,13 +59,9 @@ def min_free_bytes_from_env(env_var: str, default_gb: float) -> int:
     try:
         value = float(raw)
     except ValueError as exc:
-        raise ValueError(
-            f"{env_var} must be a non-negative number of GiB (got {raw!r})"
-        ) from exc
+        raise ValueError(f"{env_var} must be a non-negative number of GiB (got {raw!r})") from exc
     if value < 0:
-        raise ValueError(
-            f"{env_var} must be a non-negative number of GiB (got {raw!r})"
-        )
+        raise ValueError(f"{env_var} must be a non-negative number of GiB (got {raw!r})")
     return bytes_from_gib(value)
 
 
@@ -209,24 +205,14 @@ def format_disk_space_message(
         lines.extend(env_setting_lines)
 
     lines.append("")
-    hint_targets = [
-        name for name in env_vars if not name.startswith("WORLDFOUNDRY_MIN_")
-    ]
+    hint_targets = [name for name in env_vars if not name.startswith("WORLDFOUNDRY_MIN_")]
     if settings is not None:
         hint_targets.extend(key for key in settings if key.startswith("--"))
-    hint = (
-        ", ".join(dict.fromkeys(hint_targets))
-        if hint_targets
-        else "the relevant cache or output directory"
-    )
+    hint = ", ".join(dict.fromkeys(hint_targets)) if hint_targets else "the relevant cache or output directory"
     lines.append(f"Move {hint} to a filesystem with more free space.")
     min_envs = [name for name in env_vars if name.startswith("WORLDFOUNDRY_MIN_")]
     if min_envs:
-        lines.append(
-            "Set "
-            + " or ".join(f"{name}=0" for name in min_envs)
-            + " to skip the corresponding preflight."
-        )
+        lines.append("Set " + " or ".join(f"{name}=0" for name in min_envs) + " to skip the corresponding preflight.")
     return "\n".join(lines)
 
 

@@ -121,9 +121,7 @@ class ContextParallelAttention(NativeAttention):
         prev_out = prev_lse = None
 
         kv_buffer_local = torch.cat([key.flatten(), value.flatten()]).contiguous()
-        kv_buffer_gathered = funcol.all_gather_tensor(
-            kv_buffer_local, gather_dim=0, group=group
-        )
+        kv_buffer_gathered = funcol.all_gather_tensor(kv_buffer_local, gather_dim=0, group=group)
         kv_buffer = kv_buffer_gathered.chunk(world_size)
 
         for i in range(world_size):
@@ -149,9 +147,7 @@ class ContextParallelAttention(NativeAttention):
                     lse = lse.to(torch.float32)
 
                 if prev_out is not None and prev_lse is not None:
-                    out = prev_out - torch.nn.functional.sigmoid(lse - prev_lse) * (
-                        prev_out - out
-                    )
+                    out = prev_out - torch.nn.functional.sigmoid(lse - prev_lse) * (prev_out - out)
                     lse = prev_lse - torch.nn.functional.logsigmoid(prev_lse - lse)
             prev_out = out
             prev_lse = lse
@@ -176,45 +172,21 @@ class ContextParallelAttention(NativeAttention):
         B, H, Sq_local, D = query.shape
         _, _, Sk_local, _ = key.shape
         if H % world_size != 0:
-            raise ValueError(
-                f"Number of heads ({H}) must be divisible by CP size ({world_size}) for Ulysses."
-            )
+            raise ValueError(f"Number of heads ({H}) must be divisible by CP size ({world_size}) for Ulysses.")
         H_local = H // world_size
         group = self.device_mesh.get_group()
 
-        query = (
-            query.reshape(B, world_size, H_local, Sq_local, D)
-            .permute(1, 3, 0, 2, 4)
-            .contiguous()
-        )
-        key = (
-            key.reshape(B, world_size, H_local, Sk_local, D)
-            .permute(1, 3, 0, 2, 4)
-            .contiguous()
-        )
-        value = (
-            value.reshape(B, world_size, H_local, Sk_local, D)
-            .permute(1, 3, 0, 2, 4)
-            .contiguous()
-        )
+        query = query.reshape(B, world_size, H_local, Sq_local, D).permute(1, 3, 0, 2, 4).contiguous()
+        key = key.reshape(B, world_size, H_local, Sk_local, D).permute(1, 3, 0, 2, 4).contiguous()
+        value = value.reshape(B, world_size, H_local, Sk_local, D).permute(1, 3, 0, 2, 4).contiguous()
         query, key, value = (
-            self._wait_collective(funcol.all_to_all_single(x, None, None, group=group))
-            for x in (query, key, value)
+            self._wait_collective(funcol.all_to_all_single(x, None, None, group=group)) for x in (query, key, value)
         )
-        query, key, value = (
-            x.flatten(0, 1).permute(1, 2, 0, 3).contiguous()
-            for x in (query, key, value)
-        )
+        query, key, value = (x.flatten(0, 1).permute(1, 2, 0, 3).contiguous() for x in (query, key, value))
 
         out, _ = attn_op(query, key, value, return_lse=True)
 
-        out = (
-            out.reshape(B, H_local, world_size, Sq_local, D)
-            .permute(2, 1, 0, 3, 4)
-            .contiguous()
-        )
-        out = self._wait_collective(
-            funcol.all_to_all_single(out, None, None, group=group)
-        )
+        out = out.reshape(B, H_local, world_size, Sq_local, D).permute(2, 1, 0, 3, 4).contiguous()
+        out = self._wait_collective(funcol.all_to_all_single(out, None, None, group=group))
         out = out.flatten(0, 1).permute(1, 0, 2, 3).contiguous()
         return out

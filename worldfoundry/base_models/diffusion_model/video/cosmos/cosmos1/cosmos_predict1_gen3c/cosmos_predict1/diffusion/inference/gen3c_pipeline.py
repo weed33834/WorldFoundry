@@ -18,20 +18,20 @@
 from typing import Any, Optional
 
 import torch
-
 from cosmos_predict1.diffusion.inference.inference_utils import (
     generate_world_from_video,
     get_condition_latent,
     get_video_batch,
     load_model_by_config,
 )
-from cosmos_predict1.diffusion.model.model_gen3c import DiffusionGen3CModel
 from cosmos_predict1.diffusion.inference.world_generation_pipeline import DiffusionVideo2WorldGenerationPipeline
+from cosmos_predict1.diffusion.model.model_gen3c import DiffusionGen3CModel
 from cosmos_predict1.utils import log
 
 
 class Gen3cPipeline(DiffusionVideo2WorldGenerationPipeline):
     """Gen c pipeline implementation."""
+
     def __init__(
         self,
         inference_type: str,
@@ -182,7 +182,7 @@ class Gen3cPipeline(DiffusionVideo2WorldGenerationPipeline):
                 Final prompt used for generation (may be enhanced)
             ), or None if content fails guardrail safety checks
         """
-        if type(image_path) == str:
+        if isinstance(image_path, str):
             log.info(f"Run with image path: {image_path}")
         log.info(f"Run with negative prompt: {negative_prompt}")
         log.info(f"Run with prompt upsampler: {self.enable_prompt_upsampler}")
@@ -266,7 +266,9 @@ class Gen3cPipeline(DiffusionVideo2WorldGenerationPipeline):
         cp_group = getattr(self, "_worldfoundry_context_parallel_group", None)
         if cp_group is not None and getattr(self.model, "net", None) is not None:
             self.model.net.enable_context_parallel(cp_group)
-        sample = self._run_model(prompt_embedding, condition_latent, rendered_warp_images, rendered_warp_masks, negative_prompt_embedding)
+        sample = self._run_model(
+            prompt_embedding, condition_latent, rendered_warp_images, rendered_warp_masks, negative_prompt_embedding
+        )
 
         if return_latents:
             latents = sample

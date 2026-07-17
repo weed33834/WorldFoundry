@@ -18,17 +18,18 @@
 from typing import Optional, Union
 
 import torch
+from cosmos_predict1.diffusion.conditioner import VideoExtendCondition
+from cosmos_predict1.diffusion.model.model_v2w import DiffusionV2WModel
+from cosmos_predict1.utils import log, misc
 from einops import rearrange
 from torch import Tensor
 
-from cosmos_predict1.diffusion.conditioner import VideoExtendCondition
-from cosmos_predict1.diffusion.model.model_v2w import DiffusionV2WModel
 from worldfoundry.core.distributed.context_parallel import cat_outputs_cp, split_inputs_cp
-from cosmos_predict1.utils import log, misc
 
 
 class DiffusionMultiviewV2WModel(DiffusionV2WModel):
     """Diffusion multiview w model implementation."""
+
     def __init__(self, config):
         """Init.
 

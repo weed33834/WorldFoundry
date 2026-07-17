@@ -12,7 +12,8 @@ import torch.nn.functional as F
 from einops import rearrange
 from omegaconf import MISSING, OmegaConf
 
-from tools.download import find_model
+from worldfoundry.core.io import hf_download_or_fpath
+from worldfoundry.core.model_loading.file import load_state_dict
 from worldfoundry.core.attention import scaled_dot_product_attention as _worldfoundry_scaled_dot_product_attention
 
 __all__ = [
@@ -723,7 +724,12 @@ def _video_vae(pretrained_path=None, z_dim=None, device="cpu", **kwargs):
 
     # load checkpoint
     logging.info(f"loading {pretrained_path}")
-    state_dict = find_model(pretrained_path)
+    local_path = str(hf_download_or_fpath(pretrained_path))
+    if local_path.endswith((".safetensors", ".safetensors.index.json")):
+        state_dict = load_state_dict(local_path, device="cpu")
+    else:
+        checkpoint = torch.load(local_path, map_location="cpu")
+        state_dict = checkpoint["state_dict"] if isinstance(checkpoint, dict) and "state_dict" in checkpoint else checkpoint
     model.load_state_dict(state_dict, assign=True)
 
     return model

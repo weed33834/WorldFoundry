@@ -1,9 +1,26 @@
-import torch
 from contextlib import contextmanager
+
+import torch
 
 
 @contextmanager
 def init_weights_on_device(device=torch.device("meta"), include_buffers: bool = False):
+    """Temporarily redirect newly registered module weights to one device.
+
+    Args:
+        device: Destination for parameters created inside the context. The
+            default ``meta`` device skips real allocation and initialization.
+        include_buffers: Also redirect registered buffers and common tensor
+            constructors. Leave disabled unless module construction allocates
+            large persistent buffers.
+
+    Yields:
+        Control while PyTorch registration hooks are patched.
+
+    Notes:
+        Global PyTorch hooks are restored in ``finally``. This context is not
+        intended to overlap across threads.
+    """
     old_register_parameter = torch.nn.Module.register_parameter
     old_register_buffer = torch.nn.Module.register_buffer if include_buffers else None
 
@@ -29,10 +46,7 @@ def init_weights_on_device(device=torch.device("meta"), include_buffers: bool = 
 
     patched_constructors = {}
     if include_buffers:
-        patched_constructors = {
-            name: getattr(torch, name)
-            for name in ("empty", "zeros", "ones", "full")
-        }
+        patched_constructors = {name: getattr(torch, name) for name in ("empty", "zeros", "ones", "full")}
 
     try:
         torch.nn.Module.register_parameter = register_empty_parameter
@@ -50,6 +64,7 @@ def init_weights_on_device(device=torch.device("meta"), include_buffers: bool = 
 
 
 def skip_model_initialization(device=torch.device("meta")):
+    """Return an allocation-skipping context for constructing checkpoint-backed models."""
     return init_weights_on_device(device=device)
 
 

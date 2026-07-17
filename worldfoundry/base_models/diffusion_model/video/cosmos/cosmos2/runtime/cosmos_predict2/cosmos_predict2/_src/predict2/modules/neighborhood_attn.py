@@ -22,7 +22,7 @@ from typing import Optional
 import torch
 from torch import nn
 
-from cosmos_predict2._src.imaginaire.utils import log
+from worldfoundry.core.distributed.logging import log
 
 try:
     import natten
@@ -59,6 +59,7 @@ ALLOWED_COMPUTE_CAPS = [80, 90, 100]
 
 class NeighborhoodAttention(nn.Module):
     """Neighborhood attention implementation."""
+
     def __init__(self, natten_parameters, base_attn_op):
         """Init.
 

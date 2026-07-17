@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from typing import Tuple
 
 from worldfoundry.base_models.perception_core.tracking.dot.models.shelf.cotracker2_utils.models.core.cotracker.cotracker import CoTracker2
-from worldfoundry.base_models.perception_core.tracking.dot.models.shelf.cotracker2_utils.models.core.model_utils import get_points_on_a_grid
+from worldfoundry.base_models.perception_core.tracking.cotracker.models.core.model_utils import get_points_on_a_grid
 
 
 class EvaluationPredictor(torch.nn.Module):

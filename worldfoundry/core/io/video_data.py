@@ -53,6 +53,11 @@ def split_file_name(file_name):
 
 
 def search_for_images(folder):
+    """Return naturally sorted JPG/PNG paths from one image-sequence folder.
+
+    Embedded digit runs are compared numerically, so ``2.png`` sorts before
+    ``10.png``. The search is non-recursive.
+    """
     file_list = [i for i in os.listdir(folder) if i.endswith(".jpg") or i.endswith(".png")]
     file_list = [(split_file_name(file_name), file_name) for file_name in file_list]
     file_list = [i[1] for i in sorted(file_list)]
@@ -215,6 +220,21 @@ def merge_video_audio(video_path: str, audio_path: str) -> None:
 
 
 def save_video_with_audio(frames, save_path, audio_path, fps=16, quality=9, ffmpeg_params=None):
+    """Write PIL frames, then mux an external audio track with ffmpeg.
+
+    Args:
+        frames: Iterable of PIL images.
+        save_path: Destination video path, replaced after muxing.
+        audio_path: Existing audio file.
+        fps: Output frame rate.
+        quality: ImageIO encoder quality.
+        ffmpeg_params: Optional ImageIO ffmpeg arguments.
+
+    Notes:
+        ``merge_video_audio`` reports ffmpeg failures and removes its temporary
+        file. Use lower-level helpers when the caller needs structured process
+        error handling.
+    """
     save_video(frames, save_path, fps, quality, ffmpeg_params)
     merge_video_audio(save_path, audio_path)
 

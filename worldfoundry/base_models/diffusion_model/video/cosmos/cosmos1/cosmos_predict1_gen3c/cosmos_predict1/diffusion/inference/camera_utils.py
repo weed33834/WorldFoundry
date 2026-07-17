@@ -15,10 +15,13 @@
 
 """Module for base_models -> diffusion_model -> video -> cosmos -> cosmos1 -> cosmos_predict1_gen3c -> cosmos_predict1 -> diffusion -> inference -> camera_utils.py functionality."""
 
-import torch
 import math
+
+import torch
 import torch.nn.functional as F
+
 from .forward_warp_utils_pytorch import unproject_points
+
 
 def apply_transformation(Bx4x4, another_matrix):
     """Apply transformation.
@@ -53,8 +56,16 @@ def look_at_matrix(camera_pos, target, invert_pos=True):
 
     return look_at
 
+
 def create_horizontal_trajectory(
-    world_to_camera_matrix, center_depth, positive=True, n_steps=13, distance=0.1, device="cuda", axis="x", camera_rotation="center_facing"
+    world_to_camera_matrix,
+    center_depth,
+    positive=True,
+    n_steps=13,
+    distance=0.1,
+    device="cuda",
+    axis="x",
+    camera_rotation="center_facing",
 ):
     """Create horizontal trajectory.
 
@@ -75,15 +86,15 @@ def create_horizontal_trajectory(
     initial_camera_pos = torch.tensor([0, 0, 0], device=device)
 
     for i in range(n_steps):
-        if axis == "x": # pos - right
+        if axis == "x":  # pos - right
             x = i * distance * center_depth / n_steps * (1 if positive else -1)
             y = 0
             z = 0
-        elif axis == "y": # pos - down
+        elif axis == "y":  # pos - down
             x = 0
             y = i * distance * center_depth / n_steps * (1 if positive else -1)
             z = 0
-        elif axis == "z": # pos - in
+        elif axis == "z":  # pos - in
             x = 0
             y = 0
             z = i * distance * center_depth / n_steps * (1 if positive else -1)
@@ -234,13 +245,13 @@ def generate_camera_trajectory(
             positive = False  # Assuming 'up' means camera moves in negative y direction if y points down
             axis = "y"
         elif trajectory_type == "down":
-            positive = True # Assuming 'down' means camera moves in positive y direction if y points down
+            positive = True  # Assuming 'down' means camera moves in positive y direction if y points down
             axis = "y"
         elif trajectory_type == "zoom_in":
             positive = True  # Assuming 'zoom_in' means camera moves in positive z direction (forward)
             axis = "z"
         elif trajectory_type == "zoom_out":
-            positive = False # Assuming 'zoom_out' means camera moves in negative z direction (backward)
+            positive = False  # Assuming 'zoom_out' means camera moves in negative z direction (backward)
             axis = "z"
         else:
             raise ValueError(f"Unsupported trajectory type: {trajectory_type}")
@@ -347,30 +358,31 @@ def align_depth(
         return source_depth
     elif alignment_method == "non_rigid":
         if k is None or c2w is None:
-            raise ValueError("Camera intrinsics (k) and camera-to-world matrix (c2w) are required for non-rigid alignment")
-            
+            raise ValueError(
+                "Camera intrinsics (k) and camera-to-world matrix (c2w) are required for non-rigid alignment"
+            )
+
         source_inv_depth = 1.0 / source_depth
         source_depth = _align_inv_depth_to_depth(source_inv_depth, target_depth, target_mask)
-        
+
         # Initialize scale map
         sc_map = torch.ones_like(source_depth).float().to(source_depth.device).requires_grad_(True)
         optimizer = torch.optim.Adam(params=[sc_map], lr=0.001)
-        
+
         # Unproject target depth
         target_unprojected = unproject_points(
             target_depth.unsqueeze(0).unsqueeze(0),  # Add batch and channel dimensions
             c2w.unsqueeze(0),  # Add batch dimension
             k.unsqueeze(0),  # Add batch dimension
             is_depth=True,
-            mask=target_mask.unsqueeze(0).unsqueeze(0)  # Add batch and channel dimensions
+            mask=target_mask.unsqueeze(0).unsqueeze(0),  # Add batch and channel dimensions
         ).squeeze(0)  # Remove batch dimension
-        
+
         # Create smoothing kernel
         smoothing_kernel = torch.ones(
-            (1, 1, smoothing_kernel_size, smoothing_kernel_size),
-            device=source_depth.device
+            (1, 1, smoothing_kernel_size, smoothing_kernel_size), device=source_depth.device
         ) / (smoothing_kernel_size**2)
-        
+
         for _ in range(num_iters):
             # Unproject scaled source depth
             source_unprojected = unproject_points(
@@ -378,30 +390,28 @@ def align_depth(
                 c2w.unsqueeze(0),  # Add batch dimension
                 k.unsqueeze(0),  # Add batch dimension
                 is_depth=True,
-                mask=target_mask.unsqueeze(0).unsqueeze(0)  # Add batch and channel dimensions
+                mask=target_mask.unsqueeze(0).unsqueeze(0),  # Add batch and channel dimensions
             ).squeeze(0)  # Remove batch dimension
-            
+
             # Data loss
             data_loss = torch.abs(source_unprojected[target_mask] - target_unprojected[target_mask]).mean()
-            
+
             # Apply smoothing filter to sc_map
             sc_map_reshaped = sc_map.unsqueeze(0).unsqueeze(0)
-            sc_map_smoothed = F.conv2d(
-                sc_map_reshaped,
-                smoothing_kernel,
-                padding=smoothing_kernel_size // 2
-            ).squeeze(0).squeeze(0)
-            
+            sc_map_smoothed = (
+                F.conv2d(sc_map_reshaped, smoothing_kernel, padding=smoothing_kernel_size // 2).squeeze(0).squeeze(0)
+            )
+
             # ARAP loss
             arap_loss = torch.abs(sc_map_smoothed - sc_map).mean()
-            
+
             # Total loss
             loss = data_loss + lambda_arap * arap_loss
-            
+
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            
+
         return source_depth * sc_map
     else:
         raise ValueError(f"Unsupported alignment method: {alignment_method}")

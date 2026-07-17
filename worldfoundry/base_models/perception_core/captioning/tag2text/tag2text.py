@@ -2,7 +2,10 @@
  * Tag2Text
  * Written by Xinyu Huang
 '''
+import logging
 import warnings
+
+logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 
 from .vit import VisionTransformer, interpolate_pos_embed
@@ -331,7 +334,7 @@ def init_tokenizer():
     tokenizer = BertTokenizer.from_pretrained(_BERT_BASE_UNCASED)
     tokenizer.add_special_tokens({'bos_token':'[DEC]'})
     tokenizer.add_special_tokens({'additional_special_tokens':['[ENC]']})       
-    tokenizer.enc_token_id = tokenizer.additional_special_tokens_ids[0]  
+    tokenizer.enc_token_id = tokenizer.convert_tokens_to_ids('[ENC]')
     return tokenizer
 
 

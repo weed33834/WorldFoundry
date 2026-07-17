@@ -1,23 +1,29 @@
-"""Module for base_models -> diffusion_model -> video -> wan -> variants -> causal_forcing_long_video -> wan -> modules -> causal_model.py functionality."""
+"""Causal Wan model used by the in-tree long-video forcing runtimes.
 
+The RollingForcing-compatible implementation derives from TencentARC's
+RollingForcing revision ``a1477d09e85dc759a6a6728f55f77f59342ce388`` and is
+packaged against WorldFoundry's shared attention implementation.  Attribution
+and license terms are recorded under
+``worldfoundry.synthesis.visual_generation.rolling_forcing``.
+"""
+
+import math
+
+import torch
+import torch.distributed as dist
+import torch.nn as nn
+from diffusers.configuration_utils import ConfigMixin, register_to_config
+from diffusers.models.modeling_utils import ModelMixin
 from wan.modules.attention import attention
 from wan.modules.model import (
+    WAN_CROSSATTENTION_CLASSES,
+    MLPProj,
+    WanLayerNorm,
     WanRMSNorm,
     rope_apply,
-    WanLayerNorm,
-    WAN_CROSSATTENTION_CLASSES,
     rope_params,
-    MLPProj,
-    sinusoidal_embedding_1d
+    sinusoidal_embedding_1d,
 )
-# from torch.nn.attention.flex_attention import create_block_mask, flex_attention
-from diffusers.configuration_utils import ConfigMixin, register_to_config
-# from torch.nn.attention.flex_attention import BlockMask
-from diffusers.models.modeling_utils import ModelMixin
-import torch.nn as nn
-import torch
-import math
-import torch.distributed as dist
 
 # wan 1.3B model has a weird channel / head configurations and require max-autotune to work with flexattention
 # see https://github.com/pytorch/pytorch/issues/133254
@@ -144,6 +150,11 @@ class CausalWanSelfAttention(nn.Module):
         q, k, v = qkv_fn(x)
 
         if kv_cache is None:
+            # FlexAttention is only needed by the excluded training path. Keep
+            # the import lazy so inference remains usable on supported PyTorch
+            # builds that do not expose this prototype API.
+            from torch.nn.attention.flex_attention import flex_attention
+
             # if it is teacher forcing training?
             is_tf = (s == seq_lens[0].item() * 2)
             if is_tf:
@@ -643,6 +654,8 @@ class CausalWanModel(ModelMixin, ConfigMixin):
         [1 latent frame] [1 latent frame] ... [1 latent frame]
         We use flexattention to construct the attention mask
         """
+        from torch.nn.attention.flex_attention import create_block_mask
+
         total_length = num_frames * frame_seqlen
 
         # we do right padding to get to a multiple of 128
@@ -709,6 +722,8 @@ class CausalWanModel(ModelMixin, ConfigMixin):
         [1 latent frame] [1 latent frame] ... [1 latent frame]
         We use flexattention to construct the attention mask
         """
+        from torch.nn.attention.flex_attention import create_block_mask
+
         # debug
         DEBUG = False
         if DEBUG:
@@ -806,6 +821,8 @@ class CausalWanModel(ModelMixin, ConfigMixin):
         The first frame is separated out to support I2V generation
         We use flexattention to construct the attention mask
         """
+        from torch.nn.attention.flex_attention import create_block_mask
+
         total_length = num_frames * frame_seqlen
 
         # we do right padding to get to a multiple of 128

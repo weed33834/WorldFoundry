@@ -1,9 +1,9 @@
 """Convolution and pooling shape inference for numpy and torch tensors."""
 
-from functools import partial
 import math
-from typing import List, Tuple, Union
 import warnings
+from functools import partial
+from typing import List, Tuple, Union
 
 import numpy as np
 import torch
@@ -97,9 +97,7 @@ def check_shape(
     else:
         assert isinstance(value, (list, tuple))
         actual_shape = value
-        assert all(
-            isinstance(s, int) for s in actual_shape
-        ), f"actual shape: {actual_shape} is not a list of ints"
+        assert all(isinstance(s, int) for s in actual_shape), f"actual shape: {actual_shape} is not a list of ints"
 
     if torch.is_tensor(expected):
         expected_shape = expected.size()
@@ -112,10 +110,7 @@ def check_shape(
     err_msg = f" for {err_msg}" if err_msg else ""
 
     if len(actual_shape) != len(expected_shape):
-        err_msg = (
-            f"Dimension mismatch{err_msg}: actual shape {actual_shape} "
-            f"!= expected shape {expected_shape}."
-        )
+        err_msg = f"Dimension mismatch{err_msg}: actual shape {actual_shape} != expected shape {expected_shape}."
         if mode == "raise":
             raise ValueError(err_msg)
         elif mode == "warning":
@@ -124,10 +119,7 @@ def check_shape(
 
     for s_a, s_e in zip(actual_shape, expected_shape):
         if s_e is not None and s_a != s_e:
-            err_msg = (
-                f"Shape mismatch{err_msg}: actual shape {actual_shape} "
-                f"!= expected shape {expected_shape}."
-            )
+            err_msg = f"Shape mismatch{err_msg}: actual shape {actual_shape} != expected shape {expected_shape}."
             if mode == "raise":
                 raise ValueError(err_msg)
             elif mode == "warning":
@@ -160,13 +152,9 @@ def shape_convnd(
         has_batch: whether the first dim is batch size or not
     """
     if has_batch:
-        assert (
-            len(input_shape) == dim + 2
-        ), "input shape with batch should be {}-dimensional".format(dim + 2)
+        assert len(input_shape) == dim + 2, "input shape with batch should be {}-dimensional".format(dim + 2)
     else:
-        assert (
-            len(input_shape) == dim + 1
-        ), "input shape without batch should be {}-dimensional".format(dim + 1)
+        assert len(input_shape) == dim + 1, "input shape without batch should be {}-dimensional".format(dim + 1)
     if stride is None:
         # for pooling convention in PyTorch
         stride = kernel_size
@@ -178,17 +166,13 @@ def shape_convnd(
         batch = None
     _, *img = input_shape
     new_img_shape = [
-        math.floor(
-            (img[i] + 2 * padding[i] - dilation[i] * (kernel_size[i] - 1) - 1) // stride[i] + 1
-        )
+        math.floor((img[i] + 2 * padding[i] - dilation[i] * (kernel_size[i] - 1) - 1) // stride[i] + 1)
         for i in range(dim)
     ]
     return ((batch,) if has_batch else ()) + (out_channels, *new_img_shape)
 
 
-def shape_poolnd(
-    dim, input_shape, kernel_size, stride=None, padding=0, dilation=1, has_batch=False
-):
+def shape_poolnd(dim, input_shape, kernel_size, stride=None, padding=0, dilation=1, has_batch=False):
     """
     The only difference from infer_shape_convnd is that `stride` default is None
     """
@@ -233,13 +217,9 @@ def shape_transpose_convnd(
         has_batch: whether the first dim is batch size or not
     """
     if has_batch:
-        assert (
-            len(input_shape) == dim + 2
-        ), "input shape with batch should be {}-dimensional".format(dim + 2)
+        assert len(input_shape) == dim + 2, "input shape with batch should be {}-dimensional".format(dim + 2)
     else:
-        assert (
-            len(input_shape) == dim + 1
-        ), "input shape without batch should be {}-dimensional".format(dim + 1)
+        assert len(input_shape) == dim + 1, "input shape without batch should be {}-dimensional".format(dim + 1)
     kernel_size, stride, padding, output_padding, dilation = _expands(
         dim, kernel_size, stride, padding, output_padding, dilation
     )
@@ -249,10 +229,7 @@ def shape_transpose_convnd(
     else:
         batch = None
     _, *img = input_shape
-    new_img_shape = [
-        (img[i] - 1) * stride[i] - 2 * padding[i] + kernel_size[i] + output_padding[i]
-        for i in range(dim)
-    ]
+    new_img_shape = [(img[i] - 1) * stride[i] - 2 * padding[i] + kernel_size[i] + output_padding[i] for i in range(dim)]
     return ((batch,) if has_batch else ()) + (out_channels, *new_img_shape)
 
 

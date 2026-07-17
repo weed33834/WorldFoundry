@@ -8,24 +8,15 @@ This module provides reusable, high-level utilities for:
 
 from __future__ import annotations
 
+import collections.abc
 import functools
 import inspect
 import pprint
-import sys
 import types
-import collections.abc
-from typing import Any, Dict, Literal
 import warnings
+from typing import Any, Dict, Literal
 
-
-def is_sequence(obj):
-    """Returns True if the object is an iterable sequence and is NOT a string."""
-    return isinstance(obj, collections.abc.Sequence) and not isinstance(obj, str)
-
-
-def is_mapping(obj):
-    """Returns True if the object implements the standard dictionary/mapping interface."""
-    return isinstance(obj, collections.abc.Mapping)
+from worldfoundry.core.structures.predicates import is_mapping, is_sequence
 
 
 def state_dict_class(keys: list[str]):
@@ -72,9 +63,7 @@ def assert_implements_method(object, method: str | list[str]):
     if isinstance(method, str):
         method = [method]
     for m in method:
-        assert implements_method(object, m), (
-            f"object {object.__class__} does not " f"implement method {m}()"
-        )
+        assert implements_method(object, m), f"object {object.__class__} does not implement method {m}()"
 
 
 def meta_decorator(decor):
@@ -104,7 +93,6 @@ def meta_decorator(decor):
     return new_decor
 
 
-
 @meta_decorator
 def make_recursive_func(fn, *, with_path=False):
     """
@@ -121,17 +109,13 @@ def make_recursive_func(fn, *, with_path=False):
     @functools.wraps(fn)
     def _wrapper(tensor_struct, *args, **kwargs):
         if tree is not None and with_path:
-            return tree.map_structure_with_path(
-                lambda paths, x: fn(paths, x, *args, **kwargs), tensor_struct
-            )
+            return tree.map_structure_with_path(lambda paths, x: fn(paths, x, *args, **kwargs), tensor_struct)
         if tree is not None:
             return tree.map_structure(lambda x: fn(x, *args, **kwargs), tensor_struct)
         if with_path:
             raise ImportError("dm_tree is required when make_recursive_func(with_path=True)")
         if is_mapping(tensor_struct):
-            return type(tensor_struct)(
-                (key, _wrapper(value, *args, **kwargs)) for key, value in tensor_struct.items()
-            )
+            return type(tensor_struct)((key, _wrapper(value, *args, **kwargs)) for key, value in tensor_struct.items())
         if is_sequence(tensor_struct):
             return type(tensor_struct)(_wrapper(value, *args, **kwargs) for value in tensor_struct)
         return fn(tensor_struct, *args, **kwargs)

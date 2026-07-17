@@ -44,7 +44,9 @@ from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 from diffusers.utils import BaseOutput
 
 from ...constants import PRECISION_TO_TYPE
-from ...vae.autoencoder_kl_causal_3d import AutoencoderKLCausal3D
+from worldfoundry.base_models.diffusion_model.video.hunyuan_video.official_hunyuan_video_runtime.hyvideo.vae.autoencoder_kl_causal_3d import (
+    AutoencoderKLCausal3D,
+)
 from ...text_encoder import TextEncoder
 from ...modules import HYVideoDiffusionTransformer
 from ...utils.data_utils import black_image

@@ -7,7 +7,9 @@ from typing import Any, Mapping
 from .store import MemoryQuery, MemoryRecord
 
 
-def score_record(record: Mapping[str, Any], query: MemoryQuery, *, newest_timestamp: int | float | None = None) -> float:
+def score_record(
+    record: Mapping[str, Any], query: MemoryQuery, *, newest_timestamp: int | float | None = None
+) -> float:
     """Score one memory record against *query* using type, metadata, text, and recency signals."""
     score = 0.0
     if query.prefer_type is not None:

@@ -105,9 +105,7 @@ class BlockKVCache:
     @property
     def write_end(self) -> int:
         """Right edge of the current chunk in the physical cache layout."""
-        assert self._curr_chunk_idx is not None, (
-            "Must call before_update() before write_end"
-        )
+        assert self._curr_chunk_idx is not None, "Must call before_update() before write_end"
         return self.size
 
     @classmethod
@@ -129,9 +127,7 @@ class BlockKVCache:
         return cache
 
     def __post_init__(self) -> None:
-        assert self.k_shape[:-1] == self.v_shape[:-1], (
-            "k and v must have the same shape except for the last dimension"
-        )
+        assert self.k_shape[:-1] == self.v_shape[:-1], "k and v must have the same shape except for the last dimension"
 
         tensor_dim = len(self.k_shape)
         assert -tensor_dim <= self.seq_dim < tensor_dim, (
@@ -164,9 +160,7 @@ class BlockKVCache:
     def _roll_local_window_left(self) -> None:
         """Shift the local window left by chunk_size tokens (steady-state only)."""
         total_size = self._k.shape[self.seq_dim]
-        assert total_size == self._n_cached, (
-            f"Expected full cache: {total_size=} != {self._n_cached=}"
-        )
+        assert total_size == self._n_cached, f"Expected full cache: {total_size=} != {self._n_cached=}"
         tokens_to_keep = self.window_size - self.chunk_size
 
         if tokens_to_keep > 0:
@@ -181,23 +175,14 @@ class BlockKVCache:
             self._v[dst_slice] = self._v[src_slice].clone()
 
     def _current_chunk_overlaps_sink(self) -> bool:
-        assert self._curr_chunk_idx is not None, (
-            "Must call before_update() before checking sink overlap"
-        )
-        return (
-            self.sink_size > 0
-            and self._curr_chunk_idx * self.chunk_size < self.sink_size
-        )
+        assert self._curr_chunk_idx is not None, "Must call before_update() before checking sink overlap"
+        return self.sink_size > 0 and self._curr_chunk_idx * self.chunk_size < self.sink_size
 
     def _current_write_bounds(self) -> tuple[int, int]:
         """Return the physical cache range written by the current update."""
-        assert self._curr_chunk_idx is not None, (
-            "Must call before_update() before computing write bounds"
-        )
+        assert self._curr_chunk_idx is not None, "Must call before_update() before computing write bounds"
         total_size = self._k.shape[self.seq_dim]
-        assert self.chunk_size <= total_size, (
-            f"chunk_size ({self.chunk_size}) must be <= cache size ({total_size})"
-        )
+        assert self.chunk_size <= total_size, f"chunk_size ({self.chunk_size}) must be <= cache size ({total_size})"
 
         if self._curr_chunk_idx == self._prev_chunk_idx + 1:
             write_start = torch.sym_min(self._n_cached, total_size - self.chunk_size)
@@ -217,11 +202,7 @@ class BlockKVCache:
         read_start = 0
         read_end = write_end - write_start
 
-        if (
-            self.sink_size > 0
-            and not self._current_chunk_overlaps_sink()
-            and write_start < self.sink_size
-        ):
+        if self.sink_size > 0 and not self._current_chunk_overlaps_sink() and write_start < self.sink_size:
             write_start = self.sink_size
             keep_size = write_end - write_start
             read_end = self.chunk_size
@@ -234,9 +215,7 @@ class BlockKVCache:
 
     def _visible_end(self) -> int:
         """Right edge of cached tokens visible to attention during this update."""
-        assert self._curr_chunk_idx is not None, (
-            "Must call before_update() before computing visible cache size"
-        )
+        assert self._curr_chunk_idx is not None, "Must call before_update() before computing visible cache size"
         total_size = self._k.shape[self.seq_dim]
         if self._curr_chunk_idx == self._prev_chunk_idx + 1:
             return torch.sym_min(self._n_cached + self.chunk_size, total_size)
@@ -248,15 +227,11 @@ class BlockKVCache:
 
     def is_steady_state(self) -> bool:
         """Return True if the cache is full (steady-state phase)."""
-        assert self._curr_chunk_idx is not None, (
-            "Must call before_update() before is_steady_state()"
-        )
+        assert self._curr_chunk_idx is not None, "Must call before_update() before is_steady_state()"
         total_size = self._k.shape[self.seq_dim]
         is_full = total_size == self._n_cached
         is_overlapping_with_sink = (
-            self.sink_size > 0
-            and self._curr_chunk_idx * self.chunk_size
-            < self.sink_size  # start < sink_size
+            self.sink_size > 0 and self._curr_chunk_idx * self.chunk_size < self.sink_size  # start < sink_size
         )
         return is_full and not is_overlapping_with_sink
 
@@ -272,9 +247,7 @@ class BlockKVCache:
         Args:
             chunk_idx: Chunk index of the new chunk in the full sequence.
         """
-        assert self._curr_chunk_idx is None, (
-            "Must call after_update() before before_update()"
-        )
+        assert self._curr_chunk_idx is None, "Must call after_update() before before_update()"
         self._curr_chunk_idx = chunk_idx
 
         if chunk_idx == self._prev_chunk_idx:
@@ -297,9 +270,7 @@ class BlockKVCache:
             k: Keys; shape must match cached keys except at seq_dim, where length must be chunk_size.
             v: Values; shape must match cached values except at seq_dim, where length must be chunk_size.
         """
-        assert self._curr_chunk_idx is not None, (
-            "Must call before_update() before update()"
-        )
+        assert self._curr_chunk_idx is not None, "Must call before_update() before update()"
 
         chunk_size_k = k.shape[self.seq_dim]
         chunk_size_v = v.shape[self.seq_dim]
@@ -322,9 +293,7 @@ class BlockKVCache:
         Args:
             chunk_idx: The index of the new chunk in the full sequence.
         """
-        assert chunk_idx == self._curr_chunk_idx, (
-            f"Expected chunk_idx to be {self._curr_chunk_idx}, got {chunk_idx}"
-        )
+        assert chunk_idx == self._curr_chunk_idx, f"Expected chunk_idx to be {self._curr_chunk_idx}, got {chunk_idx}"
 
         if self._curr_chunk_idx == self._prev_chunk_idx + 1:
             if self.is_steady_state():

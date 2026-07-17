@@ -5,9 +5,7 @@ from dataclasses import dataclass
 import numpy as np
 import PIL.Image
 import torch
-
 from diffusers.utils import BaseOutput, get_logger
-
 
 logger = get_logger(__name__)
 

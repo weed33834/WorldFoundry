@@ -34,9 +34,14 @@ where ``(a, b) = (d, d + D/2)`` when ``interleaved=False`` and
 from __future__ import annotations
 
 import torch
-import triton
-import triton.language as tl
 from torch import Tensor
+
+from worldfoundry.runtime.compile_cache import configure_persistent_compile_cache
+
+configure_persistent_compile_cache(namespace="rope-triton")
+
+import triton  # noqa: E402
+import triton.language as tl  # noqa: E402
 
 
 @triton.jit
@@ -98,13 +103,9 @@ def _rope_inference_kernel(
         d_full = tl.arange(0, 2 * BLOCK_D)
         full_mask_d = d_full < (2 * D_HALF)
         offsets = (
-            s_off[:, None, None] * stride_xs
-            + h_idx[None, :, None] * stride_xh
-            + d_full[None, None, :] * stride_xd
+            s_off[:, None, None] * stride_xs + h_idx[None, :, None] * stride_xh + d_full[None, None, :] * stride_xd
         )
-        full_mask = (
-            s_mask[:, None, None] & h_mask[None, :, None] & full_mask_d[None, None, :]
-        )
+        full_mask = s_mask[:, None, None] & h_mask[None, :, None] & full_mask_d[None, None, :]
         x_flat = tl.load(row_base + offsets, mask=full_mask, other=0.0)
         x_pairs = tl.reshape(x_flat, (BLOCK_S, BLOCK_H, BLOCK_D, 2))
         a, b = tl.split(x_pairs)
@@ -118,11 +119,7 @@ def _rope_inference_kernel(
         out_flat = tl.reshape(out_pairs, (BLOCK_S, BLOCK_H, 2 * BLOCK_D))
         tl.store(row_base + offsets, out_flat, mask=full_mask)
     else:
-        a_off = (
-            s_off[:, None, None] * stride_xs
-            + h_idx[None, :, None] * stride_xh
-            + d_idx[None, None, :] * stride_xd
-        )
+        a_off = s_off[:, None, None] * stride_xs + h_idx[None, :, None] * stride_xh + d_idx[None, None, :] * stride_xd
         b_off = a_off + D_HALF * stride_xd
         mask = s_mask[:, None, None] & h_mask[None, :, None] & d_mask[None, None, :]
 

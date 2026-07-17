@@ -25,8 +25,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
-from fla.modules import ShortConvolution
 from timm.models.vision_transformer import Attention as Attention_
+
+if os.environ.get("WORLDFOUNDRY_SANA_NETS_PROFILE", "").strip().lower() == "wm":
+    from diffusion.utils.fla_import import import_short_convolution
+
+    ShortConvolution = import_short_convolution()
+else:
+    from fla.modules import ShortConvolution
 
 from diffusion.model.liger_norms import get_rmsnorm_class
 from diffusion.utils.chunk_utils import (

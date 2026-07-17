@@ -5,13 +5,15 @@ try:
 except ImportError:
     flash_attn_varlen_func = None
 
+from worldfoundry.core.attention import scaled_dot_product_attention as _worldfoundry_scaled_dot_product_attention
+from worldfoundry.core.attention.backends import probe_attention_backends
 from worldfoundry.core.distributed.sequence_parallel_runtime import (
     all_gather,
     all_to_all_4D,
+    all_to_all_4d_many,
     get_sequence_parallel_state,
     nccl_info,
 )
-from worldfoundry.core.attention import scaled_dot_product_attention as _worldfoundry_scaled_dot_product_attention
 
 
 def get_cu_seqlens(text_mask, img_len):
@@ -45,9 +47,11 @@ def parallel_attention(
     value, encoder_value = v
 
     if get_sequence_parallel_state():
-        query = all_to_all_4D(query, scatter_dim=2, gather_dim=1)
-        key = all_to_all_4D(key, scatter_dim=2, gather_dim=1)
-        value = all_to_all_4D(value, scatter_dim=2, gather_dim=1)
+        query, key, value = all_to_all_4d_many(
+            (query, key, value),
+            scatter_dim=2,
+            gather_dim=1,
+        )
 
         def shrink_head(encoder_state, dim):
             local_heads = encoder_state.shape[dim] // nccl_info.sp_size
@@ -67,6 +71,8 @@ def parallel_attention(
     head = query.shape[-2]
     head_dim = query.shape[-1]
 
+    capabilities = probe_attention_backends(query.device)
+    use_sage = bool(use_sage and capabilities["sage_attention"].usable)
     if use_sage:
         try:
             from sageattention import sageattn
@@ -74,7 +80,8 @@ def parallel_attention(
             use_sage = False
         else:
             hidden_states = sageattn(query, key, value, tensor_layout="NHD")
-    if not use_sage and flash_attn_varlen_func is None:
+    use_flash = flash_attn_varlen_func is not None and capabilities["flash_attention_2"].usable
+    if not use_sage and not use_flash:
         outputs = []
         for batch_idx in range(batch_size):
             q_start = int(cu_seqlens_q[2 * batch_idx].item())

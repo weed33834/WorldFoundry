@@ -202,7 +202,9 @@ def cp_update_cross_attn_qkv_range(
             inner_xattn_q_ranges.append(part_xattn_q_rangs)
             inner_xattn_k_ranges.append(torch.stack((valid_k_starts, valid_k_ends), dim=1))
         inner_end_values = torch.tensor([ranges[-1, -1] for ranges in inner_xattn_q_ranges], dtype=torch.int32)
-        inner_offsets = torch.cat((torch.zeros(1, dtype=inner_end_values.dtype), torch.cumsum(inner_end_values[:-1], dim=0)))
+        inner_offsets = torch.cat(
+            (torch.zeros(1, dtype=inner_end_values.dtype), torch.cumsum(inner_end_values[:-1], dim=0))
+        )
         inner_xattn_q_ranges = [tensor + int(offset) for tensor, offset in zip(inner_xattn_q_ranges, inner_offsets)]
         xattn_q_ranges.append(torch.cat(inner_xattn_q_ranges, dim=0))
         xattn_k_ranges.append(torch.cat(inner_xattn_k_ranges, dim=0))
@@ -216,9 +218,9 @@ def cp_update_cross_attn_qkv_range(
 
     cu_seqlens_q = torch.unique(xattn_q_ranges_ts)
     cu_seqlens_k = torch.unique(xattn_k_ranges_ts)
-    assert (
-        cu_seqlens_q.shape == cu_seqlens_k.shape
-    ), f"cu_seqlens_q.shape: {cu_seqlens_q.shape}, cu_seqlens_k.shape: {cu_seqlens_k.shape}, "
+    assert cu_seqlens_q.shape == cu_seqlens_k.shape, (
+        f"cu_seqlens_q.shape: {cu_seqlens_q.shape}, cu_seqlens_k.shape: {cu_seqlens_k.shape}, "
+    )
 
     return PackedCrossAttnParams(
         q_ranges=xattn_q_ranges_ts,
@@ -368,6 +370,20 @@ def cp_pre_process(
 
 
 def cp_post_process(cp_size: int, cp_strategy: str, x: torch.Tensor, meta_args: ModelMetaArgs) -> torch.Tensor:
+    """Gather context-parallel output back to the original sequence layout.
+
+    Args:
+        cp_size: Context-parallel world size. ``1`` returns ``x`` unchanged.
+        cp_strategy: ``"cp_ulysses"`` or ``"cp_shuffle_overlap"``.
+        x: This rank's local output tensor.
+        meta_args: Split sizes and padding recorded by ``cp_pre_process``.
+
+    Returns:
+        Globally gathered tensor with shuffle-overlap padding removed.
+
+    Raises:
+        ValueError: ``cp_strategy`` is unknown.
+    """
     if cp_size == 1:
         return x
     if cp_strategy == "cp_shuffle_overlap":
@@ -384,7 +400,9 @@ def cp_post_process(cp_size: int, cp_strategy: str, x: torch.Tensor, meta_args: 
 #####################################################
 # Ulysses Attention Pipeline
 #####################################################
-def all_to_all_input_split(tensor: torch.Tensor, cp_split_sizes: List[int]) -> Tuple[torch.Tensor, torch.distributed.Work]:
+def all_to_all_input_split(
+    tensor: torch.Tensor, cp_split_sizes: List[int]
+) -> Tuple[torch.Tensor, torch.distributed.Work]:
     """
     Scatter head_number and gather seq_len, for example:
     input: (seq_len, cp * hn, hd)
@@ -407,7 +425,9 @@ def all_to_all_input_split(tensor: torch.Tensor, cp_split_sizes: List[int]) -> T
     return output, handle
 
 
-def all_to_all_output_split(tensor: torch.Tensor, cp_split_sizes: List[int]) -> Tuple[torch.Tensor, torch.distributed.Work]:
+def all_to_all_output_split(
+    tensor: torch.Tensor, cp_split_sizes: List[int]
+) -> Tuple[torch.Tensor, torch.distributed.Work]:
     """
     Scatter seq_len and gather head_number, for example:
     input: (seq_len * cp, hn, hd)
@@ -456,6 +476,13 @@ def fused_qkv_communication(
 
 
 class UlyssesScheduler:
+    """Overlap Ulysses all-to-all communication with Q/K/V and cross attention.
+
+    Static entry points select separate, fused-KV, or fused-QKV communication
+    schedules. Each returns self-attention output restored to model layout plus
+    the concurrently computed cross-attention output.
+    """
+
     def __init__(self):
         pass
 
@@ -609,6 +636,18 @@ class UlyssesScheduler:
 def cso_communication(
     input: torch.Tensor, cp_world_size: int, cp_split_sizes: List[int], comm_type: str = None
 ) -> Tuple[torch.Tensor, torch.distributed.Work]:
+    """Launch one context-shuffle-overlap all-to-all operation.
+
+    Args:
+        input: Local sequence/head tensor.
+        cp_world_size: Context-parallel group size.
+        cp_split_sizes: Per-rank split sizes.
+        comm_type: ``"kv"`` additionally reshapes KV heads before exchange.
+
+    Returns:
+        Output buffer and asynchronous work handle. For one rank, the input and
+        a completed fake handle are returned.
+    """
     if cp_world_size == 1:
         return input, FakeHandle()
     assert cp_split_sizes is not None
@@ -627,6 +666,13 @@ def cso_communication(
 
 
 class CSOHelper:
+    """Pipeline chunked query exchange with attention computation.
+
+    The helper splits queries into ``cp_shuffle_num`` chunks, starts the first
+    asynchronous exchange, and rotates later query/output chunks so
+    communication can overlap with ``fattn`` execution.
+    """
+
     def __init__(self, cp_shuffle_num, cp_world_size, cp_split_sizes):
         self.cp_shuffle_num = cp_shuffle_num
         self.cp_world_size = cp_world_size
@@ -642,6 +688,7 @@ class CSOHelper:
 
     def overlap(self, fattn, qs, k, v):
         core_attn_outs = []
+        o = None
         for i in range(self.cp_shuffle_num):
             if self.cp_shuffle_num == 1:
                 q = qs[0]
@@ -650,6 +697,7 @@ class CSOHelper:
                 loop_var, loop_handle = cso_communication(qs[i + 1], self.cp_world_size, self.cp_split_sizes)
             else:
                 loop_handle.wait()
+                assert o is not None
                 if loop_var.numel() == qs[0].numel():
                     q = loop_var
                 else:

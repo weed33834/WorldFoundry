@@ -259,6 +259,7 @@ class DepthAnything3(nn.Module, PyTorchModelHubMixin):
         extrinsics: np.ndarray | None = None,
         intrinsics: np.ndarray | None = None,
         align_to_input_ext_scale: bool = True,
+        align_to_input_pose: bool = True,
         infer_gs: bool = False,
         use_ray_pose: bool = False,
         ref_view_strategy: str = "saddle_balanced",
@@ -287,6 +288,7 @@ class DepthAnything3(nn.Module, PyTorchModelHubMixin):
             extrinsics: Camera extrinsics (N, 4, 4)
             intrinsics: Camera intrinsics (N, 3, 3)
             align_to_input_ext_scale: whether to align the input pose scale to the prediction
+            align_to_input_pose: whether to run post-hoc pose alignment
             infer_gs: Enable the 3D Gaussian branch (needed for `gs_ply`/`gs_video` exports)
             use_ray_pose: Use ray-based pose estimation instead of camera decoder (default: False)
             ref_view_strategy: Strategy for selecting reference view from multiple views.
@@ -339,9 +341,10 @@ class DepthAnything3(nn.Module, PyTorchModelHubMixin):
         prediction = self._convert_to_prediction(raw_output)
 
         # Align prediction to extrinsincs
-        prediction = self._align_to_input_extrinsics_intrinsics(
-            extrinsics, intrinsics, prediction, align_to_input_ext_scale
-        )
+        if align_to_input_pose:
+            prediction = self._align_to_input_extrinsics_intrinsics(
+                extrinsics, intrinsics, prediction, align_to_input_ext_scale
+            )
 
         # Add processed images for visualization
         prediction = self._add_processed_images(prediction, imgs_cpu)

@@ -14,7 +14,6 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
-from torch.utils.checkpoint import checkpoint as grad_checkpoint
 
 from dvlt.model_components import Block, LayerScale, create_uv_grid
 
@@ -157,9 +156,6 @@ class DecoderHead(nn.Module):
         else:
             self.head = nn.Linear(embed_dim, out_dim * patch_size * patch_size)
 
-        self._checkpoint_conv = False
-        self._use_reentrant = False
-
         nn.init.xavier_uniform_(self.proj_in.weight)
         nn.init.zeros_(self.proj_in.bias)
 
@@ -238,11 +234,6 @@ class DecoderHead(nn.Module):
         else:
             self.head = nn.Linear(embed_dim, out_dim * patch_size * patch_size)
 
-    def enable_gradient_checkpointing(self, use_reentrant: bool = False) -> None:
-        """Enable gradient checkpointing for conv upsample stages."""
-        self._checkpoint_conv = True
-        self._use_reentrant = use_reentrant
-
     @staticmethod
     def _make_upsampler(in_channels: int, out_channels: int) -> nn.Sequential:
         """Helper function to make upsampler.
@@ -286,10 +277,7 @@ class DecoderHead(nn.Module):
             for block in self.upsample_blocks:
                 x = _concat_uv(x, aspect_ratio)
                 for layer in block:
-                    if self._checkpoint_conv and self.training:
-                        x = grad_checkpoint(layer, x, use_reentrant=self._use_reentrant)
-                    else:
-                        x = layer(x)
+                    x = layer(x)
             x = F.interpolate(x, (H, W), mode="bilinear", align_corners=False)
             x = _concat_uv(x, aspect_ratio)
             with torch.amp.autocast("cuda", enabled=False):

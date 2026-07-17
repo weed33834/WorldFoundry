@@ -1,10 +1,12 @@
 """Module for base_models -> perception_core -> detection -> grounding_dino -> util -> inference.py functionality."""
 
+from __future__ import annotations
+
+import os
 from typing import Tuple, List
 
 import cv2
 import numpy as np
-import supervision as sv
 import torch
 from PIL import Image
 from torchvision.ops import box_convert
@@ -46,6 +48,9 @@ def load_model(model_config_path: str, model_checkpoint_path: str, device: str =
     """
     args = SLConfig.fromfile(model_config_path)
     args.device = device
+    local_text_encoder = os.environ.get("WORLDFOUNDRY_GROUNDING_DINO_TEXT_ENCODER_DIR")
+    if local_text_encoder:
+        args.text_encoder_type = local_text_encoder
     model = build_model(args)
     checkpoint = torch.load(model_checkpoint_path, map_location="cpu")
     model.load_state_dict(clean_state_dict(checkpoint["model"]), strict=False)
@@ -152,20 +157,10 @@ def annotate(image_source: np.ndarray, boxes: torch.Tensor, logits: torch.Tensor
     h, w, _ = image_source.shape
     boxes = boxes * torch.Tensor([w, h, w, h])
     xyxy = box_convert(boxes=boxes, in_fmt="cxcywh", out_fmt="xyxy").numpy()
-    detections = sv.Detections(xyxy=xyxy)
+    from worldfoundry.studio.visualization.plugins.perception.render import render_detections
 
-    labels = [
-        f"{phrase} {logit:.2f}"
-        for phrase, logit
-        in zip(phrases, logits)
-    ]
-
-    bbox_annotator = sv.BoxAnnotator(color_lookup=sv.ColorLookup.INDEX)
-    label_annotator = sv.LabelAnnotator(color_lookup=sv.ColorLookup.INDEX)
-    annotated_frame = cv2.cvtColor(image_source, cv2.COLOR_RGB2BGR)
-    annotated_frame = bbox_annotator.annotate(scene=annotated_frame, detections=detections)
-    annotated_frame = label_annotator.annotate(scene=annotated_frame, detections=detections, labels=labels)
-    return annotated_frame
+    rendered = render_detections(image_source, xyxy, labels=phrases, scores=logits.tolist())
+    return cv2.cvtColor(rendered, cv2.COLOR_RGB2BGR)
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -321,6 +316,8 @@ class Model:
         Returns:
             The return value.
         """
+        import supervision as sv
+
         boxes = boxes * torch.Tensor([source_w, source_h, source_w, source_h])
         xyxy = box_convert(boxes=boxes, in_fmt="cxcywh", out_fmt="xyxy").numpy()
         confidence = logits.numpy()

@@ -12,15 +12,14 @@ def tensor_model_parallel_all_reduce(input_: torch.Tensor) -> torch.Tensor:
     return get_tp_group().all_reduce(input_)
 
 
-def tensor_model_parallel_all_gather(input_: torch.Tensor,
-                                     dim: int = -1) -> torch.Tensor:
+def tensor_model_parallel_all_gather(input_: torch.Tensor, dim: int = -1) -> torch.Tensor:
     """All-gather the input tensor across model parallel group."""
     return get_tp_group().all_gather(input_, dim)
 
 
-def sequence_model_parallel_all_to_all_4D(input_: torch.Tensor,
-                                          scatter_dim: int = 2,
-                                          gather_dim: int = 1) -> torch.Tensor:
+def sequence_model_parallel_all_to_all_4D(
+    input_: torch.Tensor, scatter_dim: int = 2, gather_dim: int = 1
+) -> torch.Tensor:
     """All-to-all communication of 4D tensors (e.g. QKV matrices) across sequence parallel group.
 
     NOTE: Does not support uneven sequence lengths. The scatter dimension must
@@ -39,8 +38,7 @@ def sequence_model_parallel_all_to_all_4D(input_: torch.Tensor,
     return sp_group.all_to_all_4D(input_, scatter_dim, gather_dim)
 
 
-def sequence_model_parallel_all_gather(input_: torch.Tensor,
-                                       dim: int = -1) -> torch.Tensor:
+def sequence_model_parallel_all_gather(input_: torch.Tensor, dim: int = -1) -> torch.Tensor:
     """All-gather the input tensor across sequence parallel group.
 
     NOTE: All SP ranks must have the same tensor shape. If shapes differ,

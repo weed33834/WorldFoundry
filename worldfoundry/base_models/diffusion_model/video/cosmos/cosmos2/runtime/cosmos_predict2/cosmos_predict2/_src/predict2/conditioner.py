@@ -31,18 +31,19 @@ import torch.nn as nn
 from torch.distributed import ProcessGroup
 
 from worldfoundry.base_models.diffusion_model.video.cosmos.shared.batch_ops import batch_mul
-from cosmos_predict2._src.imaginaire.lazy_config import instantiate
-from cosmos_predict2._src.imaginaire.utils import log
+from worldfoundry.core.configuration.lazy_config import instantiate
 from worldfoundry.core.distributed.context_parallel import broadcast
-from cosmos_predict2._src.imaginaire.utils.count_params import count_params
-from cosmos_predict2._src.imaginaire.utils.inference_mode import disabled_train
-from cosmos_predict2._src.imaginaire.utils.easy_io import easy_io
+from worldfoundry.core.distributed.logging import log
+from worldfoundry.core.io.easy_io import easy_io
+from worldfoundry.core.utils import count_parameters as count_params
+from worldfoundry.core.utils.inference_runtime import disabled_train
 
 T = TypeVar("T", bound="BaseCondition")
 
 
 class DataType(str, Enum):
     """Data type implementation."""
+
     IMAGE = "image"
     VIDEO = "video"
     MIX = "mix"
@@ -119,6 +120,7 @@ class BaseCondition(ABC):
 @dataclass(frozen=True)
 class Text2WorldCondition(BaseCondition):
     """Text world condition implementation."""
+
     crossattn_emb: Optional[torch.Tensor] = None
     data_type: DataType = DataType.VIDEO
     padding_mask: Optional[torch.Tensor] = None
@@ -150,6 +152,7 @@ class Text2WorldCondition(BaseCondition):
 @dataclass(frozen=True)
 class GR00TV1Img2VidCondition(Text2WorldCondition):
     """Img vid condition implementation."""
+
     gt_first_frame: Optional[torch.Tensor] = None
     use_image_condition: bool = False
     condition_video_input_mask_B_C_T_H_W: Optional[torch.Tensor] = None
@@ -178,6 +181,7 @@ class GR00TV1Img2VidCondition(Text2WorldCondition):
 
 class AbstractEmbModel(nn.Module):
     """Abstract emb model implementation."""
+
     def __init__(self):
         """Init."""
         super().__init__()
@@ -325,6 +329,7 @@ class AbstractEmbModel(nn.Module):
 
 class TextAttr(AbstractEmbModel):
     """Text attr implementation."""
+
     def __init__(
         self,
         input_key: List[str],
@@ -408,7 +413,14 @@ class TextAttr(AbstractEmbModel):
 
 class TextAttrEmptyStringDrop(AbstractEmbModel):
     """Text attr empty string drop implementation."""
-    def __init__(self, input_key: List[str], dropout_rate: Optional[float] = 0.0):
+
+    def __init__(
+        self,
+        input_key: List[str],
+        dropout_rate: Optional[float] = 0.0,
+        empty_prompt_path: Optional[str] = None,
+        credential_path: Optional[str] = "credentials/s3_training.secret",
+    ):
         """Init.
 
         Args:
@@ -419,6 +431,8 @@ class TextAttrEmptyStringDrop(AbstractEmbModel):
         self._input_key = input_key
         self._dropout_rate = dropout_rate
         self.empty_prompt_data = None
+        self.empty_prompt_path = empty_prompt_path
+        self.credential_path = credential_path
 
     def forward(self, token: torch.Tensor):
         """Forward.
@@ -444,12 +458,23 @@ class TextAttrEmptyStringDrop(AbstractEmbModel):
         if key is not None and "mask" in key:
             return in_tensor
         del key
-        if self.empty_prompt_data is None:
-            self.empty_prompt_data = easy_io.load(
-                "s3://bucket/edify_video/v4/validation/item_dataset/negative_prompt/empty_string_umt5.pt",
-                backend_args={"backend": "s3", "s3_credential_path": "credentials/s3_training.secret"},
-            )
         dropout_rate = dropout_rate if dropout_rate is not None else self.dropout_rate
+        if dropout_rate == 0.0:
+            return in_tensor
+        if self.empty_prompt_data is None:
+            empty_prompt_path = (
+                self.empty_prompt_path
+                or "s3://bucket/edify_video/v4/validation/item_dataset/negative_prompt/empty_string_umt5.pt"
+            )
+            backend_args = (
+                {"backend": "s3", "s3_credential_path": self.credential_path}
+                if empty_prompt_path.startswith("s3://")
+                else None
+            )
+            self.empty_prompt_data = easy_io.load(
+                empty_prompt_path,
+                backend_args=backend_args,
+            )
 
         B = in_tensor.shape[0]  # batch size
         # Create dropout mask: 1 -> keep in_tensor, 0 -> use empty_prompt_data
@@ -480,6 +505,7 @@ class TextAttrEmptyStringDrop(AbstractEmbModel):
 
 class ReMapkey(AbstractEmbModel):
     """Re mapkey implementation."""
+
     def __init__(
         self,
         input_key: str,
@@ -536,6 +562,7 @@ class ReMapkey(AbstractEmbModel):
 
 class BooleanFlag(AbstractEmbModel):
     """Boolean flag implementation."""
+
     def __init__(self, input_key: str, output_key: Optional[str] = None, dropout_rate: Optional[float] = 0.0):
         """Init.
 
@@ -735,7 +762,7 @@ class GeneralConditioner(nn.Module, ABC):
         cond_dropout_rates, uncond_dropout_rates = {}, {}
         for emb_name, embedder in self.embedders.items():
             cond_dropout_rates[emb_name] = 0.0
-            if isinstance(embedder, TextAttr):
+            if isinstance(embedder, (TextAttr, TextAttrEmptyStringDrop)):
                 uncond_dropout_rates[emb_name] = 0.0
             else:
                 uncond_dropout_rates[emb_name] = 1.0 if embedder.dropout_rate > 1e-4 else 0.0
@@ -753,6 +780,7 @@ class GeneralConditioner(nn.Module, ABC):
 
 class VideoConditioner(GeneralConditioner):
     """Video conditioner implementation."""
+
     def forward(
         self,
         batch: Dict,
@@ -773,6 +801,7 @@ class VideoConditioner(GeneralConditioner):
 
 class GR00TV1Img2VidConditioner(GeneralConditioner):
     """Img vid conditioner implementation."""
+
     def forward(
         self,
         batch: Dict,

@@ -10,16 +10,16 @@ import torch
 import torch.distributed as dist
 
 from worldfoundry.core.attention import attention
-from worldfoundry.core.distributed.sequence_ops import all_to_all
+from worldfoundry.core.distributed.sequence_ops import all_to_all, all_to_all_many
 
 
 def distributed_attention(
-        q,
-        k,
-        v,
-        seq_lens,
-        window_size=(-1, -1),
-        fa_version=None,
+    q,
+    k,
+    v,
+    seq_lens,
+    window_size=(-1, -1),
+    fa_version=None,
 ):
     """
     Performs distributed attention based on DeepSpeed Ulysses attention mechanism.
@@ -42,21 +42,19 @@ def distributed_attention(
     # To keep tensor shapes consistent across ranks, pad heads to a multiple
     # of world_size when needed (e.g. 40 heads on 7 GPUs -> 42 heads).
     if original_num_heads % world_size != 0:
-        padded_num_heads = ((original_num_heads + world_size - 1) //
-                            world_size) * world_size
+        padded_num_heads = ((original_num_heads + world_size - 1) // world_size) * world_size
         pad_heads = padded_num_heads - original_num_heads
         if pad_heads > 0:
-            q = torch.cat(
-                [q, q.new_zeros(*q.shape[:2], pad_heads, q.shape[3])], dim=2)
-            k = torch.cat(
-                [k, k.new_zeros(*k.shape[:2], pad_heads, k.shape[3])], dim=2)
-            v = torch.cat(
-                [v, v.new_zeros(*v.shape[:2], pad_heads, v.shape[3])], dim=2)
+            q = torch.cat([q, q.new_zeros(*q.shape[:2], pad_heads, q.shape[3])], dim=2)
+            k = torch.cat([k, k.new_zeros(*k.shape[:2], pad_heads, k.shape[3])], dim=2)
+            v = torch.cat([v, v.new_zeros(*v.shape[:2], pad_heads, v.shape[3])], dim=2)
 
     # gather q/k/v sequence
-    q = all_to_all(q, scatter_dim=2, gather_dim=1)
-    k = all_to_all(k, scatter_dim=2, gather_dim=1)
-    v = all_to_all(v, scatter_dim=2, gather_dim=1)
+    q, k, v = all_to_all_many(
+        (q, k, v),
+        scatter_dim=2,
+        gather_dim=1,
+    )
 
     x = attention(
         q,

@@ -52,7 +52,9 @@ class BaseMemory(ABC):
     ) -> dict[str, Any]:
         return self._store.append(content, kind=kind, timestamp=timestamp, metadata=metadata)
 
-    def latest_record(self, prefer_type: str | None = None, metadata: Mapping[str, Any] | None = None) -> dict[str, Any] | None:
+    def latest_record(
+        self, prefer_type: str | None = None, metadata: Mapping[str, Any] | None = None
+    ) -> dict[str, Any] | None:
         return self._store.latest(prefer_type=prefer_type, metadata=metadata)
 
     def reset_records(self) -> None:

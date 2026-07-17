@@ -22,6 +22,7 @@ from torch.nn import CrossEntropyLoss
 import torch.nn.functional as F
 
 from transformers.activations import ACT2FN
+from transformers.generation import GenerationMixin
 from transformers.file_utils import (
     ModelOutput,
 )
@@ -37,20 +38,14 @@ from transformers.modeling_outputs import (
     TokenClassifierOutput,
 )
 from transformers.modeling_utils import PreTrainedModel
-try:
-    from transformers.pytorch_utils import (
-        apply_chunking_to_forward,
-        find_pruneable_heads_and_indices,
-        prune_linear_layer,
-    )
-except ImportError:  # pragma: no cover - compatibility with older transformers
-    from transformers.modeling_utils import (
-        apply_chunking_to_forward,
-        find_pruneable_heads_and_indices,
-        prune_linear_layer,
-    )
+from transformers.pytorch_utils import apply_chunking_to_forward, prune_linear_layer
 from transformers.utils import logging
 from transformers.models.bert.configuration_bert import BertConfig
+
+from worldfoundry.core.nn.transformers_compat import (
+    find_pruneable_heads_and_indices,
+    prepare_head_mask,
+)
 
 
 logger = logging.get_logger(__name__)
@@ -672,7 +667,7 @@ class BertModel(BertPreTrainedModel):
 
         self.pooler = BertPooler(config) if add_pooling_layer else None
 
-        self.init_weights()
+        self.post_init()
  
 
     def get_input_embeddings(self):
@@ -850,7 +845,7 @@ class BertModel(BertPreTrainedModel):
         # attention_probs has shape bsz x n_heads x N x N
         # input head_mask has shape [num_heads] or [num_hidden_layers x num_heads]
         # and head_mask is converted to shape [num_hidden_layers x batch x num_heads x seq_length x seq_length]
-        head_mask = self.get_head_mask(head_mask, self.config.num_hidden_layers)
+        head_mask = prepare_head_mask(head_mask, self.config.num_hidden_layers)
         
         if encoder_embeds is None:
             embedding_output = self.embeddings(
@@ -891,7 +886,7 @@ class BertModel(BertPreTrainedModel):
         )
 
 
-class BertLMHeadModel(BertPreTrainedModel):
+class BertLMHeadModel(BertPreTrainedModel, GenerationMixin):
 
     _keys_to_ignore_on_load_unexpected = [r"pooler"]
     _keys_to_ignore_on_load_missing = [r"position_ids", r"predictions.decoder.bias"]
@@ -902,7 +897,7 @@ class BertLMHeadModel(BertPreTrainedModel):
         self.bert = BertModel(config, add_pooling_layer=False)
         self.cls = BertOnlyMLMHead(config)
 
-        self.init_weights()
+        self.post_init()
 
     def get_output_embeddings(self):
         return self.cls.predictions.decoder
@@ -1040,4 +1035,3 @@ class BertLMHeadModel(BertPreTrainedModel):
         for layer_past in past:
             reordered_past += (tuple(past_state.index_select(0, beam_idx) for past_state in layer_past),)
         return reordered_past
-

@@ -14,6 +14,7 @@ import torch
 @dataclass
 class LabelImageCondition:
     """Label image condition implementation."""
+
     label: torch.Tensor
 
     def get_classifier_free_guidance_condition(self) -> "LabelImageCondition":
@@ -28,6 +29,7 @@ class LabelImageCondition:
 @dataclass
 class DenoisePrediction:
     """Denoise prediction implementation."""
+
     x0: torch.Tensor
     eps: Optional[torch.Tensor] = None
     logvar: Optional[torch.Tensor] = None

@@ -9,6 +9,11 @@ import torch.nn.functional as torch_F
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.models.modeling_utils import ModelMixin
 
+from worldfoundry.core.kernels import (
+    layer_norm_scale_shift,
+    residual_gate_add,
+)
+
 from .lingbot_attention import flash_attention
 
 __all__ = ['WanModel']
@@ -61,6 +66,8 @@ def rope_apply(x, grid_sizes, freqs):
         freqs: The freqs.
     """
     n, c = x.size(2), x.size(3) // 2
+    if not freqs.is_complex():
+        freqs = torch.view_as_complex(freqs.contiguous())
 
     # split freqs
     freqs = freqs.split([c - 2 * (c // 3), c // 3, c // 3], dim=1)
@@ -186,19 +193,17 @@ class WanSelfAttention(nn.Module):
         """
         b, s, n, d = *x.shape[:2], self.num_heads, self.head_dim
 
-        # query, key, value function
-        def qkv_fn(x):
-            """Qkv fn.
-
-            Args:
-                x: The x.
-            """
-            q = self.norm_q(self.q(x)).view(b, s, n, d)
-            k = self.norm_k(self.k(x)).view(b, s, n, d)
-            v = self.v(x).view(b, s, n, d)
-            return q, k, v
-
-        q, k, v = qkv_fn(x)
+        # Keep the reference allocation order for the full-sequence base
+        # model.  The fused Q/K+RoPE operator is valuable for causal chunks,
+        # but its exact PyTorch fallback must retain both unnormalised Q/K and
+        # large rotary temporaries at once.  At the official 161-frame shape
+        # that raises peak memory above an 80 GiB card whenever Triton is not
+        # eligible (for example with the float64 frequency table).  Computing
+        # each projection/norm independently matches the official runtime and
+        # keeps the proven base-camera path within memory.
+        q = self.norm_q(self.q(x)).view(b, s, n, d)
+        k = self.norm_k(self.k(x)).view(b, s, n, d)
+        v = self.v(x).view(b, s, n, d)
 
         x = flash_attention(
             q=rope_apply(q, grid_sizes, freqs),
@@ -318,10 +323,16 @@ class WanAttentionBlock(nn.Module):
 
         # self-attention
         y = self.self_attn(
-            self.norm1(x).float() * (1 + e[1].squeeze(2)) + e[0].squeeze(2),
+            layer_norm_scale_shift(
+                x,
+                e[1].squeeze(2),
+                e[0].squeeze(2),
+                eps=self.norm1.eps,
+                upcast=True,
+            ),
             seq_lens, grid_sizes, freqs)
         with torch.amp.autocast('cuda', dtype=torch.float32):
-            x = x + y * e[2].squeeze(2)
+            x = residual_gate_add(x, y, e[2].squeeze(2))
 
         # cam injection (only if dit_cond_dict is provided and contains c2ws_plucker_emb)
         if dit_cond_dict is not None and "c2ws_plucker_emb" in dit_cond_dict:
@@ -344,9 +355,15 @@ class WanAttentionBlock(nn.Module):
             """
             x = x + self.cross_attn(self.norm3(x), context, context_lens)
             y = self.ffn(
-                self.norm2(x).float() * (1 + e[4].squeeze(2)) + e[3].squeeze(2))
+                layer_norm_scale_shift(
+                    x,
+                    e[4].squeeze(2),
+                    e[3].squeeze(2),
+                    eps=self.norm2.eps,
+                    upcast=True,
+                ))
             with torch.amp.autocast('cuda', dtype=torch.float32):
-                x = x + y * e[5].squeeze(2)
+                x = residual_gate_add(x, y, e[5].squeeze(2))
             return x
 
         x = cross_attn_ffn(x, context, context_lens, e)
@@ -388,9 +405,15 @@ class Head(nn.Module):
         assert e.dtype == torch.float32
         with torch.amp.autocast('cuda', dtype=torch.float32):
             e = (self.modulation.unsqueeze(0) + e.unsqueeze(2)).chunk(2, dim=2)
-            x = (
-                self.head(
-                    self.norm(x) * (1 + e[1].squeeze(2)) + e[0].squeeze(2)))
+            x = self.head(
+                layer_norm_scale_shift(
+                    x,
+                    e[1].squeeze(2),
+                    e[0].squeeze(2),
+                    eps=self.norm.eps,
+                    upcast=True,
+                )
+            )
         return x
 
 

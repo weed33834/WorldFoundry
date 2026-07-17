@@ -132,7 +132,3 @@ class MapAnythingWrapper(Module):
             PredictionField.DEPTHS_CONF: conf,
             PredictionField.CAMERAS: cameras,
         }
-
-    def train_step(self, *args, **kwargs):
-        """Train step."""
-        raise NotImplementedError("MapAnything does not support training within dvlt")

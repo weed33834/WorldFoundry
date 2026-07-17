@@ -1,8 +1,8 @@
 """Module for base_models -> three_dimensions -> general_3d -> splatt3r -> splatt3r_runtime -> model.py functionality."""
 
 import einops
-import lightning as L
 import torch
+from torch import nn
 
 from worldfoundry.base_models.three_dimensions.general_3d.mast3r import ensure_import_paths
 
@@ -12,7 +12,7 @@ ensure_import_paths()
 import mast3r.model as mast3r_model
 
 
-class MAST3RGaussians(L.LightningModule):
+class MAST3RGaussians(nn.Module):
     """Inference-only Splatt3R Gaussian predictor."""
 
     def __init__(self, config):
@@ -50,7 +50,6 @@ class MAST3RGaussians(L.LightningModule):
         )
 
         self.decoder = pixelsplat_decoder.DecoderSplattingCUDA(background_color=[0.0, 0.0, 0.0])
-        self.save_hyperparameters()
 
     def forward(self, view1, view2):
         """Forward.

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Union
-
 import torch
 
 from worldfoundry.core.attention.rope import apply_rotary_embedding
@@ -102,7 +100,27 @@ def apply_nd_rotary_embedding(
     head_first: bool = False,
     start_offset: int = 0,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Apply n-D RoPE to query/key tensors."""
+    """Apply precomputed n-D rotary frequencies to query and key tensors.
+
+    Args:
+        query: Query tensor in ``[B, S, H, D]`` layout by default, or
+            ``[B, H, S, D]`` when ``head_first=True``.
+        key: Key tensor with the same layout convention and head width.
+        freqs_cis: Complex rotary frequencies or an explicit ``(cos, sin)``
+            pair covering the requested sequence window.
+        head_first: Select ``[B, H, S, D]`` sequence-axis interpretation.
+        start_offset: First frequency position, used with an existing KV prefix.
+
+    Returns:
+        Rotated ``(query, key)`` tensors with original dtype and shape.
+
+    Raises:
+        ValueError: Frequency tensors do not cover the requested shape.
+
+    Notes:
+        The final head width must be compatible with complex pairs. Build
+        matching structured frequencies with ``get_nd_rotary_pos_embed``.
+    """
 
     if isinstance(freqs_cis, tuple):
         cos, sin = reshape_rotary_for_broadcast(freqs_cis, query, head_first=head_first)
@@ -198,9 +216,7 @@ def get_1d_rotary_pos_embed(
     if theta_rescale_factor != 1.0:
         theta *= theta_rescale_factor ** (dim / (dim - 2))
 
-    freqs = 1.0 / (
-        theta ** (torch.arange(0, dim, 2, device=resolved_device)[: (dim // 2)].float() / dim)
-    )
+    freqs = 1.0 / (theta ** (torch.arange(0, dim, 2, device=resolved_device)[: (dim // 2)].float() / dim))
     freqs = torch.outer(pos * interpolation_factor, freqs)
     if use_real:
         return freqs.cos().repeat_interleave(2, dim=1), freqs.sin().repeat_interleave(2, dim=1)

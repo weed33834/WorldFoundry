@@ -433,7 +433,7 @@ def build_groundingdino(args):
         dn_box_noise_scale=args.dn_box_noise_scale,
         dn_label_noise_ratio=args.dn_label_noise_ratio,
         dn_labelbook_size=dn_labelbook_size,
-        text_encoder_type=args.text_encoder_type,
+        text_encoder_type=getattr(args, "bert_base_uncased_path", None) or args.text_encoder_type,
         sub_sentence_present=sub_sentence_present,
         max_text_len=args.max_text_len,
     )

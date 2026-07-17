@@ -84,10 +84,7 @@ class DAPModel(DepthEstimationModel):
 
         model = make_dap_model(
             midas_model_type=midas_model_type,
-            fine_tune_type="hypersim",
-            min_depth=0.01,
             max_depth=1.0,
-            train_decoder=True,
         )
 
         state = torch.load(weights_path, map_location="cpu")

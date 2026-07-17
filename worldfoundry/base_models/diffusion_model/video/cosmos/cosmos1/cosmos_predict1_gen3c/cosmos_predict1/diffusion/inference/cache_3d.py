@@ -16,17 +16,18 @@
 """Module for base_models -> diffusion_model -> video -> cosmos -> cosmos1 -> cosmos_predict1_gen3c -> cosmos_predict1 -> diffusion -> inference -> cache_3d.py functionality."""
 
 import torch
-from einops import rearrange
-
+from cosmos_predict1.diffusion.inference.camera_utils import align_depth
 from cosmos_predict1.diffusion.inference.forward_warp_utils_pytorch import (
     forward_warp,
     reliable_depth_mask_range_batch,
     unproject_points,
 )
-from cosmos_predict1.diffusion.inference.camera_utils import align_depth
+from einops import rearrange
+
 
 class Cache3D_Base:
     """Cache base implementation."""
+
     def __init__(
         self,
         input_image,
@@ -125,7 +126,9 @@ class Cache3D_Base:
 
         if self.filter_points_threshold < 1.0 and input_depth is not None:
             input_depth = input_depth.reshape(-1, 1, H, W)
-            depth_mask = reliable_depth_mask_range_batch(input_depth, ratio_thresh=self.filter_points_threshold).reshape(B, F, N, V, 1, H, W)
+            depth_mask = reliable_depth_mask_range_batch(
+                input_depth, ratio_thresh=self.filter_points_threshold
+            ).reshape(B, F, N, V, 1, H, W)
             if self.input_mask is None:
                 self.input_mask = depth_mask.to("cpu")
             else:
@@ -184,16 +187,27 @@ class Cache3D_Base:
         )
 
         # Keep large tensors on CPU; move only per-chunk slices to GPU inside the loop
-        first_images = rearrange(self.input_image[:, start_frame_idx:start_frame_idx+F_target].expand(B, F_target, N, V, C, H, W), "B F N V C H W-> (B F N) V C H W")
-        first_points = rearrange(
-            self.input_points[:, start_frame_idx:start_frame_idx+F_target].expand(B, F_target, N, V, H, W, 3), "B F N V H W C-> (B F N) V H W C"
+        first_images = rearrange(
+            self.input_image[:, start_frame_idx : start_frame_idx + F_target].expand(B, F_target, N, V, C, H, W),
+            "B F N V C H W-> (B F N) V C H W",
         )
-        first_masks = rearrange(
-            self.input_mask[:, start_frame_idx:start_frame_idx+F_target].expand(B, F_target, N, V, 1, H, W), "B F N V C H W-> (B F N) V C H W"
-        ) if self.input_mask is not None else None
-        boundary_masks = rearrange(
-            self.boundary_mask.expand(B, F_target, N, V, 1, H, W), "B F N V C H W-> (B F N) V C H W"
-        ) if self.boundary_mask is not None else None
+        first_points = rearrange(
+            self.input_points[:, start_frame_idx : start_frame_idx + F_target].expand(B, F_target, N, V, H, W, 3),
+            "B F N V H W C-> (B F N) V H W C",
+        )
+        first_masks = (
+            rearrange(
+                self.input_mask[:, start_frame_idx : start_frame_idx + F_target].expand(B, F_target, N, V, 1, H, W),
+                "B F N V C H W-> (B F N) V C H W",
+            )
+            if self.input_mask is not None
+            else None
+        )
+        boundary_masks = (
+            rearrange(self.boundary_mask.expand(B, F_target, N, V, 1, H, W), "B F N V C H W-> (B F N) V C H W")
+            if self.boundary_mask is not None
+            else None
+        )
 
         if first_images.shape[1] == 1:
             warp_chunk_size = 2
@@ -262,6 +276,7 @@ class Cache3D_Base:
 
 class Cache3D_Buffer(Cache3D_Base):
     """Cache buffer implementation."""
+
     def __init__(self, frame_buffer_max=0, noise_aug_strength=0, generator=None, **kwargs):
         """Init.
 
@@ -275,7 +290,16 @@ class Cache3D_Buffer(Cache3D_Base):
         self.noise_aug_strength = noise_aug_strength
         self.generator = generator
 
-    def update_cache(self, new_image, new_depth, new_w2c, new_mask=None, new_intrinsics=None, depth_alignment=True, alignment_method="non_rigid"):  # 3D cache
+    def update_cache(
+        self,
+        new_image,
+        new_depth,
+        new_w2c,
+        new_mask=None,
+        new_intrinsics=None,
+        depth_alignment=True,
+        alignment_method="non_rigid",
+    ):  # 3D cache
         """Update cache.
 
         Args:
@@ -336,7 +360,9 @@ class Cache3D_Buffer(Cache3D_Base):
         if self.filter_points_threshold < 1.0:
             B, F, N, V, C, H, W = self.input_image.shape
             new_depth = new_depth.reshape(-1, 1, H, W)
-            depth_mask = reliable_depth_mask_range_batch(new_depth, ratio_thresh=self.filter_points_threshold).reshape(B, 1, H, W)
+            depth_mask = reliable_depth_mask_range_batch(new_depth, ratio_thresh=self.filter_points_threshold).reshape(
+                B, 1, H, W
+            )
             if new_mask is None:
                 new_mask = depth_mask.to("cpu")
             else:
@@ -358,7 +384,6 @@ class Cache3D_Buffer(Cache3D_Base):
             self.input_image = new_image[:, None, None, None]
             self.input_points = new_points[:, None, None, None]
 
-
     def render_cache(
         self,
         target_w2cs,
@@ -379,16 +404,13 @@ class Cache3D_Buffer(Cache3D_Base):
         output_device = target_w2cs.device
         target_w2cs = target_w2cs.to(self.weight_dtype).to(self.device)
         target_intrinsics = target_intrinsics.to(self.weight_dtype).to(self.device)
-        pixels, masks = super().render_cache(
-            target_w2cs, target_intrinsics, render_depth
-        )
+        pixels, masks = super().render_cache(target_w2cs, target_intrinsics, render_depth)
         pixels = pixels.to(output_device)
         masks = masks.to(output_device)
         if not render_depth and self.noise_aug_strength != 0:
             noise = torch.randn(pixels.shape, generator=self.generator, device=pixels.device, dtype=pixels.dtype)
             per_buffer_noise = (
-                torch.arange(start=pixels.shape[2] - 1, end=-1, step=-1, device=pixels.device)
-                * self.noise_aug_strength
+                torch.arange(start=pixels.shape[2] - 1, end=-1, step=-1, device=pixels.device) * self.noise_aug_strength
             )
             pixels = pixels + noise * per_buffer_noise.reshape(1, 1, -1, 1, 1, 1)  # B, F, N, C, H, W
         return pixels, masks
@@ -396,7 +418,10 @@ class Cache3D_Buffer(Cache3D_Base):
 
 class Cache3D_BufferSelector(Cache3D_Base):
     """Cache buffer selector implementation."""
-    def __init__(self, frame_buffer_max=1, mask_for_max_buffer_model: bool = True, mask_full_threshold: float = 0.9, **kwargs):
+
+    def __init__(
+        self, frame_buffer_max=1, mask_for_max_buffer_model: bool = True, mask_full_threshold: float = 0.9, **kwargs
+    ):
         """A buffer that holds many initialization frames and selects top-K by overlap per target.
 
         This class does not support update_cache. It assumes multiple source frames are provided
@@ -407,7 +432,7 @@ class Cache3D_BufferSelector(Cache3D_Base):
         self.mask_for_max_buffer_model = bool(mask_for_max_buffer_model)
         self.mask_full_threshold = float(mask_full_threshold)
 
-    def update_cache(self, *args, **kwargs): 
+    def update_cache(self, *args, **kwargs):
         """Update cache."""
         raise NotImplementedError("Cache3D_BufferSelector does not support update_cache")
 
@@ -435,7 +460,7 @@ class Cache3D_BufferSelector(Cache3D_Base):
             target_w2cs, target_intrinsics, render_depth, start_frame_idx
         )  # shapes: [B, F, N, C, H, W] (pixels) and [B, F, N, 1, H, W] (masks)
 
-        B, F, N = pixels_all.shape[0], pixels_all.shape[1], pixels_all.shape[2]
+        B, N = pixels_all.shape[0], pixels_all.shape[2]
         if N <= self.frame_buffer_max:
             pixels_sel, masks_sel = pixels_all, masks_all
         else:
@@ -453,7 +478,7 @@ class Cache3D_BufferSelector(Cache3D_Base):
             for b in range(B):
                 idx_b = topk_indices[b]  # [k]
                 selected_pixels_list.append(pixels_all[b : b + 1, :, idx_b])  # [1, F, k, C, H, W]
-                selected_masks_list.append(masks_all[b : b + 1, :, idx_b])    # [1, F, k, 1, H, W]
+                selected_masks_list.append(masks_all[b : b + 1, :, idx_b])  # [1, F, k, 1, H, W]
 
             pixels_sel = torch.cat(selected_pixels_list, dim=0)
             masks_sel = torch.cat(selected_masks_list, dim=0)
@@ -484,6 +509,7 @@ class Cache3D_BufferSelector(Cache3D_Base):
 
 class Cache4D(Cache3D_Base):
     """Cache d implementation."""
+
     def __init__(self, **kwargs):
         """Init."""
         super().__init__(**kwargs)
@@ -501,5 +527,7 @@ class Cache4D(Cache3D_Base):
             render_depth: The render depth.
             start_frame_idx: The start frame idx.
         """
-        rendered_warp_images, rendered_warp_masks = super().render_cache(target_w2cs, target_intrinsics, render_depth, start_frame_idx)
+        rendered_warp_images, rendered_warp_masks = super().render_cache(
+            target_w2cs, target_intrinsics, render_depth, start_frame_idx
+        )
         return rendered_warp_images, rendered_warp_masks

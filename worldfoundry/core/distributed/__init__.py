@@ -15,10 +15,22 @@ from .context_parallel import (
 )
 from .device_mesh_collectives import (
     DTensorFastEmaModelUpdater,
+    FastEmaModelUpdater,
     broadcast_dtensor_model_states,
+    get_local_tensor_if_DTensor,
     get_local_tensor_if_dtensor,
 )
-from .inference_runtime import dist_init, get_device as get_distributed_device, get_world_size, is_last_rank, is_last_tp_cp_rank
+from .generic_collectives import (
+    get_rank as get_global_rank,
+)
+from .generic_collectives import (
+    get_world_size,
+)
+from .generic_collectives import (
+    is_dist_initialized as is_distributed_initialized,
+)
+from .inference_runtime import dist_init, is_last_rank, is_last_tp_cp_rank
+from .inference_runtime import get_device as get_distributed_device
 from .logging import print_per_rank, print_rank_0
 from .model_parallel_groups import (
     destroy_model_parallel,
@@ -55,28 +67,10 @@ from .rank_orchestration import (
     distributed_op,
 )
 
-
-def is_distributed_initialized() -> bool:
-    """Return True when torch.distributed is available and initialized."""
-
-    import torch.distributed as dist
-
-    return dist.is_available() and dist.is_initialized()
-
-
-def get_global_rank() -> int:
-    """Return the torch distributed global rank, or 0 outside distributed runs."""
-
-    import torch.distributed as dist
-
-    if is_distributed_initialized():
-        return dist.get_rank()
-    return 0
-
-
 __all__ = [
     "DistributedOpSpec",
     "DTensorFastEmaModelUpdater",
+    "FastEmaModelUpdater",
     "PPScheduler",
     "PayloadBus",
     "RankCoordinator",
@@ -101,6 +95,7 @@ __all__ = [
     "get_dp_world_size",
     "get_global_rank",
     "get_local_tensor_if_dtensor",
+    "get_local_tensor_if_DTensor",
     "get_model_parallel_group",
     "get_pipeline_model_parallel_first_rank",
     "get_pipeline_model_parallel_last_rank",

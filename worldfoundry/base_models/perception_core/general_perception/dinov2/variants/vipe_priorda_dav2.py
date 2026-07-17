@@ -24,37 +24,9 @@ from worldfoundry.base_models.perception_core.general_perception.dinov2.variants
     NestedTensorBlock as Block,
 )
 from worldfoundry.core.nn.layers import Mlp, PatchEmbed as BasePatchEmbed
+from worldfoundry.core.nn.module_utils import named_apply
 
 logger = logging.getLogger(__name__)
-
-
-def named_apply(fn: Callable, module: nn.Module, name="", depth_first=True, include_root=False) -> nn.Module:
-    """Named apply.
-
-    Args:
-        fn: The fn.
-        module: The module.
-        name: The name.
-        depth_first: The depth first.
-        include_root: The include root.
-
-    Returns:
-        The return value.
-    """
-    if not depth_first and include_root:
-        fn(module=module, name=name)
-    for child_name, child_module in module.named_children():
-        child_name = ".".join((name, child_name)) if name else child_name
-        named_apply(
-            fn=fn,
-            module=child_module,
-            name=child_name,
-            depth_first=depth_first,
-            include_root=True,
-        )
-    if depth_first and include_root:
-        fn(module=module, name=name)
-    return module
 
 
 class BlockChunk(nn.ModuleList):

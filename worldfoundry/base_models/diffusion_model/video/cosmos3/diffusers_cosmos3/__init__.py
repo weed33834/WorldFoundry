@@ -1,19 +1,31 @@
-# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: OpenMDW-1.1
-
-"""Module for base_models -> diffusion_model -> video -> cosmos3 -> diffusers_cosmos3 -> __init__.py functionality."""
+"""In-tree Cosmos3 Diffusers inference components."""
 
 import diffusers
 
-from .pipeline import Cosmos3OmniDiffusersPipeline
+from .audio_tokenizer import Cosmos3AVAEAudioTokenizer
+from .pipeline import Cosmos3OmniPipeline, Cosmos3OmniPipelineOutput, CosmosActionCondition
 from .transformer import Cosmos3OmniTransformer
+
+Cosmos3OmniDiffusersPipeline = Cosmos3OmniPipeline
 
 # Spoof the eventual upstream module paths so save_pretrained writes
 # "diffusers" as the library in model_index.json.
 Cosmos3OmniTransformer.__module__ = "diffusers.models.transformers.transformer_cosmos3"
-Cosmos3OmniDiffusersPipeline.__module__ = "diffusers.pipelines.cosmos.pipeline_cosmos3_omni"
+Cosmos3OmniPipeline.__module__ = "diffusers.pipelines.cosmos.pipeline_cosmos3_omni"
+Cosmos3AVAEAudioTokenizer.__module__ = "diffusers.models.autoencoders.autoencoder_cosmos3_audio"
 
 # Loader does `getattr(importlib.import_module(library), class_name)`,
 # so the class must be reachable as `diffusers.<ClassName>`.
 diffusers.Cosmos3OmniTransformer = Cosmos3OmniTransformer
 diffusers.Cosmos3OmniDiffusersPipeline = Cosmos3OmniDiffusersPipeline
+diffusers.Cosmos3OmniPipeline = Cosmos3OmniPipeline
+diffusers.Cosmos3AVAEAudioTokenizer = Cosmos3AVAEAudioTokenizer
+
+__all__ = [
+    "Cosmos3OmniDiffusersPipeline",
+    "Cosmos3OmniPipeline",
+    "Cosmos3OmniPipelineOutput",
+    "Cosmos3OmniTransformer",
+    "Cosmos3AVAEAudioTokenizer",
+    "CosmosActionCondition",
+]

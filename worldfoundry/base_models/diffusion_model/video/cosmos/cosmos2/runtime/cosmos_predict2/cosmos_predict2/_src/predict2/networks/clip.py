@@ -25,14 +25,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as T
-
-from worldfoundry.core.distributed import torch_process_group as distributed
-from cosmos_predict2._src.imaginaire.utils import log
-from cosmos_predict2._src.imaginaire.utils.easy_io import easy_io
 from cosmos_predict2._src.predict2.conditioner import AbstractEmbModel
 from cosmos_predict2._src.predict2.inference.get_umt5_emb import HuggingfaceTokenizer
 from cosmos_predict2._src.predict2.networks.attention import attention
+
 from worldfoundry.base_models.diffusion_model.video.wan.wan_2p1.modules.xlm_roberta import XLMRoberta
+from worldfoundry.core.distributed import torch_process_group as distributed
+from worldfoundry.core.distributed.logging import log
+from worldfoundry.core.io.easy_io import easy_io
 
 __all__ = [
     "CLIPModel",
@@ -41,6 +41,7 @@ __all__ = [
 
 class QuickGELU(nn.Module):
     """Quick gelu implementation."""
+
     def forward(self, x):
         """Forward.
 
@@ -52,6 +53,7 @@ class QuickGELU(nn.Module):
 
 class LayerNorm(nn.LayerNorm):
     """Layer norm implementation."""
+
     def forward(self, x):
         """Forward.
 
@@ -63,6 +65,7 @@ class LayerNorm(nn.LayerNorm):
 
 class SelfAttention(nn.Module):
     """Self attention implementation."""
+
     def __init__(self, dim, num_heads, causal=False, attn_dropout=0.0, proj_dropout=0.0):
         """Init.
 
@@ -108,6 +111,7 @@ class SelfAttention(nn.Module):
 
 class SwiGLU(nn.Module):
     """Swi glu implementation."""
+
     def __init__(self, dim, mid_dim):
         """Init.
 
@@ -137,6 +141,7 @@ class SwiGLU(nn.Module):
 
 class AttentionBlock(nn.Module):
     """Attention block implementation."""
+
     def __init__(
         self,
         dim,
@@ -202,6 +207,7 @@ class AttentionBlock(nn.Module):
 
 class AttentionPool(nn.Module):
     """Attention pool implementation."""
+
     def __init__(self, dim, mlp_ratio, num_heads, activation="gelu", proj_dropout=0.0, norm_eps=1e-5):
         """Init.
 
@@ -261,6 +267,7 @@ class AttentionPool(nn.Module):
 
 class VisionTransformer(nn.Module):
     """Vision transformer implementation."""
+
     def __init__(
         self,
         image_size=224,
@@ -378,6 +385,7 @@ class VisionTransformer(nn.Module):
 
 class XLMRobertaWithHead(XLMRoberta):
     """Xlm roberta with head implementation."""
+
     def __init__(self, **kwargs):
         """Init."""
         self.out_dim = kwargs.pop("out_dim")
@@ -409,6 +417,7 @@ class XLMRobertaWithHead(XLMRoberta):
 
 class XLMRobertaCLIP(nn.Module):
     """Xlm roberta clip implementation."""
+
     def __init__(
         self,
         embed_dim=1024,
@@ -658,6 +667,7 @@ def load_model_torch(model, ckpt_path, credential_path: Optional[str] = None):
 
 class CLIPModel:
     """Clip model implementation."""
+
     def __init__(
         self,
         dtype=torch.float16,
@@ -711,6 +721,7 @@ class CLIPModel:
 
 class Wan2pt1CLIPEmb(AbstractEmbModel):
     """Wan pt clip emb implementation."""
+
     def __init__(
         self,
         input_key: List[str],

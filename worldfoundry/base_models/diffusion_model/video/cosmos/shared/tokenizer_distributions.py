@@ -8,6 +8,7 @@ import torch
 
 class IdentityDistribution(torch.nn.Module):
     """Identity distribution implementation."""
+
     def __init__(self):
         """Init."""
         super().__init__()
@@ -23,6 +24,7 @@ class IdentityDistribution(torch.nn.Module):
 
 class GaussianDistribution(torch.nn.Module):
     """Gaussian distribution implementation."""
+
     def __init__(self, min_logvar: float = -30.0, max_logvar: float = 20.0):
         """Init.
 

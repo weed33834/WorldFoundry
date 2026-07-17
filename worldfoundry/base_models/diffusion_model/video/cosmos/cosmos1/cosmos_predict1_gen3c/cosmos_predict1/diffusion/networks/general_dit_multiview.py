@@ -18,23 +18,22 @@
 from typing import Optional, Tuple
 
 import torch
-from einops import rearrange
-from torch import nn
-from torchvision import transforms
-
 from cosmos_predict1.diffusion.conditioner import DataType
 from cosmos_predict1.diffusion.module.blocks import GeneralDITTransformerBlock, PatchEmbed
-from worldfoundry.core.distributed.context_parallel import split_inputs_cp
 from cosmos_predict1.diffusion.module.position_embedding import (
     MultiviewSinCosPosEmbAxis,
     MultiviewVideoRopePosition3DEmb,
 )
 from cosmos_predict1.diffusion.networks.general_dit import GeneralDIT
 from cosmos_predict1.utils import log
+from einops import rearrange
+from torch import nn
+from torchvision import transforms
 
 
 class MultiviewGeneralDIT(GeneralDIT):
     """Multiview general dit implementation."""
+
     def __init__(
         self,
         max_img_h: int,
@@ -275,9 +274,9 @@ class MultiviewGeneralDIT(GeneralDIT):
         frame_repeat = kwargs.get("frame_repeat", None)
 
         del kwargs
-        assert isinstance(
-            data_type, DataType
-        ), f"Expected DataType, got {type(data_type)}. We need discuss this flag later."
+        assert isinstance(data_type, DataType), (
+            f"Expected DataType, got {type(data_type)}. We need discuss this flag later."
+        )
         original_shape = x.shape
         x_B_T_H_W_D, rope_emb_L_1_1_D, extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D = self.prepare_embedded_sequence(
             x,

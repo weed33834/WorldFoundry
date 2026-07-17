@@ -57,6 +57,7 @@ from diffusion.data.transforms import read_image_from_path
 from diffusion.guiders import AdaptiveProjectedGuidance
 from diffusion.model.builder import (
     build_model,
+    find_model,
     encode_image,
     get_tokenizer_and_text_encoder,
     get_vae,
@@ -66,7 +67,6 @@ from diffusion.model.builder import (
 from diffusion.model.utils import get_weight_dtype, prepare_prompt_ar
 from diffusion.utils.config import SanaVideoConfig, model_video_init_config
 from diffusion.utils.logger import get_root_logger
-from tools.download import find_model
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 

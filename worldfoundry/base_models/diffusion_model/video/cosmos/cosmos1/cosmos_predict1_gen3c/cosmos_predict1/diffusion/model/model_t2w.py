@@ -22,8 +22,10 @@ from torch import Tensor
 try:
     from worldfoundry.core.distributed.megatron_compat import parallel_state
 except Exception:
+
     class _NoParallelState:
         """No parallel state implementation."""
+
         @staticmethod
         def is_initialized():
             """Is initialized."""
@@ -34,11 +36,11 @@ except Exception:
 from cosmos_predict1.diffusion.conditioner import BaseVideoCondition
 from cosmos_predict1.diffusion.module import parallel
 from cosmos_predict1.diffusion.module.blocks import FourierFeatures
-from worldfoundry.core.distributed.context_parallel import cat_outputs_cp, split_inputs_cp
 from cosmos_predict1.diffusion.module.pretrained_vae import BaseVAE
 from cosmos_predict1.utils import log, misc
-from worldfoundry.core.distributed.torch_process_group import get_rank
-from cosmos_predict1.utils.lazy_config import instantiate as lazy_instantiate
+
+from worldfoundry.core.configuration.lazy_config import instantiate as lazy_instantiate
+from worldfoundry.core.distributed.context_parallel import cat_outputs_cp, split_inputs_cp
 
 
 class DiffusionT2WModel(torch.nn.Module):
@@ -108,10 +110,10 @@ class DiffusionT2WModel(torch.nn.Module):
         """Initialize the core model components including network, conditioner and logvar."""
         self.model = self.build_model()
         if self.config.peft_control and self.config.peft_control.enabled:
+            from cosmos_predict1.diffusion.utils.peft.peft import add_lora_layers, setup_lora_requires_grad
             from cosmos_predict1.diffusion.utils.peft.peft_control_config_parser import (
                 LayerControlConfigParser,
             )
-            from cosmos_predict1.diffusion.utils.peft.peft import add_lora_layers, setup_lora_requires_grad
 
             log.info("Setting up LoRA layers")
             peft_control_config_parser = LayerControlConfigParser(config=self.config.peft_control)

@@ -23,8 +23,8 @@ while delegating to the training framework's GroupCoordinator-based parallel sta
 
 from .parallel_state import (
     get_sp_group,
-    get_sp_world_size,
     get_sp_parallel_rank,
+    get_sp_world_size,
     model_parallel_is_initialized,
 )
 

@@ -241,6 +241,7 @@ def _flash_attn_backward(
 
 class FlashAttnQKVPackedFunc(torch.autograd.Function):
     """Flash attn qkv packed func implementation."""
+
     @staticmethod
     def forward(
         ctx,
@@ -346,6 +347,7 @@ class FlashAttnQKVPackedFunc(torch.autograd.Function):
 
 class FlashAttnFunc(torch.autograd.Function):
     """Flash attn func implementation."""
+
     @staticmethod
     def forward(
         ctx,
@@ -472,6 +474,7 @@ class FlashAttnFunc(torch.autograd.Function):
 
 class FlashAttnVarlenFunc(torch.autograd.Function):
     """Flash attn varlen func implementation."""
+
     @staticmethod
     def forward(
         ctx,

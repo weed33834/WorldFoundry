@@ -24,8 +24,9 @@ import warnings
 from pathlib import Path
 
 import loguru
-from cosmos_predict2._src.imaginaire.flags import FLAGS, VERBOSE
-from cosmos_predict2._src.imaginaire.utils import log
+
+from worldfoundry.core.configuration.flags import FLAGS, VERBOSE
+from worldfoundry.core.distributed.logging import log
 
 """Package initialization."""
 
@@ -50,14 +51,12 @@ def is_rank0() -> bool:
 
 _LOGGER_FORMAT = f"{log.get_datetime_format()}{log.get_machine_format()}{log.get_message_format()}"
 _LOGGER_INCLUDE = [
-    "cosmos_predict2._src.imaginaire.utils.checkpoint_db",
-    "cosmos_predict2._src.imaginaire.inference_config",
+    "worldfoundry.base_models.diffusion_model.video.cosmos.shared.checkpoint_registry",
     "*.callbacks.*",
 ]
 _LOGGER_EXCLUDE = [
     "*._*",
     "projects.*",
-    "cosmos_predict2._src.imaginaire.*",
 ]
 
 
@@ -150,7 +149,7 @@ def _init_distributed():
 def _cleanup_distributed():
     """Helper function to cleanup distributed."""
     import torch.distributed as dist
-    from megatron.core import parallel_state
+    from worldfoundry.core.distributed.megatron_compat import parallel_state
 
     if parallel_state.is_initialized():
         parallel_state.destroy_model_parallel()

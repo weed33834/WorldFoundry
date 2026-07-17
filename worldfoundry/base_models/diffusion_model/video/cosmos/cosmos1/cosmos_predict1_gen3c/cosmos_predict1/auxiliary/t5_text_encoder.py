@@ -19,9 +19,8 @@ from typing import List, Tuple, Union
 
 import torch
 import transformers
-from transformers import T5EncoderModel, T5TokenizerFast
-
 from cosmos_predict1.utils import log
+from transformers import T5EncoderModel, T5TokenizerFast
 
 transformers.logging.set_verbosity_error()
 
@@ -62,7 +61,9 @@ class CosmosT5TextEncoder(torch.nn.Module):
                 torch.cuda.empty_cache()
             log.warning(f"Failed to load T5 model using cache_dir '{cache_dir}', falling back to default location: {e}")
             self.tokenizer = T5TokenizerFast.from_pretrained(model_name)
-            self.text_encoder = T5EncoderModel.from_pretrained(model_name, **model_kwargs, weights_only=False).to(device)
+            self.text_encoder = T5EncoderModel.from_pretrained(model_name, **model_kwargs, weights_only=False).to(
+                device
+            )
         self.text_encoder.eval()
         self.device = device
 
@@ -131,6 +132,7 @@ class CosmosT5TextEncoder(torch.nn.Module):
 
 class DummyT5TextEncoder(torch.nn.Module):
     """Dummy text encoder implementation."""
+
     def __init__(self, device: str = "cuda"):
         """Init.
 
@@ -160,7 +162,7 @@ class DummyT5TextEncoder(torch.nn.Module):
             raise ValueError("The input prompt list is empty.")
 
         batch_size = len(prompts)
-    
+
         dummy_text_embedding = torch.zeros(batch_size, max_length, 1024, device=self.device)
         dummy_text_mask = torch.zeros(batch_size, max_length, device=self.device, dtype=torch.bool)
         dummy_text_mask[0] = True

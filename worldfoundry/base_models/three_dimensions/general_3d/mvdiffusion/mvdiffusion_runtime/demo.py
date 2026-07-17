@@ -1,17 +1,22 @@
 """Module for base_models -> three_dimensions -> general_3d -> mvdiffusion -> mvdiffusion_runtime -> demo.py functionality."""
 
-import torch
 import argparse
-import yaml
-from src.lightning_pano_gen import PanoGenerator
-from src.lightning_pano_outpaint import PanoOutpaintGenerator
-import numpy as np
-import cv2
 import os
+
+import cv2
+import numpy as np
+import torch
+import yaml
+from src.pano_generator import PanoGenerator
+from src.pano_outpaint_generator import PanoOutpaintGenerator
+
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
+from datetime import datetime
+
 from generate_video_tool.pano_video_generation import generate_video
 from PIL import Image
-from datetime import datetime
+
+from worldfoundry.core.io.paths import checkpoint_root_path
 
 try:
     from exiftool import ExifToolHelper
@@ -19,6 +24,11 @@ except Exception:
     ExifToolHelper = None
 
 torch.manual_seed(0)
+
+
+def _checkpoint_path(filename):
+    local_path = checkpoint_root_path("MVDiffusion", "weights", filename)
+    return str(local_path) if local_path.is_file() else str(os.path.join("weights", filename))
 
 def load_mvdiffusion_state_dict(model, checkpoint_path):
     """Load mvdiffusion state dict.
@@ -116,7 +126,7 @@ if args.image_path is None:
     config_file = 'configs/pano_generation.yaml'
     config = yaml.load(open(config_file, 'rb'), Loader=yaml.SafeLoader)
     model = PanoGenerator(config)
-    load_mvdiffusion_state_dict(model, 'weights/pano.ckpt')
+    load_mvdiffusion_state_dict(model, _checkpoint_path('pano.ckpt'))
     #saved_ckpt = torch.load('weights/pano.ckpt', map_location='cpu')
     #model.load_state_dict(saved_ckpt, strict=False)
     model=model.cuda()
@@ -126,7 +136,7 @@ else:
     config_file = 'configs/pano_generation_outpaint.yaml'
     config = yaml.load(open(config_file, 'rb'), Loader=yaml.SafeLoader)
     model = PanoOutpaintGenerator(config)
-    load_mvdiffusion_state_dict(model, 'weights/pano_outpaint.ckpt')
+    load_mvdiffusion_state_dict(model, _checkpoint_path('pano_outpaint.ckpt'))
     #saved_ckpt = torch.load('weights/pano_outpaint.ckpt', map_location='cpu')
     #model.load_state_dict(saved_ckpt, strict=False)
     model=model.cuda()

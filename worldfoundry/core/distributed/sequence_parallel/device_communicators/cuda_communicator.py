@@ -4,21 +4,20 @@
 import torch
 from torch.distributed import ProcessGroup
 
-from .base_device_communicator import (
-    DeviceCommunicatorBase)
+from .base_device_communicator import DeviceCommunicatorBase
 
 
 class CudaCommunicator(DeviceCommunicatorBase):
-
-    def __init__(self,
-                 cpu_group: ProcessGroup,
-                 device: torch.device | None = None,
-                 device_group: ProcessGroup | None = None,
-                 unique_name: str = ""):
+    def __init__(
+        self,
+        cpu_group: ProcessGroup,
+        device: torch.device | None = None,
+        device_group: ProcessGroup | None = None,
+        unique_name: str = "",
+    ):
         super().__init__(cpu_group, device, device_group, unique_name)
 
-        from .pynccl import (
-            PyNcclCommunicator)
+        from .pynccl import PyNcclCommunicator
 
         self.pynccl_comm: PyNcclCommunicator | None = None
         if self.world_size > 1:
@@ -52,10 +51,7 @@ class CudaCommunicator(DeviceCommunicatorBase):
         else:
             torch.distributed.send(tensor, self.ranks[dst], self.device_group)
 
-    def recv(self,
-             size: torch.Size,
-             dtype: torch.dtype,
-             src: int | None = None) -> torch.Tensor:
+    def recv(self, size: torch.Size, dtype: torch.dtype, src: int | None = None) -> torch.Tensor:
         """Receives a tensor from the source rank."""
         """NOTE: `src` is the local rank of the source rank."""
         if src is None:

@@ -11,6 +11,18 @@ from worldfoundry.core.io import load_serialized, resolve_data_path
 
 @dataclass(frozen=True)
 class ModelLoaderRegistry:
+    """Validated routing data used to choose a model loader from checkpoint identity.
+
+    Args:
+        model_loader_configs: Single-file hash rules and their resolved model classes.
+        huggingface_model_loader_configs: Architecture-to-library routing rules.
+        patch_model_loader_configs: Patch/adaptor hash rules and extra kwargs.
+        preset_models_on_huggingface: Named Hugging Face model presets.
+        preset_models_on_modelscope: Named ModelScope model presets.
+        preset_model_ids: Stable preset identifiers.
+        preset_model_websites: Human-facing model source labels.
+    """
+
     model_loader_configs: list[tuple[Any, str, list[str], list[type], str]]
     huggingface_model_loader_configs: list[tuple[str, str, str, Any]]
     patch_model_loader_configs: list[tuple[str, list[str], list[type], dict[str, Any]]]
@@ -36,7 +48,9 @@ def load_model_loader_registry(
         preset_models_on_huggingface=dict(payload.get("preset_models_on_huggingface") or {}),
         preset_models_on_modelscope=dict(payload.get("preset_models_on_modelscope") or {}),
         preset_model_ids=tuple(str(item) for item in payload.get("preset_model_ids") or ()),
-        preset_model_websites=tuple(str(item) for item in payload.get("preset_model_websites") or ("ModelScope", "HuggingFace")),
+        preset_model_websites=tuple(
+            str(item) for item in payload.get("preset_model_websites") or ("ModelScope", "HuggingFace")
+        ),
     )
 
 
@@ -89,8 +103,12 @@ def _patch_loader_configs(
 ) -> list[tuple[str, list[str], list[type], dict[str, Any]]]:
     configs = []
     for entry in _entries(payload, "patch_model_loader_configs", source):
-        model_names = _string_list(entry, "model_names", source) if "model_names" in entry else [str(entry["model_name"])]
-        class_names = _string_list(entry, "model_classes", source) if "model_classes" in entry else [str(entry["model_class"])]
+        model_names = (
+            _string_list(entry, "model_names", source) if "model_names" in entry else [str(entry["model_name"])]
+        )
+        class_names = (
+            _string_list(entry, "model_classes", source) if "model_classes" in entry else [str(entry["model_class"])]
+        )
         configs.append(
             (
                 str(entry["keys_hash_with_shape"]),

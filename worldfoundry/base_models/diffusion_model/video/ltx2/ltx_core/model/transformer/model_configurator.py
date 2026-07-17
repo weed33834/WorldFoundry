@@ -78,6 +78,8 @@ class LTXVideoOnlyModelConfigurator(ModelConfigurator[LTXModel]):
     Used to create an LTX video only model from a configuration dictionary.
     """
 
+    MODEL_CLS = LTXModel
+
     @classmethod
     def from_config(cls, config: dict, ops: TransformerOpsConfig = DEFAULT_TRANSFORMER_OPS) -> LTXModel:
         # Build caption projection for 19B model (projection handled in transformer).
@@ -101,7 +103,7 @@ class LTXVideoOnlyModelConfigurator(ModelConfigurator[LTXModel]):
         check_config_value(config, "positional_embedding_type", "rope")
         check_config_value(config, "use_middle_indices_grid", True)
 
-        return LTXModel(
+        return cls.MODEL_CLS(
             model_type=LTXModelType.VideoOnly,
             num_attention_heads=config.get("num_attention_heads", 32),
             attention_head_dim=config.get("attention_head_dim", 128),

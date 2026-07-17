@@ -21,6 +21,7 @@ from worldfoundry.base_models.three_dimensions.depth.depth_anything.depth_anythi
 
 from .layers import Block, PositionGetter, RotaryPositionEmbedding2D
 from worldfoundry.core.nn.layers import Mlp, PatchEmbed, SwiGLUFFNFused
+from worldfoundry.core.nn.module_utils import named_apply
 from worldfoundry.base_models.three_dimensions.depth.depth_anything.depth_anything_v3.model.reference_view_selector import (
     RefViewStrategy,
     select_reference_view,
@@ -51,33 +52,6 @@ def get_1d_sincos_pos_embed_from_grid(embed_dim, pos):
 
     emb = np.concatenate([emb_sin, emb_cos], axis=1)  # (M, D)
     return emb
-
-
-def named_apply(
-    fn: Callable, module: nn.Module, name="", depth_first=True, include_root=False
-) -> nn.Module:
-    """Named apply.
-
-    Args:
-        fn: The fn.
-        module: The module.
-        name: The name.
-        depth_first: The depth first.
-        include_root: The include root.
-
-    Returns:
-        The return value.
-    """
-    if not depth_first and include_root:
-        fn(module=module, name=name)
-    for child_name, child_module in module.named_children():
-        child_name = ".".join((name, child_name)) if name else child_name
-        named_apply(
-            fn=fn, module=child_module, name=child_name, depth_first=depth_first, include_root=True
-        )
-    if depth_first and include_root:
-        fn(module=module, name=name)
-    return module
 
 
 class BlockChunk(nn.ModuleList):

@@ -6,12 +6,27 @@ import torch
 import torch.distributed as dist
 import xfuser
 
+from worldfoundry.core.device import parse_device_type, parse_nccl_backend
 
-def initialize_parallel_group(ring_degree, ulysses_degree, tensor_parallel_degree):
-    dist.init_process_group("nccl")
+
+def initialize_parallel_group(
+    ring_degree,
+    ulysses_degree=None,
+    tensor_parallel_degree=1,
+    device_type="cuda",
+):
+    """Initialize an xFuser process group with configurable parallel degrees."""
+
+    normalized_device_type = parse_device_type(device_type)
+    dist.init_process_group(
+        backend=parse_nccl_backend(normalized_device_type),
+        init_method="env://",
+    )
+    world_size = dist.get_world_size()
+    ulysses_degree = world_size if ulysses_degree is None else ulysses_degree
     xfuser.core.distributed.init_distributed_environment(
         rank=dist.get_rank(),
-        world_size=dist.get_world_size(),
+        world_size=world_size,
     )
     xfuser.core.distributed.initialize_model_parallel(
         sequence_parallel_degree=ulysses_degree,
@@ -19,13 +34,16 @@ def initialize_parallel_group(ring_degree, ulysses_degree, tensor_parallel_degre
         ulysses_degree=ulysses_degree,
         tensor_parallel_degree=tensor_parallel_degree,
     )
-    torch.cuda.set_device(dist.get_rank())
+    getattr(torch, normalized_device_type).set_device(dist.get_rank())
 
 
-def initialize_parall_group(ring_degree, ulysses_degree, tensor_parallel_degree):
-    """Backward-compatible alias for the historical misspelled name."""
+def initialize_usp(device_type) -> None:
+    """Initialize full-world Ulysses sequence parallelism."""
 
-    return initialize_parallel_group(ring_degree, ulysses_degree, tensor_parallel_degree)
+    initialize_parallel_group(ring_degree=1, device_type=device_type)
+
+
+initialize_parall_group = initialize_parallel_group
 
 
 def get_parallel_group():
@@ -73,5 +91,6 @@ __all__ = [
     "get_sp_group",
     "initialize_parall_group",
     "initialize_parallel_group",
+    "initialize_usp",
     "parallel_forward",
 ]

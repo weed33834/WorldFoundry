@@ -1,21 +1,27 @@
 """Miscellaneous helpers: env vars, pattern matching, hashing, and pickling."""
 
 import codecs
-from collections import Counter
 import fnmatch
 import hashlib
 import os
 import pickle
+from collections import Counter
 from typing import Any, Callable, Dict, List, Optional, Union
 
 from typing_extensions import Literal
 
 
 def env_is_true(env_name: str) -> bool:
+    """Return whether an environment variable uses a recognized truthy spelling."""
     return str(os.environ.get(env_name, "0")).lower() in {"1", "true", "yes", "y", "on", "enabled"}
 
 
 def divide(numerator: int, denominator: int) -> int:
+    """Return exact integer division and reject a non-divisible numerator.
+
+    Raises:
+        AssertionError: ``numerator`` is not divisible by ``denominator``.
+    """
     assert numerator % denominator == 0, f"{numerator} is not divisible by {denominator}"
     return numerator // denominator
 
@@ -95,11 +101,7 @@ def filter_patterns(
     """
     assert ordering in ["original", "include"]
     if include is None or isinstance(include, str) or ordering == "original":
-        return [
-            x
-            for x in items
-            if match_patterns(x, include=include, exclude=exclude, precedence=precedence)
-        ]
+        return [x for x in items if match_patterns(x, include=include, exclude=exclude, precedence=precedence)]
     else:
         items = items.copy()
         ret = []
@@ -171,14 +173,13 @@ class PeriodicEvent:
 
     def __call__(self, new_value=None, increment=None):
         assert bool(new_value is None) != bool(increment is None), (
-            "you must specify one and only one of new_value or increment, " "but not both"
+            "you must specify one and only one of new_value or increment, but not both"
         )
         d = self._period
         if new_value is None:
             new_value = self._last_value + increment
         assert new_value >= self._last_value, (
-            f"value must be monotonically increasing. "
-            f"Current value {new_value} < last value {self._last_value}"
+            f"value must be monotonically increasing. Current value {new_value} < last value {self._last_value}"
         )
         self._last_value = new_value
         if new_value - self._last_threshold >= d:

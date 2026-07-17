@@ -18,16 +18,16 @@
 from typing import Optional
 
 import torch
-from torch import Tensor
-
 from cosmos_predict1.diffusion.conditioner import VideoExtendCondition
 from cosmos_predict1.diffusion.model.model_v2w import DiffusionV2WModel, broadcast_condition
 
 try:
     from worldfoundry.core.distributed.megatron_compat import parallel_state
 except Exception:
+
     class _NoParallelState:
         """No parallel state implementation."""
+
         @staticmethod
         def is_initialized() -> bool:
             """Is initialized.
@@ -42,6 +42,7 @@ except Exception:
 
 class DiffusionGen3CModel(DiffusionV2WModel):
     """Diffusion gen c model implementation."""
+
     def __init__(self, config):
         """Init.
 
@@ -53,11 +54,11 @@ class DiffusionGen3CModel(DiffusionV2WModel):
         self.chunk_size = 121
 
     def encode_warped_frames(
-        self, 
-        condition_state: torch.Tensor, 
-        condition_state_mask: torch.Tensor, 
+        self,
+        condition_state: torch.Tensor,
+        condition_state_mask: torch.Tensor,
         dtype: torch.dtype,
-        ):
+    ):
         """Encode warped frames.
 
         Args:
@@ -117,9 +118,7 @@ class DiffusionGen3CModel(DiffusionV2WModel):
             data_batch["condition_state"],
             data_batch["condition_state_mask"],
         )
-        latent_condition = self.encode_warped_frames(
-            condition_state, condition_state_mask, self.tensor_kwargs["dtype"]
-        )
+        latent_condition = self.encode_warped_frames(condition_state, condition_state_mask, self.tensor_kwargs["dtype"])
 
         condition.video_cond_bool = True
         condition = self.add_condition_video_indicator_and_video_input_mask(
@@ -131,7 +130,7 @@ class DiffusionGen3CModel(DiffusionV2WModel):
         uncondition = self.add_condition_video_indicator_and_video_input_mask(
             condition_latent, uncondition, num_condition_t
         )
-        uncondition = self.add_condition_pose(latent_condition, uncondition, drop_out_latent = True)
+        uncondition = self.add_condition_pose(latent_condition, uncondition, drop_out_latent=True)
         assert condition.gt_latent.allclose(uncondition.gt_latent)
 
         # For inference, check if parallel_state is initialized
@@ -142,8 +141,9 @@ class DiffusionGen3CModel(DiffusionV2WModel):
 
         return condition, uncondition
 
-    def add_condition_pose(self, latent_condition: torch.Tensor, condition: VideoExtendCondition,
-                           drop_out_latent: bool = False) -> VideoExtendCondition:
+    def add_condition_pose(
+        self, latent_condition: torch.Tensor, condition: VideoExtendCondition, drop_out_latent: bool = False
+    ) -> VideoExtendCondition:
         """Add pose condition to the condition object. For camera control model
         Args:
             data_batch (Dict): data batch, with key "plucker_embeddings", in shape B,T,C,H,W

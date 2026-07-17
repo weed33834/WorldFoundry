@@ -21,11 +21,10 @@ from typing import Optional
 
 import torch
 
-from cosmos_predict2._src.imaginaire.utils.env_parsers.cred_env_parser import CRED_ENVS
-
 
 class VideoTokenizerInterface(ABC):
     """Video tokenizer interface implementation."""
+
     def __init__(self, s3_credential_path: Optional[str] = None):
         """Init.
 
@@ -35,7 +34,7 @@ class VideoTokenizerInterface(ABC):
         assert s3_credential_path is None or isinstance(s3_credential_path, str)
         if s3_credential_path is None:
             self.backend_args = None
-        elif os.path.exists(s3_credential_path) or CRED_ENVS.APP_ENV in ["prod", "dev", "stg"]:
+        elif os.path.exists(s3_credential_path) or os.environ.get("APP_ENV", "") in {"prod", "dev", "stg"}:
             self.backend_args = {
                 "backend": "s3",
                 "path_mapping": None,

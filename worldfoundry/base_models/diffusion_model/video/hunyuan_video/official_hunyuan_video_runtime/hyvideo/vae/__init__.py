@@ -2,6 +2,8 @@ from pathlib import Path
 
 import torch
 
+from worldfoundry.core.checkpoint import load_tensor_state_dict
+
 from .autoencoder_kl_causal_3d import AutoencoderKLCausal3D
 from ..constants import VAE_PATH, PRECISION_TO_TYPE
 
@@ -36,9 +38,7 @@ def load_vae(vae_type: str="884-16c-hy",
     vae_ckpt = Path(vae_path) / "pytorch_model.pt"
     assert vae_ckpt.exists(), f"VAE checkpoint not found: {vae_ckpt}"
     
-    ckpt = torch.load(vae_ckpt, map_location=vae.device)
-    if "state_dict" in ckpt:
-        ckpt = ckpt["state_dict"]
+    ckpt = load_tensor_state_dict(vae_ckpt, map_location=vae.device)
     if any(k.startswith("vae.") for k in ckpt.keys()):
         ckpt = {k.replace("vae.", ""): v for k, v in ckpt.items() if k.startswith("vae.")}
     vae.load_state_dict(ckpt)

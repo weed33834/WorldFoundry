@@ -20,11 +20,12 @@ from typing import Literal
 import numpy as np
 import torch
 
+from worldfoundry.base_models.three_dimensions.general_3d.vipe.utils.cameras import CameraType
 from worldfoundry.base_models.three_dimensions.general_3d.vipe.utils.misc import unpack_optional
 
 from ..base import DepthEstimationInput, DepthEstimationModel, DepthEstimationResult, DepthType
 from .unik3d import UniK3D
-from .utils.camera import Spherical
+from .utils.camera import Pinhole, Spherical
 
 
 class Unik3DModel(DepthEstimationModel):
@@ -54,6 +55,10 @@ class Unik3DModel(DepthEstimationModel):
         """
         return DepthType.MODEL_METRIC_DISTANCE
 
+    @property
+    def supported_camera_types(self) -> list[CameraType]:
+        return [CameraType.PINHOLE, CameraType.PANORAMA]
+
     def estimate(self, src: DepthEstimationInput) -> DepthEstimationResult:
         """Estimate.
 
@@ -65,8 +70,6 @@ class Unik3DModel(DepthEstimationModel):
         """
         rgb: torch.Tensor = unpack_optional(src.rgb)
         assert rgb.dtype == torch.float32, "Input image should be float32"
-        assert src.intrinsics is None, "This is only intended for 360 panoramas"
-
         if rgb.dim() == 3:
             rgb, batch_dim = rgb[None], False
         else:
@@ -74,17 +77,34 @@ class Unik3DModel(DepthEstimationModel):
 
         rgb = rgb.moveaxis(-1, 1) * 255.0
         H, W = rgb.shape[-2:]
-        hfov2 = np.pi
-        camera = Spherical(params=torch.tensor([0, 0, 0, 0, W, H, hfov2, H / W * hfov2]).float().cuda())
+        camera = None
+        if src.camera_type == CameraType.PANORAMA:
+            hfov2 = np.pi
+            params = torch.tensor([0, 0, 0, 0, W, H, hfov2, H / W * hfov2], device=rgb.device).float()
+            camera = Spherical(params=params)
+        elif src.camera_type == CameraType.PINHOLE and src.intrinsics is not None:
+            focal = src.intrinsics.reshape(-1).to(device=rgb.device, dtype=torch.float32)
+            if focal.numel() == 1:
+                focal = focal.repeat(rgb.shape[0])
+            K = torch.eye(3, device=rgb.device).unsqueeze(0).repeat(rgb.shape[0], 1, 1)
+            K[:, 0, 0] = focal
+            K[:, 1, 1] = focal
+            K[:, 0, 2] = W / 2
+            K[:, 1, 2] = H / 2
+            camera = Pinhole(K=K)
+        elif src.camera_type != CameraType.PINHOLE:
+            raise ValueError(f"Unsupported UniK3D camera type: {src.camera_type.value}")
         outputs = self.model.infer(rgb, camera=camera, normalize=True)
 
-        pred_distance = outputs["distance"][0]
-        confidence = outputs["confidence"][0]
+        pred_distance = outputs["distance"].squeeze(1)
+        confidence = outputs["confidence"].squeeze(1)
+        points = outputs["points"].moveaxis(1, -1)
 
         if not batch_dim:
-            pred_distance, confidence = pred_distance[0], confidence[0]
+            pred_distance, confidence, points = pred_distance[0], confidence[0], points[0]
 
         return DepthEstimationResult(
             metric_depth=pred_distance,
             confidence=confidence,
+            points=points,
         )

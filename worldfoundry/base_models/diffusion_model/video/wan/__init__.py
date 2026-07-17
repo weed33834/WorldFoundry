@@ -5,6 +5,8 @@ from importlib import import_module
 __all__ = [
     "WAN_VARIANTS",
     "Wan",
+    "WanTextEncoder",
+    "WanVAEWrapper",
     "WanVariant",
     "available_wan_variants",
     "get_wan_variant",
@@ -16,6 +18,8 @@ __all__ = [
 
 _EXPORTS = {
     "Wan": "wan_runtime_wrapper",
+    "WanTextEncoder": "runtime_components",
+    "WanVAEWrapper": "runtime_components",
     "WAN_VARIANTS": "registry",
     "WanVariant": "registry",
     "available_wan_variants": "registry",

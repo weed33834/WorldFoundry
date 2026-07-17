@@ -22,30 +22,38 @@ from typing import Any, Callable, Dict, List, Tuple, Union
 import numpy as np
 import torch
 import torchvision
+from cosmos_predict2.auxiliary.text_encoder import CosmosT5TextEncoder
+from cosmos_predict2.conditioner import DataType, T2VCondition
+from cosmos_predict2.configs.base.config_video2world import ConditioningStrategy, Video2WorldPipelineConfig
+from cosmos_predict2.pipelines.base import BasePipeline
+from cosmos_predict2.schedulers.rectified_flow_scheduler import RectifiedFlowAB2Scheduler
+from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
 from einops import rearrange
-from megatron.core import parallel_state
 from PIL import Image
 from torch.distributed.device_mesh import DeviceMesh
 from torch.distributed.fsdp import fully_shard
 
-from cosmos_predict2.auxiliary.cosmos_reason1 import CosmosReason1
-from cosmos_predict2.auxiliary.text_encoder import CosmosT5TextEncoder
-from cosmos_predict2.conditioner import DataType, T2VCondition
-from cosmos_predict2.configs.base.config_video2world import ConditioningStrategy, Video2WorldPipelineConfig
-from cosmos_predict2.datasets.utils import VIDEO_RES_SIZE_INFO
-from worldfoundry.core.vram import init_weights_on_device
-from cosmos_predict2.module.denoise_prediction import DenoisePrediction
-from cosmos_predict2.module.denoiser_scaling import RectifiedFlowScaling
-from cosmos_predict2.pipelines.base import BasePipeline
-from cosmos_predict2.schedulers.rectified_flow_scheduler import RectifiedFlowAB2Scheduler
-from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
-from worldfoundry.core.distributed.context_parallel import broadcast, broadcast_split_tensor, cat_outputs_cp, split_inputs_cp
-from cosmos_predict2.utils.dtensor_helper import DTensorFastEmaModelUpdater, broadcast_dtensor_model_states
-from imaginaire.lazy_config import instantiate
-from imaginaire.utils import log, misc
-from imaginaire.utils.ema import FastEmaModelUpdater
+from worldfoundry.base_models.diffusion_model.video.cosmos.shared.denoiser_scaling import RectifiedFlowScaling
+from worldfoundry.base_models.diffusion_model.video.cosmos.shared.diffusion_types import DenoisePrediction
+from worldfoundry.core.configuration.lazy_config import instantiate
+from worldfoundry.core.distributed import (
+    DTensorFastEmaModelUpdater,
+    FastEmaModelUpdater,
+    broadcast_dtensor_model_states,
+)
+from worldfoundry.core.distributed.context_parallel import (
+    broadcast,
+    broadcast_split_tensor,
+    cat_outputs_cp,
+    split_inputs_cp,
+)
+from worldfoundry.core.distributed.logging import log
+from worldfoundry.core.distributed.megatron_compat import parallel_state
 from worldfoundry.core.io import read_video as core_read_video
+from worldfoundry.core.io.resolutions import VIDEO_RES_SIZE_INFO
 from worldfoundry.core.model_loading import load_state_dict
+from worldfoundry.core.utils import inference_runtime as misc
+from worldfoundry.core.vram import init_weights_on_device
 
 IS_PREPROCESSED_KEY = "is_preprocessed"
 _IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp"]
@@ -199,10 +207,9 @@ def read_and_process_video(
 
     # Extract the last frames_to_extract from input video
     start_idx = available_frames - frames_to_extract
-    
+
     extracted_frames = video_tensor[:, start_idx:, :, :]  # (C, frames_to_extract, H, W)
-    
-    
+
     # Convert to (frames_to_extract, C, H, W) for resize
     extracted_frames = extracted_frames.permute(1, 0, 2, 3)  # (frames_to_extract, C, H, W)
 
@@ -252,6 +259,7 @@ def read_and_process_video(
 
 class Video2WorldPipeline(BasePipeline):
     """Video world pipeline implementation."""
+
     def __init__(self, device: str = "cuda", torch_dtype: torch.dtype = torch.bfloat16):
         """Init.
 
@@ -322,9 +330,9 @@ class Video2WorldPipeline(BasePipeline):
 
         # 3. Set up tokenizer
         pipe.tokenizer = instantiate(config.tokenizer)
-        assert (
-            pipe.tokenizer.latent_ch == pipe.config.state_ch
-        ), f"latent_ch {pipe.tokenizer.latent_ch} != state_shape {pipe.config.state_ch}"
+        assert pipe.tokenizer.latent_ch == pipe.config.state_ch, (
+            f"latent_ch {pipe.tokenizer.latent_ch} != state_shape {pipe.config.state_ch}"
+        )
 
         # 4. Load text encoder
         if text_encoder_path:
@@ -337,18 +345,18 @@ class Video2WorldPipeline(BasePipeline):
 
         # 5. Initialize conditioner
         pipe.conditioner = instantiate(config.conditioner)
-        assert (
-            sum(p.numel() for p in pipe.conditioner.parameters() if p.requires_grad) == 0
-        ), "conditioner should not have learnable parameters"
+        assert sum(p.numel() for p in pipe.conditioner.parameters() if p.requires_grad) == 0, (
+            "conditioner should not have learnable parameters"
+        )
 
         pipe.prompt_refiner = None
         # if load_prompt_refiner:
 
-            # pipe.prompt_refiner = CosmosReason1(
-            #     checkpoint_dir=config.prompt_refiner_config.checkpoint_dir,
-            #     offload_model_to_cpu=config.prompt_refiner_config.offload_model_to_cpu,
-            #     enabled=config.prompt_refiner_config.enabled,
-            # )
+        # pipe.prompt_refiner = CosmosReason1(
+        #     checkpoint_dir=config.prompt_refiner_config.checkpoint_dir,
+        #     offload_model_to_cpu=config.prompt_refiner_config.offload_model_to_cpu,
+        #     enabled=config.prompt_refiner_config.enabled,
+        # )
 
         if config.guardrail_config.enabled:
             from cosmos_predict2.auxiliary.guardrail.common import presets as guardrail_presets
@@ -553,9 +561,9 @@ class Video2WorldPipeline(BasePipeline):
             # Check if the data has already been normalized and avoid re-normalizing
             if IS_PREPROCESSED_KEY in data_batch and data_batch[IS_PREPROCESSED_KEY] is True:
                 assert torch.is_floating_point(data_batch[input_key]), "Video data is not in float format."
-                assert torch.all(
-                    (data_batch[input_key] >= -1.0001) & (data_batch[input_key] <= 1.0001)
-                ), f"Video data is not in the range [-1, 1]. get data range [{data_batch[input_key].min()}, {data_batch[input_key].max()}]"
+                assert torch.all((data_batch[input_key] >= -1.0001) & (data_batch[input_key] <= 1.0001)), (
+                    f"Video data is not in the range [-1, 1]. get data range [{data_batch[input_key].min()}, {data_batch[input_key].max()}]"
+                )
             else:
                 assert data_batch[input_key].dtype == torch.uint8, "Video data is not in uint8 format."
                 data_batch[input_key] = data_batch[input_key].to(**self.tensor_kwargs) / 127.5 - 1.0
@@ -585,9 +593,9 @@ class Video2WorldPipeline(BasePipeline):
         if input_key in data_batch:
             # Check if the data has already been augmented and avoid re-augmenting
             if IS_PREPROCESSED_KEY in data_batch and data_batch[IS_PREPROCESSED_KEY] is True:
-                assert (
-                    data_batch[input_key].shape[2] == 1
-                ), f"Image data is claimed be augmented while its shape is {data_batch[input_key].shape}"
+                assert data_batch[input_key].shape[2] == 1, (
+                    f"Image data is claimed be augmented while its shape is {data_batch[input_key].shape}"
+                )
                 return
             else:
                 data_batch[input_key] = rearrange(data_batch[input_key], "b c h w -> b c 1 h w").contiguous()
@@ -683,9 +691,9 @@ class Video2WorldPipeline(BasePipeline):
         """
         is_image = self.input_image_key in data_batch
         is_video = self.input_data_key in data_batch
-        assert (
-            is_image != is_video
-        ), "Only one of the input_image_key or input_data_key should be present in the data_batch."
+        assert is_image != is_video, (
+            "Only one of the input_image_key or input_data_key should be present in the data_batch."
+        )
         return is_image
 
     def denoise(self, xt_B_C_T_H_W: torch.Tensor, sigma: torch.Tensor, condition: T2VCondition) -> DenoisePrediction:
@@ -830,9 +838,9 @@ class Video2WorldPipeline(BasePipeline):
         _, uncondition, _, _ = self.broadcast_split_for_model_parallelsim(x0, uncondition, None, None)
 
         if not parallel_state.is_initialized():
-            assert (
-                not self.dit.is_context_parallel_enabled
-            ), "parallel_state is not initialized, context parallel should be turned off."
+            assert not self.dit.is_context_parallel_enabled, (
+                "parallel_state is not initialized, context parallel should be turned off."
+            )
 
         def x0_fn(noise_x: torch.Tensor, sigma: torch.Tensor) -> torch.Tensor:
             """X0 fn.

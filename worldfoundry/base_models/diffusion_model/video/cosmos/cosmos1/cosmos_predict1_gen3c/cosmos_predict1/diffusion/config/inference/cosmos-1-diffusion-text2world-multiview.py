@@ -17,8 +17,7 @@
 
 from hydra.core.config_store import ConfigStore
 
-from cosmos_predict1.utils.lazy_config import LazyCall as L
-from cosmos_predict1.utils.lazy_config import LazyDict
+from worldfoundry.core.configuration.lazy_config import LazyDict
 
 Cosmos_Predict1_Text2World_7B_Multiview: LazyDict = LazyDict(
     dict(

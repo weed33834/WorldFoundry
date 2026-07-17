@@ -32,6 +32,31 @@ except ImportError:
     warnings.warn("TritonLiteMLA and TritonMBConvPreGLU with `triton` is not available on your platform.")
 
 
+_flash_attn_func = None
+try:
+    from flash_attn.cute import flash_attn_func as _flash_attn_func
+except ImportError:
+    try:
+        from flash_attn_interface import flash_attn_func as _flash_attn_func
+    except ImportError:
+        try:
+            from flash_attn import flash_attn_func as _flash_attn_func
+        except ImportError:
+            _flash_attn_func = None
+
+_flash_attn_available = _flash_attn_func is not None
+
+
+def get_flash_attn_func():
+    """Return the first compatible FlashAttention callable, if installed."""
+    return _flash_attn_func
+
+
+def is_flash_attn_available():
+    """Return whether a compatible FlashAttention callable is available."""
+    return _flash_attn_available
+
+
 def is_xformers_available():
     """Is xformers available."""
     return _xformers_available

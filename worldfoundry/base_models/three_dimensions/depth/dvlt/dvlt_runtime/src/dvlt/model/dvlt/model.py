@@ -31,15 +31,13 @@ from torch import Tensor, nn
 from dvlt.common.amp import force_fp32
 from dvlt.common.constants import DataField, PredictionField
 from dvlt.common.geometry import depth_to_world_coords_points
-from dvlt.common.rays import compute_world_rays, rays_to_pose
-from dvlt.config.schema import LossConfig
+from dvlt.common.rays import rays_to_pose
 from dvlt.model.base import Model, Module
 from dvlt.model_components import (
     PositionGetter,
     RotaryPositionEmbedding2D,
     activate_head,
 )
-from dvlt.model_components.loss import CameraLoss, DepthLoss, MultiTaskLoss, PointLoss, RayLoss
 from worldfoundry.base_models.perception_core.general_perception.dinov2.variants.dvlt import (
     vit_base,
     vit_giant2,
@@ -119,7 +117,6 @@ class DVLTModel(
         patch_size: int = 14,
         embed_dim: int = 768,
         num_steps: int = 16,
-        min_steps: int = 8,
         num_heads: int = 12,
         mlp_ratio: float = 4.0,
         num_register_tokens: int = 4,
@@ -128,17 +125,11 @@ class DVLTModel(
         decoder_depth: int = 2,
         decoder_embed_dim: int = 384,
         decoder_num_heads: int = 6,
-        gradient_checkpointing_config: Optional[Dict[str, Any]] = None,
         camera_head: bool = True,
         drop_path: float = 0.1,
-        stochastic_depth: float = 0.3,
-        stochastic_depth_mode: str = "random",
-        sync_stochastic_depth: bool = True,
         recurrence_mode: str = "gated",
         time_conditioning: str = "interval",
         k_sampling: Optional[str] = "linspace",
-        k_sampler_beta_a: int = 2,
-        k_sampler_beta_b: int = 1,
         inference_steps: Optional[int] = None,
         decoder_head_type: str = "linear",
         depth_head_type: Optional[str] = "conv",
@@ -150,12 +141,7 @@ class DVLTModel(
     ):
         """
         Args:
-            num_steps: Number of discrete steps. Training budget.
-            min_steps: Minimum steps to always execute during training (lower bound
-                for stochastic depth).
-            stochastic_depth: Fraction of steps to drop during training.
-            stochastic_depth_mode: "random" or "prefix".
-            sync_stochastic_depth: If True, all DDP ranks execute the same number of steps.
+            num_steps: Number of recurrent inference steps.
             recurrence_mode: Controls gating structure.
                 "gated"          — s_attn + s_mlp + s_out (multiplicative state gating)
                 "no_sout"        — s_attn + s_mlp (residual-preserving, no state gating)
@@ -167,14 +153,7 @@ class DVLTModel(
                     uses a global t mapping so the model sees both where it is and
                     where the next step lands. Requires k_sampling="linspace".
                 Ignored for no_depthscale / none modes.
-            k_sampling: Training t-grid strategy for continuous / interval modes.
-                None — use stochastic-depth path (integer steps).
-                "linspace" — variable-K uniform linspace grid on [0, 1]; K drawn per
-                    batch from Beta(k_sampler_beta_a, k_sampler_beta_b) scaled to
-                    [min_steps, num_steps].
-            k_sampler_beta_a, k_sampler_beta_b: Positive-integer shape parameters of
-                the Beta distribution used to sample K when k_sampling="linspace".
-                E[K] = min_steps + a/(a+b) * (num_steps - min_steps).
+            k_sampling: Inference t-grid strategy; ``linspace`` uses a uniform grid.
             inference_steps: Number of steps at inference when k_sampling is set.
                 Defaults to num_steps. May exceed num_steps for finer-grained inference.
             decoder_head_type: "linear" (per-patch linear + pixel_shuffle) or
@@ -199,11 +178,7 @@ class DVLTModel(
                 mathematically equivalent to a single pass but avoids cuDNN's
                 32-bit indexing overflow on very large dense inputs.
         """
-        super().__init__(gradient_checkpointing_config=gradient_checkpointing_config)
-        assert stochastic_depth_mode in (
-            "random",
-            "prefix",
-        ), f"stochastic_depth_mode must be 'random' or 'prefix', got '{stochastic_depth_mode}'"
+        super().__init__()
         assert recurrence_mode in (
             "gated",
             "no_sout",
@@ -224,12 +199,6 @@ class DVLTModel(
         # pairing — but skip it entirely when no depth scaling is built.
         if recurrence_mode in ("gated", "no_sout") and time_conditioning == "interval":
             assert k_sampling == "linspace", "time_conditioning='interval' requires k_sampling='linspace'"
-        assert (
-            isinstance(k_sampler_beta_a, int) and k_sampler_beta_a >= 1
-        ), f"k_sampler_beta_a must be a positive int, got {k_sampler_beta_a}"
-        assert (
-            isinstance(k_sampler_beta_b, int) and k_sampler_beta_b >= 1
-        ), f"k_sampler_beta_b must be a positive int, got {k_sampler_beta_b}"
         if inference_steps is not None:
             assert inference_steps > 0, f"inference_steps must be > 0, got {inference_steps}"
         assert decoder_head_type in (
@@ -246,16 +215,10 @@ class DVLTModel(
         self.patch_size = patch_size
         self.embed_dim = embed_dim
         self.num_steps = num_steps
-        self.min_steps = min_steps
         self.has_camera_head = camera_head
-        self.stochastic_depth = stochastic_depth
-        self.stochastic_depth_mode = stochastic_depth_mode
-        self.sync_stochastic_depth = sync_stochastic_depth
         self.recurrence_mode = recurrence_mode
         self.time_conditioning = time_conditioning
         self.k_sampling = k_sampling
-        self.k_sampler_beta_a = k_sampler_beta_a
-        self.k_sampler_beta_b = k_sampler_beta_b
         self.inference_steps = inference_steps if inference_steps is not None else num_steps
         if decode_chunk_size is not None:
             assert decode_chunk_size > 0, f"decode_chunk_size must be > 0, got {decode_chunk_size}"
@@ -264,14 +227,10 @@ class DVLTModel(
         self._gate_mode = recurrence_mode if recurrence_mode in ("gated", "no_sout") else "none"
         self._shared_blocks = recurrence_mode != "none"
 
-        self._sd_rng = torch.Generator(device="cpu")
-
         if self._shared_blocks:
             self._block_ranges = [(0, num_steps)]
-            self._min_steps_per_block = [min_steps]
         else:
             self._block_ranges = [(k, k + 1) for k in range(num_steps)]
-            self._min_steps_per_block = [1] * num_steps
 
         # ==================== Patch Embedder ====================
         self._build_patch_embed(patch_embed, img_size, patch_size, num_register_tokens, load_patch_embed_weights)
@@ -343,11 +302,6 @@ class DVLTModel(
         # ==================== Normalization Constants ====================
         self.register_buffer("_resnet_mean", torch.FloatTensor(_RESNET_MEAN).view(1, 1, 3, 1, 1), persistent=False)
         self.register_buffer("_resnet_std", torch.FloatTensor(_RESNET_STD).view(1, 1, 3, 1, 1), persistent=False)
-
-        self.gradient_checkpointing_config = gradient_checkpointing_config or {
-            "use_reentrant": False,
-            "modules": ["recurrent_blocks", "ray_decoder", "depth_decoder"],
-        }
 
     # ==================== Helpers ====================
 
@@ -426,22 +380,6 @@ class DVLTModel(
         """
         return 0 if self._shared_blocks else k
 
-    def _sample_K(self, rng) -> int:
-        """Sample K from Beta(a, b) scaled to [min_steps, num_steps] with round-to-bin.
-
-        E[K] = min_steps + a/(a+b) * (num_steps - min_steps). Uses the gamma-ratio
-        identity Beta(a, b) = Gamma(a) / (Gamma(a) + Gamma(b)) with integer shapes
-        (sum of Exp(1) samples), so the call can be piped through ``rng`` to sync
-        K across DDP ranks when desired.
-        """
-        a, b = self.k_sampler_beta_a, self.k_sampler_beta_b
-        e = torch.empty(a + b).exponential_(generator=rng)
-        ga = e[:a].sum()
-        gb = e[a:].sum()
-        m = (ga / (ga + gb)).item()
-        span = self.num_steps - self.min_steps
-        return self.min_steps + min(int(round(m * span)), span)
-
     def _interval_step(self, x, t_now: float, t_next: float, rope_pos, B, S):
         """One step at global (t_now, t_next) ∈ [0, 1]^2.
 
@@ -477,106 +415,6 @@ class DVLTModel(
         return block(x, t_frame, t_batch, rope_pos, B, S)
 
     # ==================== Solvers ====================
-
-    def _get_sd_rng(self, step: int):
-        """Return the generator for stochastic depth coin flips.
-
-        When sync_stochastic_depth is True, returns _sd_rng seeded with a rank-
-        independent key so all GPUs agree on step counts. Otherwise returns None
-        (global RNG, already per-rank via set_seed and resume-safe via accelerator
-        checkpoint).
-        """
-        if self.sync_stochastic_depth:
-            self._sd_rng.manual_seed(42 + step)
-            return self._sd_rng
-        return None
-
-    def _solve_train(self, x, rope_pos, B, S, step: int = 0):
-        """Training dispatcher: delegates to mode-specific solver."""
-        rng = self._get_sd_rng(step)
-        if self.k_sampling == "linspace":
-            return self._solve_train_linspace_k(x, rope_pos, B, S, rng)
-        if self.stochastic_depth_mode == "prefix":
-            return self._solve_train_prefix(x, rope_pos, B, S, rng)
-        return self._solve_train_random(x, rope_pos, B, S, rng)
-
-    def _solve_train_linspace_k(self, x, rope_pos, B, S, rng):
-        """Training with uniform linspace grid and variable step count.
-
-        K ~ Beta(k_sampler_beta_a, k_sampler_beta_b) scaled to [min_steps, num_steps].
-        The K positions on [0, 1] are passed to _interval_step as consecutive
-        (t_now, t_next) pairs; the final pair sets t_next = 1.0 as a terminal-step
-        sentinel (delta_t = 0 for the interval-conditioned module).
-        """
-        K = self._sample_K(rng)
-        ts = torch.linspace(0.0, 1.0, K).tolist()
-        for i in range(K):
-            t_now = ts[i]
-            t_next = ts[i + 1] if i + 1 < K else 1.0
-            x = self._interval_step(x, t_now, t_next, rope_pos, B, S)
-        return x
-
-    def _solve_train_random(self, x, rope_pos, B, S, rng):
-        """Random dropping: each step independently kept/dropped.
-
-        When rng is _sd_rng (synced mode), the coin-flip count is shared across
-        ranks but selection uses the global RNG for per-rank diversity. When rng
-        is None, everything uses the global RNG.
-        """
-        N = self.num_steps
-        if self.stochastic_depth > 0:
-            keep = torch.zeros(N, dtype=torch.bool)
-
-            for (start, end), min_count in zip(self._block_ranges, self._min_steps_per_block, strict=False):
-                forced = torch.linspace(start, end - 1, min_count).long()
-                keep[forced] = True
-            keep[0] = True
-            keep[N - 1] = True
-
-            if rng is not None:
-                optional = (~keep).nonzero(as_tuple=True)[0]
-                n_optional = len(optional)
-                if n_optional > 0:
-                    n_extra = (torch.rand(n_optional, generator=rng) >= self.stochastic_depth).sum().item()
-                    perm = torch.randperm(n_optional)
-                    keep[optional[perm[:n_extra]]] = True
-            else:
-                extra_mask = torch.rand(N) >= self.stochastic_depth
-                keep = keep | extra_mask
-
-            active = keep.nonzero(as_tuple=True)[0].tolist()
-        else:
-            active = list(range(N))
-
-        for k in active:
-            x = self._step(x, k, rope_pos, B, S)
-        return x
-
-    def _solve_train_prefix(self, x, rope_pos, B, S, rng):
-        """Contiguous prefix per block with geometric stopping.
-
-        Runs a contiguous prefix of steps. After ``min_steps``, each additional step
-        has ``stochastic_depth`` probability of being the last.
-        """
-        if self.stochastic_depth <= 0:
-            for k in range(self.num_steps):
-                x = self._step(x, k, rope_pos, B, S)
-            return x
-
-        for (start, end), min_count in zip(self._block_ranges, self._min_steps_per_block, strict=False):
-            block_size = end - start
-            cutoff = min_count
-            if min_count < block_size:
-                extra_coins = torch.rand(block_size - min_count, generator=rng)
-                for i, coin in enumerate(extra_coins):
-                    if coin < self.stochastic_depth:
-                        break
-                    cutoff = min_count + i + 1
-
-            for k in range(start, start + cutoff):
-                x = self._step(x, k, rope_pos, B, S)
-
-        return x
 
     def _solve_inference_linspace_k(self, x, rope_pos, B, S):
         """Inference for k_sampling='linspace': uniform grid with configurable K."""
@@ -656,22 +494,6 @@ class DVLTModel(
 
     # ==================== Forward ====================
 
-    def forward_train(self, images, step: int = 0):
-        """Forward train.
-
-        Args:
-            images: The images.
-            step: The step.
-        """
-        B, S, _, H, W = images.shape
-        z_0 = self._encode_images(images)
-        register_token = self.register_token.expand(B, S, -1, -1).reshape(B * S, self.num_register_tokens, -1)
-        camera_token = _slice_expand_flatten(self.camera_token, B, S)
-        x = torch.cat([camera_token, register_token, z_0], dim=1)
-        rope_pos = self._get_rope_positions(B * S, H, W, images.device)
-        features = self._solve_train(x, rope_pos, B, S, step=step)
-        return self._decode(features, H, W, B, S, rope_pos)
-
     @torch.no_grad()
     def forward_inference(self, images):
         """Forward inference.
@@ -688,16 +510,13 @@ class DVLTModel(
         features = self._solve_inference(x, rope_pos, B, S)
         return self._decode(features, H, W, B, S, rope_pos)
 
-    def forward(self, batch, step: int = 0):
+    def forward(self, batch):
         """Forward.
 
         Args:
             batch: The batch.
-            step: The step.
         """
         images = batch[DataField.IMAGES]
-        if self.training:
-            return self.forward_train(images, step=step)
         return self.forward_inference(images)
 
 
@@ -707,23 +526,12 @@ class DVLTModel(
 class DVLT(Module):
     """Dvlt implementation."""
 
-    DEFAULT_LOSS_CONFIG = {
-        "losses": {
-            "pmap": LossConfig(PointLoss, weight=1.0, kwargs={"grad_loss": None, "disable_conf": True}),
-            "depth": LossConfig(DepthLoss, weight=1.0, kwargs={"grad_loss": "edge", "disable_conf": True}),
-            "ray": LossConfig(RayLoss, weight=1.0),
-            "cam": LossConfig(CameraLoss, weight=1.0),
-        },
-        "normalize": True,
-    }
-
     def __init__(
         self,
         img_size: int = 518,
         patch_size: int = 14,
         embed_dim: int = 768,
         num_steps: int = 16,
-        min_steps: int = 8,
         num_heads: int = 12,
         mlp_ratio: float = 4.0,
         num_register_tokens: int = 4,
@@ -732,23 +540,14 @@ class DVLT(Module):
         decoder_depth: int = 2,
         decoder_embed_dim: int = 384,
         decoder_num_heads: int = 6,
-        gradient_checkpointing_config: Optional[Dict[str, Any]] = None,
-        loss: Optional[Dict[str, Any]] = None,
         camera_head: bool = True,
         drop_path: float = 0.1,
-        stochastic_depth: float = 0.3,
-        stochastic_depth_mode: str = "random",
-        sync_stochastic_depth: bool = True,
         recurrence_mode: str = "gated",
         time_conditioning: str = "interval",
         k_sampling: Optional[str] = "linspace",
-        k_sampler_beta_a: int = 2,
-        k_sampler_beta_b: int = 1,
         inference_steps: Optional[int] = 12,
         decoder_head_type: str = "linear",
         depth_head_type: Optional[str] = "conv",
-        finetune_mode: Optional[str] = None,
-        reset_depth_decoder_transformer: bool = False,
         depth_decoder_depth: Optional[int] = None,
         depth_decoder_embed_dim: Optional[int] = None,
         depth_decoder_num_heads: Optional[int] = None,
@@ -771,38 +570,11 @@ class DVLT(Module):
                 unprojection entirely. Default ``False`` keeps the current
                 behavior (``WORLD_POINTS`` = depth unprojected via fitted pose;
                 ``WORLD_POINTS_DIRECT`` = rays+depth, unchanged either way).
-            finetune_mode: Selective unfreezing after loading a pretrained checkpoint.
-                None — normal training, everything trainable.
-                "depth_output" — freeze all, unfreeze only depth decoder output stage
-                    (conv/linear head). Backbone, recurrent blocks, ray decoder,
-                    camera head, and depth decoder front-end stay frozen.
-                "depth_decoder" — freeze backbone + recurrent blocks + ray/camera;
-                    train the full ``depth_decoder`` (transformer + output stage).
-                "depth_decoder_recurrent" — like ``depth_decoder`` but also unfreeze
-                    ``recurrent_blocks`` (AA stack). Use ``trainer.lr_param_group_multipliers``
-                    (e.g. ``recurrent_blocks: 0.01``) to give the AA path a lower LR.
-                "all_heads" — freeze backbone + recurrent blocks, unfreeze all
-                    decoder heads (ray, depth, camera) in full.
-            reset_depth_decoder_transformer: If True, after ``load_pretrained``,
-                reinitialize ``depth_decoder`` transformer front-end (``proj_in``,
-                ``blocks``, ``norm``) so only the output stage keeps checkpoint
-                weights (until you train). Ignored when no checkpoint is loaded.
         """
-        assert finetune_mode in (
-            None,
-            "depth_output",
-            "depth_decoder",
-            "depth_decoder_recurrent",
-            "all_heads",
-        ), (
-            "finetune_mode must be None, 'depth_output', 'depth_decoder', "
-            f"'depth_decoder_recurrent', or 'all_heads', got '{finetune_mode}'"
-        )
         self.img_size = img_size
         self.patch_size = patch_size
         self.embed_dim = embed_dim
         self.num_steps = num_steps
-        self.min_steps = min_steps
         self.num_heads = num_heads
         self.mlp_ratio = mlp_ratio
         self.num_register_tokens = num_register_tokens
@@ -811,22 +583,14 @@ class DVLT(Module):
         self.decoder_depth = decoder_depth
         self.decoder_embed_dim = decoder_embed_dim
         self.decoder_num_heads = decoder_num_heads
-        self.gradient_checkpointing_config = gradient_checkpointing_config
         self.camera_head = camera_head
         self.drop_path = drop_path
-        self.stochastic_depth = stochastic_depth
-        self.stochastic_depth_mode = stochastic_depth_mode
-        self.sync_stochastic_depth = sync_stochastic_depth
         self.recurrence_mode = recurrence_mode
         self.time_conditioning = time_conditioning
         self.k_sampling = k_sampling
-        self.k_sampler_beta_a = k_sampler_beta_a
-        self.k_sampler_beta_b = k_sampler_beta_b
         self.inference_steps = inference_steps
         self.decoder_head_type = decoder_head_type
         self.depth_head_type = depth_head_type
-        self.finetune_mode = finetune_mode
-        self.reset_depth_decoder_transformer = reset_depth_decoder_transformer
         self.depth_decoder_depth = depth_decoder_depth
         self.depth_decoder_embed_dim = depth_decoder_embed_dim
         self.depth_decoder_num_heads = depth_decoder_num_heads
@@ -835,28 +599,8 @@ class DVLT(Module):
         self.use_depth_conf_for_pose = use_depth_conf_for_pose
         self.world_points_from_rays = world_points_from_rays
 
-        # When finetuning, restrict gradient checkpointing to the modules that
-        # are actually being trained. Checkpointing frozen modules (no backward)
-        # is pure recompute overhead with no memory win.
-        if self.finetune_mode is not None and gradient_checkpointing_config is None:
-            _ft_ckpt_modules = {
-                "depth_output": ["depth_decoder"],
-                "depth_decoder": ["depth_decoder"],
-                "depth_decoder_recurrent": ["depth_decoder", "recurrent_blocks"],
-                "all_heads": ["ray_decoder", "depth_decoder"],
-            }.get(self.finetune_mode, ["depth_decoder"])
-            self.gradient_checkpointing_config = {
-                "use_reentrant": False,
-                "modules": _ft_ckpt_modules,
-            }
-
-        loss_cfg = loss or self.DEFAULT_LOSS_CONFIG
-        self.loss_fn = MultiTaskLoss(**loss_cfg)
         super().__init__(*args, **kwargs)
         self.model_file = "model.safetensors"
-
-        if self.finetune_mode is not None:
-            self._setup_finetune()
 
     def build_model(self):
         """Build model."""
@@ -865,7 +609,6 @@ class DVLT(Module):
             patch_size=self.patch_size,
             embed_dim=self.embed_dim,
             num_steps=self.num_steps,
-            min_steps=self.min_steps,
             num_heads=self.num_heads,
             mlp_ratio=self.mlp_ratio,
             num_register_tokens=self.num_register_tokens,
@@ -874,17 +617,11 @@ class DVLT(Module):
             decoder_depth=self.decoder_depth,
             decoder_embed_dim=self.decoder_embed_dim,
             decoder_num_heads=self.decoder_num_heads,
-            gradient_checkpointing_config=self.gradient_checkpointing_config,
             camera_head=self.camera_head,
             drop_path=self.drop_path,
-            stochastic_depth=self.stochastic_depth,
-            stochastic_depth_mode=self.stochastic_depth_mode,
-            sync_stochastic_depth=self.sync_stochastic_depth,
             recurrence_mode=self.recurrence_mode,
             time_conditioning=self.time_conditioning,
             k_sampling=self.k_sampling,
-            k_sampler_beta_a=self.k_sampler_beta_a,
-            k_sampler_beta_b=self.k_sampler_beta_b,
             inference_steps=self.inference_steps,
             decoder_head_type=self.decoder_head_type,
             depth_head_type=self.depth_head_type,
@@ -894,124 +631,6 @@ class DVLT(Module):
             decoder_init_values=self.decoder_init_values,
             decode_chunk_size=self.decode_chunk_size,
         )
-
-    def _setup_finetune(self):
-        """Freeze parameters according to ``finetune_mode``."""
-        for param in self.model.parameters():
-            param.requires_grad = False
-
-        if self.finetune_mode == "depth_output":
-            for param in self.model.depth_decoder.output_stage_parameters():
-                param.requires_grad = True
-        elif self.finetune_mode == "depth_decoder":
-            for param in self.model.depth_decoder.parameters():
-                param.requires_grad = True
-        elif self.finetune_mode == "depth_decoder_recurrent":
-            for param in self.model.depth_decoder.parameters():
-                param.requires_grad = True
-            for param in self.model.recurrent_blocks.parameters():
-                param.requires_grad = True
-        elif self.finetune_mode == "all_heads":
-            for module in self._head_modules():
-                for param in module.parameters():
-                    param.requires_grad = True
-
-        n_trainable = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
-        n_total = sum(p.numel() for p in self.model.parameters())
-        logger.info(
-            f"finetune_mode='{self.finetune_mode}': {n_trainable:,} / {n_total:,} params trainable "
-            f"({100 * n_trainable / n_total:.1f}%)"
-        )
-
-    def _head_modules(self):
-        """Yield all decoder head modules (ray, depth, camera)."""
-        yield self.model.ray_decoder
-        yield self.model.depth_decoder
-        if self.model.camera_head is not None:
-            yield self.model.camera_head
-
-    def load_pretrained(self, *args, **kwargs):
-        """Load pretrained."""
-        missing_keys, unexpected_keys = super().load_pretrained(*args, **kwargs)
-        if self.finetune_mode is not None:
-            logger.info(
-                f"finetune_mode='{self.finetune_mode}': checkpoint loaded, "
-                "mismatched head keys (if any) left randomly initialized"
-            )
-        if self.reset_depth_decoder_transformer:
-            depth_output_missing = any(
-                k.startswith("depth_decoder.upsample_blocks.") or k.startswith("depth_decoder.output_block.")
-                for k in missing_keys
-            )
-            if not depth_output_missing:
-                logger.info(
-                    "reset_depth_decoder_transformer=True: checkpoint already contains "
-                    "depth decoder output stage weights, skipping front-end reinit."
-                )
-            elif isinstance(self.model.depth_decoder, DecoderHead):
-                self.model.depth_decoder.reinit_transformer_front_end()
-                logger.info(
-                    "reset_depth_decoder_transformer=True: reinitialized depth_decoder "
-                    "proj_in / blocks / norm (output stage unchanged from checkpoint load)."
-                )
-            else:
-                logger.warning(
-                    "reset_depth_decoder_transformer=True ignored: depth_decoder is a "
-                    f"{type(self.model.depth_decoder).__name__}, not a DecoderHead."
-                )
-        return missing_keys, unexpected_keys
-
-    def _get_param_groups(self):
-        """Helper function to get param groups."""
-        if self.finetune_mode == "depth_output":
-            return {
-                "depth_decoder_output": list(self.model.depth_decoder.output_stage_parameters()),
-            }
-        if self.finetune_mode == "depth_decoder":
-            return {"depth_decoder": list(self.model.depth_decoder.parameters())}
-        if self.finetune_mode == "depth_decoder_recurrent":
-            return {
-                "depth_decoder": list(self.model.depth_decoder.parameters()),
-                "recurrent_blocks": list(self.model.recurrent_blocks.parameters()),
-            }
-        if self.finetune_mode == "all_heads":
-            pg = {
-                "ray_decoder": list(self.model.ray_decoder.parameters()),
-                "depth_decoder": list(self.model.depth_decoder.parameters()),
-            }
-            if self.model.camera_head is not None:
-                pg["camera_head"] = list(self.model.camera_head.parameters())
-            return pg
-        pg = {
-            "patch_embed": list(self.model.patch_embed_encoder.parameters()),
-            "recurrent_blocks": list(self.model.recurrent_blocks.parameters()),
-            "camera_token": [self.model.camera_token],
-            "register_token": [self.model.register_token],
-            "ray_decoder": list(self.model.ray_decoder.parameters()),
-            "depth_decoder": list(self.model.depth_decoder.parameters()),
-        }
-        if self.model.camera_head is not None:
-            pg["camera_head"] = list(self.model.camera_head.parameters())
-        return pg
-
-    def train_step(self, batch, step, accelerator):
-        """Train step.
-
-        Args:
-            batch: The batch.
-            step: The step.
-            accelerator: The accelerator.
-        """
-        H, W = batch[DataField.IMAGES].shape[-2:]
-        batch[DataField.WORLD_RAYS] = compute_world_rays(
-            batch[DataField.EXTRINSICS_C2W],
-            batch[DataField.INTRINSICS],
-            H,
-            W,
-        )
-        predictions = self.model(batch, step=step)
-        total_loss, pbar_logs, tracker_logs = self.loss_fn(predictions, batch)
-        return total_loss, pbar_logs, tracker_logs, predictions
 
     @force_fp32
     def _postprocess_predictions(self, batch, predictions):

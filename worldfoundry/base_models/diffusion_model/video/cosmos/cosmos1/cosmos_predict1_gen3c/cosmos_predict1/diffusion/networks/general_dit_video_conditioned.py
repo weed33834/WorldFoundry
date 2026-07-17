@@ -18,18 +18,19 @@
 from typing import Optional
 
 import torch
+from cosmos_predict1.diffusion.conditioner import DataType
+from cosmos_predict1.diffusion.module.blocks import TimestepEmbedding, Timesteps
+from cosmos_predict1.diffusion.networks.general_dit import GeneralDIT
+from cosmos_predict1.utils import log
 from einops import rearrange
 from torch import nn
 
-from cosmos_predict1.diffusion.conditioner import DataType
-from cosmos_predict1.diffusion.module.blocks import TimestepEmbedding, Timesteps
 from worldfoundry.core.distributed.context_parallel import split_inputs_cp
-from cosmos_predict1.diffusion.networks.general_dit import GeneralDIT
-from cosmos_predict1.utils import log
 
 
 class VideoExtendGeneralDIT(GeneralDIT):
     """Video extend general dit implementation."""
+
     def __init__(self, *args, in_channels=16 + 1, add_augment_sigma_embedding=False, **kwargs):
         """Init."""
         self.add_augment_sigma_embedding = add_augment_sigma_embedding
@@ -117,7 +118,7 @@ class VideoExtendGeneralDIT(GeneralDIT):
 
             input_list = [x, condition_video_input_mask]
             if condition_video_pose is not None:
-                input_list.append(condition_video_pose) 
+                input_list.append(condition_video_pose)
             x = torch.cat(
                 input_list,
                 dim=1,
@@ -163,9 +164,9 @@ class VideoExtendGeneralDIT(GeneralDIT):
             condition_video_augment_sigma: (B, T) tensor of sigma value for the conditional input augmentation
         """
         del kwargs
-        assert isinstance(
-            data_type, DataType
-        ), f"Expected DataType, got {type(data_type)}. We need discuss this flag later."
+        assert isinstance(data_type, DataType), (
+            f"Expected DataType, got {type(data_type)}. We need discuss this flag later."
+        )
         original_shape = x.shape
         x_B_T_H_W_D, rope_emb_L_1_1_D, extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D = self.prepare_embedded_sequence(
             x,

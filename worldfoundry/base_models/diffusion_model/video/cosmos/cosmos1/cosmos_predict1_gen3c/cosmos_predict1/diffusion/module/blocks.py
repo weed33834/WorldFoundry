@@ -20,12 +20,11 @@ from typing import Optional
 
 import numpy as np
 import torch
+from cosmos_predict1.diffusion.module.attention import Attention, GPT2FeedForward
+from cosmos_predict1.utils import log
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 from torch import nn
-
-from cosmos_predict1.diffusion.module.attention import Attention, GPT2FeedForward
-from cosmos_predict1.utils import log
 
 
 def modulate(x, shift, scale):
@@ -41,6 +40,7 @@ def modulate(x, shift, scale):
 
 class Timesteps(nn.Module):
     """Timesteps implementation."""
+
     def __init__(self, num_channels):
         """Init.
 
@@ -73,6 +73,7 @@ class Timesteps(nn.Module):
 
 class TimestepEmbedding(nn.Module):
     """Timestep embedding implementation."""
+
     def __init__(self, in_features: int, out_features: int, use_adaln_lora: bool = False):
         """Init.
 

@@ -1,12 +1,12 @@
 """JSON, YAML, and Python config file utilities."""
 
-from io import StringIO
 import json
 import os.path as path
+from io import StringIO
 
 import yaml
 
-from ..utils.functional_utils import make_recursive_func
+from ..utils.array_tensor_utils import any_to_primitive
 from .file_utils import f_join
 
 __all__ = [
@@ -59,20 +59,6 @@ def jsonl_load(*file_path, **kwargs):
     for line in open(file_path):
         data.append(json.loads(line, **kwargs))
     return data
-
-
-@make_recursive_func
-def any_to_primitive(x):
-    try:
-        import torch
-    except ImportError:
-        raise ImportError("torch is required for any_to_primitive")
-    import numpy as np
-
-    if isinstance(x, (np.ndarray, np.number, torch.Tensor)):
-        return x.tolist()
-    else:
-        return x
 
 
 def json_dump(data, *file_path, convert_to_primitive=False, **kwargs):
@@ -165,10 +151,7 @@ def json_or_yaml_load(*file_path, **loader_kwargs):
     elif file_path.endswith(".yml") or file_path.endswith(".yaml"):
         return yaml_load(file_path, **loader_kwargs)
     else:
-        raise IOError(
-            f'unknown file extension: "{file_path}", '
-            f'loader supports only ".json", ".yml", ".yaml"'
-        )
+        raise IOError(f'unknown file extension: "{file_path}", loader supports only ".json", ".yml", ".yaml"')
 
 
 def json_or_yaml_dump(data, *file_path, **dumper_kwargs):
@@ -185,10 +168,7 @@ def json_or_yaml_dump(data, *file_path, **dumper_kwargs):
     elif file_path.endswith(".yml") or file_path.endswith(".yaml"):
         return yaml_dump(data, file_path, **dumper_kwargs)
     else:
-        raise IOError(
-            f'unknown file extension: "{file_path}", '
-            f'dumper supports only ".json", ".yml", ".yaml"'
-        )
+        raise IOError(f'unknown file extension: "{file_path}", dumper supports only ".json", ".yml", ".yaml"')
 
 
 # ---------------- Aliases -----------------

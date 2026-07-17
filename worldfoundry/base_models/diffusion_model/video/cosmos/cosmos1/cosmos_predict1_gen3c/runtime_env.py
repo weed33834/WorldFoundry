@@ -7,9 +7,8 @@ import shutil
 from pathlib import Path
 from typing import Optional
 
-from worldfoundry.core import cuda_visible_devices_from_device, load_pil_image, load_video_frames
+from worldfoundry.core import cuda_visible_devices_from_device
 from worldfoundry.core.io.paths import project_root
-
 
 DEFAULT_GEN3C_ALIAS = "gen3c"
 DEFAULT_GEN3C_MOGE1_REPO = "Ruicheng/moge-vitl"
@@ -124,13 +123,7 @@ def ensure_packaged_gen3c_runtime() -> str:
     Returns:
         The return value.
     """
-    sentinel = (
-        packaged_gen3c_cosmos_root()
-        / "cosmos_predict1"
-        / "diffusion"
-        / "inference"
-        / "gen3c_pipeline.py"
-    )
+    sentinel = packaged_gen3c_cosmos_root() / "cosmos_predict1" / "diffusion" / "inference" / "gen3c_pipeline.py"
     if not sentinel.is_file():
         raise FileNotFoundError(f"Packaged GEN3C runtime is incomplete: {sentinel}")
     return str(packaged_gen3c_cosmos_root())
@@ -618,4 +611,3 @@ def build_subprocess_env(
     if visible_device is not None:
         env["CUDA_VISIBLE_DEVICES"] = visible_device
     return env
-

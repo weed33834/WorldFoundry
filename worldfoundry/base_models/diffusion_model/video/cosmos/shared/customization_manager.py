@@ -21,6 +21,7 @@ from enum import Enum
 
 class CustomizationType(Enum):
     """Customization type implementation."""
+
     LORA = 1
     REPLACE = 2
 

@@ -60,9 +60,7 @@ class SignalBus(Generic[_SignalT]):
         self._counter = 0
 
     def send(self, signal: _SignalT) -> None:
-        encoded_signal = torch.tensor(
-            [self._counter, int(signal)], dtype=torch.int64, device=self.device
-        )
+        encoded_signal = torch.tensor([self._counter, int(signal)], dtype=torch.int64, device=self.device)
         if dist.is_initialized():
             dist.broadcast(encoded_signal, src=self.master_rank)
         self._counter += 1

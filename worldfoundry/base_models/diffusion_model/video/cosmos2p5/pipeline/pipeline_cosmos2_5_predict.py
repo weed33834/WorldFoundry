@@ -36,7 +36,6 @@ from ...video_processor import VideoProcessor
 from ..pipeline_utils import DiffusionPipeline
 from .pipeline_output import CosmosPipelineOutput
 
-
 if is_torchvision_available():
     import torchvision.transforms.functional
 
@@ -47,6 +46,7 @@ else:
 
     class CosmosSafetyChecker:
         """Cosmos safety checker implementation."""
+
         def __init__(self, *args, **kwargs):
             """Init."""
             raise ImportError(

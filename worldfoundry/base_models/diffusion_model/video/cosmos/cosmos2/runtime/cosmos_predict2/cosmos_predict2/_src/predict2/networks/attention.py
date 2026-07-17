@@ -61,6 +61,7 @@
 """Module for base_models -> diffusion_model -> video -> cosmos -> cosmos2 -> runtime -> cosmos_predict2 -> cosmos_predict2 -> _src -> predict2 -> networks -> attention.py functionality."""
 
 import torch
+
 from worldfoundry.core.attention import scaled_dot_product_attention as _worldfoundry_scaled_dot_product_attention
 
 try:

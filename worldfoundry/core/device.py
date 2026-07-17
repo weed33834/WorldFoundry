@@ -1,9 +1,8 @@
 """Device detection and torch backend helpers for CPU, CUDA, and NPU."""
 
-from typing import Any
-
 import importlib
 import os
+from typing import Any
 
 import torch
 
@@ -17,8 +16,6 @@ IS_CUDA_AVAILABLE = torch.cuda.is_available()
 IS_NPU_AVAILABLE = is_torch_npu_available() and hasattr(torch, "npu") and torch.npu.is_available()
 
 if IS_NPU_AVAILABLE:
-    import torch_npu
-
     torch.npu.config.allow_internal_format = False
 
 
@@ -158,6 +155,80 @@ def get_available_device_type() -> str:
     return get_device_type()
 
 
+def resolve_inference_device(device: str | torch.device | None = "cuda", *, allow_cpu_fallback: bool = False) -> str:
+    """Resolve a concrete inference device without silently selecting the wrong GPU.
+
+    Bare ``cuda`` resolves to the process-local ``cuda:0``. Explicit indices are
+    preserved, which is important when a caller deliberately selects (for
+    example) ``cuda:4`` under an eight-GPU workspace.
+    """
+
+    requested = str(device or "cuda").strip().lower()
+    if requested == "cuda":
+        requested = "cuda:0"
+    if requested.startswith("cuda") and not torch.cuda.is_available():
+        if allow_cpu_fallback:
+            return "cpu"
+        raise RuntimeError(f"CUDA device {requested!r} was requested, but CUDA is unavailable")
+    if requested.startswith("cuda"):
+        parsed = torch.device(requested)
+        index = 0 if parsed.index is None else parsed.index
+        if index >= torch.cuda.device_count():
+            raise RuntimeError(
+                f"CUDA device index {index} is out of range for {torch.cuda.device_count()} visible device(s)"
+            )
+    return requested
+
+
+def resolve_inference_dtype(
+    device: str | torch.device,
+    dtype: str | torch.dtype | None = "auto",
+    *,
+    strict: bool = True,
+) -> torch.dtype:
+    """Resolve an inference dtype using the selected accelerator's capability.
+
+    ``auto`` selects bf16 on Ampere/Hopper/Blackwell-or-newer CUDA devices,
+    fp16 on older CUDA devices, and fp32 on CPU. Explicit unsupported bf16 is
+    rejected in strict mode instead of producing a later kernel failure.
+    """
+
+    if isinstance(dtype, torch.dtype):
+        selected = dtype
+    else:
+        name = str(dtype or "auto").strip().lower()
+        aliases = {
+            "bfloat16": torch.bfloat16,
+            "bf16": torch.bfloat16,
+            "float16": torch.float16,
+            "fp16": torch.float16,
+            "half": torch.float16,
+            "float32": torch.float32,
+            "fp32": torch.float32,
+            "full": torch.float32,
+        }
+        if name != "auto" and name not in aliases:
+            raise ValueError(f"unsupported inference dtype: {dtype!r}")
+        selected = aliases.get(name, torch.float32)
+
+    parsed = torch.device(device)
+    if str(dtype or "auto").strip().lower() == "auto":
+        if parsed.type == "cuda":
+            index = torch.cuda.current_device() if parsed.index is None else parsed.index
+            major, _minor = torch.cuda.get_device_capability(index)
+            return torch.bfloat16 if major >= 8 else torch.float16
+        return torch.float32
+
+    if selected is torch.bfloat16 and parsed.type == "cuda":
+        index = torch.cuda.current_device() if parsed.index is None else parsed.index
+        major, _minor = torch.cuda.get_device_capability(index)
+        if major < 8:
+            if strict:
+                raise RuntimeError(f"bfloat16 is unsupported on CUDA device {index} (compute capability {major}.x)")
+            return torch.float16
+    return selected
+
+
 __all__ = [
     "IS_CUDA_AVAILABLE",
     "IS_NPU_AVAILABLE",
@@ -173,5 +244,7 @@ __all__ = [
     "is_torch_npu_available",
     "parse_device_type",
     "parse_nccl_backend",
+    "resolve_inference_device",
+    "resolve_inference_dtype",
     "synchronize",
 ]

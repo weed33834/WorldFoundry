@@ -2,6 +2,8 @@ from typing import Optional
 
 import torch
 
+from worldfoundry.core.kernels import group_norm_silu
+
 
 class ResBlock(torch.nn.Module):
     """
@@ -29,8 +31,13 @@ class ResBlock(torch.nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         residual = x
         x = self.conv1(x)
-        x = self.norm1(x)
-        x = self.activation(x)
+        x = group_norm_silu(
+            x,
+            self.norm1.weight,
+            self.norm1.bias,
+            num_groups=self.norm1.num_groups,
+            eps=self.norm1.eps,
+        )
         x = self.conv2(x)
         x = self.norm2(x)
         x = self.activation(x + residual)

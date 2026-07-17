@@ -23,22 +23,12 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import List, Optional, Tuple, Union
 
-from cosmos_predict2._src.predict2.utils.kv_cache import AttentionOpWithKVCache, KVCacheConfig, KVCacheLayerState
-
-try:
-    import megatron.core.parallel_state as parallel_state
-
-    USE_MEGATRON = True
-except ImportError:
-    USE_MEGATRON = False
-
 import numpy as np
 import torch
 import torch.amp as amp
-import transformer_engine as te
+from cosmos_predict2._src.predict2.utils.kv_cache import AttentionOpWithKVCache, KVCacheConfig, KVCacheLayerState
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
-from packaging.version import Version
 from torch import nn
 from torch.distributed import ProcessGroup, get_process_group_ranks
 from torch.distributed._composable.fsdp import fully_shard
@@ -49,23 +39,28 @@ try:
 except ImportError:
     CheckpointPolicy = None
 
-from torchvision import transforms
-
-if Version(te.__version__) >= Version("2.8.0"):
-    from transformer_engine.pytorch.attention.rope import apply_rotary_pos_emb
-else:
-    from transformer_engine.pytorch.attention import apply_rotary_pos_emb
-from torch.nn.attention.flex_attention import BlockMask, create_block_mask, flex_attention
-
-from cosmos_predict2._src.imaginaire.attention import attention
-from cosmos_predict2._src.imaginaire.utils import log
-from worldfoundry.core.distributed.context_parallel import split_inputs_cp
 from cosmos_predict2._src.predict2.conditioner import DataType
 from cosmos_predict2._src.predict2.modules.neighborhood_attn import NeighborhoodAttention
 from cosmos_predict2._src.predict2.networks.a2a_cp import MinimalA2AAttnOp, NattenA2AAttnOp
-from worldfoundry.base_models.diffusion_model.video.cosmos.shared.model_weights_stats import WeightTrainingStat
 from cosmos_predict2._src.predict2.networks.selective_activation_checkpoint import SACConfig as _SACConfig
+from torch.nn.attention.flex_attention import BlockMask, create_block_mask, flex_attention
+from torchvision import transforms
+
+from worldfoundry.core.attention import attention
 from worldfoundry.core.attention import scaled_dot_product_attention as _worldfoundry_scaled_dot_product_attention
+from worldfoundry.core.attention.rope_kernel import apply_rotary_pos_emb
+from worldfoundry.core.distributed.context_parallel import split_inputs_cp
+from worldfoundry.core.distributed.logging import log
+from worldfoundry.core.distributed.megatron_compat import parallel_state
+from worldfoundry.core.nn.checkpoint_compat import InferenceCheckpointModule
+from worldfoundry.runtime.compile_cache import CompilePolicy, compile_callable_cached
+
+
+_COMPILED_FLEX_ATTENTION = compile_callable_cached(
+    flex_attention,
+    policy=CompilePolicy(dynamic=False),
+    namespace="cosmos-predict2-flex-attention",
+)
 
 
 # selective activation checkpoint; only apply to the minimal v4 model. if there are change in the networks, some policy will not work as we expect.
@@ -83,7 +78,7 @@ def predict2_2B_720_context_fn():
         mode = "recompute" if ctx.is_recompute else "forward"
         if func == torch.ops.aten.mm.default:
             op_count_key = f"{mode}_mm_count"
-            # from cosmos_predict2._src.imaginaire.utils import log
+            # debug logging intentionally omitted
             # log.info(f"op_count_key: {op_count_key}, op_count[op_count_key]: {op_count[op_count_key]}, {args[0].shape}, {args[1].shape}")
             # there are totally 6 + 4 + 4 + 2 = 16 block
             op_count[op_count_key] = (op_count[op_count_key] + 1) % 16
@@ -101,7 +96,6 @@ def predict2_2B_720_context_fn():
 
 def predict2_2B_720_context_fn_aggressive():
     """Predict2 2b 720 context fn aggressive."""
-    op_count = collections.defaultdict(int)
 
     def policy_fn(ctx, func, *args, **kwargs):
         """Policy fn.
@@ -161,7 +155,7 @@ def predict2_14B_720_context_fn():
         mode = "recompute" if ctx.is_recompute else "forward"
         if func == torch.ops.aten.mm.default:
             op_count_key = f"{mode}_mm_count"
-            # from cosmos_predict2._src.imaginaire.utils import log
+            # debug logging intentionally omitted
             # log.info(f"op_count_key: {op_count_key}, op_count[op_count_key]: {op_count[op_count_key]}, {args[0].shape}, {args[1].shape}")
             # there are totally 6 + 4 + 4 + 2 = 16 block
             op_count[op_count_key] = (op_count[op_count_key] + 1) % 16
@@ -225,6 +219,7 @@ def linear_selfattn_context_fn():
 
 class CheckpointMode(str, Enum):
     """Checkpoint mode implementation."""
+
     NONE = "none"
     MM_ONLY = "mm_only"
     BLOCK_WISE = "block_wise"
@@ -247,6 +242,7 @@ class CheckpointMode(str, Enum):
 @dataclass
 class SACConfig(_SACConfig):
     """Sac config implementation."""
+
     def get_context_fn(self):
         """Get context fn."""
         if self.mode == CheckpointMode.LINEAR_SELFATTN:
@@ -271,6 +267,7 @@ VideoSize = namedtuple("VideoSize", ["T", "H", "W"])
 
 class RMSNorm(torch.nn.Module):
     """Rms norm implementation."""
+
     def __init__(self, dim: int, eps: float = 1e-5):
         """Init.
 
@@ -310,6 +307,7 @@ class RMSNorm(torch.nn.Module):
 # ---------------------- Feed Forward Network -----------------------
 class GPT2FeedForward(nn.Module):
     """Feed forward implementation."""
+
     def __init__(self, d_model: int, d_ff: int):
         """Init.
 
@@ -370,9 +368,7 @@ def torch_attention_op(
     q_B_H_S_D = rearrange(q_B_S_H_D, "b s h d -> b h s d")
     k_B_H_S_D = rearrange(k_B_S_H_D, "b s h d -> b h s d")
     v_B_H_S_D = rearrange(v_B_S_H_D, "b s h d -> b h s d")
-    result_B_H_S_D = _worldfoundry_scaled_dot_product_attention(
-        q_B_H_S_D, k_B_H_S_D, v_B_H_S_D, attn_mask=attn_mask
-    )
+    result_B_H_S_D = _worldfoundry_scaled_dot_product_attention(q_B_H_S_D, k_B_H_S_D, v_B_H_S_D, attn_mask=attn_mask)
     if flatten_heads:
         return rearrange(result_B_H_S_D, "b h s d -> b s (h d)")
     else:
@@ -459,9 +455,14 @@ def flex_attention_op(
             )
 
     if block_mask is not None:
-        out_B_H_Sqp_D = torch.compile(flex_attention)(query=q_cat, key=k_cat, value=v_cat, block_mask=block_mask)
+        out_B_H_Sqp_D = _COMPILED_FLEX_ATTENTION(
+            query=q_cat,
+            key=k_cat,
+            value=v_cat,
+            block_mask=block_mask,
+        )
     else:
-        out_B_H_Sqp_D = torch.compile(flex_attention)(query=q_cat, key=k_cat, value=v_cat)
+        out_B_H_Sqp_D = _COMPILED_FLEX_ATTENTION(query=q_cat, key=k_cat, value=v_cat)
 
     out_B_H_Sq_D = out_B_H_Sqp_D[:, :, :S_q] if pad_q > 0 else out_B_H_Sqp_D
     if flatten_heads:
@@ -513,7 +514,7 @@ class Attention(nn.Module):
         head_dim (int, optional): The dimension of each attention head. Default: 64
         dropout (float, optional): Dropout probability applied to the output. Default: 0.0
         qkv_format (str, optional): Format specification for QKV tensors. Default: "bshd"
-        backend (str, optional): Backend to use for the attention operation. Default: "transformer_engine"
+        backend (str, optional): Backend to use for the attention operation. Default: "flash"
 
     Examples:
         >>> # Self-attention with 512 dimensions and 8 heads
@@ -536,7 +537,7 @@ class Attention(nn.Module):
         head_dim=64,
         dropout=0.0,
         qkv_format: str = "bshd",
-        backend: str = "transformer_engine",
+        backend: str = "flash",
         use_wan_fp32_strategy: bool = False,
     ) -> None:
         """Init.
@@ -561,9 +562,7 @@ class Attention(nn.Module):
         )
         self.is_selfattn = context_dim is None  # self attention
 
-        assert backend in ["transformer_engine", "torch", "torch-flex", "minimal_a2a", "i4"], (
-            f"Invalid backend: {backend}"
-        )
+        assert backend in ["flash", "math", "torch", "torch-flex", "minimal_a2a", "i4"], f"Invalid backend: {backend}"
         self.backend = backend
 
         context_dim = query_dim if context_dim is None else context_dim
@@ -577,10 +576,10 @@ class Attention(nn.Module):
         self.use_wan_fp32_strategy = use_wan_fp32_strategy
 
         self.q_proj = nn.Linear(query_dim, inner_dim, bias=False)
-        self.q_norm = te.pytorch.RMSNorm(self.head_dim, eps=1e-6)
+        self.q_norm = nn.RMSNorm(self.head_dim, eps=1e-6)
 
         self.k_proj = nn.Linear(context_dim, inner_dim, bias=False)
-        self.k_norm = te.pytorch.RMSNorm(self.head_dim, eps=1e-6)
+        self.k_norm = nn.RMSNorm(self.head_dim, eps=1e-6)
 
         self.v_proj = nn.Linear(context_dim, inner_dim, bias=False)
         self.v_norm = nn.Identity()
@@ -588,17 +587,10 @@ class Attention(nn.Module):
         self.output_proj = nn.Linear(inner_dim, query_dim, bias=False)
         self.output_dropout = nn.Dropout(dropout) if dropout > 1e-4 else nn.Identity()
 
-        if self.backend == "transformer_engine":
-            from transformer_engine.pytorch.attention import DotProductAttention
+        if self.backend in {"flash", "math"}:
+            from worldfoundry.core.attention.native import NativeAttention
 
-            self.attn_op = DotProductAttention(
-                self.n_heads,
-                self.head_dim,
-                num_gqa_groups=self.n_heads,
-                attention_dropout=0,
-                qkv_format=qkv_format,
-                attn_mask_type="no_mask",
-            )
+            self.attn_op = NativeAttention(qkv_format=qkv_format, backend=self.backend)
         elif self.backend == "minimal_a2a":
             self.attn_op = MinimalA2AAttnOp()
         elif self.backend == "torch":
@@ -682,8 +674,8 @@ class Attention(nn.Module):
                 if self.use_wan_fp32_strategy:  # wan will force q and k to fp32 before rotary pos emb
                     q = q.to(torch.float32)
                     k = k.to(torch.float32)
-                q = apply_rotary_pos_emb(q, rope_emb, tensor_format=self.qkv_format, fused=True)
-                k = apply_rotary_pos_emb(k, rope_emb, tensor_format=self.qkv_format, fused=True)
+                q = apply_rotary_pos_emb(q, rope_emb)
+                k = apply_rotary_pos_emb(k, rope_emb)
                 if self.use_wan_fp32_strategy:
                     q = q.to(original_dtype)
                     k = k.to(original_dtype)
@@ -766,13 +758,14 @@ class Attention(nn.Module):
 
 class I2VCrossAttention(Attention):
     """V cross attention implementation."""
+
     def __init__(self, *args, img_latent_dim: int = 1024, **kwargs):
         """Init."""
         super().__init__(*args, **kwargs)
         inner_dim = self.head_dim * self.n_heads
         self.k_img = nn.Linear(img_latent_dim, inner_dim, bias=False)
         self.v_img = nn.Linear(img_latent_dim, inner_dim, bias=False)
-        self.k_img_norm = te.pytorch.RMSNorm(self.head_dim, eps=1e-6)
+        self.k_img_norm = nn.RMSNorm(self.head_dim, eps=1e-6)
 
     def init_weights(self) -> None:
         """Init weights.
@@ -843,6 +836,7 @@ class I2VCrossAttention(Attention):
 
 class VideoPositionEmb(nn.Module):
     """Video position emb implementation."""
+
     def __init__(self):
         """Init."""
         super().__init__()
@@ -875,7 +869,7 @@ class VideoPositionEmb(nn.Module):
             cp_ranks = get_process_group_ranks(self._cp_group)
             cp_size = len(cp_ranks)
             cp_size_t = cp_size
-            if USE_MEGATRON and hasattr(parallel_state, "cp_size_t"):
+            if hasattr(parallel_state, "cp_size_t"):
                 # We saved cp_size_t in find_split function for combined temporal and spatial splitting.
                 # We need cp_size_t to find out the split values for T and H dimensions for correct embedding calculations.
                 cp_size_t = parallel_state.cp_size_t
@@ -908,6 +902,7 @@ class VideoPositionEmb(nn.Module):
 
 class VideoRopePosition3DEmb(VideoPositionEmb):
     """Video rope position d emb implementation."""
+
     def __init__(
         self,
         *,  # enforce keyword arguments
@@ -1047,6 +1042,7 @@ class VideoRopePosition3DEmb(VideoPositionEmb):
 
 class LearnablePosEmbAxis(VideoPositionEmb):
     """Learnable pos emb axis implementation."""
+
     def __init__(
         self,
         *,  # enforce keyword arguments
@@ -1122,6 +1118,7 @@ def modulate(x, shift, scale):
 
 class Timesteps(nn.Module):
     """Timesteps implementation."""
+
     def __init__(self, num_channels):
         """Init.
 
@@ -1157,6 +1154,7 @@ class Timesteps(nn.Module):
 
 class TimestepEmbedding(nn.Module):
     """Timestep embedding implementation."""
+
     def __init__(self, in_features: int, out_features: int, use_adaln_lora: bool = False):
         """Init.
 
@@ -1511,7 +1509,7 @@ class Block(nn.Module):
         mlp_ratio: float = 4.0,
         use_adaln_lora: bool = False,
         adaln_lora_dim: int = 256,
-        backend: str = "transformer_engine",
+        backend: str = "flash",
         image_context_dim: Optional[int] = None,
         use_wan_fp32_strategy: bool = False,
     ):
@@ -1801,7 +1799,7 @@ class Block(nn.Module):
         return x_B_T_H_W_D
 
 
-class MiniTrainDIT(WeightTrainingStat):
+class InferenceDiT(InferenceCheckpointModule):
     """
     A clean impl of DIT that can load and  reproduce the training results of the original DIT model in edify_video/v4~(cosmos 1)
     A general implementation of adaln-modulated VIT-like~(DiT) transformer for video processing.
@@ -1877,7 +1875,7 @@ class MiniTrainDIT(WeightTrainingStat):
         num_blocks: int = 10,
         num_heads: int = 16,
         mlp_ratio: float = 4.0,
-        atten_backend: str = "transformer_engine",
+        atten_backend: str = "flash",
         # cross attention settings
         crossattn_emb_channels: int = 1024,
         use_crossattn_projection: bool = False,
@@ -2018,7 +2016,7 @@ class MiniTrainDIT(WeightTrainingStat):
             use_wan_fp32_strategy=self.use_wan_fp32_strategy,
         )
 
-        self.t_embedding_norm = te.pytorch.RMSNorm(model_channels, eps=1e-6)
+        self.t_embedding_norm = nn.RMSNorm(model_channels, eps=1e-6)
         if extra_image_context_dim is not None:
             self.img_context_proj = nn.Sequential(
                 nn.Linear(
@@ -2059,7 +2057,11 @@ class MiniTrainDIT(WeightTrainingStat):
         if self.extra_image_context_dim is not None:
             self.img_context_proj[0].reset_parameters()
 
-        if self.zero_init_action_embedder and hasattr(self, "action_embedder_B_D") and hasattr(self, "action_embedder_B_3D"):
+        if (
+            self.zero_init_action_embedder
+            and hasattr(self, "action_embedder_B_D")
+            and hasattr(self, "action_embedder_B_3D")
+        ):
             nn.init.zeros_(self.action_embedder_B_D.fc2.weight)
             nn.init.zeros_(self.action_embedder_B_D.fc2.bias)
             nn.init.zeros_(self.action_embedder_B_3D.fc2.weight)
@@ -2374,13 +2376,13 @@ class MiniTrainDIT(WeightTrainingStat):
 
 
 def replace_selfattn_op_with_sparse_attn_op(
-    model: MiniTrainDIT, n_dense_blocks: int = 0, natten_parameters: Union[dict, list] = None
-) -> MiniTrainDIT:
+    model: InferenceDiT, n_dense_blocks: int = 0, natten_parameters: Union[dict, list] = None
+) -> InferenceDiT:
     """
     Replace the self-attention operator with a sparse self-attention operator.
 
     Args:
-        model: MiniTrainDIT instance
+        model: InferenceDiT instance
         n_dense_blocks: Number of blocks that will remain dense (not replaced with NeighborhoodAttention)
             If 0, all blocks use NeighborhoodAttention.
             If -1, return model directly without any modifications.

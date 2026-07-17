@@ -17,9 +17,8 @@
 
 import numpy as np
 import torch
-from retinaface.utils.nms.py_cpu_nms import py_cpu_nms
-
 from cosmos_predict1.utils import log
+from retinaface.utils.nms.py_cpu_nms import py_cpu_nms
 
 
 # Adapted from https://github.com/biubug6/Pytorch_Retinaface/blob/master/detect.py

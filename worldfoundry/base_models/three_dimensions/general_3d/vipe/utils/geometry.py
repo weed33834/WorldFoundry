@@ -15,12 +15,17 @@
 
 """Utility functions dealing e.g. with generic geometric sampling or transformations."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
 import torch.optim as optim
-from pycg.isometry import Isometry, Quaternion
+
+if TYPE_CHECKING:
+    from pycg.isometry import Isometry
 
 from worldfoundry.base_models.three_dimensions.general_3d.vipe.ext.lietorch import SE3, SO3, LieGroupParameter, Sim3
 
@@ -353,6 +358,10 @@ def se3_to_isometry(se3: SE3) -> list[Isometry] | Isometry:
     Returns:
         list of Isometry objects
     """
+
+    # pycg is an optional visualization/export dependency and is not required
+    # by ViPE's camera-pose inference path.
+    from pycg.isometry import Isometry, Quaternion
 
     tquat: torch.Tensor = se3.vec().cpu().detach()
 

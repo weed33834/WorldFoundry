@@ -1272,6 +1272,108 @@ BASE_MODEL_CAPABILITIES: dict[str, BaseModelCapability] = {
             ),
         ),
     ),
+    "unik3d_vitl": BaseModelCapability(
+        id="unik3d_vitl",
+        family="depth_geometry",
+        canonical_owner="worldfoundry.base_models.three_dimensions.depth.unik3d",
+        canonical_path="worldfoundry/base_models/three_dimensions/depth/unik3d",
+        package_imports=("torch", "torchvision", "numpy", "einops", "huggingface_hub", "safetensors"),
+        install_packages=("torch", "torchvision", "numpy", "einops", "huggingface-hub", "safetensors"),
+        asset_env=("WORLDFOUNDRY_UNIK3D_VITL_MODEL_DIR",),
+        assets=(
+            BaseModelAsset(
+                id="unik3d_vitl_model_dir",
+                kind="dir",
+                role="model_dir",
+                env=("WORLDFOUNDRY_UNIK3D_VITL_MODEL_DIR",),
+                local_path="${WORLDFOUNDRY_HFD_ROOT}/lpiccinelli--unik3d-vitl",
+                alternate_paths=(
+                    "${WORLDFOUNDRY_CKPT_DIR}/unik3d-vitl",
+                    "${WORLDFOUNDRY_WORKSPACE_ROOT}/ckpt/hfd/lpiccinelli--unik3d-vitl",
+                    "${WORLDFOUNDRY_WORKSPACE_ROOT}/ckpt/unik3d-vitl",
+                ),
+                hf_repo_id="lpiccinelli/unik3d-vitl",
+                min_file_count=2,
+                required_files=("config.json", "model.safetensors"),
+                note="Official UniK3D ViT-L universal-camera metric-3D model directory.",
+            ),
+        ),
+    ),
+    "midas_v21_small_256": BaseModelCapability(
+        id="midas_v21_small_256",
+        family="depth",
+        canonical_owner="worldfoundry.base_models.three_dimensions.depth.midas",
+        canonical_path="worldfoundry/base_models/three_dimensions/depth/midas",
+        package_imports=("torch", "torchvision", "cv2", "numpy", "timm"),
+        install_packages=("torch", "torchvision", "opencv-python", "numpy", "timm"),
+        asset_env=("WORLDFOUNDRY_MIDAS_V21_SMALL_CKPT",),
+        assets=(
+            BaseModelAsset(
+                id="midas_v21_small_256_checkpoint",
+                kind="file",
+                role="checkpoint",
+                env=("WORLDFOUNDRY_MIDAS_V21_SMALL_CKPT",),
+                local_path="${WORLDFOUNDRY_CKPT_DIR}/midas_v21_small_256.pt",
+                alternate_paths=(
+                    "${WORLDFOUNDRY_WORKSPACE_ROOT}/ckpt/midas_v21_small_256.pt",
+                    "${WORLDFOUNDRY_CKPT_DIR}/MiDaS/midas_v21_small_256.pt",
+                ),
+                download_url="https://github.com/isl-org/MiDaS/releases/download/v2_1/midas_v21_small_256.pt",
+                min_size_bytes=80_000_000,
+                note="Official MiDaS v2.1 Small 256 checkpoint from isl-org/MiDaS.",
+            ),
+        ),
+    ),
+    "mobile_sam": BaseModelCapability(
+        id="mobile_sam",
+        family="segmentation",
+        canonical_owner="worldfoundry.base_models.perception_core.segment.mobile_sam",
+        canonical_path="worldfoundry/base_models/perception_core/segment/mobile_sam",
+        package_imports=("torch", "torchvision", "numpy"),
+        install_packages=("torch", "torchvision", "numpy"),
+        asset_env=("WORLDFOUNDRY_MOBILE_SAM_CKPT",),
+        assets=(
+            BaseModelAsset(
+                id="mobile_sam_checkpoint",
+                kind="file",
+                role="checkpoint",
+                env=("WORLDFOUNDRY_MOBILE_SAM_CKPT",),
+                local_path="${WORLDFOUNDRY_CKPT_DIR}/MobileSAM/mobile_sam.pt",
+                alternate_paths=(
+                    "${WORLDFOUNDRY_CKPT_DIR}/mobile_sam.pt",
+                    "${WORLDFOUNDRY_WORKSPACE_ROOT}/ckpt/MobileSAM/mobile_sam.pt",
+                ),
+                download_url="https://github.com/ChaoningZhang/MobileSAM/raw/master/weights/mobile_sam.pt",
+                min_size_bytes=40_000_000,
+                note="Official MobileSAM TinyViT checkpoint from ChaoningZhang/MobileSAM.",
+            ),
+        ),
+    ),
+    "repvit_sam": BaseModelCapability(
+        id="repvit_sam",
+        family="segmentation",
+        canonical_owner="worldfoundry.base_models.perception_core.segment.repvit_sam",
+        canonical_path="worldfoundry/base_models/perception_core/segment/repvit_sam",
+        package_imports=("torch", "torchvision", "numpy", "timm"),
+        install_packages=("torch", "torchvision", "numpy", "timm"),
+        asset_env=("WORLDFOUNDRY_REPVIT_SAM_CKPT",),
+        assets=(
+            BaseModelAsset(
+                id="repvit_sam_checkpoint",
+                kind="file",
+                role="checkpoint",
+                env=("WORLDFOUNDRY_REPVIT_SAM_CKPT",),
+                local_path="${WORLDFOUNDRY_CKPT_DIR}/RepViT/repvit_sam.pt",
+                alternate_paths=(
+                    "${WORLDFOUNDRY_CKPT_DIR}/repvit_sam.pt",
+                    "${WORLDFOUNDRY_WORKSPACE_ROOT}/ckpt/repvit_sam.pt",
+                ),
+                download_url="https://github.com/THU-MIG/RepViT/releases/download/v1.0/repvit_sam.pt",
+                min_size_bytes=100_000_000,
+                note="Official RepViT-SAM checkpoint from the THU-MIG/RepViT v1.0 release.",
+            ),
+        ),
+    ),
     "sam2": BaseModelCapability(
         id="sam2",
         family="segmentation",
@@ -3211,13 +3313,13 @@ BASE_MODEL_CAPABILITIES.update(
                     env=(),
                     local_path=(
                         "${WORLDFOUNDRY_REPO_ROOT}/worldfoundry/base_models/three_dimensions/"
-                        "point_clouds/pixelsplat_full/third_party/dino"
+                        "point_clouds/pixelsplat/third_party/dino"
                     ),
                     min_file_count=1,
                     required_files=("hubconf.py", "vision_transformer.py"),
                     manual_action=(
                         "Restore the checked-in WorldFoundry DINO torch.hub shim under "
-                        "worldfoundry/base_models/three_dimensions/point_clouds/pixelsplat_full/third_party/dino; "
+                        "worldfoundry/base_models/three_dimensions/point_clouds/pixelsplat/third_party/dino; "
                         "do not clone facebookresearch/dino for VBench readiness."
                     ),
                     note="In-tree DINO torch.hub shim used by the VBench subject/background consistency loaders.",
@@ -3533,15 +3635,21 @@ BASE_MODEL_CAPABILITIES.update(
 
 DEPTH_MODEL_CAPABILITY_IDS = (
     "depth_anything_v3",
+    "midas_v21_small_256",
     "moge_vitl",
     "moge_v2_vitl_normal",
     "unidepth_v2_vitl14",
+    "unik3d_vitl",
 )
 CORE_DEPTH_MODEL_CAPABILITY_IDS = ("depth_anything_v3", "moge_v2_vitl_normal", "unidepth_v2_vitl14")
 SLAM_GEOMETRY_MODEL_CAPABILITY_IDS = ("droid_slam", "vggt_1b")
 DETECTION_MODEL_CAPABILITY_IDS = ("grounding_dino",)
-SEGMENTATION_MODEL_CAPABILITY_IDS = ("sam_v1", "sam2", "sam3")
-SEGMENTATION_TRACKING_MODEL_CAPABILITY_IDS = ("sam_v1", "sam_vit_b", "sam2", "sam3", "aot_deaot_l")
+SEGMENTATION_MODEL_CAPABILITY_IDS = ("mobile_sam", "repvit_sam", "sam_v1", "sam2", "sam3")
+SEGMENTATION_TRACKING_MODEL_CAPABILITY_IDS = (
+    *SEGMENTATION_MODEL_CAPABILITY_IDS,
+    "sam_vit_b",
+    "aot_deaot_l",
+)
 MOTION_MODEL_CAPABILITY_IDS = ("raft", "sea_raft", "flowformerplusplus", "vfimamba")
 CORE_MOTION_MODEL_CAPABILITY_IDS = ("raft",)
 DEPTH_SLAM_DATA_CAPABILITY_IDS = ("tum_rgbd_slam_sample_assets", "kitti_depth_slam_assets")

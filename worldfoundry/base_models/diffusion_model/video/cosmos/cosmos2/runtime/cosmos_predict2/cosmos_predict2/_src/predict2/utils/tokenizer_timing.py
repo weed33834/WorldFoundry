@@ -6,6 +6,7 @@ from dataclasses import dataclass
 @dataclass
 class TokenizerTimes:
     """Tokenizer times implementation."""
+
     model_invocation: float = 0.0
     total: float = 0.0
 

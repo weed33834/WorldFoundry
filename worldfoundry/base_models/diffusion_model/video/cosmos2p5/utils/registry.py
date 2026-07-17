@@ -1,6 +1,6 @@
 """Module for base_models -> diffusion_model -> video -> cosmos2p5 -> utils -> registry.py functionality."""
 
-COSMOS_2P5_TASKS = ['img2world']
+COSMOS_2P5_TASKS = ["img2world"]
 
 COSMOS_2P5_REGISTRY = {
     "transformer": {

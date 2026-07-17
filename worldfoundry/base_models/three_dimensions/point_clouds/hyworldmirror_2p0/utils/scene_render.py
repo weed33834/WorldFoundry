@@ -200,6 +200,11 @@ def render_interpolated_video(gs_renderer: GaussianSplatRenderer,
                 exts.append(ext[:, None])
                 ints.append(K[:, None])
 
+        # Include the final keyframe exactly once.  Without this endpoint the
+        # fly-through never reaches the last input camera.
+        exts.append(tmp_camtoworlds[:, -1:])
+        ints.append(tmp_intrinsics[:, -1:])
+
         exts = torch.cat(exts, dim=1)[:1]
         ints = torch.cat(ints, dim=1)[:1]
         return exts, ints
@@ -229,7 +234,10 @@ def render_interpolated_video(gs_renderer: GaussianSplatRenderer,
     if s > 1:
         all_ext, all_int = build_interpolated_traj([i for i in range(s)], interp_per_pair)
     else:
-        all_ext, all_int = build_wobble_traj(interp_per_pair * 12, splats["means"][0].median(dim=0).values.norm(dim=-1)[None])
+        means = splats["means"][0]
+        center = means.median(dim=0).values
+        scene_extent = torch.linalg.vector_norm(means - center, dim=-1).quantile(0.9).clamp_min(1e-3)
+        all_ext, all_int = build_wobble_traj(interp_per_pair * 12, scene_extent[None])
 
     rendered_rgbs, rendered_depths = [], []
     chunk = 40

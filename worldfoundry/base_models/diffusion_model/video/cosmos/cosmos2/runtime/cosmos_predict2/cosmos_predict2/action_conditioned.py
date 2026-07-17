@@ -17,21 +17,14 @@
 Action-conditioned video generation inference.
 """
 
-import json
 import os
-from glob import glob
-import piq
 from pathlib import Path
 
 import mediapy
 import numpy as np
 import torch
-import torch.nn.functional as F
 import torchvision
-from loguru import logger
-
-from worldfoundry.core.distributed import torch_process_group as distributed
-from cosmos_predict2._src.predict2.action.datasets.dataset_utils import euler2rotm, rotm2euler, rotm2quat
+from cosmos_predict2._src.predict2.action.action_utils import get_action_sequence_from_states
 from cosmos_predict2._src.predict2.inference.video2world import (
     Video2WorldInference,
 )
@@ -40,98 +33,10 @@ from cosmos_predict2.action_conditioned_config import (
     ActionConditionedSetupArguments,
 )
 from cosmos_predict2.config import MODEL_CHECKPOINTS, VIDEO_EXTENSIONS
-
 from groot_dreams.eval_inputsloader import MultiVideoActionDataset
+from loguru import logger
 
-
-def _get_robot_states(label, state_key="state", gripper_key="continuous_gripper_state"):
-    """
-    Extracts the robot arm and gripper states from the label dictionary for the specified frame indices.
-
-    Args:
-        label (dict): Dictionary containing robot state information, with keys "state" and "continuous_gripper_state".
-        state_key (str): Key for robot state in the dictionary.
-        gripper_key (str): Key for gripper state in the dictionary.
-
-    Returns:
-        tuple:
-            - np.ndarray: Array of arm states for the selected frames, shape (len(frame_ids), state_dim).
-            - np.ndarray: Array of gripper states for the selected frames, shape (len(frame_ids),).
-    """
-    all_states = np.array(label[state_key])
-    all_cont_gripper_states = np.array(label[gripper_key])
-
-    return all_states, all_cont_gripper_states
-
-
-def _get_actions(arm_states, gripper_states, sequence_length, use_quat=False):
-    """
-    Compute the relative actions between consecutive robot states.
-
-    Args:
-        arm_states (np.ndarray): Array of arm states with shape (sequence_length, 6), where each state contains
-            [x, y, z, roll, pitch, yaw] or similar.
-        gripper_states (np.ndarray): Array of gripper states with shape (sequence_length,).
-        sequence_length (int): Number of states in the sequence.
-        use_quat (bool): If True, represent rotation as quaternion; otherwise, use Euler angles.
-
-    Returns:
-        np.ndarray: Array of actions with shape (sequence_length - 1, 7), where each action contains
-            [relative_xyz (3), relative_rotation (3), gripper_state (1)].
-    """
-    if use_quat:
-        action = np.zeros((sequence_length - 1, 8))
-    else:
-        action = np.zeros((sequence_length - 1, 7))
-
-    for k in range(1, sequence_length):
-        prev_xyz = arm_states[k - 1, 0:3]
-        prev_rpy = arm_states[k - 1, 3:6]
-        prev_rotm = euler2rotm(prev_rpy)
-        curr_xyz = arm_states[k, 0:3]
-        curr_rpy = arm_states[k, 3:6]
-        curr_gripper = gripper_states[k]
-        curr_rotm = euler2rotm(curr_rpy)
-        rel_xyz = np.dot(prev_rotm.T, curr_xyz - prev_xyz)
-        rel_rotm = prev_rotm.T @ curr_rotm
-
-        if use_quat:
-            rel_rot = rotm2quat(rel_rotm)
-            action[k - 1, 0:3] = rel_xyz
-            action[k - 1, 3:7] = rel_rot
-            action[k - 1, 7] = curr_gripper
-        else:
-            rel_rot = rotm2euler(rel_rotm)
-            action[k - 1, 0:3] = rel_xyz
-            action[k - 1, 3:6] = rel_rot
-            action[k - 1, 6] = curr_gripper
-    return action  # (l - 1, act_dim)
-
-
-def get_action_sequence_from_states(
-    data,
-    fps_downsample_ratio=1,
-    use_quat=False,
-    state_key="state",
-    gripper_scale=1.0,
-    gripper_key="continuous_gripper_state",
-    action_scaler=20.0,
-):
-    """
-    Get the action sequence from the states.
-    """
-    arm_states, cont_gripper_states = _get_robot_states(data, state_key, gripper_key)
-    actions = _get_actions(
-        arm_states[::fps_downsample_ratio],
-        cont_gripper_states[::fps_downsample_ratio],
-        len(data[state_key][::fps_downsample_ratio]),
-        use_quat=use_quat,
-    )
-    actions *= np.array(
-        [action_scaler, action_scaler, action_scaler, action_scaler, action_scaler, action_scaler, gripper_scale]
-    )
-
-    return actions
+from worldfoundry.core.distributed import torch_process_group as distributed
 
 
 def load_default_action_fn():
@@ -162,7 +67,7 @@ def load_default_action_fn():
             state_key=args.state_key,
             gripper_scale=args.gripper_scale,
             gripper_key=args.gripper_key,
-            action_scaler=args.action_scaler,
+            action_scale=args.action_scaler,
             use_quat=args.use_quat,
         )
 
@@ -286,30 +191,25 @@ def inference(
         deterministic_uniform_sampling=setup_args.deterministic_uniform_sampling,
     )
     # eval_indices = list(range(0, len(dataset), max(len(dataset) // num_samples, 1)))[:num_samples]
-    eval_indices = [idx for idx in range(len(dataset)) if not (inference_args.save_root / f"{idx:04d}_psnr.json").exists()]
-
-    all_psnr = []
-    all_ssim = []
-    all_lpips = []
+    eval_indices = [
+        idx for idx in range(len(dataset)) if not (inference_args.save_root / f"{idx:04d}_psnr.json").exists()
+    ]
 
     # Process each file in the input directory
     for idx in eval_indices:
         data = dataset[idx]
-        gt_video = data["video"].permute(1, 2, 3, 0)
         img_array = data["video"].transpose(0, 1)[:1]
-        actions = data["action"][:num_frames - 1].numpy()
+        actions = data["action"][: num_frames - 1].numpy()
         lam_video = data["lam_video"]
 
         if inference_args.zero_actions:
             actions = np.zeros_like(actions)
 
-        frames = [img_array]
         chunk_video = []
         save_name = f"{idx:04d}"
 
-        video_name = str(inference_args.save_root / save_name)
         chunk_video_name = str(inference_args.save_root / f"{save_name}_pred.mp4")
-        logger.info(f"Saving video to {video_name}")
+        logger.info(f"Saving video to {chunk_video_name}")
         if os.path.exists(chunk_video_name):
             logger.info(f"Video already exists: {chunk_video_name}")
             continue
@@ -364,7 +264,6 @@ def inference(
                 (torch.clamp(video_normalized[0], 0, 1) * 255).to(torch.uint8).permute(1, 2, 3, 0).cpu().numpy()
             )
             next_img_array = video_clamped[-1]  # Last frame is the next frame
-            frames.append(next_img_array)
             img_array = next_img_array
             chunk_video.append(video_clamped)
 
@@ -379,32 +278,8 @@ def inference(
 
         if rank0:
             mediapy.write_video(chunk_video_name, chunk_video, fps=inference_args.save_fps)
-            mediapy.write_video(str(inference_args.save_root / f"{save_name}_gt.mp4"), gt_video.numpy(), fps=inference_args.save_fps)
-            concat_video = np.concatenate([gt_video.numpy(), chunk_video], axis=2)
-            mediapy.write_video(str(inference_args.save_root / f"{save_name}_merged.mp4"), concat_video, fps=inference_args.save_fps)
             np.save(str(inference_args.save_root / f"{save_name}_actions.npy"), actions)
             logger.info(f"Saved video to {chunk_video_name}")
-            x_batch = torch.clamp(torch.from_numpy(chunk_video) / 255.0, 0, 1).permute(0, 3, 1, 2)
-            y_batch = torch.clamp(gt_video / 255.0, 0, 1).permute(0, 3, 1, 2)
-            psnr = piq.psnr(x_batch, y_batch).mean().item()
-            ssim = piq.ssim(x_batch, y_batch).mean().item()
-            lpips = piq.LPIPS()(x_batch, y_batch).mean().item()
-            with open(inference_args.save_root / f"{save_name}_metrics.json", "w") as f:
-                json.dump({"psnr": float(psnr), "ssim": float(ssim), "lpips": float(lpips)}, f)
-            all_psnr.append(psnr)
-            all_ssim.append(ssim)
-            all_lpips.append(lpips)
-
-    if rank0:
-        print(f"PSNR: {sum(all_psnr) / len(all_psnr):.3f}")
-        print(f"SSIM: {sum(all_ssim) / len(all_ssim):.3f}")
-        print(f"LPIPS: {sum(all_lpips) / len(all_lpips):.3f}")
-        with open(inference_args.save_root / "all_summary.json", "w") as f:
-            json.dump({
-                "psnr": f"{sum(all_psnr) / len(all_psnr):.3f}",
-                "ssim": f"{sum(all_ssim) / len(all_ssim):.3f}",
-                "lpips": f"{sum(all_lpips) / len(all_lpips):.3f}"
-                }, f)
 
     # Synchronize all processes before cleanup
     # pyrefly: ignore  # unsupported-operation

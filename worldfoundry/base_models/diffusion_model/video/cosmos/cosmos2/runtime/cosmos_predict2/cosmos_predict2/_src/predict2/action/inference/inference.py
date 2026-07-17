@@ -34,19 +34,17 @@ from glob import glob
 import mediapy
 import numpy as np
 import torch
-from loguru import logger
-
-from worldfoundry.core.distributed import torch_process_group as distributed
-from cosmos_predict2._src.predict2.action.datasets.dataset_utils import euler2rotm, rotm2euler, rotm2quat
+from cosmos_predict2._src.predict2.action.action_utils import get_action_sequence_from_states
 from cosmos_predict2._src.predict2.action.inference.inference_pipeline import (
     _DEFAULT_NEGATIVE_PROMPT,
     ActionVideo2WorldInference,
 )
+from loguru import logger
+
+from worldfoundry.core.distributed import torch_process_group as distributed
 
 _IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", "webp"]
 _VIDEO_EXTENSIONS = [".mp4"]
-
-_ACTION_SCALER = 20.0
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -109,97 +107,6 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _get_robot_states(label, state_key="state", gripper_key="continuous_gripper_state"):
-    """
-    Extracts the robot arm and gripper states from the label dictionary for the specified frame indices.
-
-    Args:
-        label (dict): Dictionary containing robot state information, with keys "state" and "continuous_gripper_state".
-        frame_ids (list or np.ndarray): List or array of frame indices to extract.
-
-    Returns:
-        tuple:
-            - np.ndarray: Array of arm states for the selected frames, shape (len(frame_ids), state_dim).
-            - np.ndarray: Array of gripper states for the selected frames, shape (len(frame_ids),).
-    """
-
-    all_states = np.array(label[state_key])
-    all_cont_gripper_states = np.array(label[gripper_key])
-
-    return all_states, all_cont_gripper_states
-
-
-def _get_actions(arm_states, gripper_states, sequence_length, use_quat=False):
-    """
-    Compute the relative actions between consecutive robot states.
-
-    Args:
-        arm_states (np.ndarray): Array of arm states with shape (sequence_length, 6), where each state contains
-            [x, y, z, roll, pitch, yaw] or similar.
-        gripper_states (np.ndarray): Array of gripper states with shape (sequence_length,).
-        sequence_length (int): Number of states in the sequence.
-        use_quat (bool): If True, represent rotation as quaternion; otherwise, use Euler angles.
-
-    Returns:
-        np.ndarray: Array of actions with shape (sequence_length - 1, 7), where each action contains
-            [relative_xyz (3), relative_rotation (3), gripper_state (1)].
-    """
-
-    if use_quat:
-        action = np.zeros((sequence_length - 1, 8))
-    else:
-        action = np.zeros((sequence_length - 1, 7))
-
-    for k in range(1, sequence_length):
-        prev_xyz = arm_states[k - 1, 0:3]
-        prev_rpy = arm_states[k - 1, 3:6]
-        prev_rotm = euler2rotm(prev_rpy)
-        curr_xyz = arm_states[k, 0:3]
-        curr_rpy = arm_states[k, 3:6]
-        curr_gripper = gripper_states[k]
-        curr_rotm = euler2rotm(curr_rpy)
-        rel_xyz = np.dot(prev_rotm.T, curr_xyz - prev_xyz)
-        rel_rotm = prev_rotm.T @ curr_rotm
-
-        if use_quat:
-            rel_rot = rotm2quat(rel_rotm)
-            action[k - 1, 0:3] = rel_xyz
-            action[k - 1, 3:7] = rel_rot
-            action[k - 1, 7] = curr_gripper
-        else:
-            rel_rot = rotm2euler(rel_rotm)
-            action[k - 1, 0:3] = rel_xyz
-            action[k - 1, 3:6] = rel_rot
-            action[k - 1, 6] = curr_gripper
-    return action  # (l - 1, act_dim)
-
-
-def get_action_sequence_from_states(
-    data,
-    fps_downsample_ratio=1,
-    use_quat=False,
-    state_key="state",
-    gripper_scale=1.0,
-    gripper_key="continuous_gripper_state",
-):
-    """
-    Get the action sequence from the states.
-    """
-
-    arm_states, cont_gripper_states = _get_robot_states(data, state_key, gripper_key)
-    actions = _get_actions(
-        arm_states[::fps_downsample_ratio],
-        cont_gripper_states[::fps_downsample_ratio],
-        len(data[state_key][::fps_downsample_ratio]),
-        use_quat=use_quat,
-    )
-    actions *= np.array(
-        [_ACTION_SCALER, _ACTION_SCALER, _ACTION_SCALER, _ACTION_SCALER, _ACTION_SCALER, _ACTION_SCALER, gripper_scale]
-    )
-
-    return actions
-
-
 def get_video_id(img_path: str):
     """Extract video ID from image path by removing directory and extension."""
     return img_path.split("/")[-1].split(".")[0]
@@ -218,7 +125,6 @@ def main():
 
     # Determine supported extensions based on num_latent_conditional_frames
     if args.num_latent_conditional_frames > 1:
-        supported_extensions = _VIDEO_EXTENSIONS
         # Check if input folder contains any videos
         has_videos = False
         for file_name in os.listdir(args.input_root):
@@ -236,7 +142,6 @@ def main():
 
         logger.info(f"Using video-only mode with {args.num_latent_conditional_frames} conditional frames")
     elif args.num_latent_conditional_frames == 1:
-        supported_extensions = _IMAGE_EXTENSIONS + _VIDEO_EXTENSIONS
         logger.info(f"Using image+video mode with {args.num_latent_conditional_frames} conditional frame")
 
     # Initialize the inference handler with context parallel support

@@ -20,12 +20,12 @@ import numpy as np
 import torch
 import torch.distributed as dist
 import torchvision
-from loguru import logger
-from megatron.core import parallel_state
-
-from worldfoundry.core.distributed import torch_process_group as distributed
 from cosmos_predict2._src.predict2.inference.get_t5_emb import get_text_embedding
 from cosmos_predict2._src.predict2.utils.model_loader import load_model_from_checkpoint
+from loguru import logger
+
+from worldfoundry.core.distributed import torch_process_group as distributed
+from worldfoundry.core.distributed.megatron_compat import parallel_state
 
 _DEFAULT_NEGATIVE_PROMPT = "The video captures a series of frames showing ugly scenes, static with no motion, motion blur, over-saturation, shaky footage, low resolution, grainy texture, pixelated images, poorly lit areas, underexposed and overexposed scenes, poor color balance, washed out colors, choppy sequences, jerky movements, low frame rate, artifacting, color banding, unnatural transitions, outdated special effects, fake elements, unconvincing visuals, poorly edited content, jump cuts, visual noise, and flickering. Overall, the video is of poor quality."
 

@@ -682,6 +682,66 @@ class WanVAE_(nn.Module):
         self.clear_cache()
         return mu
 
+    def prepare_streaming_encode(self):
+        """Create independent causal encoder state for an AR rollout.
+
+        Wan's first pixel frame is encoded alone; every later latent consumes
+        four pixel frames.  Keeping the convolution feature maps outside the
+        module lets realtime sessions advance that causal state without
+        rebuilding a growing video or sharing mutable state between sessions.
+        """
+
+        return {
+            "feat_map": [None] * count_conv3d(self.encoder),
+            "started": False,
+        }
+
+    def encode_streaming(self, x, scale, state):
+        """Encode one causal pixel chunk while preserving temporal features."""
+
+        if not isinstance(state, dict) or "feat_map" not in state:
+            raise ValueError("A state from prepare_streaming_encode() is required.")
+        if x.ndim != 5 or x.shape[2] < 1:
+            raise ValueError(f"Expected streaming VAE input [B,C,T,H,W], got {tuple(x.shape)}")
+
+        started = bool(state.get("started", False))
+        temporal = int(x.shape[2])
+        if started:
+            if temporal % 4:
+                raise ValueError(
+                    f"Steady-state Wan VAE chunks must contain 4n frames, got T={temporal}."
+                )
+            chunks = list(x.split(4, dim=2))
+        else:
+            if (temporal - 1) % 4:
+                raise ValueError(
+                    f"The first Wan VAE chunk must contain 4n+1 frames, got T={temporal}."
+                )
+            chunks = [x[:, :, :1]]
+            chunks.extend(x[:, :, 1:].split(4, dim=2))
+
+        outputs = []
+        feature_map = state["feat_map"]
+        for chunk in chunks:
+            feature_index = [0]
+            outputs.append(
+                self.encoder(
+                    chunk,
+                    feat_cache=feature_map,
+                    feat_idx=feature_index,
+                )
+            )
+        out = torch.cat(outputs, dim=2)
+        mu, _ = self.conv1(out).chunk(2, dim=1)
+        if isinstance(scale[0], torch.Tensor):
+            mu = (mu - scale[0].view(1, self.z_dim, 1, 1, 1)) * scale[1].view(
+                1, self.z_dim, 1, 1, 1
+            )
+        else:
+            mu = (mu - scale[0]) * scale[1]
+        state["started"] = True
+        return mu
+
     def decode(self, z, scale):
         """Decode.
 
@@ -822,6 +882,21 @@ class Wan2_1_VAE:
                 self.model.encode(u.unsqueeze(0), self.scale).float().squeeze(0)
                 for u in videos
             ]
+
+    def prepare_streaming_encode(self):
+        """Create causal encoder state for one resident realtime rollout."""
+
+        return self.model.prepare_streaming_encode()
+
+    def encode_streaming(self, video, state):
+        """Encode a single ``[C,T,H,W]`` chunk with persistent VAE state."""
+
+        with torch.amp.autocast("cuda", dtype=self.dtype):
+            return self.model.encode_streaming(
+                video.unsqueeze(0),
+                self.scale,
+                state,
+            ).float().squeeze(0)
 
     def decode(self, zs):
         """Decode.

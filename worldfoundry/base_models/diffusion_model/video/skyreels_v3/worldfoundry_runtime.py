@@ -11,11 +11,19 @@ from pathlib import Path
 from typing import Any
 
 RUNTIME_DIR = Path(__file__).resolve().parent
+REPO_ROOT = RUNTIME_DIR.parents[4]
 ENTRYPOINT = RUNTIME_DIR / "generate_video.py"
 BLOCKED_REASON = (
     "SkyReels V3 official source is vendored in-tree; execution still requires "
     "the official dependency environment, checkpoints, and task assets."
 )
+
+
+def _resolve_existing_local_path(value: Any) -> str:
+    """Return an absolute path for local inputs while preserving remote URLs/model IDs."""
+    text = str(value)
+    candidate = Path(text).expanduser()
+    return str(candidate.resolve()) if candidate.exists() else text
 
 
 class SkyReelsV3Runtime:
@@ -92,7 +100,11 @@ class SkyReelsV3Runtime:
         use_usp = _truthy_value(kwargs.get("use_usp"))
         if use_usp and _truthy_value(kwargs.get("low_vram")):
             raise ValueError("SkyReels V3 cannot use low_vram and use_usp together.")
-        output_path = Path(str(kwargs["output_path"])).expanduser() if kwargs.get("output_path") else None
+        output_path = (
+            Path(str(kwargs["output_path"])).expanduser().resolve()
+            if kwargs.get("output_path")
+            else None
+        )
         nproc_per_node = _requested_nproc_per_node(kwargs) if use_usp else 0
         if use_usp and nproc_per_node <= 1:
             raise ValueError(
@@ -113,18 +125,22 @@ class SkyReelsV3Runtime:
             str(kwargs.get("resolution") or "720P"),
         ]
         if self.model_path:
-            entrypoint.extend(["--model_id", self.model_path])
+            entrypoint.extend(["--model_id", _resolve_existing_local_path(self.model_path)])
         if kwargs.get("video") is not None:
-            entrypoint.extend(["--input_video", str(kwargs["video"])])
+            entrypoint.extend(["--input_video", _resolve_existing_local_path(kwargs["video"])])
         if kwargs.get("audio") is not None:
-            entrypoint.extend(["--input_audio", str(kwargs["audio"])])
+            entrypoint.extend(["--input_audio", _resolve_existing_local_path(kwargs["audio"])])
         images = kwargs.get("images")
         if images is not None:
             if task_type == "talking_avatar":
                 image_arg = images[0] if isinstance(images, (list, tuple)) else images
-                entrypoint.extend(["--input_image", str(image_arg)])
+                entrypoint.extend(["--input_image", _resolve_existing_local_path(image_arg)])
             else:
-                ref_imgs = ",".join(map(str, images)) if isinstance(images, (list, tuple)) else str(images)
+                ref_imgs = (
+                    ",".join(_resolve_existing_local_path(image) for image in images)
+                    if isinstance(images, (list, tuple))
+                    else _resolve_existing_local_path(images)
+                )
                 entrypoint.extend(["--ref_imgs", ref_imgs])
         if use_usp:
             entrypoint.append("--use_usp")
@@ -150,7 +166,11 @@ class SkyReelsV3Runtime:
             argv = [python_executable, *entrypoint]
 
         env = os.environ.copy()
-        pythonpath = [str(RUNTIME_DIR), env.get("PYTHONPATH", "")]
+        # The vendored entrypoint imports both its local ``skyreels_v3`` package
+        # and shared ``worldfoundry`` modules.  Because the subprocess runs with
+        # ``RUNTIME_DIR`` as its cwd, the repository root is not otherwise on
+        # sys.path when this checkout has not been installed as a wheel.
+        pythonpath = [str(REPO_ROOT), str(RUNTIME_DIR), env.get("PYTHONPATH", "")]
         env["PYTHONPATH"] = os.pathsep.join(part for part in pythonpath if part)
         started_at = time.time()
         completed = subprocess.run(

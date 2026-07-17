@@ -132,6 +132,7 @@ def nonlinearity(x):
 
 class CausalNormalize(torch.nn.Module):
     """Causal normalize implementation."""
+
     def __init__(self, in_channels, num_groups=1):
         """Init.
 

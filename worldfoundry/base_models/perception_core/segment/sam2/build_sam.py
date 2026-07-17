@@ -12,7 +12,7 @@ import os
 import torch
 from hydra import compose
 from hydra.utils import instantiate
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 import worldfoundry.base_models.perception_core.segment.sam2 as sam2
 
@@ -69,6 +69,21 @@ HF_MODEL_ID_TO_FILENAMES = {
     ),
 }
 
+_IN_TREE_PACKAGE = "worldfoundry.base_models.perception_core.segment.sam2"
+
+
+def _canonicalize_in_tree_targets(node):
+    """Rewrite official ``sam2.*`` Hydra targets to the in-tree package."""
+    if isinstance(node, DictConfig):
+        target = node.get("_target_")
+        if isinstance(target, str) and target.startswith("sam2."):
+            node["_target_"] = f"{_IN_TREE_PACKAGE}{target[len('sam2') :]}"
+        for value in node.values():
+            _canonicalize_in_tree_targets(value)
+    elif isinstance(node, ListConfig):
+        for value in node:
+            _canonicalize_in_tree_targets(value)
+
 
 def _torch_load(path, **kwargs):
     """Helper function to torch load.
@@ -91,7 +106,7 @@ def build_sam2(
     ckpt_path=None,
     device="cuda",
     mode="eval",
-    hydra_overrides_extra=[],
+    hydra_overrides_extra=None,
     apply_postprocessing=True,
     **kwargs,
 ):
@@ -106,8 +121,8 @@ def build_sam2(
         apply_postprocessing: The apply postprocessing.
     """
 
+    hydra_overrides_extra = list(hydra_overrides_extra or ())
     if apply_postprocessing:
-        hydra_overrides_extra = hydra_overrides_extra.copy()
         hydra_overrides_extra += [
             # dynamically fall back to multi-mask if the single mask is not stable
             "++model.sam_mask_decoder_extra_args.dynamic_multimask_via_stability=true",
@@ -117,6 +132,7 @@ def build_sam2(
     # Read config and init model
     cfg = compose(config_name=config_file, overrides=hydra_overrides_extra)
     OmegaConf.resolve(cfg)
+    _canonicalize_in_tree_targets(cfg.model)
     model = instantiate(cfg.model, _recursive_=True)
     _load_checkpoint(model, ckpt_path)
     model = model.to(device)
@@ -130,7 +146,7 @@ def build_sam2_video_predictor(
     ckpt_path=None,
     device="cuda",
     mode="eval",
-    hydra_overrides_extra=[],
+    hydra_overrides_extra=None,
     apply_postprocessing=True,
     vos_optimized=False,
     **kwargs,
@@ -151,12 +167,12 @@ def build_sam2_video_predictor(
     ]
     if vos_optimized:
         hydra_overrides = [
-            "++model._target_=worldfoundry.base_models.perception_core.segment.worldfoundry.base_models.perception_core.segment.sam2.sam2_video_predictor.SAM2VideoPredictorVOS",
+            "++model._target_=worldfoundry.base_models.perception_core.segment.sam2.sam2_video_predictor.SAM2VideoPredictorVOS",
             "++model.compile_image_encoder=True",  # Let sam2_base handle this
         ]
 
+    hydra_overrides_extra = list(hydra_overrides_extra or ())
     if apply_postprocessing:
-        hydra_overrides_extra = hydra_overrides_extra.copy()
         hydra_overrides_extra += [
             # dynamically fall back to multi-mask if the single mask is not stable
             "++model.sam_mask_decoder_extra_args.dynamic_multimask_via_stability=true",
@@ -172,6 +188,7 @@ def build_sam2_video_predictor(
     # Read config and init model
     cfg = compose(config_name=config_file, overrides=hydra_overrides)
     OmegaConf.resolve(cfg)
+    _canonicalize_in_tree_targets(cfg.model)
     model = instantiate(cfg.model, _recursive_=True)
     _load_checkpoint(model, ckpt_path)
     model = model.to(device)

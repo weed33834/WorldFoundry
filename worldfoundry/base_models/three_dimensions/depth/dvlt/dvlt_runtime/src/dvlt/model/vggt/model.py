@@ -51,11 +51,6 @@ class VGGT(Module):
         patch_size: int = 14,
         embed_dim: int = 1024,
         dpt_chunk_size: Optional[int] = 24,
-        # Accepted-but-ignored kwargs for backward compat with training-era configs.
-        aggregator_config: Optional[Dict[str, Any]] = None,
-        gradient_checkpointing_config: Optional[Dict[str, Any]] = None,
-        conditioning_probs: Optional[Dict[str, float]] = None,
-        loss: Optional[Dict[str, Any]] = None,
         **kwargs,
     ):
         """Init."""
@@ -155,7 +150,3 @@ class VGGT(Module):
             predictions[PredictionField.WORLD_POINTS_DIRECT_CONF] = raw["world_points_conf"].squeeze(-1)
 
         return predictions
-
-    def train_step(self, *args, **kwargs):
-        """Train step."""
-        raise NotImplementedError("VGGT does not support training within dvlt")

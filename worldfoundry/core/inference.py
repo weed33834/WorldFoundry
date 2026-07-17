@@ -19,14 +19,18 @@ from __future__ import annotations
 
 import os
 import sys
-from functools import wraps
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, field
+from functools import wraps
 from pathlib import Path
 from typing import Any, Callable, Iterator, Mapping, Sequence
 
-from worldfoundry.core.io.paths import official_runtime_repo_path, project_root
-
+from worldfoundry.core.io.paths import (
+    checkpoint_root_path,
+    local_data_root_path,
+    official_runtime_repo_path,
+    project_root,
+)
 
 _FALSE_VALUES = {"0", "false", "no", "off", "disable", "disabled"}
 _TRUE_VALUES = {"1", "true", "yes", "on", "enable", "enabled"}
@@ -73,22 +77,52 @@ GENERIC_VIDEO_FIXTURE = str(_TEST_CASES_ROOT / "neoverse" / "videos" / "movie.mp
 GENERIC_3D_FIXTURE = str(_TEST_CASES_ROOT / "vggt" / "examples" / "kitchen" / "images")
 GENERIC_GEOMETRY_FIXTURE = str(_TEST_CASES_ROOT / "images" / "000.png")
 GENERIC_ACTION_FIXTURE = str(_TEST_CASES_ROOT / "test_vla_case1" / "droid" / "exterior_image_1_left.png")
+MIRA_DEFAULT_CHECKPOINT = str(checkpoint_root_path("mira"))
+MIRA_DEFAULT_DATASET = str(local_data_root_path() / "rocket-science" / "test")
 _WOW_OFFICIAL_LOCAL_CHECKPOINT = _WORKSPACE_ROOT / "ckpt" / "WoW-1-Wan-14B-600k"
 WOW_LOCAL_CHECKPOINT = (
     str(_WOW_OFFICIAL_LOCAL_CHECKPOINT)
     if _WOW_OFFICIAL_LOCAL_CHECKPOINT.exists()
     else "WoW-world-model/WoW-1-Wan-14B-600k"
 )
+HELIOS_CHECKPOINT_ROOT = _WORKSPACE_ROOT / "ckpt"
+HELIOS_BASE_CHECKPOINT = str(HELIOS_CHECKPOINT_ROOT / "Helios-Base")
+HELIOS_MID_CHECKPOINT = str(HELIOS_CHECKPOINT_ROOT / "Helios-Mid")
+HELIOS_DISTILLED_CHECKPOINT = str(HELIOS_CHECKPOINT_ROOT / "Helios-Distilled")
+SANA_STREAMING_CHECKPOINT = str(
+    _WORKSPACE_ROOT / "ckpt" / "hfd" / "Efficient-Large-Model--SANA-Streaming" / "dit" / "sana_streaming_ar.pth"
+)
+SANA_STREAMING_BIDIRECTIONAL_CHECKPOINT = str(
+    _WORKSPACE_ROOT
+    / "ckpt"
+    / "hfd"
+    / "Efficient-Large-Model--SANA-Streaming_bidirectional"
+    / "dit"
+    / "sana_bidirectional_short.pth"
+)
+SANA_STREAMING_VAE = str(_WORKSPACE_ROOT / "ckpt" / "hfd" / "Lightricks--LTX-2")
+SANA_STREAMING_TEXT_ENCODER = str(
+    _WORKSPACE_ROOT / "ckpt" / "hfd" / "Efficient-Large-Model--gemma-2-2b-it"
+)
+BERNINI_CHECKPOINT = str(_WORKSPACE_ROOT / "ckpt" / "ByteDance--Bernini-Diffusers")
+# Product inference must not depend on private or repository test prompts. The
+# required field remains empty until the user supplies their own description.
+HELIOS_DEMO_PROMPT = ""
 WOW_OFFICIAL_IMAGE_FIXTURE = str(_TEST_CASES_ROOT / "test_vla_case1" / "droid" / "exterior_image_1_left.png")
 WOW_OFFICIAL_PROMPT = "The Franka robot grasps the red bottle on the table."
 LINGBOT_WORLD_DEMO_ROOT = _TEST_CASES_ROOT / "lingbot_world" / "00"
+LINGBOT_WORLD_V2_MODEL_ID = "lingbot-world-v2"
+LINGBOT_WORLD_V2_CHECKPOINT = _first_existing_path(
+    _WORKSPACE_ROOT / "ckpt" / "lingbot-world-v2-14b-causal-fast",
+    _WORKSPACE_ROOT / "ckpt" / "hfd" / "robbyant--lingbot-world-v2-14b-causal-fast",
+    "robbyant/lingbot-world-v2-14b-causal-fast",
+)
 _STATIC_ASSET_GATED_WORLD_RUNTIME_MODEL_IDS = frozenset(
     {
         "adaworld",
         "ctrl-world",
         "diamond",
         "dino-wm",
-        "dreamx-world-5b-cam",
         "droid-w",
         "egowm",
         "genie-envisioner",
@@ -143,6 +177,7 @@ ASSET_GATED_WORLD_RUNTIME_MODEL_IDS = _asset_gated_world_runtime_model_ids()
 TEXT_ONLY_DEFAULT_VIDEO_MODEL_IDS = frozenset(
     {
         "causal-forcing",
+        "rolling-forcing",
         "self-forcing",
     }
 )
@@ -155,6 +190,16 @@ TEXT_ONLY_DEFAULT_VIDEO_MODEL_IDS = frozenset(
 
 @dataclass
 class WorldFoundryInferenceInfraState:
+    """Observable process-wide inference acceleration state.
+
+    Args:
+        installed: Whether core inference hooks were installed.
+        sdpa_patched: Whether the compatibility SDPA patch is active.
+        attention_backend: Normalized attention backend policy.
+        matmul_precision: Current float32 matmul precision setting.
+        tf32_enabled: Whether CUDA TF32 matmul/cudnn execution is enabled.
+    """
+
     installed: bool = False
     sdpa_patched: bool = False
     attention_backend: str = "auto"
@@ -310,7 +355,9 @@ class ModelInferenceSpec:
             if requested in {_normalise_infer_id(item) for item in keys}:
                 return variant
         supported = ", ".join(variant.variant_id for variant in self.variants)
-        raise ValueError(f"Unknown inference variant {variant_id!r} for {self.model_family_id}. Choose one of: {supported}")
+        raise ValueError(
+            f"Unknown inference variant {variant_id!r} for {self.model_family_id}. Choose one of: {supported}"
+        )
 
     def task(self, task_id: str | None = None) -> InferenceTaskProfile:
         requested = _normalise_infer_id(task_id or self.default_task_id)
@@ -560,6 +607,107 @@ LINGBOT_WORLD_INFERENCE_SPEC = ModelInferenceSpec(
     notes=("Variants are explicit checkpoint/runtime bundles, not separate Studio model ids.",),
 )
 
+LINGBOT_WORLD_V2_INFERENCE_SPEC = ModelInferenceSpec(
+    model_family_id=LINGBOT_WORLD_V2_MODEL_ID,
+    display_name="LingBot-World-V2",
+    default_variant_id="causal-fast-14b",
+    default_task_id="image-camera-video",
+    aliases=("lingbot-world-infinity", "lingbot-v2", "lingbot_world_v2"),
+    variants=(
+        InferenceVariantSpec(
+            variant_id="causal-fast-14b",
+            label="Causal Fast 14B",
+            status="configured",
+            checkpoints=(
+                InferenceCheckpointRef(
+                    role="primary",
+                    uri=LINGBOT_WORLD_V2_CHECKPOINT,
+                    status="configured",
+                ),
+            ),
+            aliases=("14b-causal-fast", "causal-fast", "infinity"),
+            notes=("Released causal-fast checkpoint using the in-tree WorldFoundry runtime.",),
+        ),
+    ),
+    tasks=(
+        InferenceTaskProfile(
+            task_id="image-camera-video",
+            label="Image + Camera Path to Video",
+            description="Generate a causal world video from an image and camera trajectory arrays.",
+            aliases=("image-to-world-video", "camera-controlled-video", "image-to-video"),
+            inputs=(
+                _field(
+                    "image",
+                    "Initial Image",
+                    kind="path",
+                    target="input_path",
+                    required=True,
+                    default=str(LINGBOT_WORLD_DEMO_ROOT / "image.jpg"),
+                ),
+                _field(
+                    "prompt",
+                    "Prompt",
+                    target="prompt",
+                    required=True,
+                    default=LINGBOT_OFFICIAL_PROMPT,
+                ),
+                _field(
+                    "action_path",
+                    "Camera Path Directory",
+                    kind="path",
+                    target="call_kwargs",
+                    required=True,
+                    default=str(LINGBOT_WORLD_DEMO_ROOT),
+                    description="Directory containing poses.npy and intrinsics.npy.",
+                ),
+                _field(
+                    "size",
+                    "Output Size",
+                    target="call_kwargs",
+                    default="480*832",
+                    choices=("480*832", "832*480", "720*1280", "1280*720"),
+                ),
+                _field("frame_num", "Frames", kind="integer", target="call_kwargs", default=361),
+                _field("chunk_size", "Chunk Size", kind="integer", target="call_kwargs", default=4),
+                _field("seed", "Seed", kind="integer", target="call_kwargs", default=42),
+                _field("sample_shift", "Sample Shift", kind="number", target="call_kwargs", default=10.0),
+                _field("local_attn_size", "Local Attention", kind="integer", target="call_kwargs", default=18),
+                _field("sink_size", "Attention Sink", kind="integer", target="call_kwargs", default=6),
+                _field("nproc_per_node", "GPU Processes", kind="integer", target="call_kwargs", default=8),
+                _field("t5_fsdp", "T5 FSDP", kind="boolean", target="call_kwargs", default=True),
+                _field("dit_fsdp", "DiT FSDP", kind="boolean", target="call_kwargs", default=True),
+                _field("offload_model", "Offload Model", kind="boolean", target="call_kwargs", default=False),
+                _field("return_dict", "Return Dict", kind="boolean", target="call_kwargs", default=True),
+                _field("timeout_seconds", "Timeout Seconds", kind="integer", target="call_kwargs", default=7200),
+            ),
+            outputs=(
+                _artifact("video", "video", required=True, preview=True),
+                _artifact("manifest", "manifest", required=True),
+            ),
+            default_call_kwargs={
+                "action_path": str(LINGBOT_WORLD_DEMO_ROOT),
+                "size": "480*832",
+                "frame_num": 361,
+                "chunk_size": 4,
+                "seed": 42,
+                "sample_shift": 10.0,
+                "local_attn_size": 18,
+                "sink_size": 6,
+                "nproc_per_node": 8,
+                "t5_fsdp": True,
+                "dit_fsdp": True,
+                "offload_model": False,
+                "return_dict": True,
+                "timeout_seconds": 7200,
+            },
+        ),
+    ),
+    notes=(
+        "The required action directory contains poses.npy [F,4,4] and intrinsics.npy [F,4].",
+        "The official profile uses 8 GPUs and 361 output frames.",
+    ),
+)
+
 WARP_AS_HISTORY_INFERENCE_SPEC = ModelInferenceSpec(
     model_family_id="warp-as-history",
     display_name="Warp-as-History",
@@ -607,9 +755,7 @@ WARP_AS_HISTORY_INFERENCE_SPEC = ModelInferenceSpec(
     notes=("Custom Warp-as-History runs can still pass images plus runtime kwargs through advanced CLI/API paths.",),
 )
 
-GEN3C_OFFICIAL_FIXTURE = str(
-    Path(__file__).resolve().parents[1] / "data" / "test_cases" / "gen3c" / "image.png"
-)
+GEN3C_OFFICIAL_FIXTURE = str(Path(__file__).resolve().parents[1] / "data" / "test_cases" / "gen3c" / "image.png")
 FANTASYWORLD_CAMERA_FIXTURE = str(_TEST_CASES_ROOT / "fantasyworld" / "camera_forward.json")
 FANTASYWORLD_PROMPT = "A coherent fantasy harbor world with stable geometry during a forward camera move."
 
@@ -746,6 +892,41 @@ LONGCAT_VIDEO_OFFICIAL_CALL_KWARGS = {
     "return_dict": True,
 }
 
+LINGBOT_VIDEO_STRUCTURED_PROMPT = (
+    '{"comprehensive_description":"A humanoid robot carefully places a red block into a matching tray on a '
+    'clean workbench while the camera remains stable.","camera_info":{"frame_size":"Medium Shot",'
+    '"shot_type_angle":"Eye Level","lighting_type":"Daylight"},"world_knowledge":[]}'
+)
+_LINGBOT_VIDEO_HFD_ROOT = Path(os.getenv("WORLDFOUNDRY_HFD_ROOT", str(_WORKSPACE_ROOT / "ckpt" / "hfd"))).expanduser()
+LINGBOT_VIDEO_DENSE_CHECKPOINT = _first_existing_path(
+    _LINGBOT_VIDEO_HFD_ROOT / "robbyant--lingbot-video-dense-1.3b",
+    _WORKSPACE_ROOT / "ckpt" / "lingbot-video-dense-1.3b",
+    "robbyant/lingbot-video-dense-1.3b",
+)
+LINGBOT_VIDEO_MOE_CHECKPOINT = _first_existing_path(
+    _LINGBOT_VIDEO_HFD_ROOT / "robbyant--lingbot-video-moe-30b-a3b",
+    _WORKSPACE_ROOT / "ckpt" / "lingbot-video-moe-30b-a3b",
+    "robbyant/lingbot-video-moe-30b-a3b",
+)
+LINGBOT_VIDEO_DEFAULT_CALL_KWARGS = {
+    "mode": "t2v",
+    "backend": "diffusers",
+    "height": 480,
+    "width": 832,
+    "num_frames": 121,
+    "num_inference_steps": 40,
+    "guidance_scale": 3.0,
+    "shift": 3.0,
+    "seed": 42,
+    "fps": 24,
+    "transformer_dtype": "bf16",
+    "text_encoder_dtype": "bf16",
+    "vae_dtype": "fp32",
+    "execute": True,
+    "timeout_seconds": 7200,
+    "return_dict": True,
+}
+
 HY_WORLDPLAY_OFFICIAL_PROMPT = (
     "A paved pathway leads towards a stone arch bridge spanning a calm body of water.  "
     "Lush green trees and foliage line the path and the far bank of the water. "
@@ -789,14 +970,11 @@ HUNYUAN_GAMECRAFT_OFFICIAL_CALL_KWARGS = {
 }
 HUNYUAN_GAMECRAFT_OFFICIAL_LOAD_KWARGS = {
     "seed": 250160,
-    "torchrun_nproc_per_node": 8,
 }
 
 HUNYUAN_WORLD_VOYAGER_OFFICIAL_PROMPT = "An old-fashioned European village with thatched roofs on the houses."
 HUNYUAN_WORLD_VOYAGER_OFFICIAL_CONDITION_DIR = str(_TEST_CASES_ROOT / "hunyuan_world_voyager" / "case1")
-HUNYUAN_WORLD_VOYAGER_OFFICIAL_FIXTURE = str(
-    _TEST_CASES_ROOT / "hunyuan_world_voyager" / "case1" / "ref_image.png"
-)
+HUNYUAN_WORLD_VOYAGER_OFFICIAL_FIXTURE = str(_TEST_CASES_ROOT / "hunyuan_world_voyager" / "case1" / "ref_image.png")
 HUNYUAN_WORLD_VOYAGER_OFFICIAL_CALL_KWARGS = {
     "num_frames": 49,
     "condition_dir": HUNYUAN_WORLD_VOYAGER_OFFICIAL_CONDITION_DIR,
@@ -984,7 +1162,9 @@ MATRIX_GAME_3_INFERENCE_SPEC = ModelInferenceSpec(
                 _field("use_int8", "INT8", kind="boolean", target="call_kwargs", default=True),
                 _field("compile_vae", "Compile VAE", kind="boolean", target="call_kwargs", default=True),
                 _field("lightvae_pruning_rate", "LightVAE Pruning", kind="number", target="call_kwargs", default=0.5),
-                _field("vae_type", "VAE Type", target="call_kwargs", default="mg_lightvae", choices=("mg_lightvae", "wan")),
+                _field(
+                    "vae_type", "VAE Type", target="call_kwargs", default="mg_lightvae", choices=("mg_lightvae", "wan")
+                ),
                 _field("fa_version", "FlashAttention", target="call_kwargs", default="3", choices=("3", "2", "0")),
                 _field("use_async_vae", "Async VAE", kind="boolean", target="call_kwargs", default=False),
                 _field("async_vae_warmup_iters", "Async VAE Warmup", kind="integer", target="call_kwargs", default=0),
@@ -1037,7 +1217,9 @@ ASTRA_INFERENCE_SPEC = ModelInferenceSpec(
             status="configured",
             call_kwargs=ASTRA_OFFICIAL_CALL_KWARGS,
             aliases=("official", "demo", "sekai"),
-            notes=("Matches the executable arguments from Astra infer_demo.sh except upstream cam_type, which is represented by direction tokens in this wrapper.",),
+            notes=(
+                "Matches the executable arguments from Astra infer_demo.sh except upstream cam_type, which is represented by direction tokens in this wrapper.",
+            ),
         ),
     ),
     tasks=(
@@ -1047,7 +1229,14 @@ ASTRA_INFERENCE_SPEC = ModelInferenceSpec(
             description="Run the Astra README image-conditioned sekai demo with the packaged garden fixture.",
             aliases=("default", "official-demo", "interactive-video", "image-to-video"),
             inputs=(
-                _field("image", "Condition Image", kind="path", target="input_path", required=True, default=ASTRA_OFFICIAL_FIXTURE),
+                _field(
+                    "image",
+                    "Condition Image",
+                    kind="path",
+                    target="input_path",
+                    required=True,
+                    default=ASTRA_OFFICIAL_FIXTURE,
+                ),
                 _field("prompt", "Prompt", target="prompt", default=ASTRA_OFFICIAL_PROMPT),
                 _field(
                     "interactions",
@@ -1056,12 +1245,22 @@ ASTRA_INFERENCE_SPEC = ModelInferenceSpec(
                     target="params",
                     default=("forward",),
                 ),
-                _field("frames_per_generation", "Frames Per Generation", kind="integer", target="call_kwargs", default=8),
-                _field("total_frames_to_generate", "Generated Frames", kind="integer", target="call_kwargs", default=24),
+                _field(
+                    "frames_per_generation", "Frames Per Generation", kind="integer", target="call_kwargs", default=8
+                ),
+                _field(
+                    "total_frames_to_generate", "Generated Frames", kind="integer", target="call_kwargs", default=24
+                ),
                 _field("num_inference_steps", "Steps", kind="integer", target="call_kwargs", default=50),
                 _field("start_frame", "Start Frame", kind="integer", target="call_kwargs", default=0),
                 _field("initial_condition_frames", "Condition Frames", kind="integer", target="call_kwargs", default=1),
-                _field("modality_type", "Modality", target="call_kwargs", default="sekai", choices=("sekai", "nuscenes", "openx")),
+                _field(
+                    "modality_type",
+                    "Modality",
+                    target="call_kwargs",
+                    default="sekai",
+                    choices=("sekai", "nuscenes", "openx"),
+                ),
             ),
             outputs=(
                 _artifact("video", "video", required=True, preview=True),
@@ -1140,7 +1339,14 @@ NEOVERSE_INFERENCE_SPEC = ModelInferenceSpec(
             description="Run the NeoVerse README tilt_up demo using the packaged robot video.",
             aliases=("default", "official-demo", "interactive-video", "video-to-world"),
             inputs=(
-                _field("video", "Input Video", kind="path", target="input_path", required=True, default=NEOVERSE_OFFICIAL_FIXTURE),
+                _field(
+                    "video",
+                    "Input Video",
+                    kind="path",
+                    target="input_path",
+                    required=True,
+                    default=NEOVERSE_OFFICIAL_FIXTURE,
+                ),
                 _field("prompt", "Prompt", target="prompt", default=NEOVERSE_OFFICIAL_PROMPT),
                 _field(
                     "predefined_trajectory",
@@ -1157,7 +1363,13 @@ NEOVERSE_INFERENCE_SPEC = ModelInferenceSpec(
                 _field("num_inference_steps", "Steps", kind="integer", target="call_kwargs", default=4),
                 _field("cfg_scale", "CFG Scale", kind="number", target="call_kwargs", default=1.0),
                 _field("seed", "Seed", kind="integer", target="call_kwargs", default=42),
-                _field("trajectory_mode", "Trajectory Mode", target="call_kwargs", default="relative", choices=("relative", "global")),
+                _field(
+                    "trajectory_mode",
+                    "Trajectory Mode",
+                    target="call_kwargs",
+                    default="relative",
+                    choices=("relative", "global"),
+                ),
                 _field("angle", "Angle", kind="number", target="call_kwargs", default=15),
                 _field("distance", "Distance", kind="number", target="call_kwargs", default=0),
                 _field("orbit_radius", "Orbit Radius", kind="number", target="call_kwargs", default=0),
@@ -1174,8 +1386,389 @@ NEOVERSE_INFERENCE_SPEC = ModelInferenceSpec(
             default_call_kwargs=NEOVERSE_OFFICIAL_CALL_KWARGS,
         ),
     ),
-    notes=("The upstream checkout in this workspace does not include examples/videos, so the default video falls back to WorldFoundry packaged test_cases/neoverse.",),
+    notes=(
+        "The upstream checkout in this workspace does not include examples/videos, so the default video falls back to WorldFoundry packaged test_cases/neoverse.",
+    ),
 )
+
+COSMOS3_NANO_REPO_ID = "nvidia/Cosmos3-Nano"
+COSMOS3_SUPER_REPO_ID = "nvidia/Cosmos3-Super"
+COSMOS3_NANO_REVISION = "411f42a8fdfb8c5b2583cb8786e0938f49796eaa"
+COSMOS3_SUPER_REVISION = "e0262be9d8f7586bc24c069a2aed2b665bdff266"
+COSMOS3_DEFAULT_PROMPT = "A robot arm is cleaning a plate in the kitchen"
+COSMOS3_T2V_CALL_KWARGS = {
+    "task_type": "text-to-video",
+    "fps": 24,
+    "guidance_scale": 6.0,
+    "height": 720,
+    "num_inference_steps": 35,
+    "num_frames": 189,
+    "output_type": "video",
+    "seed": 0,
+    "width": 1280,
+    "flow_shift": 10.0,
+    "use_karras_sigmas": False,
+    "enable_safety_check": True,
+}
+
+
+def _cosmos3_task_profile(
+    task_id: str,
+    label: str,
+    *,
+    input_kind: str | None = None,
+    image_output: bool = False,
+) -> InferenceTaskProfile:
+    """Build one Cosmos3 generator-inference task contract."""
+
+    num_frames = 1 if image_output else 189
+    shifted_scheduler = task_id in {"t2v", "v2v"}
+    task_types = {
+        "t2i": "text-to-image",
+        "t2v": "text-to-video",
+        "i2v": "image-to-video",
+        "v2v": "video-to-video",
+    }
+    output_type = "pil" if image_output else "video"
+    output_type_choices = ("pil", "pt", "np") if image_output else ("video",)
+    defaults = {
+        "task_type": task_types[task_id],
+        "fps": 24,
+        "guidance_scale": 6.0,
+        "height": 720,
+        "num_inference_steps": 35,
+        "num_frames": num_frames,
+        "output_type": output_type,
+        "seed": 0,
+        "width": 1280,
+        "flow_shift": 10.0 if shifted_scheduler else 1.0,
+        "use_karras_sigmas": not shifted_scheduler,
+        "enable_safety_check": True,
+    }
+    supports_sound = not image_output
+    if supports_sound:
+        defaults["enable_sound"] = False
+    fields: list[InferenceFieldSpec] = [
+        _field("prompt", "Prompt", target="prompt", required=True, default=COSMOS3_DEFAULT_PROMPT),
+        _field(
+            "load_sound_tokenizer",
+            "Load Sound Tokenizer",
+            kind="boolean",
+            target="load_kwargs",
+            default=True,
+            description="Disable for visual-only runs to save memory; keep enabled when enable_sound may be used.",
+        ),
+    ]
+    if input_kind is not None:
+        fields.append(
+            _field(
+                "input_path",
+                "Input Image" if input_kind == "image" else "Input Video",
+                kind="path",
+                target="input_path",
+                required=True,
+                default="",
+            )
+        )
+    fields.extend(
+        (
+            _field("negative_prompt", "Negative Prompt", target="call_kwargs"),
+            _field("num_frames", "Frames", kind="integer", target="call_kwargs", default=num_frames),
+            _field("fps", "FPS", kind="integer", target="call_kwargs", default=24),
+            _field("height", "Height", kind="integer", target="call_kwargs", default=720),
+            _field("width", "Width", kind="integer", target="call_kwargs", default=1280),
+            _field("num_inference_steps", "Steps", kind="integer", target="call_kwargs", default=35),
+            _field("guidance_scale", "Guidance", kind="number", target="call_kwargs", default=6.0),
+            _field("seed", "Seed", kind="integer", target="call_kwargs", default=0),
+            _field(
+                "flow_shift",
+                "Flow Shift",
+                kind="number",
+                target="call_kwargs",
+                default=defaults["flow_shift"],
+            ),
+            _field(
+                "use_karras_sigmas",
+                "Use Karras Sigmas",
+                kind="boolean",
+                target="call_kwargs",
+                default=defaults["use_karras_sigmas"],
+            ),
+            _field(
+                "enable_safety_check",
+                "Run Safety Check",
+                kind="boolean",
+                target="call_kwargs",
+                default=True,
+            ),
+            _field(
+                "output_type",
+                "Output Type",
+                target="call_kwargs",
+                default=output_type,
+                choices=output_type_choices,
+                description=(
+                    "Workspace persists single-frame PIL/NumPy/PyTorch results as an image artifact."
+                    if image_output
+                    else "Workspace persists multi-frame Cosmos3 results as a video artifact."
+                ),
+            ),
+            _field("output_path", "Output Path", kind="path", target="call_kwargs"),
+        )
+    )
+    if supports_sound:
+        fields.append(
+            _field(
+                "enable_sound",
+                "Generate Synchronized Sound",
+                kind="boolean",
+                target="call_kwargs",
+                default=False,
+                description="Decode the checkpoint's synchronized sound stream and preserve its audio artifact.",
+            )
+        )
+    artifact = (
+        _artifact("image", "generated_image", required=True, preview=True)
+        if image_output
+        else _artifact("video", "video", required=True, preview=True)
+    )
+    outputs = [artifact]
+    if supports_sound:
+        outputs.append(
+            _artifact(
+                "audio",
+                "audio",
+                description="Optional synchronized audio waveform and muxed video track when enable_sound is true.",
+            )
+        )
+    outputs.append(_artifact("manifest", "manifest", required=True))
+    return InferenceTaskProfile(
+        task_id=task_id,
+        label=label,
+        description=f"Run Cosmos3 {label.lower()} through the in-tree Diffusers generator runtime.",
+        aliases=(task_types[task_id],),
+        inputs=tuple(fields),
+        outputs=tuple(outputs),
+        default_call_kwargs=defaults,
+    )
+
+
+def _cosmos3_action_task_profile(mode: str, label: str) -> InferenceTaskProfile:
+    """Build an official-default Cosmos3 action inference task."""
+
+    task_id = f"action-{mode.replace('_', '-')}"
+    defaults: dict[str, Any] = {
+        "task_type": task_id,
+        "action_mode": mode,
+        "action_chunk_size": 16,
+        "domain_name": "bridge_orig_lerobot",
+        "resolution_tier": 480,
+        "view_point": "ego_view",
+        "num_frames": 17,
+        "fps": 5,
+        "num_inference_steps": 30,
+        "guidance_scale": 1.0,
+        "flow_shift": 10.0,
+        "use_karras_sigmas": False,
+        "use_system_prompt": False,
+        "enable_safety_check": True,
+        "enable_sound": False,
+        "output_type": "video",
+        "seed": 0,
+    }
+    fields: list[InferenceFieldSpec] = [
+        _field("prompt", "Prompt", target="prompt", required=True, default=COSMOS3_DEFAULT_PROMPT),
+        _field(
+            "load_sound_tokenizer",
+            "Load Sound Tokenizer",
+            kind="boolean",
+            target="load_kwargs",
+            default=False,
+            description="Action inference is visual/action-only and does not require the AVAE sound tokenizer.",
+        ),
+        _field(
+            "input_path",
+            "Input Video",
+            kind="path",
+            target="input_path",
+            required=True,
+            default="",
+            description=(
+                "Policy and forward dynamics use the first frame; inverse dynamics conditions on the clip."
+            ),
+        ),
+        _field(
+            "action_mode",
+            "Action Mode",
+            target="call_kwargs",
+            required=True,
+            default=mode,
+            choices=(mode,),
+        ),
+        _field(
+            "action_chunk_size",
+            "Action Chunk Size",
+            kind="integer",
+            target="call_kwargs",
+            required=True,
+            default=16,
+            description="The generated clip contains chunk_size + 1 frames.",
+        ),
+        _field(
+            "domain_name",
+            "Action Domain",
+            target="call_kwargs",
+            required=True,
+            default="bridge_orig_lerobot",
+        ),
+        _field(
+            "resolution_tier",
+            "Action Resolution Tier",
+            kind="integer",
+            target="call_kwargs",
+            default=480,
+            choices=(256, 480, 704, 720),
+        ),
+        _field(
+            "view_point",
+            "Action Viewpoint",
+            target="call_kwargs",
+            default="ego_view",
+            choices=("ego_view", "third_person_view", "wrist_view", "concat_view"),
+        ),
+    ]
+    if mode == "forward_dynamics":
+        fields.append(
+            _field(
+                "raw_actions",
+                "Raw Actions",
+                kind="json",
+                target="call_kwargs",
+                required=True,
+                description="A [T, D] action array driving the forward-dynamics rollout.",
+            )
+        )
+    fields.extend(
+        (
+            _field("num_frames", "Frames", kind="integer", target="call_kwargs", default=17),
+            _field("fps", "FPS", kind="integer", target="call_kwargs", default=5),
+            _field("num_inference_steps", "Steps", kind="integer", target="call_kwargs", default=30),
+            _field("guidance_scale", "Guidance", kind="number", target="call_kwargs", default=1.0),
+            _field("flow_shift", "Flow Shift", kind="number", target="call_kwargs", default=10.0),
+            _field(
+                "use_karras_sigmas",
+                "Use Karras Sigmas",
+                kind="boolean",
+                target="call_kwargs",
+                default=False,
+            ),
+            _field(
+                "use_system_prompt",
+                "Use System Prompt",
+                kind="boolean",
+                target="call_kwargs",
+                default=False,
+                description="Official action prompts are plain task descriptions and skip LLM system upsampling.",
+            ),
+            _field("seed", "Seed", kind="integer", target="call_kwargs", default=0),
+            _field(
+                "enable_safety_check",
+                "Run Safety Check",
+                kind="boolean",
+                target="call_kwargs",
+                default=True,
+            ),
+            _field(
+                "output_type",
+                "Output Type",
+                target="call_kwargs",
+                default="video",
+                choices=("video",),
+            ),
+            _field("output_path", "Output Path", kind="path", target="call_kwargs"),
+        )
+    )
+    outputs = [_artifact("video", "video", required=True, preview=True)]
+    if mode in {"policy", "inverse_dynamics"}:
+        outputs.append(
+            _artifact(
+                "action_trace",
+                "action_trace",
+                description="Predicted normalized actions emitted by the policy or inverse-dynamics head.",
+            )
+        )
+    outputs.append(_artifact("manifest", "manifest", required=True))
+    return InferenceTaskProfile(
+        task_id=task_id,
+        label=label,
+        description=f"Run Cosmos3 {label.lower()} with the official action-inference defaults.",
+        aliases=tuple(dict.fromkeys((mode, mode.replace("_", "-")))),
+        inputs=tuple(fields),
+        outputs=tuple(outputs),
+        default_call_kwargs=defaults,
+    )
+
+
+COSMOS3_INFERENCE_SPEC = ModelInferenceSpec(
+    model_family_id="cosmos3",
+    display_name="Cosmos3",
+    default_variant_id="cosmos3-nano",
+    default_task_id="t2v",
+    aliases=("cosmos-3", "cosmos3-nano", "cosmos-3-nano", "cosmos3-super", "cosmos-3-super"),
+    variants=(
+        InferenceVariantSpec(
+            variant_id="cosmos3-nano",
+            label="Cosmos3 Nano",
+            status="integrated",
+            checkpoints=(
+                InferenceCheckpointRef(role="primary", uri=COSMOS3_NANO_REPO_ID, status="official"),
+            ),
+            load_kwargs={
+                "variant_id": "cosmos3-nano",
+                "profile_id": "cosmos3-nano",
+                "runtime_profile": "cosmos3-nano",
+                "revision": COSMOS3_NANO_REVISION,
+                "load_sound_tokenizer": True,
+            },
+            call_kwargs=COSMOS3_T2V_CALL_KWARGS,
+            aliases=("default", "nano", "cosmos-3-nano"),
+        ),
+        InferenceVariantSpec(
+            variant_id="cosmos3-super",
+            label="Cosmos3 Super",
+            status="checkpoint-required",
+            checkpoints=(
+                InferenceCheckpointRef(role="primary", uri=COSMOS3_SUPER_REPO_ID, status="official"),
+            ),
+            load_kwargs={
+                "variant_id": "cosmos3-super",
+                "profile_id": "cosmos3-super",
+                "runtime_profile": "cosmos3-super",
+                "revision": COSMOS3_SUPER_REVISION,
+                "device_map": "balanced",
+                "load_sound_tokenizer": True,
+            },
+            call_kwargs=COSMOS3_T2V_CALL_KWARGS,
+            aliases=("super", "cosmos-3-super"),
+            notes=("Requires a high-memory configuration; use device_map when distributing across GPUs.",),
+        ),
+    ),
+    tasks=(
+        _cosmos3_task_profile("t2i", "Text to Image", image_output=True),
+        _cosmos3_task_profile("t2v", "Text to Video"),
+        _cosmos3_task_profile("i2v", "Image to Video", input_kind="image"),
+        _cosmos3_task_profile("v2v", "Video to Video", input_kind="video"),
+        _cosmos3_action_task_profile("policy", "Action Policy"),
+        _cosmos3_action_task_profile("forward_dynamics", "Action Forward Dynamics"),
+        _cosmos3_action_task_profile("inverse_dynamics", "Action Inverse Dynamics"),
+    ),
+    notes=(
+        "The Workspace contract exposes generator inference only: T2I/T2V/I2V/V2V, optional synchronized sound, "
+        "and the checkpoint's structured policy/forward-dynamics/inverse-dynamics action modes.",
+        "Cosmos3 Reasoner, training, and vLLM/vLLM-Omni serving workflows are intentionally not integrated.",
+    ),
+)
+
 
 COSMOS_PREDICT2P5_VALIDATION_PROMPT = (
     "A nighttime city bus terminal gradually shifts from stillness to subtle movement, "
@@ -1191,9 +1784,7 @@ COSMOS_PREDICT2P5_VALIDATION_CALL_KWARGS = {
     "seed": 42,
     "output_type": "pt",
 }
-COSMOS_PREDICT2P5_OFFICIAL_BASE_JSONL = str(
-    _TEST_CASES_ROOT / "cosmos-predict2p5" / "base" / "robot_pouring.jsonl"
-)
+COSMOS_PREDICT2P5_OFFICIAL_BASE_JSONL = str(_TEST_CASES_ROOT / "cosmos-predict2p5" / "base" / "robot_pouring.jsonl")
 
 COSMOS_PREDICT2P5_INFERENCE_SPEC = ModelInferenceSpec(
     model_family_id="cosmos-predict2p5",
@@ -1208,9 +1799,7 @@ COSMOS_PREDICT2P5_INFERENCE_SPEC = ModelInferenceSpec(
             status="configured",
             call_kwargs=COSMOS_PREDICT2P5_VALIDATION_CALL_KWARGS,
             aliases=("2b", "default", "validation"),
-            notes=(
-                "Uses the catalog-resolved Cosmos Predict2.5 2B checkpoint and required Reason1/Wan components.",
-            ),
+            notes=("Uses the catalog-resolved Cosmos Predict2.5 2B checkpoint and required Reason1/Wan components.",),
         ),
     ),
     tasks=(
@@ -1269,9 +1858,7 @@ GEN3C_INFERENCE_SPEC = ModelInferenceSpec(
             variant_id="default",
             label="Default",
             status="configured",
-            checkpoints=(
-                InferenceCheckpointRef(role="primary", uri="gen3c", status="configured"),
-            ),
+            checkpoints=(InferenceCheckpointRef(role="primary", uri="gen3c", status="configured"),),
             call_kwargs=GEN3C_OFFICIAL_CALL_KWARGS,
             aliases=("official", "demo", "cosmos-7b"),
             notes=("Matches the upstream single-image demo command in GEN3C README.",),
@@ -1326,7 +1913,13 @@ GEN3C_INFERENCE_SPEC = ModelInferenceSpec(
                 _field("seed", "Seed", kind="integer", target="call_kwargs", default=1),
                 _field("num_gpus", "GPUs", kind="integer", target="call_kwargs", default=8),
                 _field("foreground_masking", "Foreground Masking", kind="boolean", target="call_kwargs", default=True),
-                _field("disable_prompt_encoder", "Disable Prompt Encoder", kind="boolean", target="call_kwargs", default=True),
+                _field(
+                    "disable_prompt_encoder",
+                    "Disable Prompt Encoder",
+                    kind="boolean",
+                    target="call_kwargs",
+                    default=True,
+                ),
                 _field(
                     "offload_diffusion_transformer",
                     "Offload Transformer",
@@ -1335,9 +1928,23 @@ GEN3C_INFERENCE_SPEC = ModelInferenceSpec(
                     default=False,
                 ),
                 _field("offload_tokenizer", "Offload Tokenizer", kind="boolean", target="call_kwargs", default=False),
-                _field("offload_text_encoder_model", "Offload Text Encoder", kind="boolean", target="call_kwargs", default=False),
-                _field("offload_prompt_upsampler", "Offload Prompt Upsampler", kind="boolean", target="call_kwargs", default=False),
-                _field("offload_guardrail_models", "Offload Guardrail", kind="boolean", target="call_kwargs", default=False),
+                _field(
+                    "offload_text_encoder_model",
+                    "Offload Text Encoder",
+                    kind="boolean",
+                    target="call_kwargs",
+                    default=False,
+                ),
+                _field(
+                    "offload_prompt_upsampler",
+                    "Offload Prompt Upsampler",
+                    kind="boolean",
+                    target="call_kwargs",
+                    default=False,
+                ),
+                _field(
+                    "offload_guardrail_models", "Offload Guardrail", kind="boolean", target="call_kwargs", default=False
+                ),
             ),
             outputs=(
                 _artifact("video", "video", required=True, preview=True),
@@ -1372,9 +1979,23 @@ FANTASYWORLD_INFERENCE_SPEC = ModelInferenceSpec(
             description="Run FantasyWorld image-conditioned camera-control world generation.",
             aliases=("default", "official-demo", "image-to-world"),
             inputs=(
-                _field("input_path", "Input Image", kind="path", target="input_path", required=True, default=GENERIC_IMAGE_FIXTURE),
+                _field(
+                    "input_path",
+                    "Input Image",
+                    kind="path",
+                    target="input_path",
+                    required=True,
+                    default=GENERIC_IMAGE_FIXTURE,
+                ),
                 _field("prompt", "Prompt", target="prompt", default=FANTASYWORLD_PROMPT),
-                _field("camera_json_path", "Camera JSON", kind="path", target="call_kwargs", required=True, default=FANTASYWORLD_CAMERA_FIXTURE),
+                _field(
+                    "camera_json_path",
+                    "Camera JSON",
+                    kind="path",
+                    target="call_kwargs",
+                    required=True,
+                    default=FANTASYWORLD_CAMERA_FIXTURE,
+                ),
                 _field("fps", "FPS", kind="integer", target="call_kwargs", default=16),
                 _field("seed", "Seed", kind="integer", target="call_kwargs", default=1024),
                 _field("using_scale", "Use Scale", kind="boolean", target="call_kwargs", default=True),
@@ -1416,9 +2037,23 @@ FANTASYWORLD_WAN21_INFERENCE_SPEC = ModelInferenceSpec(
             description="Run FantasyWorld Wan2.1 image-conditioned camera-control world generation.",
             aliases=("default", "official-demo", "image-to-world"),
             inputs=(
-                _field("input_path", "Input Image", kind="path", target="input_path", required=True, default=GENERIC_IMAGE_FIXTURE),
+                _field(
+                    "input_path",
+                    "Input Image",
+                    kind="path",
+                    target="input_path",
+                    required=True,
+                    default=GENERIC_IMAGE_FIXTURE,
+                ),
                 _field("prompt", "Prompt", target="prompt", default=FANTASYWORLD_PROMPT),
-                _field("camera_json_path", "Camera JSON", kind="path", target="call_kwargs", required=True, default=FANTASYWORLD_CAMERA_FIXTURE),
+                _field(
+                    "camera_json_path",
+                    "Camera JSON",
+                    kind="path",
+                    target="call_kwargs",
+                    required=True,
+                    default=FANTASYWORLD_CAMERA_FIXTURE,
+                ),
                 _field("fps", "FPS", kind="integer", target="call_kwargs", default=16),
                 _field("seed", "Seed", kind="integer", target="call_kwargs", default=1024),
                 _field("using_scale", "Use Scale", kind="boolean", target="call_kwargs", default=True),
@@ -1460,7 +2095,14 @@ FLASHWORLD_INFERENCE_SPEC = ModelInferenceSpec(
             description="Run FlashWorld image-conditioned 3D scene generation.",
             aliases=("default", "official-demo", "image-to-3d"),
             inputs=(
-                _field("input_path", "Input Image", kind="path", target="input_path", required=True, default=GENERIC_IMAGE_FIXTURE),
+                _field(
+                    "input_path",
+                    "Input Image",
+                    kind="path",
+                    target="input_path",
+                    required=True,
+                    default=GENERIC_IMAGE_FIXTURE,
+                ),
                 _field("prompt", "Prompt", target="prompt", default="A coherent explorable 3D scene."),
                 _field(
                     "interactions",
@@ -1552,7 +2194,13 @@ LYRA1_INFERENCE_SPEC = ModelInferenceSpec(
                 _field("num_gpus", "GPUs", kind="integer", target="call_kwargs", default=1),
                 _field("foreground_masking", "Foreground Masking", kind="boolean", target="call_kwargs", default=True),
                 _field("filter_points_threshold", "Point Filter", kind="number", target="call_kwargs", default=0.05),
-                _field("disable_prompt_encoder", "Disable Prompt Encoder", kind="boolean", target="call_kwargs", default=True),
+                _field(
+                    "disable_prompt_encoder",
+                    "Disable Prompt Encoder",
+                    kind="boolean",
+                    target="call_kwargs",
+                    default=True,
+                ),
                 _field("disable_guardrail", "Disable Guardrail", kind="boolean", target="call_kwargs", default=True),
                 _field(
                     "offload_diffusion_transformer",
@@ -1562,9 +2210,23 @@ LYRA1_INFERENCE_SPEC = ModelInferenceSpec(
                     default=True,
                 ),
                 _field("offload_tokenizer", "Offload Tokenizer", kind="boolean", target="call_kwargs", default=True),
-                _field("offload_text_encoder_model", "Offload Text Encoder", kind="boolean", target="call_kwargs", default=True),
-                _field("offload_prompt_upsampler", "Offload Prompt Upsampler", kind="boolean", target="call_kwargs", default=True),
-                _field("offload_guardrail_models", "Offload Guardrail", kind="boolean", target="call_kwargs", default=True),
+                _field(
+                    "offload_text_encoder_model",
+                    "Offload Text Encoder",
+                    kind="boolean",
+                    target="call_kwargs",
+                    default=True,
+                ),
+                _field(
+                    "offload_prompt_upsampler",
+                    "Offload Prompt Upsampler",
+                    kind="boolean",
+                    target="call_kwargs",
+                    default=True,
+                ),
+                _field(
+                    "offload_guardrail_models", "Offload Guardrail", kind="boolean", target="call_kwargs", default=True
+                ),
             ),
             outputs=(
                 _artifact("video", "video", required=True, preview=True),
@@ -1633,6 +2295,469 @@ LYRA2_INFERENCE_SPEC = ModelInferenceSpec(
     notes=("The default image and caption come from upstream Lyra-2 assets/samples/00.*.",),
 )
 
+HELIOS_INFERENCE_SPEC = ModelInferenceSpec(
+    model_family_id="helios",
+    display_name="Helios",
+    default_variant_id="helios-distilled",
+    default_task_id="text-to-video",
+    aliases=("bestwishysh/helios",),
+    variants=(
+        InferenceVariantSpec(
+            variant_id="helios-distilled",
+            label="Distilled",
+            status="local_required",
+            checkpoints=(
+                InferenceCheckpointRef(
+                    role="primary",
+                    uri=HELIOS_DISTILLED_CHECKPOINT,
+                    status="local_required",
+                ),
+            ),
+            call_kwargs={"variant": "distilled", "pyramid_num_inference_steps_list": [2, 2, 2]},
+            aliases=("distilled", "helios_distilled", "BestWishYsh/Helios-Distilled"),
+            notes=("Official distilled checkpoint and two-step pyramid recipe.",),
+        ),
+        InferenceVariantSpec(
+            variant_id="helios-base",
+            label="Base",
+            status="local_required",
+            checkpoints=(
+                InferenceCheckpointRef(
+                    role="primary",
+                    uri=HELIOS_BASE_CHECKPOINT,
+                    status="local_required",
+                ),
+            ),
+            call_kwargs={"variant": "base", "pyramid_num_inference_steps_list": [20, 20, 20]},
+            aliases=("base", "helios_base", "BestWishYsh/Helios-Base"),
+            notes=("Official base checkpoint.",),
+        ),
+        InferenceVariantSpec(
+            variant_id="helios-mid",
+            label="Mid",
+            status="local_required",
+            checkpoints=(
+                InferenceCheckpointRef(
+                    role="primary",
+                    uri=HELIOS_MID_CHECKPOINT,
+                    status="local_required",
+                ),
+            ),
+            call_kwargs={"variant": "mid", "pyramid_num_inference_steps_list": [20, 20, 20]},
+            aliases=("mid", "helios_mid", "BestWishYsh/Helios-Mid"),
+            notes=("Official mid checkpoint.",),
+        ),
+    ),
+    tasks=(
+        InferenceTaskProfile(
+            task_id="text-to-video",
+            label="Text to Video",
+            description="Generate a video with an official Helios Base, Mid, or Distilled checkpoint.",
+            aliases=("t2v", "video", "default"),
+            inputs=(
+                _field("prompt", "Prompt", target="prompt", required=True, default=HELIOS_DEMO_PROMPT),
+                _field("negative_prompt", "Negative Prompt", target="call_kwargs"),
+                _field("num_frames", "Frames", kind="integer", target="call_kwargs", default=33),
+                _field("height", "Height", kind="integer", target="call_kwargs", default=384),
+                _field("width", "Width", kind="integer", target="call_kwargs", default=640),
+                _field("fps", "FPS", kind="integer", target="call_kwargs", default=12),
+                _field("num_inference_steps", "Steps", kind="integer", target="call_kwargs", default=50),
+                _field("guidance_scale", "Guidance", target="call_kwargs", default="auto"),
+                _field("seed", "Seed", kind="integer", target="call_kwargs", default=42),
+                _field("enable_low_vram_mode", "Low VRAM Mode", kind="boolean", target="call_kwargs", default=False),
+            ),
+            outputs=(
+                _artifact("video", "video", required=True, preview=True),
+                _artifact("manifest", "manifest", required=True),
+            ),
+            default_call_kwargs={
+                "sample_type": "t2v",
+                "num_frames": 33,
+                "height": 384,
+                "width": 640,
+                "fps": 12,
+                "num_inference_steps": 50,
+                "guidance_scale": "auto",
+                "seed": 42,
+            },
+        ),
+    ),
+    notes=(
+        "Each Workspace variant maps to exactly one official local checkpoint; no synthetic default variant is exposed.",
+    ),
+)
+
+
+def _sana_streaming_inference_spec(*, bidirectional: bool) -> ModelInferenceSpec:
+    """Build the explicit Workspace contract for one SANA-Streaming route."""
+
+    model_id = (
+        "sana-streaming-bidirectional-2b-720p" if bidirectional else "sana-streaming-2b-720p"
+    )
+    checkpoint = SANA_STREAMING_BIDIRECTIONAL_CHECKPOINT if bidirectional else SANA_STREAMING_CHECKPOINT
+    mode = "bidirectional_short" if bidirectional else "long_streaming"
+    steps = 50 if bidirectional else 4
+    guidance = 6.0 if bidirectional else 1.0
+    return ModelInferenceSpec(
+        model_family_id=model_id,
+        display_name="SANA-Streaming Bidirectional 2B 720p" if bidirectional else "SANA-Streaming 2B 720p",
+        default_variant_id=mode,
+        default_task_id="video-to-video",
+        aliases=(
+            ("sana-streaming-bidirectional", "sana-streaming-short")
+            if bidirectional
+            else ("sana-streaming", "sana-streaming-long", "sana-streaming-720p")
+        ),
+        variants=(
+            InferenceVariantSpec(
+                variant_id=mode,
+                label="Bidirectional Short" if bidirectional else "Long Streaming",
+                status="local_required",
+                checkpoints=(
+                    InferenceCheckpointRef(role="primary", uri=checkpoint, status="local_required"),
+                    InferenceCheckpointRef(role="vae", uri=SANA_STREAMING_VAE, status="local_required"),
+                    InferenceCheckpointRef(
+                        role="text_encoder",
+                        uri=SANA_STREAMING_TEXT_ENCODER,
+                        status="local_required",
+                    ),
+                ),
+                load_kwargs={"model_id": model_id},
+                notes=(
+                    "Uses the official short bidirectional denoising route."
+                    if bidirectional
+                    else "Uses state-cached autoregressive attention with sink-token caching."
+                ,),
+            ),
+        ),
+        tasks=(
+            InferenceTaskProfile(
+                task_id="video-to-video",
+                label="Video to Video",
+                description="Edit a source video with the official in-tree SANA-Streaming runtime.",
+                aliases=("v2v", "video-editing", "default"),
+                inputs=(
+                    _field("prompt", "Prompt", target="prompt", required=True),
+                    _field(
+                        "input_path",
+                        "Source Video",
+                        kind="path",
+                        target="input_path",
+                        required=True,
+                        default=GENERIC_VIDEO_FIXTURE,
+                    ),
+                    _field("negative_prompt", "Negative Prompt", target="call_kwargs", default=""),
+                    _field("num_frames", "Frames", kind="integer", target="call_kwargs", default=81),
+                    _field("height", "Height", kind="integer", target="call_kwargs", default=704),
+                    _field("width", "Width", kind="integer", target="call_kwargs", default=1280),
+                    _field("fps", "FPS", kind="integer", target="call_kwargs", default=16),
+                    _field("num_inference_steps", "Steps", kind="integer", target="call_kwargs", default=steps),
+                    _field("guidance_scale", "Guidance", kind="number", target="call_kwargs", default=guidance),
+                    _field("seed", "Seed", kind="integer", target="call_kwargs", default=42),
+                    _field("flow_shift", "Flow Shift", kind="number", target="call_kwargs", default=8.0),
+                    _field(
+                        "motion_score",
+                        "Motion Score",
+                        kind="integer",
+                        target="call_kwargs",
+                        default=10 if bidirectional else 0,
+                    ),
+                    _field("num_cached_blocks", "Cached Blocks", kind="integer", target="call_kwargs", default=2),
+                    _field("sink_token", "Sink Token", kind="boolean", target="call_kwargs", default=True),
+                ),
+                outputs=(
+                    _artifact("video", "video", required=True, preview=True),
+                    _artifact("manifest", "manifest", required=True),
+                ),
+                default_call_kwargs={
+                    "num_frames": 81,
+                    "height": 704,
+                    "width": 1280,
+                    "fps": 16,
+                    "num_inference_steps": steps,
+                    "guidance_scale": guidance,
+                    "seed": 42,
+                    "flow_shift": 8.0,
+                    "motion_score": 10 if bidirectional else 0,
+                    "num_cached_blocks": 2,
+                    "sink_token": True,
+                },
+            ),
+        ),
+        notes=(
+            "The Workspace default is an 81-frame bounded validation; the long-streaming runtime itself retains "
+            "the official 969-frame default when called without an override."
+        ,),
+    )
+
+
+SANA_STREAMING_INFERENCE_SPEC = _sana_streaming_inference_spec(bidirectional=False)
+SANA_STREAMING_BIDIRECTIONAL_INFERENCE_SPEC = _sana_streaming_inference_spec(bidirectional=True)
+
+
+def _bernini_task_profile(
+    task_id: str,
+    label: str,
+    *,
+    input_kind: str | None = None,
+    image_output: bool = False,
+    reference_image: bool = False,
+) -> InferenceTaskProfile:
+    """Build one of Bernini's six official generation/editing contracts."""
+
+    fields = [_field("prompt", "Prompt", target="prompt", required=True)]
+    if input_kind is not None:
+        fields.append(
+            _field(
+                "input_path",
+                "Source Image" if input_kind == "image" else "Source Video",
+                kind="path",
+                target="input_path",
+                required=True,
+                default=GENERIC_IMAGE_FIXTURE if input_kind == "image" else GENERIC_VIDEO_FIXTURE,
+            )
+        )
+    if reference_image:
+        fields.append(
+            _field(
+                "images",
+                "Reference Image",
+                kind="path",
+                target="call_kwargs",
+                required=True,
+                default=GENERIC_IMAGE_FIXTURE,
+            )
+        )
+    frames = 1 if image_output else 81
+    height, width = ((512, 512) if image_output else (480, 848))
+    steps = 50 if task_id in {"t2i", "t2v"} else 40
+    fields.extend(
+        (
+            _field("task_type", "Task Type", target="call_kwargs", default=task_id, choices=(task_id,)),
+            _field("neg_prompt", "Negative Prompt", target="call_kwargs"),
+            _field("num_frames", "Frames", kind="integer", target="call_kwargs", default=frames),
+            _field("height", "Height", kind="integer", target="call_kwargs", default=height),
+            _field("width", "Width", kind="integer", target="call_kwargs", default=width),
+            _field("num_inference_steps", "Steps", kind="integer", target="call_kwargs", default=steps),
+            _field("seed", "Seed", kind="integer", target="call_kwargs", default=42),
+            _field("fps", "FPS", kind="integer", target="call_kwargs", default=16),
+            _field("nproc_per_node", "GPU Processes", kind="integer", target="call_kwargs", default=8),
+            _field("ulysses_size", "Ulysses Size", kind="integer", target="call_kwargs", default=8),
+            _field("plan_only", "Plan Only", kind="boolean", target="call_kwargs", default=False),
+        )
+    )
+    artifact = _artifact("image", "generated_image", required=True, preview=True) if image_output else _artifact(
+        "video", "video", required=True, preview=True
+    )
+    return InferenceTaskProfile(
+        task_id=task_id,
+        label=label,
+        description=f"Run Bernini {label.lower()} through the official in-tree planner/renderer runtime.",
+        aliases=(task_id, label.lower().replace(" ", "-")),
+        inputs=tuple(fields),
+        outputs=(artifact, _artifact("manifest", "manifest", required=True)),
+        default_call_kwargs={
+            "task_type": task_id,
+            "num_frames": frames,
+            "height": height,
+            "width": width,
+            "num_inference_steps": steps,
+            "seed": 42,
+            "fps": 16,
+            "nproc_per_node": 8,
+            "ulysses_size": 8,
+        },
+    )
+
+
+BERNINI_INFERENCE_SPEC = ModelInferenceSpec(
+    model_family_id="bernini",
+    display_name="Bernini",
+    default_variant_id="planner-renderer",
+    default_task_id="t2v",
+    aliases=("bernini-diffusers", "bernini-7b-14b"),
+    variants=(
+        InferenceVariantSpec(
+            variant_id="planner-renderer",
+            label="7B Planner + 14B Renderer",
+            status="local_required",
+            checkpoints=(
+                InferenceCheckpointRef(role="primary", uri=BERNINI_CHECKPOINT, status="local_required"),
+            ),
+            load_kwargs={"model_id": "bernini"},
+            notes=("The official multi-GPU route uses one eight-rank Ulysses group.",),
+        ),
+    ),
+    tasks=(
+        _bernini_task_profile("t2i", "Text to Image", image_output=True),
+        _bernini_task_profile("i2i", "Image to Image", input_kind="image", image_output=True),
+        _bernini_task_profile("t2v", "Text to Video"),
+        _bernini_task_profile("v2v", "Video to Video", input_kind="video"),
+        _bernini_task_profile("r2v", "Reference to Video", input_kind="image"),
+        _bernini_task_profile(
+            "rv2v",
+            "Reference Video to Video",
+            input_kind="video",
+            reference_image=True,
+        ),
+    ),
+    notes=(
+        "Checkpoint integrity and host/GPU memory are preflighted before any heavyweight model load.",
+    ),
+)
+
+LINGBOT_VIDEO_INFERENCE_SPEC = ModelInferenceSpec(
+    model_family_id="lingbot-video",
+    display_name="LingBot-Video",
+    default_variant_id="dense",
+    default_task_id="t2v",
+    aliases=("lingbot-video-dense", "lingbot-video-moe", "robbyant/lingbot-video"),
+    variants=(
+        InferenceVariantSpec(
+            variant_id="dense",
+            label="Dense 1.3B",
+            status="configured",
+            checkpoints=(
+                InferenceCheckpointRef(role="primary", uri=LINGBOT_VIDEO_DENSE_CHECKPOINT, status="configured"),
+            ),
+            load_kwargs={"variant": "dense"},
+            aliases=("1.3b", "dense-1.3b", "lingbot-video-dense-1.3b"),
+        ),
+        InferenceVariantSpec(
+            variant_id="moe",
+            label="MoE 30B-A3B",
+            status="configured",
+            checkpoints=(
+                InferenceCheckpointRef(role="primary", uri=LINGBOT_VIDEO_MOE_CHECKPOINT, status="configured"),
+            ),
+            load_kwargs={"variant": "moe"},
+            aliases=("30b-a3b", "moe-30b-a3b", "lingbot-video-moe-30b-a3b"),
+            notes=("The released MoE package also contains the optional refiner component.",),
+        ),
+    ),
+    tasks=(
+        InferenceTaskProfile(
+            task_id="t2v",
+            label="Text to Video",
+            description="Generate video from a LingBot structured caption.",
+            aliases=("text-to-video", "video"),
+            inputs=(
+                _field(
+                    "prompt",
+                    "Structured Prompt",
+                    target="prompt",
+                    required=True,
+                    default=LINGBOT_VIDEO_STRUCTURED_PROMPT,
+                    description="Structured JSON caption text; use prompt_json for a prepared caption file.",
+                ),
+                _field("prompt_json", "Prompt JSON", kind="path", target="call_kwargs"),
+                _field("negative_prompt", "Negative Prompt", target="call_kwargs"),
+                _field(
+                    "backend", "Backend", target="call_kwargs", default="diffusers", choices=("diffusers", "sglang")
+                ),
+                _field("mode", "Mode", target="call_kwargs", default="t2v", choices=("t2v",)),
+                _field("height", "Height", kind="integer", target="call_kwargs", default=480),
+                _field("width", "Width", kind="integer", target="call_kwargs", default=832),
+                _field("num_frames", "Frames", kind="integer", target="call_kwargs", default=121),
+                _field("num_inference_steps", "Steps", kind="integer", target="call_kwargs", default=40),
+                _field("guidance_scale", "Guidance", kind="number", target="call_kwargs", default=3.0),
+                _field("shift", "Flow Shift", kind="number", target="call_kwargs", default=3.0),
+                _field("seed", "Seed", kind="integer", target="call_kwargs", default=42),
+                _field("fps", "FPS", kind="integer", target="call_kwargs", default=24),
+                _field("batch_cfg", "Batch CFG", kind="boolean", target="call_kwargs", default=False),
+                _field("run_refiner", "Run Refiner", kind="boolean", target="call_kwargs", default=False),
+                _field(
+                    "reuse_condition_features", "Reuse Conditions", kind="boolean", target="call_kwargs", default=False
+                ),
+                _field("cfg_parallel_degree", "CFG Parallel", kind="integer", target="call_kwargs", default=1),
+                _field("context_parallel_degree", "Context Parallel", kind="integer", target="call_kwargs", default=1),
+                _field("nproc_per_node", "Processes", kind="integer", target="call_kwargs", default=1),
+                _field("enable_fsdp_inference", "FSDP", kind="boolean", target="call_kwargs", default=False),
+                _field("execute", "Execute", kind="boolean", target="call_kwargs", default=True),
+                _field("timeout_seconds", "Timeout Seconds", kind="integer", target="call_kwargs", default=7200),
+            ),
+            outputs=(
+                _artifact("video", "video", required=True, preview=True),
+                _artifact("manifest", "manifest", required=True),
+            ),
+            default_call_kwargs=LINGBOT_VIDEO_DEFAULT_CALL_KWARGS,
+        ),
+        InferenceTaskProfile(
+            task_id="ti2v",
+            label="Text Image to Video",
+            description="Generate video from a structured caption and first frame.",
+            aliases=("image-to-video", "text-image-to-video"),
+            inputs=(
+                _field("image", "Image", kind="path", target="input_path", required=True),
+                _field(
+                    "prompt",
+                    "Structured Prompt",
+                    target="prompt",
+                    required=True,
+                    default=LINGBOT_VIDEO_STRUCTURED_PROMPT,
+                ),
+                _field("prompt_json", "Prompt JSON", kind="path", target="call_kwargs"),
+                _field(
+                    "backend", "Backend", target="call_kwargs", default="diffusers", choices=("diffusers", "sglang")
+                ),
+                _field("mode", "Mode", target="call_kwargs", default="ti2v", choices=("ti2v",)),
+                _field("height", "Height", kind="integer", target="call_kwargs", default=480),
+                _field("width", "Width", kind="integer", target="call_kwargs", default=832),
+                _field("num_frames", "Frames", kind="integer", target="call_kwargs", default=121),
+                _field("num_inference_steps", "Steps", kind="integer", target="call_kwargs", default=40),
+                _field("guidance_scale", "Guidance", kind="number", target="call_kwargs", default=3.0),
+                _field("shift", "Flow Shift", kind="number", target="call_kwargs", default=3.0),
+                _field("seed", "Seed", kind="integer", target="call_kwargs", default=42),
+                _field("fps", "FPS", kind="integer", target="call_kwargs", default=24),
+                _field("run_refiner", "Run Refiner", kind="boolean", target="call_kwargs", default=False),
+                _field("execute", "Execute", kind="boolean", target="call_kwargs", default=True),
+                _field("timeout_seconds", "Timeout Seconds", kind="integer", target="call_kwargs", default=7200),
+            ),
+            outputs=(
+                _artifact("video", "video", required=True, preview=True),
+                _artifact("manifest", "manifest", required=True),
+            ),
+            default_call_kwargs={**LINGBOT_VIDEO_DEFAULT_CALL_KWARGS, "mode": "ti2v"},
+        ),
+        InferenceTaskProfile(
+            task_id="t2i",
+            label="Text to Image",
+            description="Generate an image from a LingBot structured caption.",
+            aliases=("text-to-image", "image"),
+            inputs=(
+                _field(
+                    "prompt",
+                    "Structured Prompt",
+                    target="prompt",
+                    required=True,
+                    default=LINGBOT_VIDEO_STRUCTURED_PROMPT,
+                ),
+                _field("prompt_json", "Prompt JSON", kind="path", target="call_kwargs"),
+                _field(
+                    "backend", "Backend", target="call_kwargs", default="diffusers", choices=("diffusers", "sglang")
+                ),
+                _field("mode", "Mode", target="call_kwargs", default="t2i", choices=("t2i",)),
+                _field("height", "Height", kind="integer", target="call_kwargs", default=480),
+                _field("width", "Width", kind="integer", target="call_kwargs", default=832),
+                _field("num_inference_steps", "Steps", kind="integer", target="call_kwargs", default=40),
+                _field("guidance_scale", "Guidance", kind="number", target="call_kwargs", default=3.0),
+                _field("shift", "Flow Shift", kind="number", target="call_kwargs", default=3.0),
+                _field("seed", "Seed", kind="integer", target="call_kwargs", default=42),
+                _field("execute", "Execute", kind="boolean", target="call_kwargs", default=True),
+                _field("timeout_seconds", "Timeout Seconds", kind="integer", target="call_kwargs", default=7200),
+            ),
+            outputs=(
+                _artifact("image", "image", required=True, preview=True),
+                _artifact("manifest", "manifest", required=True),
+            ),
+            default_call_kwargs={**LINGBOT_VIDEO_DEFAULT_CALL_KWARGS, "mode": "t2i"},
+        ),
+    ),
+    notes=(
+        "The DiT consumes a structured JSON caption. The prompt rewriter is intentionally not part of this inference-only port.",
+    ),
+)
+
 LONGCAT_VIDEO_INFERENCE_SPEC = ModelInferenceSpec(
     model_family_id="longcat-video",
     display_name="LongCat-Video",
@@ -1673,7 +2798,9 @@ LONGCAT_VIDEO_INFERENCE_SPEC = ModelInferenceSpec(
                 _field("height", "Height", kind="integer", target="call_kwargs", default=480),
                 _field("width", "Width", kind="integer", target="call_kwargs", default=832),
                 _field("num_inference_steps", "Steps", kind="integer", target="call_kwargs", default=50),
-                _field("distill_num_inference_steps", "Distill Steps", kind="integer", target="call_kwargs", default=16),
+                _field(
+                    "distill_num_inference_steps", "Distill Steps", kind="integer", target="call_kwargs", default=16
+                ),
                 _field("guidance_scale", "Guidance", kind="number", target="call_kwargs", default=2.0),
                 _field("seed", "Seed", kind="integer", target="call_kwargs", default=0),
                 _field("context_parallel_size", "Context Parallel", kind="integer", target="call_kwargs", default=1),
@@ -1688,6 +2815,136 @@ LONGCAT_VIDEO_INFERENCE_SPEC = ModelInferenceSpec(
         ),
     ),
     notes=("The T2V official demo does not require an input image path.",),
+)
+
+
+STABLE_VIDEO_INFINITY_INFERENCE_SPEC = ModelInferenceSpec(
+    model_family_id="stable-video-infinity",
+    display_name="Stable Video Infinity 2.0",
+    default_variant_id="svi-2.0-wan2.1-i2v-14b",
+    default_task_id="prompt-stream-i2v",
+    aliases=("svi", "svi-2.0", "stable_video_infinity", "stable-video-infinity-2.0"),
+    variants=(
+        InferenceVariantSpec(
+            variant_id="svi-2.0-wan2.1-i2v-14b",
+            label="SVI 2.0 · Wan2.1 I2V 14B",
+            status="configured",
+            load_kwargs={"lazy": True},
+            aliases=("default", "svi-2.0", "wan2.1-i2v-14b"),
+            notes=(
+                "Loads the locally staged Wan2.1-I2V-14B-480P base and official SVI 2.0 LoRA.",
+            ),
+        ),
+    ),
+    tasks=(
+        InferenceTaskProfile(
+            task_id="prompt-stream-i2v",
+            label="Prompt Stream Image to Long Video",
+            description=(
+                "Generate linked SVI 2.0 clips from one reference image and an optional JSON prompt stream."
+            ),
+            aliases=("default", "i2v", "image-to-video", "long-video", "prompt-stream"),
+            inputs=(
+                _field(
+                    "prompt",
+                    "Prompt",
+                    target="prompt",
+                    required=True,
+                    default="A cinematic forward camera journey through a detailed, coherent world.",
+                ),
+                _field(
+                    "prompt_stream",
+                    "Prompt Stream (JSON)",
+                    kind="json",
+                    target="call_kwargs",
+                    description=(
+                        'Optional JSON array such as ["enter the forest", "approach the castle"]; '
+                        "when provided, it overrides Prompt."
+                    ),
+                ),
+                _field(
+                    "image",
+                    "Reference Image",
+                    kind="path",
+                    target="input_path",
+                    required=True,
+                    default=GENERIC_IMAGE_FIXTURE,
+                ),
+                _field(
+                    "num_clips",
+                    "Maximum Clips",
+                    kind="integer",
+                    target="call_kwargs",
+                    default=999,
+                    description=(
+                        "Official upper bound; normal prompt streams stop after each prompt has been repeated twice."
+                    ),
+                ),
+                _field("num_frames", "Frames per Clip", kind="integer", target="call_kwargs", default=81),
+                _field(
+                    "num_motion_frames",
+                    "Continuation Frames",
+                    kind="integer",
+                    target="call_kwargs",
+                    default=5,
+                    description="Tail frames reused to condition the next autoregressive clip.",
+                ),
+                _field(
+                    "num_inference_steps",
+                    "Steps per Clip",
+                    kind="integer",
+                    target="call_kwargs",
+                    default=50,
+                ),
+                _field(
+                    "cfg_scale_text",
+                    "Text CFG",
+                    kind="number",
+                    target="call_kwargs",
+                    default=5.0,
+                ),
+                _field("seed", "Base Seed", kind="integer", target="call_kwargs", default=0),
+                _field("seed_stride", "Seed Stride", kind="integer", target="call_kwargs", default=42),
+                _field(
+                    "prompt_repeat_times",
+                    "Prompt Repeats",
+                    kind="integer",
+                    target="call_kwargs",
+                    default=2,
+                ),
+                _field(
+                    "ref_pad_num",
+                    "Reference Padding",
+                    kind="integer",
+                    target="call_kwargs",
+                    default=-1,
+                    description="-1 preserves the official full-reference-padding behavior.",
+                ),
+                _field("fps", "FPS", kind="integer", target="call_kwargs", default=24),
+                _field("output_path", "Output Path", kind="path", target="call_kwargs"),
+            ),
+            outputs=(
+                _artifact("video", "video", required=True, preview=True),
+                _artifact("manifest", "manifest", required=True),
+            ),
+            default_call_kwargs={
+                "num_clips": 999,
+                "num_frames": 81,
+                "num_motion_frames": 5,
+                "num_inference_steps": 50,
+                "cfg_scale_text": 5.0,
+                "seed": 0,
+                "seed_stride": 42,
+                "prompt_repeat_times": 2,
+                "ref_pad_num": -1,
+                "fps": 24,
+            },
+        ),
+    ),
+    notes=(
+        "Workspace dispatches this task to the shared cu128 environment and resolves both weight roots from runtime defaults.",
+        "Checkpoint-backed parity still requires the Wan2.1 base and SVI LoRA to be staged locally.",
+    ),
 )
 
 HUNYUAN_GAMECRAFT_INFERENCE_SPEC = ModelInferenceSpec(
@@ -1788,7 +3045,9 @@ HUNYUAN_WORLD_VOYAGER_INFERENCE_SPEC = ModelInferenceSpec(
                     required=True,
                     default=HUNYUAN_WORLD_VOYAGER_OFFICIAL_CONDITION_DIR,
                 ),
-                _field("interactions", "Interactions", kind="interaction_tokens", target="params", default=("forward",)),
+                _field(
+                    "interactions", "Interactions", kind="interaction_tokens", target="params", default=("forward",)
+                ),
                 _field("frames", "Frames", kind="integer", target="params", default=49),
                 _field("fps", "FPS", kind="integer", target="params", default=24),
                 _field("steps", "Steps", kind="integer", target="params", default=50),
@@ -1875,7 +3134,9 @@ HY_WORLDPLAY_INFERENCE_SPEC = ModelInferenceSpec(
             default_call_kwargs=HY_WORLDPLAY_OFFICIAL_CALL_KWARGS,
         ),
     ),
-    notes=("The action checkpoint is resolved from the Studio catalog model_ref; the base video model uses the runtime config.",),
+    notes=(
+        "The action checkpoint is resolved from the Studio catalog model_ref; the base video model uses the runtime config.",
+    ),
 )
 
 CAMERACTRL_OFFICIAL_PROMPT = "A serene mountain lake at sunrise, with mist hovering over the water."
@@ -1922,8 +3183,12 @@ CAMERACTRL_INFERENCE_SPEC = ModelInferenceSpec(
                 _field("steps", "Steps", kind="integer", target="params", default=25),
                 _field("guidance_scale", "Guidance", kind="number", target="params", default=14.0),
                 _field("seed", "Seed", kind="integer", target="params", default=42),
-                _field("original_pose_width", "Original Pose Width", kind="integer", target="call_kwargs", default=1280),
-                _field("original_pose_height", "Original Pose Height", kind="integer", target="call_kwargs", default=720),
+                _field(
+                    "original_pose_width", "Original Pose Width", kind="integer", target="call_kwargs", default=1280
+                ),
+                _field(
+                    "original_pose_height", "Original Pose Height", kind="integer", target="call_kwargs", default=720
+                ),
             ),
             outputs=(
                 _artifact("video", "video", required=True, preview=True),
@@ -2003,7 +3268,9 @@ DEPTH_ANYTHING3_INFERENCE_SPEC = ModelInferenceSpec(
             },
         ),
     ),
-    notes=("The default task mirrors the lightweight official SOH demo path; GLB/GS export can be exposed as a separate task.",),
+    notes=(
+        "The default task mirrors the lightweight official SOH demo path; GLB/GS export can be exposed as a separate task.",
+    ),
 )
 
 WAN2P2_OFFICIAL_PROMPT = _read_text_file_or_default(
@@ -2060,9 +3327,7 @@ WAN2P2_INFERENCE_SPEC = ModelInferenceSpec(
     notes=("Keep validation jobs tiny by overriding frame_num/sample_steps from the frontend when needed.",),
 )
 
-CUT3R_OFFICIAL_FIXTURE = str(
-    Path(__file__).resolve().parents[1] / "data" / "test_cases" / "cut3r" / "examples" / "001"
-)
+CUT3R_OFFICIAL_FIXTURE = str(Path(__file__).resolve().parents[1] / "data" / "test_cases" / "cut3r" / "examples" / "001")
 
 CUT3R_INFERENCE_SPEC = ModelInferenceSpec(
     model_family_id="cut3r",
@@ -2117,7 +3382,9 @@ CUT3R_INFERENCE_SPEC = ModelInferenceSpec(
                 _field("vis_threshold", "Visibility Threshold", kind="number", target="call_kwargs", default=1.5),
                 _field("width", "Width", kind="integer", target="params", default=704),
                 _field("height", "Height", kind="integer", target="params", default=480),
-                _field("frames_per_interaction", "Frames Per Interaction", kind="integer", target="call_kwargs", default=10),
+                _field(
+                    "frames_per_interaction", "Frames Per Interaction", kind="integer", target="call_kwargs", default=10
+                ),
                 _field("num_orbit_frames", "Orbit Frames", kind="integer", target="call_kwargs", default=24),
             ),
             outputs=(
@@ -2177,7 +3444,14 @@ WORLDFM_INFERENCE_SPEC = ModelInferenceSpec(
                     description="Leave empty to use c2w poses from meta-path.",
                 ),
                 _field("fps", "FPS", kind="integer", target="params", default=30),
-                _field("meta-path", "Meta JSON", kind="path", target="call_kwargs", required=True, default=WORLDFM_OFFICIAL_META),
+                _field(
+                    "meta-path",
+                    "Meta JSON",
+                    kind="path",
+                    target="call_kwargs",
+                    required=True,
+                    default=WORLDFM_OFFICIAL_META,
+                ),
                 _field("panorama-path", "Panorama Path", kind="path", target="call_kwargs"),
                 _field("scene-name", "Scene Name", target="call_kwargs"),
                 _field("save-mode", "Save Mode", target="call_kwargs", default="video", choices=("video", "image")),
@@ -2230,7 +3504,14 @@ WOW_INFERENCE_SPEC = ModelInferenceSpec(
             description="Run the WoW image-conditioned world-video generation path with explicit prompt and sampling controls.",
             aliases=("default", "official-demo", "interactive-video", "image-to-video"),
             inputs=(
-                _field("input_path", "Input Image", kind="path", target="input_path", required=True, default=WOW_OFFICIAL_IMAGE_FIXTURE),
+                _field(
+                    "input_path",
+                    "Input Image",
+                    kind="path",
+                    target="input_path",
+                    required=True,
+                    default=WOW_OFFICIAL_IMAGE_FIXTURE,
+                ),
                 _field("prompt", "Prompt", target="prompt", required=True, default=WOW_OFFICIAL_PROMPT),
                 _field("steps", "Steps", kind="integer", target="call_kwargs", default=50),
                 _field("num_frames", "Frames", kind="integer", target="call_kwargs", default=41),
@@ -2284,7 +3565,9 @@ DIAMOND_INFERENCE_SPEC = ModelInferenceSpec(
                 "num_steps_initial_collect": 1000,
             },
             aliases=("default", "pong", "pretrained"),
-            notes=("Matches the official DIAMOND Atari pretrained play route; Studio defaults to plan-only execution.",),
+            notes=(
+                "Matches the official DIAMOND Atari pretrained play route; Studio defaults to plan-only execution.",
+            ),
         ),
     ),
     tasks=(
@@ -2303,7 +3586,9 @@ DIAMOND_INFERENCE_SPEC = ModelInferenceSpec(
                     required=False,
                     default=GENERIC_IMAGE_FIXTURE,
                 ),
-                _field("interactions", "Interactions", kind="interaction_tokens", target="params", default=("forward",)),
+                _field(
+                    "interactions", "Interactions", kind="interaction_tokens", target="params", default=("forward",)
+                ),
                 _field("frames", "Frames", kind="integer", target="params", default=16),
                 _field("fps", "FPS", kind="integer", target="params", default=15),
                 _field("seed", "Seed", kind="integer", target="params", default=42),
@@ -2322,7 +3607,13 @@ DIAMOND_INFERENCE_SPEC = ModelInferenceSpec(
                     target="load_kwargs",
                     default=str(_WORKSPACE_ROOT / "ckpt" / "diamond"),
                 ),
-                _field("num_steps_initial_collect", "Initial Collect Steps", kind="integer", target="load_kwargs", default=1000),
+                _field(
+                    "num_steps_initial_collect",
+                    "Initial Collect Steps",
+                    kind="integer",
+                    target="load_kwargs",
+                    default=1000,
+                ),
                 _field("size", "Window Size", kind="integer", target="load_kwargs", default=640),
                 _field("record", "Record", kind="boolean", target="load_kwargs", default=False),
                 _field("plan_only", "Plan Only", kind="boolean", target="call_kwargs", default=True),
@@ -2335,7 +3626,110 @@ DIAMOND_INFERENCE_SPEC = ModelInferenceSpec(
             default_call_kwargs={"plan_only": True, "timeout_seconds": 21600},
         ),
     ),
-    notes=("Set call_kwargs.plan_only=false for real Studio/API execution after confirming the Atari runtime and GPU budget.",),
+    notes=(
+        "Set call_kwargs.plan_only=false for real Studio/API execution after confirming the Atari runtime and GPU budget.",
+    ),
+)
+
+MIRA_INFERENCE_SPEC = ModelInferenceSpec(
+    model_family_id="mira",
+    display_name="MIRA",
+    default_variant_id="local-checkpoint",
+    default_task_id="rocket-science-rollout",
+    aliases=("mira-wm", "multiplayer-interactive-world-model"),
+    variants=(
+        InferenceVariantSpec(
+            variant_id="local-checkpoint",
+            label="Local MIRA Checkpoint",
+            status="requires_local_checkpoint_and_dataset",
+            load_kwargs={"model_id": "mira"},
+            aliases=("default", "offline", "rocket-science"),
+            notes=("Uses a local MIRA run directory and local Rocket Science test split.",),
+        ),
+    ),
+    tasks=(
+        InferenceTaskProfile(
+            task_id="rocket-science-rollout",
+            label="Rocket Science Rollout",
+            description="Generate one offline, action-conditioned MIRA rollout from a Rocket Science clip.",
+            aliases=("default", "offline-rollout", "game-rollout"),
+            inputs=(
+                _field(
+                    "checkpoint_path",
+                    "Checkpoint",
+                    kind="path",
+                    target="load_kwargs",
+                    required=True,
+                    default=MIRA_DEFAULT_CHECKPOINT,
+                    description="MIRA checkpoint.pth file or run directory.",
+                ),
+                _field(
+                    "dataset_path",
+                    "Rocket Science Split",
+                    kind="path",
+                    target="load_kwargs",
+                    required=True,
+                    default=MIRA_DEFAULT_DATASET,
+                    description="Local split directory containing index.json, or the index.json path.",
+                ),
+                _field(
+                    "actions",
+                    "Action Timeline",
+                    kind="json",
+                    target="load_kwargs",
+                    default=(),
+                    description=(
+                        "JSON segments such as [{\"player\":0,\"keys\":[\"W\",\"D\"],"
+                        "\"start\":0,\"frames\":20}]."
+                    ),
+                ),
+                _field("seed", "Seed", kind="integer", target="load_kwargs", default=42),
+                _field("clip_index", "Dataset Clip", kind="integer", target="load_kwargs", default=0),
+                _field(
+                    "n_context_frames", "Context Frames", kind="integer", target="load_kwargs", default=38
+                ),
+                _field(
+                    "num_unrolled_frames",
+                    "Generated Latent Frames",
+                    kind="integer",
+                    target="load_kwargs",
+                    default=20,
+                ),
+                _field(
+                    "n_diffusion_steps", "Diffusion Steps", kind="integer", target="load_kwargs", default=10
+                ),
+                _field(
+                    "schedule_type",
+                    "Schedule",
+                    target="load_kwargs",
+                    default="linear",
+                    choices=("linear", "linear_quadratic"),
+                ),
+                _field("noise_level", "Cache Noise", kind="number", target="load_kwargs", default=0.0),
+                _field("compile", "Compile Model", kind="boolean", target="load_kwargs", default=False),
+                _field(
+                    "overlay_actions", "Overlay Actions", kind="boolean", target="load_kwargs", default=True
+                ),
+                _field(
+                    "generated_only", "Generated Frames Only", kind="boolean", target="load_kwargs", default=False
+                ),
+                _field("plan_only", "Plan Only", kind="boolean", target="call_kwargs", default=False),
+                _field(
+                    "timeout_seconds", "Timeout Seconds", kind="integer", target="call_kwargs", default=21600
+                ),
+            ),
+            outputs=(
+                _artifact("video", "video", required=True, preview=True),
+                _artifact("runtime_plan", "manifest", required=True),
+                _artifact("result", "manifest"),
+            ),
+            default_call_kwargs={"plan_only": False, "timeout_seconds": 21600},
+        ),
+    ),
+    notes=(
+        "Inference-only integration; no MIRA training or metric entrypoints are exposed.",
+        "The isolated runtime mirrors upstream's torch 2.8, CPU TorchCodec 0.7, and FFmpeg 7 pins.",
+    ),
 )
 
 DINO_WM_INFERENCE_SPEC = ModelInferenceSpec(
@@ -2374,9 +3768,29 @@ DINO_WM_INFERENCE_SPEC = ModelInferenceSpec(
             description="Run or preflight the official DINO-WM wall planning/evaluation demo.",
             aliases=("default", "official-demo", "plan-wall"),
             inputs=(
-                _field("config", "Config", kind="path", target="load_kwargs", default=str(_RUNTIME_CONFIGS_ROOT / "dino_wm" / "conf" / "plan_wall.yaml")),
-                _field("ckpt_base_path", "Checkpoint Base Path", kind="path", target="load_kwargs", required=True, default=str(_WORKSPACE_ROOT / "ckpt" / "dino_wm")),
-                _field("model_name", "Model Name", target="load_kwargs", required=True, default="wall", choices=("wall", "pusht", "point_maze")),
+                _field(
+                    "config",
+                    "Config",
+                    kind="path",
+                    target="load_kwargs",
+                    default=str(_RUNTIME_CONFIGS_ROOT / "dino_wm" / "conf" / "plan_wall.yaml"),
+                ),
+                _field(
+                    "ckpt_base_path",
+                    "Checkpoint Base Path",
+                    kind="path",
+                    target="load_kwargs",
+                    required=True,
+                    default=str(_WORKSPACE_ROOT / "ckpt" / "dino_wm"),
+                ),
+                _field(
+                    "model_name",
+                    "Model Name",
+                    target="load_kwargs",
+                    required=True,
+                    default="wall",
+                    choices=("wall", "pusht", "point_maze"),
+                ),
                 _field("model_epoch", "Model Epoch", target="load_kwargs", default="latest"),
                 _field("seed", "Seed", kind="integer", target="load_kwargs", default=0),
                 _field("n_evals", "Eval Count", kind="integer", target="load_kwargs", default=1),
@@ -2391,7 +3805,9 @@ DINO_WM_INFERENCE_SPEC = ModelInferenceSpec(
             default_call_kwargs={"plan_only": True, "timeout_seconds": 21600},
         ),
     ),
-    notes=("Local execution is blocked until the official OSF checkpoints and task assets are placed under ckpt/dino_wm.",),
+    notes=(
+        "Local execution is blocked until the official OSF checkpoints and task assets are placed under ckpt/dino_wm.",
+    ),
 )
 
 LEWORLD_MODEL_INFERENCE_SPEC = ModelInferenceSpec(
@@ -2421,7 +3837,9 @@ LEWORLD_MODEL_INFERENCE_SPEC = ModelInferenceSpec(
                 "num_eval": 1,
             },
             aliases=("default", "pusht", "random"),
-            notes=("Uses the official eval.py PushT config with a random policy; local pusht_expert_train.h5 bounded validation is verified.",),
+            notes=(
+                "Uses the official eval.py PushT config with a random policy; local pusht_expert_train.h5 bounded validation is verified.",
+            ),
         ),
     ),
     tasks=(
@@ -2431,10 +3849,28 @@ LEWORLD_MODEL_INFERENCE_SPEC = ModelInferenceSpec(
             description="Run or preflight the official LeWorldModel PushT evaluation route.",
             aliases=("default", "official-demo", "pusht"),
             inputs=(
-                _field("config_dir", "Config Dir", kind="path", target="load_kwargs", default=str(_RUNTIME_CONFIGS_ROOT / "le_wm" / "config" / "eval")),
-                _field("config_name", "Config Name", target="load_kwargs", default="pusht", choices=("pusht", "cube", "tworoom", "reacher")),
+                _field(
+                    "config_dir",
+                    "Config Dir",
+                    kind="path",
+                    target="load_kwargs",
+                    default=str(_RUNTIME_CONFIGS_ROOT / "le_wm" / "config" / "eval"),
+                ),
+                _field(
+                    "config_name",
+                    "Config Name",
+                    target="load_kwargs",
+                    default="pusht",
+                    choices=("pusht", "cube", "tworoom", "reacher"),
+                ),
                 _field("policy", "Policy", target="load_kwargs", default="random"),
-                _field("cache_dir", "Cache Dir", kind="path", target="load_kwargs", default=str(_WORKSPACE_ROOT / "ckpt" / "lewm-models")),
+                _field(
+                    "cache_dir",
+                    "Cache Dir",
+                    kind="path",
+                    target="load_kwargs",
+                    default=str(_WORKSPACE_ROOT / "ckpt" / "lewm-models"),
+                ),
                 _field("dataset_name", "Dataset Name", target="load_kwargs"),
                 _field("num_eval", "Eval Count", kind="integer", target="load_kwargs", default=1),
                 _field("eval_budget", "Eval Budget", kind="integer", target="load_kwargs"),
@@ -2450,7 +3886,9 @@ LEWORLD_MODEL_INFERENCE_SPEC = ModelInferenceSpec(
             default_call_kwargs={"plan_only": True, "timeout_seconds": 21600},
         ),
     ),
-    notes=("The unified env has stable-worldmodel installed; PushT random-policy eval is verified with the local HDF5 dataset. Non-random policies still require policy checkpoints.",),
+    notes=(
+        "The unified env has stable-worldmodel installed; PushT random-policy eval is verified with the local HDF5 dataset. Non-random policies still require policy checkpoints.",
+    ),
 )
 
 STARWM_INFERENCE_SPEC = ModelInferenceSpec(
@@ -2491,11 +3929,20 @@ STARWM_INFERENCE_SPEC = ModelInferenceSpec(
             description="Run or preflight the official StarWM offline client prompt fixture.",
             aliases=("default", "official-demo", "starcraft"),
             inputs=(
-                _field("input_file", "Input File", kind="path", target="load_kwargs", required=True, default=str(_RUNTIME_CONFIGS_ROOT / "starwm" / "data" / "wm_test_horizon5_1traj.json")),
+                _field(
+                    "input_file",
+                    "Input File",
+                    kind="path",
+                    target="load_kwargs",
+                    required=True,
+                    default=str(_RUNTIME_CONFIGS_ROOT / "starwm" / "data" / "wm_test_horizon5_1traj.json"),
+                ),
                 _field("mode", "Mode", target="load_kwargs", default="nothink", choices=("nothink", "think")),
                 _field("api_base", "API Base", target="load_kwargs", default="http://localhost:12000"),
                 _field("api_key", "API Key", target="load_kwargs", default="sk-11223344"),
-                _field("served_model_id", "Served Model ID", target="load_kwargs", required=True, default="StarWM-demo"),
+                _field(
+                    "served_model_id", "Served Model ID", target="load_kwargs", required=True, default="StarWM-demo"
+                ),
                 _field("max_workers", "Max Workers", kind="integer", target="load_kwargs", default=8),
                 _field("plan_only", "Plan Only", kind="boolean", target="call_kwargs", default=True),
                 _field("timeout_seconds", "Timeout Seconds", kind="integer", target="call_kwargs", default=21600),
@@ -2510,25 +3957,113 @@ STARWM_INFERENCE_SPEC = ModelInferenceSpec(
     notes=("Set call_kwargs.plan_only=false only after a StarWM/vLLM OpenAI-compatible endpoint is running.",),
 )
 
+ROLLING_FORCING_INFERENCE_SPEC = ModelInferenceSpec(
+    model_family_id="rolling-forcing",
+    display_name="RollingForcing",
+    default_variant_id="dmd-ema",
+    default_task_id="text-to-long-video",
+    aliases=("rolling_forcing", "rollingforcing", "rolling"),
+    variants=(
+        InferenceVariantSpec(
+            variant_id="dmd-ema",
+            label="Official DMD EMA",
+            status="requires_local_checkpoint",
+            call_kwargs={
+                "num_frames": 126,
+                "seed": 0,
+                "num_samples": 1,
+                "use_ema": True,
+                "save_with_index": True,
+            },
+            aliases=("default", "official", "ema"),
+            notes=(
+                "Uses the official five-step DMD checkpoint and three-latent-frame rolling block.",
+            ),
+        ),
+    ),
+    tasks=(
+        InferenceTaskProfile(
+            task_id="text-to-long-video",
+            label="Text to Long Video",
+            description="Generate a long text-conditioned video with the official rolling-window schedule.",
+            aliases=("default", "text-to-video", "t2v", "long-video"),
+            inputs=(
+                _field("prompt", "Prompt", target="prompt", required=True),
+                _field(
+                    "frames",
+                    "Latent Frames",
+                    kind="integer",
+                    target="params",
+                    default=126,
+                    description="Must be a positive multiple of the official three-frame block size.",
+                ),
+                _field("seed", "Seed", kind="integer", target="params", default=0),
+                _field("num_samples", "Samples", kind="integer", target="call_kwargs", default=1),
+                _field("use_ema", "Use EMA", kind="boolean", target="call_kwargs", default=True),
+                _field(
+                    "save_with_index",
+                    "Indexed Filenames",
+                    kind="boolean",
+                    target="call_kwargs",
+                    default=True,
+                ),
+                _field(
+                    "report_timing",
+                    "Report CUDA Timing",
+                    kind="boolean",
+                    target="call_kwargs",
+                    default=False,
+                ),
+                _field("extended_prompt", "Extended Prompt", target="call_kwargs"),
+            ),
+            outputs=(
+                _artifact("video", "video", required=True, preview=True),
+                _artifact("manifest", "manifest", required=True),
+            ),
+            default_call_kwargs={
+                "num_frames": 126,
+                "seed": 0,
+                "num_samples": 1,
+                "use_ema": True,
+                "save_with_index": True,
+            },
+        ),
+    ),
+    notes=(
+        "Academic use only; the upstream license prohibits commercial and production use.",
+        "The released checkpoint supports text-to-video only.",
+    ),
+)
+
 _MODEL_INFERENCE_SPECS: dict[str, ModelInferenceSpec] = {
     DIAMOND_INFERENCE_SPEC.model_family_id: DIAMOND_INFERENCE_SPEC,
     DINO_WM_INFERENCE_SPEC.model_family_id: DINO_WM_INFERENCE_SPEC,
     LEWORLD_MODEL_INFERENCE_SPEC.model_family_id: LEWORLD_MODEL_INFERENCE_SPEC,
     LINGBOT_WORLD_INFERENCE_SPEC.model_family_id: LINGBOT_WORLD_INFERENCE_SPEC,
+    LINGBOT_WORLD_V2_INFERENCE_SPEC.model_family_id: LINGBOT_WORLD_V2_INFERENCE_SPEC,
+    ROLLING_FORCING_INFERENCE_SPEC.model_family_id: ROLLING_FORCING_INFERENCE_SPEC,
     STARWM_INFERENCE_SPEC.model_family_id: STARWM_INFERENCE_SPEC,
     WARP_AS_HISTORY_INFERENCE_SPEC.model_family_id: WARP_AS_HISTORY_INFERENCE_SPEC,
     MATRIX_GAME_2_INFERENCE_SPEC.model_family_id: MATRIX_GAME_2_INFERENCE_SPEC,
     MATRIX_GAME_3_INFERENCE_SPEC.model_family_id: MATRIX_GAME_3_INFERENCE_SPEC,
+    MIRA_INFERENCE_SPEC.model_family_id: MIRA_INFERENCE_SPEC,
     ASTRA_INFERENCE_SPEC.model_family_id: ASTRA_INFERENCE_SPEC,
     NEOVERSE_INFERENCE_SPEC.model_family_id: NEOVERSE_INFERENCE_SPEC,
+    COSMOS3_INFERENCE_SPEC.model_family_id: COSMOS3_INFERENCE_SPEC,
     COSMOS_PREDICT2P5_INFERENCE_SPEC.model_family_id: COSMOS_PREDICT2P5_INFERENCE_SPEC,
     GEN3C_INFERENCE_SPEC.model_family_id: GEN3C_INFERENCE_SPEC,
     FANTASYWORLD_INFERENCE_SPEC.model_family_id: FANTASYWORLD_INFERENCE_SPEC,
     FANTASYWORLD_WAN21_INFERENCE_SPEC.model_family_id: FANTASYWORLD_WAN21_INFERENCE_SPEC,
     FLASHWORLD_INFERENCE_SPEC.model_family_id: FLASHWORLD_INFERENCE_SPEC,
+    HELIOS_INFERENCE_SPEC.model_family_id: HELIOS_INFERENCE_SPEC,
+    SANA_STREAMING_INFERENCE_SPEC.model_family_id: SANA_STREAMING_INFERENCE_SPEC,
+    SANA_STREAMING_BIDIRECTIONAL_INFERENCE_SPEC.model_family_id: SANA_STREAMING_BIDIRECTIONAL_INFERENCE_SPEC,
+    BERNINI_INFERENCE_SPEC.model_family_id: BERNINI_INFERENCE_SPEC,
     LYRA1_INFERENCE_SPEC.model_family_id: LYRA1_INFERENCE_SPEC,
     LYRA2_INFERENCE_SPEC.model_family_id: LYRA2_INFERENCE_SPEC,
+    LINGBOT_VIDEO_INFERENCE_SPEC.model_family_id: LINGBOT_VIDEO_INFERENCE_SPEC,
     LONGCAT_VIDEO_INFERENCE_SPEC.model_family_id: LONGCAT_VIDEO_INFERENCE_SPEC,
+    STABLE_VIDEO_INFINITY_INFERENCE_SPEC.model_family_id: STABLE_VIDEO_INFINITY_INFERENCE_SPEC,
     HUNYUAN_GAMECRAFT_INFERENCE_SPEC.model_family_id: HUNYUAN_GAMECRAFT_INFERENCE_SPEC,
     HUNYUAN_WORLD_VOYAGER_INFERENCE_SPEC.model_family_id: HUNYUAN_WORLD_VOYAGER_INFERENCE_SPEC,
     HY_WORLDPLAY_INFERENCE_SPEC.model_family_id: HY_WORLDPLAY_INFERENCE_SPEC,
@@ -2621,18 +4156,21 @@ def generic_model_inference_spec(
                     default=field_default("negative_prompt", "negative-prompt"),
                 )
             )
-        if has_any(
-            "input_path",
-            "data_path",
-            "image",
-            "images",
-            "image_path",
-            "video",
-            "videos",
-            "video_path",
-            "input",
-            "input_",
-        ) and not text_only_default:
+        if (
+            has_any(
+                "input_path",
+                "data_path",
+                "image",
+                "images",
+                "image_path",
+                "video",
+                "videos",
+                "video_path",
+                "input",
+                "input_",
+            )
+            and not text_only_default
+        ):
             fields.append(
                 _field(
                     "input_path",
@@ -2654,23 +4192,75 @@ def generic_model_inference_spec(
                 )
             )
         if has_any("num_frames", "frames", "video_length"):
-            fields.append(_field("frames", "Frames", kind="integer", target="params", default=field_default("num_frames", "frames", "video_length")))
+            fields.append(
+                _field(
+                    "frames",
+                    "Frames",
+                    kind="integer",
+                    target="params",
+                    default=field_default("num_frames", "frames", "video_length"),
+                )
+            )
         if has_any("fps"):
             fields.append(_field("fps", "FPS", kind="integer", target="params", default=field_default("fps")))
         if has_any("height", "user_height", "output_h", "resize_h", "image_height"):
-            fields.append(_field("height", "Height", kind="integer", target="params", default=field_default("height", "user_height", "output_h", "resize_h", "image_height")))
+            fields.append(
+                _field(
+                    "height",
+                    "Height",
+                    kind="integer",
+                    target="params",
+                    default=field_default("height", "user_height", "output_h", "resize_h", "image_height"),
+                )
+            )
         if has_any("width", "user_width", "output_w", "resize_w", "image_width"):
-            fields.append(_field("width", "Width", kind="integer", target="params", default=field_default("width", "user_width", "output_w", "resize_w", "image_width")))
+            fields.append(
+                _field(
+                    "width",
+                    "Width",
+                    kind="integer",
+                    target="params",
+                    default=field_default("width", "user_width", "output_w", "resize_w", "image_width"),
+                )
+            )
         if has_any("num_inference_steps", "sampling_steps", "infer_steps", "num_steps"):
-            fields.append(_field("steps", "Steps", kind="integer", target="params", default=field_default("num_inference_steps", "sampling_steps", "infer_steps", "num_steps")))
+            fields.append(
+                _field(
+                    "steps",
+                    "Steps",
+                    kind="integer",
+                    target="params",
+                    default=field_default("num_inference_steps", "sampling_steps", "infer_steps", "num_steps"),
+                )
+            )
         if has_any("guidance_scale", "cfg_scale", "scale"):
-            fields.append(_field("guidance_scale", "Guidance", kind="number", target="params", default=field_default("guidance_scale", "cfg_scale", "scale")))
+            fields.append(
+                _field(
+                    "guidance_scale",
+                    "Guidance",
+                    kind="number",
+                    target="params",
+                    default=field_default("guidance_scale", "cfg_scale", "scale"),
+                )
+            )
         if has_any("seed"):
             fields.append(_field("seed", "Seed", kind="integer", target="params", default=field_default("seed")))
         if has_any("output_path", "output_save_path"):
-            fields.append(_field("output_path", "Output Path", kind="path", target="call_kwargs", default=field_default("output_path", "output_save_path")))
+            fields.append(
+                _field(
+                    "output_path",
+                    "Output Path",
+                    kind="path",
+                    target="call_kwargs",
+                    default=field_default("output_path", "output_save_path"),
+                )
+            )
         if is_asset_gated_world_runtime and has_any("plan_only"):
-            fields.append(_field("plan_only", "Plan Only", kind="boolean", target="call_kwargs", default=field_default("plan_only")))
+            fields.append(
+                _field(
+                    "plan_only", "Plan Only", kind="boolean", target="call_kwargs", default=field_default("plan_only")
+                )
+            )
         if is_asset_gated_world_runtime and has_any("timeout_seconds", "timeout-seconds"):
             fields.append(
                 _field(
@@ -2797,7 +4387,19 @@ def generic_model_inference_spec(
         fields: list[InferenceFieldSpec] = []
         add_common_fields(fields)
         fields.extend(extra_fields())
-        task_inputs = tuple(fields or (_field("input_path", "Input Path", kind="path", target="input_path", required=True, default=generic_input_default()),))
+        task_inputs = tuple(
+            fields
+            or (
+                _field(
+                    "input_path",
+                    "Input Path",
+                    kind="path",
+                    target="input_path",
+                    required=True,
+                    default=generic_input_default(),
+                ),
+            )
+        )
         task_outputs = (
             _artifact("geometry", "geometry", required=True, preview=True),
             _artifact("manifest", "manifest", required=True),
@@ -2807,7 +4409,19 @@ def generic_model_inference_spec(
         fields = []
         add_common_fields(fields)
         fields.extend(extra_fields())
-        task_inputs = tuple(fields or (_field("input_path", "Input Path", kind="path", target="input_path", required=True, default=generic_input_default()),))
+        task_inputs = tuple(
+            fields
+            or (
+                _field(
+                    "input_path",
+                    "Input Path",
+                    kind="path",
+                    target="input_path",
+                    required=True,
+                    default=generic_input_default(),
+                ),
+            )
+        )
         task_outputs = (
             _artifact("scene", "3d", required=True, preview=True),
             _artifact("manifest", "manifest", required=True),
@@ -2818,7 +4432,11 @@ def generic_model_inference_spec(
         add_common_fields(fields)
         fields.extend(extra_fields())
         task_inputs = tuple(fields) or (streaming_fallback_fields() if supports_stream else tuple())
-        artifact_kind = "action_tokens" if _normalise_infer_id(model_family_id) == "lapa" or workload == "visual-action" else "action_trace"
+        artifact_kind = (
+            "action_tokens"
+            if _normalise_infer_id(model_family_id) == "lapa" or workload == "visual-action"
+            else "action_trace"
+        )
         task_outputs = (
             _artifact(artifact_kind, artifact_kind, required=True, preview=False),
             _artifact("manifest", "manifest", required=True),
@@ -2837,7 +4455,11 @@ def generic_model_inference_spec(
         task_label = (
             "Runtime Plan"
             if is_asset_gated_world_runtime
-            else ("Video-to-Audio Inference" if is_video_to_audio else ("Interactive Video" if supports_stream else "Video Inference"))
+            else (
+                "Video-to-Audio Inference"
+                if is_video_to_audio
+                else ("Interactive Video" if supports_stream else "Video Inference")
+            )
         )
         fields = []
         add_common_fields(fields)
@@ -2965,9 +4587,7 @@ def install_worldfoundry_inference_infra(
     backend = _normalize_attention_backend(
         attention_backend or os.getenv("WORLDFOUNDRY_ATTENTION_BACKEND") or _STATE.attention_backend
     )
-    precision = str(
-        matmul_precision or os.getenv("WORLDFOUNDRY_MATMUL_PRECISION") or _STATE.matmul_precision
-    ).strip()
+    precision = str(matmul_precision or os.getenv("WORLDFOUNDRY_MATMUL_PRECISION") or _STATE.matmul_precision).strip()
     use_tf32 = _env_flag("WORLDFOUNDRY_ENABLE_TF32", default=True) if enable_tf32 is None else bool(enable_tf32)
     should_patch_sdpa = _env_flag("WORLDFOUNDRY_PATCH_SDPA", default=True) if patch_sdpa is None else bool(patch_sdpa)
 
@@ -3235,8 +4855,7 @@ def _normalize_attention_backend(value: str) -> str:
     normalized = aliases.get(normalized, normalized)
     if normalized not in {"auto", "flash", "cudnn", "efficient", "math"}:
         raise ValueError(
-            "WORLDFOUNDRY_ATTENTION_BACKEND must be one of auto, flash, cudnn, efficient, or math "
-            f"(got {value!r})."
+            f"WORLDFOUNDRY_ATTENTION_BACKEND must be one of auto, flash, cudnn, efficient, or math (got {value!r})."
         )
     return normalized
 
@@ -3260,6 +4879,7 @@ __all__ = [
     "InferenceTaskProfile",
     "InferenceVariantSpec",
     "ASTRA_INFERENCE_SPEC",
+    "COSMOS3_INFERENCE_SPEC",
     "COSMOS_PREDICT2P5_INFERENCE_SPEC",
     "DIAMOND_INFERENCE_SPEC",
     "DINO_WM_INFERENCE_SPEC",
@@ -3267,20 +4887,31 @@ __all__ = [
     "FANTASYWORLD_WAN21_INFERENCE_SPEC",
     "FLASHWORLD_INFERENCE_SPEC",
     "GEN3C_INFERENCE_SPEC",
+    "HELIOS_BASE_CHECKPOINT",
+    "HELIOS_DEMO_PROMPT",
+    "HELIOS_DISTILLED_CHECKPOINT",
+    "HELIOS_INFERENCE_SPEC",
+    "HELIOS_MID_CHECKPOINT",
     "LEWORLD_MODEL_INFERENCE_SPEC",
     "LYRA1_INFERENCE_SPEC",
     "LYRA2_INFERENCE_SPEC",
     "LINGBOT_VARIANT_BASE_ACT_PREVIEW",
     "LINGBOT_VARIANT_BASE_CAM",
     "LINGBOT_VARIANT_FAST",
+    "LINGBOT_VIDEO_INFERENCE_SPEC",
     "LINGBOT_WORLD_INFERENCE_SPEC",
     "LINGBOT_WORLD_MODEL_ID",
+    "LINGBOT_WORLD_V2_CHECKPOINT",
+    "LINGBOT_WORLD_V2_INFERENCE_SPEC",
+    "LINGBOT_WORLD_V2_MODEL_ID",
     "LONGCAT_VIDEO_INFERENCE_SPEC",
     "MATRIX_GAME_2_INFERENCE_SPEC",
     "MATRIX_GAME_3_INFERENCE_SPEC",
+    "MIRA_INFERENCE_SPEC",
     "ModelInferenceSpec",
     "NEOVERSE_INFERENCE_SPEC",
     "STARWM_INFERENCE_SPEC",
+    "STABLE_VIDEO_INFINITY_INFERENCE_SPEC",
     "WOW_INFERENCE_SPEC",
     "WorldFoundryInferenceInfraState",
     "autocast_context",

@@ -19,21 +19,21 @@ import attrs
 import torch
 from torch.distributed.checkpoint.state_dict import StateDictOptions, set_model_state_dict
 
-from cosmos_predict2._src.imaginaire.flags import VALIDATION
-from cosmos_predict2._src.imaginaire.lazy_config import LazyCall as L
-from cosmos_predict2._src.imaginaire.lazy_config import instantiate as lazy_instantiate
-from cosmos_predict2._src.imaginaire.utils import log
-from cosmos_predict2._src.imaginaire.utils.embedding_concat_strategy import (
-    EmbeddingConcatStrategy as EmbeddingConcatStrategy,
-)
-from cosmos_predict2._src.predict2.text_encoders.reason1 import QwenVLBaseModel
-from worldfoundry.base_models.llm_mllm_core.mllm.qwen.cosmos_reason1.configs.model_config_qwen import (
+from worldfoundry.base_models.llm_mllm_core.mllm.qwen.cosmos_reason1.inference.hidden_states import QwenVLBaseModel
+from worldfoundry.base_models.llm_mllm_core.mllm.qwen.cosmos_reason1.inference.qwen_config import (
     QwenModelConfig,
     QwenVisionConfig,
 )
-from cosmos_predict2._src.reason1.tokenizer.processor import build_tokenizer
+from worldfoundry.base_models.llm_mllm_core.mllm.qwen.cosmos_reason1.inference.tokenizer import build_tokenizer
+from worldfoundry.core.configuration.flags import VALIDATION
+from worldfoundry.core.configuration.lazy_config import LazyCall as L
+from worldfoundry.core.configuration.lazy_config import instantiate as lazy_instantiate
+from worldfoundry.core.distributed.logging import log
 from worldfoundry.core.io import is_dir_uri
 from worldfoundry.core.model_loading import load_state_dict, load_state_dict_from_folder
+from worldfoundry.core.model_loading.text_embeddings import (
+    EmbeddingConcatStrategy as EmbeddingConcatStrategy,
+)
 
 NUM_EMBEDDING_PADDING_TOKENS = 512
 
@@ -72,6 +72,7 @@ class TextEncoderConfig:
 
 class TextEncoder:
     """Text encoder implementation."""
+
     def __init__(self, config: TextEncoderConfig, device: str = "cuda"):
         """Init.
 
@@ -90,7 +91,7 @@ class TextEncoder:
             return
         with torch.no_grad():
             self.model.init_weights()
-        from cosmos_predict2._src.imaginaire.utils.checkpoint_db import get_checkpoint_path
+        from worldfoundry.base_models.diffusion_model.video.cosmos.shared.checkpoint_registry import get_checkpoint_path
 
         log.info(f"Loading checkpoint from {self.config.ckpt_path}.")
         ckpt_path = get_checkpoint_path(self.config.ckpt_path)

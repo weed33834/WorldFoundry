@@ -21,6 +21,8 @@ import torch
 import torch.nn as nn
 from transformers import AutoTokenizer, T5ForConditionalGeneration
 
+from worldfoundry.core.checkpoint import load_weights_only, tensor_state_dict
+
 
 def load_glyph_byT5_v2(args, device):
     """
@@ -72,10 +74,7 @@ def create_byt5(args, device):
 
     # Load custom checkpoint if provided
     if args['byT5_ckpt_path'] is not None:
-        if "cuda" not in str(device):
-            byt5_state_dict = torch.load(args['byT5_ckpt_path'], map_location=device)
-        else:
-            byt5_state_dict = torch.load(args['byT5_ckpt_path'], map_location=device)
+        byt5_state_dict = load_weights_only(args['byT5_ckpt_path'], map_location=device)
         if 'state_dict' in byt5_state_dict:
             sd = byt5_state_dict["state_dict"]
             newsd = {}
@@ -83,6 +82,11 @@ def create_byt5(args, device):
                 if k.startswith('module.text_tower.encoder.'):
                     newsd[k[len('module.text_tower.encoder.'):]] = v
             byt5_state_dict = newsd
+        byt5_state_dict = tensor_state_dict(
+            byt5_state_dict,
+            source=args['byT5_ckpt_path'],
+            wrapper_keys=(),
+        )
         byt5_model.load_state_dict(byt5_state_dict)
     byt5_model.requires_grad_(False)
     return byt5_tokenizer, byt5_model, byt5_max_length

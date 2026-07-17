@@ -15,6 +15,7 @@ def config_path() -> Path:
 
 
 def ensure_import_path() -> None:
-    root = str(root_path())
-    if root not in sys.path:
-        sys.path.insert(0, root)
+    for path in (root_path(), root_path() / "mmyolo"):
+        value = str(path)
+        if value not in sys.path:
+            sys.path.insert(0, value)

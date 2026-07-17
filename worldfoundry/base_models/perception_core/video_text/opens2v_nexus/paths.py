@@ -6,6 +6,8 @@ import sys
 from functools import lru_cache
 from pathlib import Path
 
+from worldfoundry.base_models.perception_core.detection.yolo_world import ensure_import_path
+
 
 def opens2v_eval_root() -> Path:
     return Path(__file__).resolve().parent / "eval"
@@ -17,6 +19,7 @@ def ensure_opens2v_eval_path() -> Path:
     if not root.is_dir():
         raise FileNotFoundError(f"in-tree OpenS2V-Nexus eval runtime not found at {root}")
 
+    ensure_import_path()
     search_paths = [root, root / "utils" / "yoloworld"]
     for path in search_paths:
         path_str = str(path)

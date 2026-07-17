@@ -30,8 +30,8 @@ without materializing the full sequence-by-sequence mask.
 
 from __future__ import annotations
 
-import gc
 from pathlib import Path
+from typing import Any
 
 import torch
 from torch import nn
@@ -49,7 +49,9 @@ class DiffusersLTX2Refiner(nn.Module):
         *,
         dtype: torch.dtype,
         device: torch.device | str,
+        text_device: torch.device | str | None = None,
         text_max_sequence_length: int = 1024,
+        keep_text_encoder_resident: bool = False,
     ) -> None:
         """Init.
 
@@ -65,9 +67,19 @@ class DiffusersLTX2Refiner(nn.Module):
         self.gemma_root = Path(gemma_root)
         self.dtype = dtype
         self.device = torch.device(device)
+        self.text_device = torch.device(text_device or device)
         self.text_max_sequence_length = int(text_max_sequence_length)
+        self.keep_text_encoder_resident = bool(keep_text_encoder_resident)
+        self._tokenizer: Any | None = None
+        self._text_encoder: nn.Module | None = None
+        self._cached_prompt: str | None = None
+        self._cached_prompt_tensors: tuple[torch.Tensor, torch.Tensor] | None = None
 
         self.transformer, self.connectors = self._load_diffusers_components()
+        self.transformer.to(self.device).eval().requires_grad_(False)
+        self.connectors.to(self.device).eval().requires_grad_(False)
+        if self.keep_text_encoder_resident:
+            self.prepare_text_encoder()
 
     def _load_diffusers_components(self) -> tuple[nn.Module, nn.Module]:
         """Helper function to load diffusers components.
@@ -90,6 +102,33 @@ class DiffusersLTX2Refiner(nn.Module):
         ).eval()
         return transformer, connectors
 
+    def prepare_text_encoder(self) -> None:
+        """Load the refiner tokenizer and Gemma exactly once.
+
+        The public refiner is much larger than the stage-1 model.  Reloading its
+        text encoder for every interactive chunk turns a resident pipeline back
+        into a disk benchmark, so realtime deployments keep it on a dedicated
+        device and cache the encoded prompt.
+        """
+
+        if self._text_encoder is not None and self._tokenizer is not None:
+            return
+        from transformers import AutoTokenizer, Gemma3ForConditionalGeneration
+
+        tokenizer = AutoTokenizer.from_pretrained(self.gemma_root)
+        tokenizer.padding_side = "left"
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+        text_encoder = Gemma3ForConditionalGeneration.from_pretrained(
+            self.gemma_root,
+            torch_dtype=self.dtype,
+            low_cpu_mem_usage=True,
+            device_map={"": str(self.text_device)},
+        ).eval()
+        text_encoder.requires_grad_(False)
+        self._tokenizer = tokenizer
+        self._text_encoder = text_encoder
+
     @torch.inference_mode()
     def refine_latents(
         self,
@@ -105,11 +144,8 @@ class DiffusersLTX2Refiner(nn.Module):
         if sana_latent.shape[2] <= sink_size:
             raise ValueError(f"Stage-1 latent has {sana_latent.shape[2]} frames but sink_size={sink_size}.")
 
-        self.transformer.to("cpu")
-        _empty_cuda_cache()
         prompt_embeds, prompt_attention_mask = self._encode_prompt(prompt)
 
-        self.transformer.to(self.device)
         z = sana_latent.to(device=self.device, dtype=self.dtype)
         sigmas = torch.tensor(STAGE_2_DISTILLED_SIGMA_VALUES, dtype=torch.float32, device=self.device)
         start_sigma = float(sigmas[0])
@@ -164,30 +200,25 @@ class DiffusersLTX2Refiner(nn.Module):
         Returns:
             The return value.
         """
-        from transformers import AutoTokenizer, Gemma3ForConditionalGeneration
-
-        tokenizer = AutoTokenizer.from_pretrained(self.gemma_root)
-        tokenizer.padding_side = "left"
-        if tokenizer.pad_token is None:
-            tokenizer.pad_token = tokenizer.eos_token
+        prompt_key = prompt.strip()
+        if self._cached_prompt == prompt_key and self._cached_prompt_tensors is not None:
+            return self._cached_prompt_tensors
+        self.prepare_text_encoder()
+        tokenizer = self._tokenizer
+        text_encoder = self._text_encoder
+        if tokenizer is None or text_encoder is None:  # pragma: no cover - defensive
+            raise RuntimeError("Refiner text encoder failed to initialize.")
 
         text_inputs = tokenizer(
-            [prompt.strip()],
+            [prompt_key],
             padding="max_length",
             max_length=self.text_max_sequence_length,
             truncation=True,
             add_special_tokens=True,
             return_tensors="pt",
         )
-        input_ids = text_inputs.input_ids.to(self.device)
-        attention_mask = text_inputs.attention_mask.to(self.device)
-
-        text_encoder = Gemma3ForConditionalGeneration.from_pretrained(
-            self.gemma_root,
-            torch_dtype=self.dtype,
-            low_cpu_mem_usage=True,
-        ).eval()
-        text_encoder.to(self.device)
+        input_ids = text_inputs.input_ids.to(self.text_device)
+        attention_mask = text_inputs.attention_mask.to(self.text_device)
         text_backbone = getattr(text_encoder, "model", text_encoder)
         outputs = text_backbone(input_ids=input_ids, attention_mask=attention_mask, output_hidden_states=True)
         hidden_states = torch.stack(outputs.hidden_states, dim=-1)
@@ -195,22 +226,21 @@ class DiffusersLTX2Refiner(nn.Module):
         prompt_embeds = _pack_text_embeds(
             hidden_states,
             sequence_lengths,
-            device=self.device,
+            device=self.text_device,
             padding_side=tokenizer.padding_side,
         ).to(dtype=self.dtype)
 
-        del text_encoder, text_backbone, outputs, hidden_states
-        _empty_cuda_cache()
-
-        self.connectors.to(self.device)
+        prompt_embeds = prompt_embeds.to(self.device, non_blocking=True)
+        attention_mask = attention_mask.to(self.device, non_blocking=True)
         connector_prompt_embeds, _, connector_attention_mask = self.connectors(prompt_embeds, attention_mask)
-        self.connectors.to("cpu")
-        del prompt_embeds, attention_mask
-        _empty_cuda_cache()
-
-        return connector_prompt_embeds.to(device=self.device, dtype=self.dtype), connector_attention_mask.to(
-            device=self.device
+        result = (
+            connector_prompt_embeds.to(device=self.device, dtype=self.dtype),
+            connector_attention_mask.to(device=self.device),
         )
+        self._cached_prompt = prompt_key
+        self._cached_prompt_tensors = result
+        del text_backbone, outputs, hidden_states, prompt_embeds, attention_mask
+        return result
 
     def _predict_current_x0(
         self,
@@ -549,14 +579,3 @@ def _unpack_latents(
     latents = latents.reshape(batch_size, num_frames, height, width, -1, patch_size_t, patch_size, patch_size)
     latents = latents.permute(0, 4, 1, 5, 2, 6, 3, 7).flatten(6, 7).flatten(4, 5).flatten(2, 3)
     return latents
-
-
-def _empty_cuda_cache() -> None:
-    """Helper function to empty cuda cache.
-
-    Returns:
-        The return value.
-    """
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-    gc.collect()

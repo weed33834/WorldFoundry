@@ -18,7 +18,6 @@
 from typing import Any, Dict, Optional
 
 import torch
-
 from cosmos_predict1.utils import log
 
 # Substrings to ignore when processing state dicts

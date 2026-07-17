@@ -69,6 +69,8 @@ class DefaultAnnotationPipeline(Pipeline):
         self.out_path = Path(self.out_cfg.path)
         self.out_path.mkdir(exist_ok=True, parents=True)
         self.camera_type = CameraType(self.init_cfg.camera_type)
+        self._geocalib_model = None
+        self._slam_pipeline = SLAMSystem(device=torch.device("cuda"), config=self.slam_cfg)
 
     def _add_init_processors(self, video_stream: VideoStream) -> ProcessedVideoStream:
         """Helper function to add init processors.
@@ -88,7 +90,13 @@ class DefaultAnnotationPipeline(Pipeline):
         assert FrameAttribute.METRIC_DEPTH not in video_stream.attributes()
         assert FrameAttribute.INSTANCE not in video_stream.attributes()
 
-        init_processors.append(GeoCalibIntrinsicsProcessor(video_stream, camera_type=self.camera_type))
+        intrinsics_processor = GeoCalibIntrinsicsProcessor(
+            video_stream,
+            camera_type=self.camera_type,
+            model=self._geocalib_model,
+        )
+        self._geocalib_model = intrinsics_processor.model
+        init_processors.append(intrinsics_processor)
         if self.init_cfg.instance is not None:
             init_processors.append(
                 TrackAnythingProcessor(
@@ -157,8 +165,7 @@ class DefaultAnnotationPipeline(Pipeline):
             self._add_init_processors(video_stream).cache("process", online=True) for video_stream in video_streams
         ]
 
-        slam_pipeline = SLAMSystem(device=torch.device("cuda"), config=self.slam_cfg)
-        slam_output = slam_pipeline.run(slam_streams, rig=slam_rig, camera_type=self.camera_type)
+        slam_output = self._slam_pipeline.run(slam_streams, rig=slam_rig, camera_type=self.camera_type)
 
         if self.return_payload:
             annotate_output.payload = slam_output

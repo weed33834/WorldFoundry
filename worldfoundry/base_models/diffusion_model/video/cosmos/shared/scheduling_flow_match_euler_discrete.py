@@ -20,11 +20,9 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-
 from diffusers.configuration_utils import ConfigMixin, register_to_config
-from diffusers.utils import BaseOutput, is_scipy_available, logging
 from diffusers.schedulers.scheduling_utils import SchedulerMixin
-
+from diffusers.utils import BaseOutput, is_scipy_available, logging
 
 if is_scipy_available():
     import scipy.stats
@@ -462,11 +460,7 @@ class FlowMatchEulerDiscreteScheduler(SchedulerMixin, ConfigMixin):
                 otherwise a tuple is returned where the first element is the sample tensor.
         """
 
-        if (
-            isinstance(timestep, int)
-            or isinstance(timestep, torch.IntTensor)
-            or isinstance(timestep, torch.LongTensor)
-        ):
+        if isinstance(timestep, int) or isinstance(timestep, torch.IntTensor) or isinstance(timestep, torch.LongTensor):
             raise ValueError(
                 (
                     "Passing integer indices (e.g. from `enumerate(timesteps)`) as timesteps to"

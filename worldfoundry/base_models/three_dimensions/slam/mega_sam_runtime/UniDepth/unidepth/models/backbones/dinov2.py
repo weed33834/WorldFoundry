@@ -10,28 +10,10 @@ from torch.nn.init import trunc_normal_
 from .metadinov2 import Attention, MemEffAttention, Mlp
 from .metadinov2 import NestedTensorBlock as Block
 from .metadinov2 import PatchEmbed, SwiGLUFFNFused
+from worldfoundry.core.nn.module_utils import named_apply
 
 _DINOV2_BASE_URL = "https://dl.fbaipublicfiles.com/dinov2"
 logger = logging.getLogger("dinov2")
-
-
-def named_apply(
-    fn: Callable, module: nn.Module, name="", depth_first=True, include_root=False
-) -> nn.Module:
-    if not depth_first and include_root:
-        fn(module=module, name=name)
-    for child_name, child_module in module.named_children():
-        child_name = ".".join((name, child_name)) if name else child_name
-        named_apply(
-            fn=fn,
-            module=child_module,
-            name=child_name,
-            depth_first=depth_first,
-            include_root=True,
-        )
-    if depth_first and include_root:
-        fn(module=module, name=name)
-    return module
 
 
 def get_parameter_groups(model, lr, wd=1e-5, ld=0.9, skip_list=()):

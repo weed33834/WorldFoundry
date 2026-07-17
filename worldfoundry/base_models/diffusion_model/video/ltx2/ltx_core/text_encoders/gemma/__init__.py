@@ -16,6 +16,7 @@ from worldfoundry.base_models.diffusion_model.video.ltx2.ltx_core.text_encoders.
     VIDEO_ONLY_EMBEDDINGS_PROCESSOR_KEY_OPS,
     EmbeddingsProcessorConfigurator,
     GemmaTextEncoderConfigurator,
+    VideoEmbeddingsProcessorConfigurator,
 )
 
 __all__ = [
@@ -23,6 +24,7 @@ __all__ = [
     "GEMMA_LLM_KEY_OPS",
     "GEMMA_MODEL_OPS",
     "VIDEO_ONLY_EMBEDDINGS_PROCESSOR_KEY_OPS",
+    "VideoEmbeddingsProcessorConfigurator",
     "EmbeddingsProcessor",
     "EmbeddingsProcessorConfigurator",
     "EmbeddingsProcessorOutput",

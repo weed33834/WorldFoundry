@@ -210,14 +210,10 @@ def _is_sharded_safetensors_index_checkpoint(path: str) -> bool:
     return basename.endswith(".safetensors.index.json")
 
 
-def _sharded_safetensors_merge_cache_path(
-    checkpoint_path: str, local_cache_dir: str
-) -> str:
+def _sharded_safetensors_merge_cache_path(checkpoint_path: str, local_cache_dir: str) -> str:
     """Stable path for a single-file cache of merged sharded weights."""
     if checkpoint_path.startswith(("http://", "https://")):
-        repo_id, filename, subfolder, revision = _parse_huggingface_checkpoint_url(
-            checkpoint_path
-        )
+        repo_id, filename, subfolder, revision = _parse_huggingface_checkpoint_url(checkpoint_path)
         sub = subfolder.replace("/", "__") if subfolder else "root"
         stem = f"{repo_id.replace('/', '__')}__{revision}__{sub}__{filename}"
     else:
@@ -294,8 +290,7 @@ def _parallel_hf_hub_download_shards(
 
     work = [(repo_id, s, subfolder, revision) for s in shard_files]
     logger.info(
-        f"Downloading {len(shard_files)} Hugging Face safetensors shards "
-        f"with up to {max_workers} parallel processes"
+        f"Downloading {len(shard_files)} Hugging Face safetensors shards with up to {max_workers} parallel processes"
     )
     shard_to_path: dict[str, str] = {}
     with ProcessPoolExecutor(max_workers=max_workers) as pool:
@@ -322,9 +317,7 @@ def _merge_sharded_safetensors_from_index(
         shard_sd = load_safetensors_file(shard_path, device=device)
         for key in keys_by_shard[shard_file]:
             if key not in shard_sd:
-                raise KeyError(
-                    f"Key {key!r} missing from shard {shard_file!r} (path {shard_path!r})"
-                )
+                raise KeyError(f"Key {key!r} missing from shard {shard_file!r} (path {shard_path!r})")
             merged[key] = shard_sd[key]
     return merged
 
@@ -337,9 +330,7 @@ def _load_sharded_safetensors_index_checkpoint(
 ) -> dict[str, torch.Tensor]:
     """Load HF-style sharded safetensors (index.json + shards) into one state dict."""
     if local_cache_dir is None:
-        raise ValueError(
-            "local_cache_dir is required to cache merged sharded safetensors"
-        )
+        raise ValueError("local_cache_dir is required to cache merged sharded safetensors")
     cache_path = _sharded_safetensors_merge_cache_path(checkpoint_path, local_cache_dir)
     if os.path.exists(cache_path):
         logger.info(f"Loading merged sharded checkpoint from cache: {cache_path}")
@@ -348,9 +339,7 @@ def _load_sharded_safetensors_index_checkpoint(
     is_hf_url = _is_huggingface_checkpoint_url(checkpoint_path)
 
     if is_hf_url:
-        repo_id, index_filename, subfolder, revision = (
-            _parse_huggingface_checkpoint_url(checkpoint_path)
-        )
+        repo_id, index_filename, subfolder, revision = _parse_huggingface_checkpoint_url(checkpoint_path)
         logger.info(f"Merging sharded safetensors from Hugging Face: {checkpoint_path}")
         settings: dict[str, object] = {
             "repo": repo_id,
@@ -386,9 +375,7 @@ def _load_sharded_safetensors_index_checkpoint(
             index = json.load(f)
         weight_map = index.get("weight_map")
         if not isinstance(weight_map, dict) or not weight_map:
-            raise ValueError(
-                f"Invalid or empty weight_map in safetensors index: {index_local}"
-            )
+            raise ValueError(f"Invalid or empty weight_map in safetensors index: {index_local}")
 
         unique_shards = sorted(set(weight_map.values()))
         shard_to_path = _parallel_hf_hub_download_shards(
@@ -408,17 +395,13 @@ def _load_sharded_safetensors_index_checkpoint(
         )
     else:
         if not os.path.isfile(checkpoint_path):
-            raise FileNotFoundError(
-                f"Sharded safetensors index not found: {checkpoint_path}"
-            )
+            raise FileNotFoundError(f"Sharded safetensors index not found: {checkpoint_path}")
         logger.info(f"Merging sharded safetensors from local index: {checkpoint_path}")
         with open(checkpoint_path) as f:
             index = json.load(f)
         weight_map = index.get("weight_map")
         if not isinstance(weight_map, dict) or not weight_map:
-            raise ValueError(
-                f"Invalid or empty weight_map in safetensors index: {checkpoint_path}"
-            )
+            raise ValueError(f"Invalid or empty weight_map in safetensors index: {checkpoint_path}")
         base_dir = os.path.dirname(os.path.abspath(checkpoint_path))
 
         def resolve_shard_path(shard_file: str) -> str:
@@ -464,9 +447,7 @@ def _parse_huggingface_checkpoint_url(
 
     namespace, repo, route = parts[0], parts[1], parts[2]
     if route not in ("blob", "resolve"):
-        raise ValueError(
-            f"Unsupported Hugging Face URL route '{route}' in {url}. Expected 'blob' or 'resolve'."
-        )
+        raise ValueError(f"Unsupported Hugging Face URL route '{route}' in {url}. Expected 'blob' or 'resolve'.")
 
     revision = parts[3]
     file_parts = parts[4:]
@@ -549,6 +530,30 @@ def get_storage_reader(
         return FileSystemReader(checkpoint_path)
 
 
+def _validated_tensor_state_dict(payload: object, *, source: str) -> dict[str, torch.Tensor]:
+    """Return a non-empty tensor-only state dict or fail closed.
+
+    Single-file inference checkpoints occasionally wrap their weights in a
+    conventional container key.  Unwrapping those containers is safe after a
+    weights-only load, but arbitrary metadata or non-tensor values are not a
+    model state dict and must not flow into model loading or local caches.
+    """
+
+    candidates: list[object] = [payload]
+    if isinstance(payload, Mapping):
+        candidates.extend(
+            payload.get(key)
+            for key in ("state_dict", "model_state_dict", "model", "module")
+            if key in payload
+        )
+    for candidate in candidates:
+        if not isinstance(candidate, Mapping) or not candidate:
+            continue
+        if all(isinstance(key, str) and isinstance(value, torch.Tensor) for key, value in candidate.items()):
+            return dict(candidate)
+    raise TypeError(f"Checkpoint {source!r} does not contain a non-empty tensor-only state dict")
+
+
 def load_distributed_checkpoint(
     model: torch.nn.Module,
     checkpoint_path: str,
@@ -580,16 +585,15 @@ def load_distributed_checkpoint(
             checkpoint_path.split("s3://")[1].rstrip("/") + ".pt",
         )
 
-    # Local cache hit: trust it (the ``check_success`` path below only
-    # makes sense for a fresh DCP load that may silently miss keys).
-    if local_cache_checkpoint_path is not None and os.path.exists(
-        local_cache_checkpoint_path
-    ):
-        state_dict = torch.load(local_cache_checkpoint_path, map_location="cpu")
-        model.load_state_dict(state_dict)
-        logger.info(
-            f"Loaded successfully from the local cache: {local_cache_checkpoint_path}"
+    # Local cache hit: deserialize in weights-only mode and validate its shape.
+    # The ``check_success`` comparison below only applies to a fresh DCP load.
+    if local_cache_checkpoint_path is not None and os.path.exists(local_cache_checkpoint_path):
+        state_dict = _validated_tensor_state_dict(
+            torch.load(local_cache_checkpoint_path, map_location="cpu", weights_only=True),
+            source=local_cache_checkpoint_path,
         )
+        model.load_state_dict(state_dict)
+        logger.info(f"Loaded successfully from the local cache: {local_cache_checkpoint_path}")
         return model
 
     # If check_success is True, we check if the checkpoint is loaded successfully, by
@@ -599,9 +603,7 @@ def load_distributed_checkpoint(
 
     # Load the DCP checkpoint. Note DCP load doesn't fail if there is no matching key.
     # So the best practice is to set check_success to True.
-    storage_reader = get_storage_reader(
-        checkpoint_path, credential_path=credential_path
-    )
+    storage_reader = get_storage_reader(checkpoint_path, credential_path=credential_path)
     state_dict = model.state_dict()
     dcp_load(
         state_dict,
@@ -621,8 +623,7 @@ def load_distributed_checkpoint(
                 "DCP load did not update all state_dict entries. "
                 "This usually means the checkpoint path or model config does not "
                 "match the target network. Unchanged keys: "
-                f"{', '.join(unchanged_keys[:20])}"
-                + (" ..." if len(unchanged_keys) > 20 else "")
+                f"{', '.join(unchanged_keys[:20])}" + (" ..." if len(unchanged_keys) > 20 else "")
             )
 
     # Cache the state dict locally if needed..
@@ -690,10 +691,7 @@ def load_single_checkpoint(
     # Determine file extension
     ext = _get_checkpoint_extension(checkpoint_path)
     if ext not in (".pt", ".pth", ".ckpt", ".safetensors"):
-        raise ValueError(
-            f"Unsupported checkpoint extension: {ext}. "
-            f"Supported: .pt, .pth, .ckpt, .safetensors"
-        )
+        raise ValueError(f"Unsupported checkpoint extension: {ext}. Supported: .pt, .pth, .ckpt, .safetensors")
 
     # For Hugging Face URLs, use HF cache and then load locally.
     if is_hf_url:
@@ -706,18 +704,14 @@ def load_single_checkpoint(
     # For S3 paths, check local cache first
     local_cache_path = None
     if is_s3_path and local_cache_dir is not None:
-        local_cache_path = os.path.join(
-            local_cache_dir, checkpoint_path.removeprefix("s3://")
-        )
+        local_cache_path = os.path.join(local_cache_dir, checkpoint_path.removeprefix("s3://"))
         if os.path.exists(local_cache_path):
             logger.info(f"Loading from local cache: {local_cache_path}")
             return _load_checkpoint_from_local(local_cache_path, ext, map_location)
 
     # Load from S3 or local
     if is_s3_path:
-        state_dict = _load_checkpoint_from_s3(
-            checkpoint_path, ext, credential_path, map_location
-        )
+        state_dict = _load_checkpoint_from_s3(checkpoint_path, ext, credential_path, map_location)
         # Cache to local
         if local_cache_path is not None:
             _save_to_local_cache(
@@ -741,9 +735,10 @@ def _load_checkpoint_from_local(
     """Load checkpoint from local filesystem."""
     if ext == ".safetensors":
         with open(path, "rb") as f:
-            return load_safetensors(f.read())
+            payload = load_safetensors(f.read())
     else:
-        return torch.load(path, map_location=map_location, weights_only=False)
+        payload = torch.load(path, map_location=map_location, weights_only=True)
+    return _validated_tensor_state_dict(payload, source=path)
 
 
 def _load_checkpoint_from_s3(
@@ -759,11 +754,10 @@ def _load_checkpoint_from_s3(
         data_bytes = stream.read()
 
     if ext == ".safetensors":
-        return load_safetensors(data_bytes)
+        payload = load_safetensors(data_bytes)
     else:
-        return torch.load(
-            io.BytesIO(data_bytes), map_location=map_location, weights_only=False
-        )
+        payload = torch.load(io.BytesIO(data_bytes), map_location=map_location, weights_only=True)
+    return _validated_tensor_state_dict(payload, source=s3_path)
 
 
 def _save_to_local_cache(
@@ -896,9 +890,7 @@ def load_checkpoint(
 
     elif checkpoint_type == "distributed":
         if model is None:
-            raise ValueError(
-                "Model must be provided for distributed checkpoint loading"
-            )
+            raise ValueError("Model must be provided for distributed checkpoint loading")
         return load_distributed_checkpoint(
             model=model,
             checkpoint_path=checkpoint_path,

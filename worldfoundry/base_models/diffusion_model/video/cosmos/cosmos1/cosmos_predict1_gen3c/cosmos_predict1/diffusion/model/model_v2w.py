@@ -23,8 +23,10 @@ from torch import Tensor
 try:
     from worldfoundry.core.distributed.megatron_compat import parallel_state
 except Exception:
+
     class _NoParallelState:
         """No parallel state implementation."""
+
         @staticmethod
         def is_initialized():
             """Is initialized."""
@@ -34,12 +36,14 @@ except Exception:
 
 from cosmos_predict1.diffusion.conditioner import VideoExtendCondition
 from cosmos_predict1.diffusion.model.model_t2w import DiffusionT2WModel, broadcast_condition
-from worldfoundry.core.distributed.context_parallel import cat_outputs_cp, split_inputs_cp
 from cosmos_predict1.utils import log, misc
+
+from worldfoundry.core.distributed.context_parallel import cat_outputs_cp, split_inputs_cp
 
 
 class DiffusionV2WModel(DiffusionT2WModel):
     """Diffusion w model implementation."""
+
     def __init__(self, config):
         """Init.
 

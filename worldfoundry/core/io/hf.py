@@ -25,7 +25,9 @@ from __future__ import annotations
 import hashlib
 import os
 from collections.abc import Sequence
+from os import PathLike
 from pathlib import Path
+from typing import Any
 
 import torch.distributed as dist
 from filelock import FileLock
@@ -84,6 +86,63 @@ def _normalize_patterns(
     if patterns is None or isinstance(patterns, str):
         return patterns
     return list(patterns)
+
+
+HF_URI_SCHEME = "hf://"
+
+
+def _parse_hf_uri(path: str) -> tuple[str, str]:
+    """Parse ``hf://<owner>/<repo>[/<subpath>]`` into ``(repo_id, subpath)``."""
+
+    parts = path[len(HF_URI_SCHEME) :].split("/", 2)
+    if len(parts) < 2 or not parts[0] or not parts[1]:
+        raise ValueError(f"Invalid HF path {path!r}; expected hf://<owner>/<repo>[/<subpath>].")
+    repo_id = f"{parts[0]}/{parts[1]}"
+    subpath = parts[2] if len(parts) > 2 else ""
+    return repo_id, subpath
+
+
+def _allow_patterns_for_subpath(subpath: str) -> list[str] | None:
+    if not subpath:
+        return None
+    return [subpath, f"{subpath}/*", f"{subpath}/**"]
+
+
+def resolve_hf_path(path: str | PathLike[str] | None) -> str | Any:
+    """Resolve a possibly ``hf://``-prefixed path to a local filesystem path.
+
+    Accepts either:
+
+    * a local path (returned unchanged if it exists), or
+    * ``hf://<owner>/<repo>[/<subpath>]`` — resolves an already materialized
+      WorldFoundry-local snapshot and returns the requested file or directory.
+
+    Runtime I/O is deliberately offline. Repository acquisition belongs to the
+    explicit preparation workflow, never to model inference.
+    """
+    if not isinstance(path, str) or not path:
+        return path
+    if os.path.exists(path):
+        return path
+    if not path.startswith(HF_URI_SCHEME):
+        return path
+
+    repo_id, subpath = _parse_hf_uri(path)
+    from worldfoundry.core.io.paths import resolve_local_hf_model_path
+
+    local_root = resolve_local_hf_model_path(repo_id)
+    resolved = local_root / subpath if subpath else local_root
+    if not resolved.exists():
+        raise FileNotFoundError(
+            f"Local Hugging Face asset for {path!r} is missing under {local_root}. "
+            "Pre-download the pinned repository before inference."
+        )
+    return str(resolved.resolve())
+
+
+def hf_download_or_fpath(path: str | PathLike[str] | None) -> str | Any:
+    """Backwards-compatible alias for :func:`resolve_hf_path`."""
+    return resolve_hf_path(path)
 
 
 def _is_probable_hf_repo_id(value: str) -> bool:
@@ -155,6 +214,7 @@ def _download_snapshot(
     cache_dir: str | os.PathLike[str] | None,
     allow_patterns: str | Sequence[str] | None,
     ignore_patterns: str | Sequence[str] | None,
+    token: str | bool | None = None,
 ) -> None:
     lock_file = _lock_path(repo_id, revision, cache_dir)
     cache_root = _hub_cache_dir(cache_dir)
@@ -179,6 +239,7 @@ def _download_snapshot(
                 local_files_only=False,
                 allow_patterns=_normalize_patterns(allow_patterns),
                 ignore_patterns=_normalize_patterns(ignore_patterns),
+                token=token,
             )
     except Exception as exc:
         disk_error = disk_space_error_from_exception(
@@ -201,6 +262,7 @@ def maybe_download_hf_repo_on_rank0(
     cache_dir: str | os.PathLike[str] | None = None,
     allow_patterns: str | Sequence[str] | None = None,
     ignore_patterns: str | Sequence[str] | None = None,
+    token: str | bool | None = None,
 ) -> None:
     """Download a remote HF repo snapshot from rank 0 when downloads are allowed.
 
@@ -226,6 +288,7 @@ def maybe_download_hf_repo_on_rank0(
                 cache_dir=cache_dir,
                 allow_patterns=allow_patterns,
                 ignore_patterns=ignore_patterns,
+                token=token,
             )
             payload = [{"error": None}]
         except DiskSpaceError as exc:
@@ -242,12 +305,68 @@ def maybe_download_hf_repo_on_rank0(
     if error is not None:
         if payload[0].get("disk_error"):
             raise DiskSpaceError(error)
-        raise RuntimeError(
-            f"Rank 0 failed to download Hugging Face repo {repo_id_or_path!r}: {error}"
+        raise RuntimeError(f"Rank 0 failed to download Hugging Face repo {repo_id_or_path!r}: {error}")
+
+
+def materialize_hf_snapshot(
+    repo_id_or_path: str | os.PathLike[str],
+    *,
+    revision: str | None = None,
+    cache_dir: str | os.PathLike[str] | None = None,
+    allow_patterns: str | Sequence[str] | None = None,
+    ignore_patterns: str | Sequence[str] | None = None,
+    required_files: Sequence[str] = (),
+    local_files_only: bool | None = None,
+    token: str | bool | None = None,
+) -> Path:
+    """Return a local snapshot for either a path or Hugging Face repo id.
+
+    Remote downloads are serialized on rank zero and then reopened in
+    local-only mode, avoiding partial-cache races in multi-GPU jobs.
+    """
+
+    value = str(repo_id_or_path)
+    path = Path(value).expanduser()
+    if path.exists():
+        resolved = resolve_hf_snapshot_path(path, required_files=required_files, local_files_only=True)
+        if required_files and not _required_files_present(resolved, required_files):
+            raise FileNotFoundError(f"snapshot {resolved} is missing required files: {list(required_files)}")
+        return resolved.resolve()
+    if not _is_probable_hf_repo_id(value):
+        return path.resolve()
+
+    if local_files_only is None:
+        local_files_only = _str2bool(os.getenv("WORLDFOUNDRY_HF_LOCAL_FILES_ONLY", "false"))
+    if not local_files_only:
+        maybe_download_hf_repo_on_rank0(
+            value,
+            revision=revision,
+            cache_dir=cache_dir,
+            allow_patterns=allow_patterns,
+            ignore_patterns=ignore_patterns,
+            token=token,
         )
+    snapshot = Path(
+        _snapshot_download(
+            repo_id=value,
+            revision=revision,
+            cache_dir=str(cache_dir) if cache_dir is not None else None,
+            local_files_only=True,
+            allow_patterns=_normalize_patterns(allow_patterns),
+            ignore_patterns=_normalize_patterns(ignore_patterns),
+            token=token,
+        )
+    ).expanduser()
+    if required_files and not _required_files_present(snapshot, required_files):
+        raise FileNotFoundError(f"snapshot {snapshot} is missing required files: {list(required_files)}")
+    return snapshot.resolve()
 
 
 __all__ = [
+    "HF_URI_SCHEME",
+    "hf_download_or_fpath",
+    "materialize_hf_snapshot",
     "maybe_download_hf_repo_on_rank0",
+    "resolve_hf_path",
     "resolve_hf_snapshot_path",
 ]

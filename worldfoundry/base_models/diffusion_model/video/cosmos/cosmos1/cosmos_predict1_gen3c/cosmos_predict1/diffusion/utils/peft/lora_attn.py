@@ -16,11 +16,11 @@
 """Module for base_models -> diffusion_model -> video -> cosmos -> cosmos1 -> cosmos_predict1_gen3c -> cosmos_predict1 -> diffusion -> utils -> peft -> lora_attn.py functionality."""
 
 import torch
+from cosmos_predict1.diffusion.module.attention import Attention, apply_rotary_pos_emb
+from cosmos_predict1.diffusion.utils.peft.lora_net import LoRALinearLayer, TELoRALinearLayer
 from einops import rearrange
 from torch.utils.checkpoint import checkpoint
 
-from cosmos_predict1.diffusion.module.attention import Attention, apply_rotary_pos_emb
-from cosmos_predict1.diffusion.utils.peft.lora_net import LoRALinearLayer, TELoRALinearLayer
 from worldfoundry.base_models.diffusion_model.video.cosmos.shared.customization_manager import CustomizationType
 
 try:
@@ -175,9 +175,9 @@ def cal_attn_lora(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask:
     """
     if self.backend == "transformer_engine":
         seq_dim = self.qkv_format.index("s")
-        assert (
-            q.shape[seq_dim] > 1 and k.shape[seq_dim] > 1
-        ), "Seqlen must be larger than 1 for TE Attention starting with 1.8 TE version."
+        assert q.shape[seq_dim] > 1 and k.shape[seq_dim] > 1, (
+            "Seqlen must be larger than 1 for TE Attention starting with 1.8 TE version."
+        )
         attn_out = self.attn_op(q, k, v, core_attention_bias_type="no_bias", core_attention_bias=None)  # [B, Mq, H, V]
         out = self.to_out(attn_out)
 

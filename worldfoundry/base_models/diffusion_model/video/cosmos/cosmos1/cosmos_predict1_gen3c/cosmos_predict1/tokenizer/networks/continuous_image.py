@@ -18,16 +18,16 @@
 from collections import OrderedDict, namedtuple
 
 import torch
+from cosmos_predict1.tokenizer.modules import ContinuousFormulation, DecoderType, EncoderType
 from loguru import logger as logging
 from torch import nn
-
-from cosmos_predict1.tokenizer.modules import ContinuousFormulation, DecoderType, EncoderType
 
 NetworkEval = namedtuple("NetworkEval", ["reconstructions", "posteriors", "latent"])
 
 
 class ContinuousImageTokenizer(nn.Module):
     """Continuous image tokenizer implementation."""
+
     def __init__(self, z_channels: int, z_factor: int, latent_channels: int, **kwargs) -> None:
         """Init.
 

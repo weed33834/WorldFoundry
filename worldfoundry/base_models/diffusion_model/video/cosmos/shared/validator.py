@@ -29,6 +29,7 @@ from typing import Any, List, Union
 # For usage of hidden flag see the ModelParams class in apis/utils/model_params.py
 class Validator(ABC):
     """Validator implementation."""
+
     # set name is called when the validator is created as class variable
     # name is the name of the variable in the owner class, so here we create the name for the backing variable
     def __set_name__(self, owner, name):
@@ -75,6 +76,7 @@ class Validator(ABC):
 
 class MultipleOf(Validator):
     """Multiple of implementation."""
+
     def __init__(self, default: int, multiple_of: int, type_cast=None, hidden=False, tooltip=None):
         """Init.
 
@@ -138,6 +140,7 @@ class MultipleOf(Validator):
 
 class OneOf(Validator):
     """One of implementation."""
+
     def __init__(self, default, options, type_cast=None, hidden=False, tooltip=None):
         """Init.
 
@@ -195,6 +198,7 @@ class OneOf(Validator):
 
 class HumanAttributes(Validator):
     """Human attributes implementation."""
+
     def __init__(self, default, hidden=False, tooltip=None):
         """Init.
 
@@ -279,6 +283,7 @@ class HumanAttributes(Validator):
 
 class Bool(Validator):
     """Bool implementation."""
+
     def __init__(self, default, hidden=False, tooltip=None):
         """Init.
 
@@ -335,6 +340,7 @@ class Bool(Validator):
 
 class Int(Validator):
     """Int implementation."""
+
     def __init__(self, default, min=None, max=None, step=1, hidden=False, tooltip=None):
         """Init.
 
@@ -398,6 +404,7 @@ class Int(Validator):
 
 class Float(Validator):
     """Float implementation."""
+
     def __init__(self, default=0.0, min=None, max=None, step=0.5, hidden=False, tooltip=None):
         """Init.
 
@@ -461,6 +468,7 @@ class Float(Validator):
 
 class String(Validator):
     """String implementation."""
+
     def __init__(self, default="", min=None, max=None, predicate=None, hidden=False, tooltip=None):
         """Init.
 
@@ -518,6 +526,7 @@ class String(Validator):
 
 class Path(Validator):
     """Path implementation."""
+
     def __init__(self, default="", hidden=False, tooltip=None):
         """Init.
 
@@ -558,6 +567,7 @@ class Path(Validator):
 
 class InputImage(Validator):
     """Input image implementation."""
+
     def __init__(self, default="", hidden=False, tooltip=None):
         """Init.
 
@@ -586,11 +596,11 @@ class InputImage(Validator):
         Args:
             value: The value.
         """
-        _, ext = os.path.splitext(value).lower()
-        image_format = InputImage.valid_extensions[ext]
-
         if not isinstance(value, str):
             raise TypeError(f"Expected {value!r} to be an str")
+        ext = os.path.splitext(value)[1].lower().lstrip(".")
+        if ext not in InputImage.valid_extensions:
+            raise ValueError(f"Expected {value!r} to be a supported image path")
         if not os.path.exists(value):
             raise ValueError(f"Expected {value!r} to be a valid path")
         return value

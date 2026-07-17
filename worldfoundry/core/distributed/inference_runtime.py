@@ -21,10 +21,23 @@ from worldfoundry.core.distributed.logging import print_rank_0
 from worldfoundry.core.distributed.pipeline_parallel import init_pp_scheduler
 
 from . import model_parallel_groups as mpu
+from .generic_collectives import get_world_size  # noqa: F401 - public compatibility export
 
 
 def dist_init(config):
-    """Initialize torch.distributed and core model parallel."""
+    """Initialize torch.distributed plus WorldFoundry CP/PP groups.
+
+    Args:
+        config: Runtime config whose ``engine_config`` provides
+            ``distributed_backend``, ``distributed_timeout_minutes``,
+            ``cp_size``, and ``pp_size``.
+
+    Notes:
+        Rank and world size come from ``RANK`` and ``WORLD_SIZE``. The function
+        requires CUDA, binds each rank to a local device, verifies
+        ``cp_size * pp_size == world_size``, and initializes the pipeline
+        scheduler when pipeline parallelism is active.
+    """
 
     assert torch.cuda.is_available()
     device_count = torch.cuda.device_count()
@@ -62,19 +75,13 @@ def dist_init(config):
 
 
 def is_last_rank():
+    """Return whether this worker is the final rank in the global process group."""
     return torch.distributed.get_rank() == (torch.distributed.get_world_size() - 1)
 
 
 def is_last_tp_cp_rank():
+    """Return whether this worker is last in the combined tensor/context group."""
     return mpu.get_tp_rank(with_context_parallel=True) == mpu.get_tp_world_size(with_context_parallel=True) - 1
-
-
-def get_world_size():
-    if torch.distributed.is_available() and torch.distributed.is_initialized():
-        world_size = torch.distributed.get_world_size()
-    else:
-        world_size = 1
-    return world_size
 
 
 def get_device(local_rank=None):

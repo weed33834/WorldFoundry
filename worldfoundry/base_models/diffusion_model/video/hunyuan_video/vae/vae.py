@@ -9,6 +9,9 @@ import torch.nn as nn
 
 from diffusers.utils import BaseOutput, is_torch_version
 from diffusers.utils.torch_utils import randn_tensor
+
+from worldfoundry.core.kernels import group_norm_silu
+
 from diffusers.models.attention_processor import SpatialNorm
 from .unet_causal_3d_blocks import (
     CausalConv3d,
@@ -143,8 +146,13 @@ class EncoderCausal3D(nn.Module):
         sample = self.mid_block(sample)
 
         # post-process
-        sample = self.conv_norm_out(sample)
-        sample = self.conv_act(sample)
+        sample = group_norm_silu(
+            sample,
+            self.conv_norm_out.weight,
+            self.conv_norm_out.bias,
+            num_groups=self.conv_norm_out.num_groups,
+            eps=self.conv_norm_out.eps,
+        )
         sample = self.conv_out(sample)
 
         return sample
@@ -319,11 +327,20 @@ class DecoderCausal3D(nn.Module):
                 sample = up_block(sample, latent_embeds)
 
         # post-process
-        if latent_embeds is None:
-            sample = self.conv_norm_out(sample)
+        if latent_embeds is None and isinstance(self.conv_norm_out, nn.GroupNorm):
+            sample = group_norm_silu(
+                sample,
+                self.conv_norm_out.weight,
+                self.conv_norm_out.bias,
+                num_groups=self.conv_norm_out.num_groups,
+                eps=self.conv_norm_out.eps,
+            )
         else:
-            sample = self.conv_norm_out(sample, latent_embeds)
-        sample = self.conv_act(sample)
+            if latent_embeds is None:
+                sample = self.conv_norm_out(sample)
+            else:
+                sample = self.conv_norm_out(sample, latent_embeds)
+            sample = self.conv_act(sample)
         sample = self.conv_out(sample)
 
         return sample

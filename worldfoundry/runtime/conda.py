@@ -46,9 +46,30 @@ def project_root() -> Path:
 
 DEFAULT_ENV_MANIFEST = DATA_ROOT / "models" / "runtime" / "environments"
 DEFAULT_ENV_ROOT = conda_envs_root_path()
+RUNTIME_ENV_INSTALLING_MARKER = ".worldfoundry-installing"
+RUNTIME_ENV_READY_MARKER = ".worldfoundry-ready"
 _MODEL_ID_ALIASES = {
     "lyra1": "lyra-1",
 }
+
+
+def runtime_env_is_usable(prefix: str | Path) -> bool:
+    """Return whether an env has Python and is not marked as mid-installation.
+
+    Existing environments remain compatible without a ready marker. New installers
+    write an adjacent installing marker before creating the prefix and remove it
+    only after validation succeeds, so a failed partial install cannot shadow the
+    unified fallback.
+    """
+
+    path = Path(prefix).expanduser()
+    installing_markers = (
+        path / RUNTIME_ENV_INSTALLING_MARKER,
+        path.with_name(f"{path.name}{RUNTIME_ENV_INSTALLING_MARKER}"),
+    )
+    return (path / "bin" / "python").is_file() and not any(
+        marker.exists() for marker in installing_markers
+    )
 
 
 def _canonical_model_id(model_id: str) -> str:
@@ -143,8 +164,8 @@ class RuntimeCondaEnvSpec:
 
     @property
     def exists(self) -> bool:
-        """Return whether the configured Python executable exists on disk."""
-        return self.python_executable.is_file()
+        """Return whether the environment exists and is not mid-installation."""
+        return runtime_env_is_usable(self.env_prefix)
 
     @property
     def driver_compatible(self) -> bool:
@@ -248,7 +269,7 @@ def unified_env_blocker(spec: RuntimeCondaEnvSpec) -> str | None:
         return "local_extension_build_requires_isolated_env"
     for item in spec.source_requirement_files:
         text = str(item)
-        if "${WORLDFOUNDRY_MODEL_SOURCE_DIR}" in text or "../github_repos" in text:
+        if "${WORLDFOUNDRY_MODEL_SOURCE_DIR}" in text:
             return "external_official_requirements"
 
     python_version = _python_version_tuple(spec.python)

@@ -30,8 +30,8 @@ import yaml
 from pydantic_core import PydanticUndefined
 from typing_extensions import Self, assert_never
 
-from cosmos_predict2._src.imaginaire.flags import VALIDATION
-from cosmos_predict2._src.imaginaire.utils.checkpoint_db import get_checkpoint_by_uuid
+from worldfoundry.base_models.diffusion_model.video.cosmos.shared.checkpoint_registry import get_checkpoint_by_uuid
+from worldfoundry.core.configuration.flags import VALIDATION
 
 
 @cache
@@ -164,6 +164,7 @@ CheckpointPath = Annotated[str, pydantic.AfterValidator(_validate_checkpoint_pat
 
 class ModelSize(str, enum.Enum):
     """Model size implementation."""
+
     _2B = "2B"
     _14B = "14B"
 
@@ -178,6 +179,7 @@ class ModelSize(str, enum.Enum):
 
 class ModelVariant(str, enum.Enum):
     """Model variant implementation."""
+
     BASE = "base"
     AUTO_MULTIVIEW = "auto/multiview"
     ROBOT_ACTION_COND = "robot/action-cond"
@@ -195,6 +197,7 @@ class ModelVariant(str, enum.Enum):
 @dataclass(frozen=True, kw_only=True)
 class ModelKey:
     """Model key implementation."""
+
     distilled: bool = False
     post_trained: bool = True
     size: ModelSize = ModelSize._2B

@@ -33,6 +33,7 @@ DEFAULT_MODEL_KEY = ModelKey(variant=ModelVariant.ROBOT_ACTION_COND)
 
 class ActionLoadFn(Protocol):
     """Action load fn implementation."""
+
     def __call__(self, json_data: dict, video_path: str, args: "ActionConditionedInferenceArguments") -> dict: ...
 
 
@@ -58,7 +59,7 @@ class ActionConditionedSetupArguments(CommonSetupArguments):
 
 
 @dataclass
-class ActionConditionedInferenceArguments():
+class ActionConditionedInferenceArguments:
     """Inference arguments for action-conditioned inference."""
 
     # Output parameters

@@ -13,15 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""The network definition for discrete video tokenizer with VQ, LFQ, FSQ or ResidualFSQ. """
+"""The network definition for discrete video tokenizer with VQ, LFQ, FSQ or ResidualFSQ."""
+
 from collections import OrderedDict, namedtuple
 
 import torch
+from cosmos_predict1.tokenizer.modules import Decoder3DType, DiscreteQuantizer, Encoder3DType
+from cosmos_predict1.tokenizer.modules.layers3d import CausalConv3d
 from loguru import logger as logging
 from torch import nn
 
-from cosmos_predict1.tokenizer.modules import Decoder3DType, DiscreteQuantizer, Encoder3DType
-from cosmos_predict1.tokenizer.modules.layers3d import CausalConv3d
 from worldfoundry.base_models.diffusion_model.video.cosmos.shared.tokenizer_quantizers import InvQuantizerJit
 
 NetworkEval = namedtuple("NetworkEval", ["reconstructions", "quant_loss", "quant_info"])
@@ -29,6 +30,7 @@ NetworkEval = namedtuple("NetworkEval", ["reconstructions", "quant_loss", "quant
 
 class CausalDiscreteVideoTokenizer(nn.Module):
     """Causal discrete video tokenizer implementation."""
+
     def __init__(self, z_channels: int, z_factor: int, embedding_dim: int, **kwargs) -> None:
         """Init.
 

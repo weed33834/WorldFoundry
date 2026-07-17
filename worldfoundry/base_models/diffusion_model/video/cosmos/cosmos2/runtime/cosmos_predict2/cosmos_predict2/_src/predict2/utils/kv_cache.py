@@ -37,6 +37,7 @@ TensorKVCacheLayerState = tuple[torch.Tensor, torch.Tensor]
 @dataclass
 class KVCacheConfig:
     """Kv cache config implementation."""
+
     run_with_kv: bool = False
     store_kv: bool = False
     current_idx: int = 0

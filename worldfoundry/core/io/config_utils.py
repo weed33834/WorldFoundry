@@ -1,13 +1,13 @@
 """Hydra/OmegaConf helpers: resolvers, class registry, and config instantiation."""
 
-from copy import deepcopy
 import importlib.resources
 import os
 import sys
+from copy import deepcopy
 
 import hydra
-from omegaconf import DictConfig, OmegaConf
 import tree
+from omegaconf import DictConfig, OmegaConf
 
 from ..utils.functional_utils import call_once, is_mapping, is_sequence, meta_decorator
 from .print_utils import to_scientific_str
@@ -76,9 +76,7 @@ def register_omegaconf_resolvers() -> None:
     OmegaConf.register_new_resolver("__optional__", lambda v: f"__{v}__" if v else "")
     OmegaConf.register_new_resolver("iftrue", lambda cond, v_default: cond if cond else v_default)
     OmegaConf.register_new_resolver("ifelse", lambda cond, v1, v2="": v1 if cond else v2)
-    OmegaConf.register_new_resolver(
-        "ifequal", lambda query, key, v1, v2: v1 if query == key else v2
-    )
+    OmegaConf.register_new_resolver("ifequal", lambda query, key, v1, v2: v1 if query == key else v2)
     OmegaConf.register_new_resolver("intbool", lambda cond: 1 if cond else 0)
     OmegaConf.register_new_resolver("mult", lambda *x: np.prod(x).tolist())
     OmegaConf.register_new_resolver("add", lambda *x: sum(x))
@@ -156,9 +154,7 @@ def get_class(path):
     if path in _CLASS_REGISTRY:
         return _CLASS_REGISTRY[path]
     else:
-        assert "." in path, (
-            f"Because {path} is not found in class registry, " f"it must be a full module path"
-        )
+        assert "." in path, f"Because {path} is not found in class registry, it must be a full module path"
     try:
         from importlib import import_module
 
@@ -204,8 +200,7 @@ def _get_instantiate_params(cfg, kwargs=None):
 def _instantiate_single(cfg):
     if is_mapping(cfg) and ("cls" in cfg or "class" in cfg):
         assert bool("cls" in cfg) != bool("class" in cfg), (
-            "to instantiate from config, "
-            'one and only one of "cls" or "class" key should be provided'
+            'to instantiate from config, one and only one of "cls" or "class" key should be provided'
         )
         if _NO_INSTANTIATE in cfg:
             no_instantiate = cfg.pop(_NO_INSTANTIATE)
@@ -229,8 +224,7 @@ def _instantiate_single(cfg):
 def instantiate(_cfg_, **kwargs):
     """Recursively instantiate dicts that contain a ``cls`` or ``class`` key."""
     assert OmegaConf.is_config(_cfg_) or isinstance(_cfg_, (list, tuple)) or is_mapping(_cfg_), (
-        '"cfg" must be a dict, list, tuple, or OmegaConf config to be instantiated. '
-        f"Current its type is {type(_cfg_)}"
+        f'"cfg" must be a dict, list, tuple, or OmegaConf config to be instantiated. Current its type is {type(_cfg_)}'
     )
 
     _cfg_ = omegaconf_to_dict(_cfg_, resolve=True)
@@ -241,9 +235,6 @@ def instantiate(_cfg_, **kwargs):
             _cfg_.update(kwargs)
             _cfg_ = {k: v for k, v in _cfg_.items() if v != _DELETE_ARG}
         else:
-            raise RuntimeError(
-                f"**kwargs specified, but the top-level cfg is not a dict. "
-                f"It has type {type(_cfg_)}"
-            )
+            raise RuntimeError(f"**kwargs specified, but the top-level cfg is not a dict. It has type {type(_cfg_)}")
 
     return tree.traverse(_instantiate_single, _cfg_, top_down=False)

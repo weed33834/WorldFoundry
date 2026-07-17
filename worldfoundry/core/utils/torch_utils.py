@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
 import os
 import random
 import time
+from copy import deepcopy
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
@@ -13,9 +13,9 @@ import torch
 import torch.nn as nn
 from typing_extensions import Literal
 
-from ..structures.tree_utils import _require_tree, tree_value_at_path
 from ..io.file_utils import f_join
 from ..io.print_utils import to_readable_count_str
+from ..structures.tree_utils import _require_tree, tree_value_at_path
 from .functional_utils import assert_implements_method, implements_method
 
 
@@ -69,19 +69,12 @@ def get_seed(
         # Scramble timestamp bits to avoid adjacent seeds if multiple workers initialize concurrently.
         # https://stackoverflow.com/questions/27276135/python-random-system-time-seed
         t = int(time.time() * 100000)
-        return (
-            ((t & 0xFF000000) >> 24)
-            + ((t & 0x00FF0000) >> 8)
-            + ((t & 0x0000FF00) << 8)
-            + ((t & 0x000000FF) << 24)
-        )
+        return ((t & 0xFF000000) >> 24) + ((t & 0x00FF0000) >> 8) + ((t & 0x0000FF00) << 8) + ((t & 0x000000FF) << 24)
     elif invalid:
         if handle_invalid_seed == "none":
             return None
         elif handle_invalid_seed == "raise":
-            raise ValueError(
-                f"Invalid random seed: {seed}, " f'must be a non-negative integer or "system"'
-            )
+            raise ValueError(f'Invalid random seed: {seed}, must be a non-negative integer or "system"')
         else:
             raise NotImplementedError
     else:
@@ -212,9 +205,7 @@ def get_device(x, strict: bool = False) -> int:
 
     if strict:
         devices = [_get_device(x) for x in xs]
-        assert all(
-            b == devices[0] for b in devices
-        ), f"devices must all be the same in nested structure: {devices}"
+        assert all(b == devices[0] for b in devices), f"devices must all be the same in nested structure: {devices}"
         return devices[0]
     else:
         return _get_device(xs[0])
@@ -238,7 +229,7 @@ def save_torch(D, *fpath):
     Supports both (D, fpath) and (fpath, D) arg order, as long as one of them is a str
     """
     if isinstance(D, str):
-        assert not isinstance(fpath, str), "Either torch_save(D, fpath) " "or torch_save(fpath, D)"
+        assert not isinstance(fpath, str), "Either torch_save(D, fpath) or torch_save(fpath, D)"
         fpath, D = D, fpath
     torch.save(D, str(f_join(fpath)))
 
@@ -429,9 +420,7 @@ def load_state_dict(objects, states, strip_prefix=None, strict=False):
                 return
         if strip_prefix:
             assert isinstance(strip_prefix, str)
-            state = {
-                k[len(strip_prefix) :]: v for k, v in state.items() if k.startswith(strip_prefix)
-            }
+            state = {k[len(strip_prefix) :]: v for k, v in state.items() if k.startswith(strip_prefix)}
         if isinstance(obj, nn.Module):
             return obj.load_state_dict(state, strict=strict)
         else:
@@ -441,8 +430,13 @@ def load_state_dict(objects, states, strip_prefix=None, strict=False):
     return tree.map_structure_with_path(_load, objects)
 
 
-def count_parameters(model):
-    return sum(x.numel() for x in model.parameters())
+def count_parameters(model, verbose: bool = False):
+    count = sum(x.numel() for x in model.parameters())
+    if verbose:
+        from worldfoundry.core.distributed.logging import log
+
+        log.info("parameter count: {:,}", count)
+    return count
 
 
 def readable_count_parameters(model, precision: int = 2):
@@ -525,9 +519,7 @@ def torch_normalize(tensor: torch.Tensor, mean, std, inplace=False):
     mean = torch.as_tensor(mean, dtype=dtype, device=tensor.device)
     std = torch.as_tensor(std, dtype=dtype, device=tensor.device)
     if (std == 0).any():
-        raise ValueError(
-            f"std evaluated to zero after conversion to {dtype}, leading to division by zero."
-        )
+        raise ValueError(f"std evaluated to zero after conversion to {dtype}, leading to division by zero.")
     if mean.ndim == 1:
         mean = mean[:, None, None]
     if std.ndim == 1:
@@ -559,9 +551,7 @@ def multi_one_hot(x, num_classes: List[int], to_float=True):
     assert x.dtype == torch.long
     assert x.dim() >= 2, x.size()
     assert len(num_classes) == x.size(-1), f"{len(num_classes)} != {x.size(1)}"
-    result = torch.cat(
-        [one_hot(t, c) for t, c in zip(torch.unbind(x, dim=-1), num_classes)], dim=-1
-    )
+    result = torch.cat([one_hot(t, c) for t, c in zip(torch.unbind(x, dim=-1), num_classes)], dim=-1)
     if to_float:
         return result.float()
     else:

@@ -10,8 +10,10 @@ import torch
 
 def create_custom_forward(module):
     """Wrap *module* so :func:`torch.utils.checkpoint.checkpoint` can call it."""
+
     def custom_forward(*inputs, **kwargs):
         return module(*inputs, **kwargs)
+
     return custom_forward
 
 

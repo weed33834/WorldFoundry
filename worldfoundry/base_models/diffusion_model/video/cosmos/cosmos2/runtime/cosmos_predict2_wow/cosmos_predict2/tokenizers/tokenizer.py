@@ -20,12 +20,12 @@ from contextlib import nullcontext
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from cosmos_predict2.tokenizers.interface import VideoTokenizerInterface
 from einops import rearrange
 
-from cosmos_predict2.tokenizers.interface import VideoTokenizerInterface
-from imaginaire.utils import log
-from worldfoundry.core.distributed.torch_process_group import broadcast, get_rank, sync_model_states
 from worldfoundry.core.attention import scaled_dot_product_attention as _worldfoundry_scaled_dot_product_attention
+from worldfoundry.core.distributed.logging import log
+from worldfoundry.core.distributed.torch_process_group import broadcast, get_rank, sync_model_states
 from worldfoundry.core.io import load_serialized
 from worldfoundry.core.model_loading import load_torch_checkpoint
 
@@ -66,6 +66,7 @@ class CausalConv3d(nn.Conv3d):
 
 class RMS_norm(nn.Module):
     """Norm implementation."""
+
     def __init__(self, dim, channel_first=True, images=True, bias=False):
         """Init.
 
@@ -95,6 +96,7 @@ class RMS_norm(nn.Module):
 
 class Upsample(nn.Upsample):
     """Upsample implementation."""
+
     def forward(self, x):
         """
         Fix bfloat16 support for nearest neighbor interpolation.
@@ -104,6 +106,7 @@ class Upsample(nn.Upsample):
 
 class Resample(nn.Module):
     """Resample implementation."""
+
     def __init__(self, dim, mode):
         """Init.
 
@@ -195,6 +198,7 @@ class Resample(nn.Module):
 
 class ResidualBlock(nn.Module):
     """Residual block implementation."""
+
     def __init__(self, in_dim, out_dim, dropout=0.0):
         """Init.
 
@@ -296,6 +300,7 @@ class AttentionBlock(nn.Module):
 
 class Encoder3d(nn.Module):
     """Encoder d implementation."""
+
     def __init__(
         self,
         dim=128,
@@ -413,6 +418,7 @@ class Encoder3d(nn.Module):
 
 class Decoder3d(nn.Module):
     """Decoder d implementation."""
+
     def __init__(
         self,
         dim=128,
@@ -544,6 +550,7 @@ def count_conv3d(model):
 
 class VAE_(nn.Module):
     """VAE_ implementation."""
+
     def __init__(
         self,
         dim=128,
@@ -724,8 +731,9 @@ def _video_vae(
         model.to_empty(device=device)
         if load_mean_std:
             img_mean, img_std = torch.randn(1, 16, 1, 1, 1, device=device), torch.randn(1, 16, 1, 1, 1, device=device)
-            video_mean, video_std = torch.randn(1, 16, 32, 1, 1, device=device), torch.randn(
-                1, 16, 32, 1, 1, device=device
+            video_mean, video_std = (
+                torch.randn(1, 16, 32, 1, 1, device=device),
+                torch.randn(1, 16, 32, 1, 1, device=device),
             )
     else:
         if get_rank() == 0:
@@ -750,11 +758,13 @@ def _video_vae(
         else:
             model.to_empty(device=device)
             if load_mean_std:
-                img_mean, img_std = torch.randn(1, 16, 1, 1, 1, device=device), torch.randn(
-                    1, 16, 1, 1, 1, device=device
+                img_mean, img_std = (
+                    torch.randn(1, 16, 1, 1, 1, device=device),
+                    torch.randn(1, 16, 1, 1, 1, device=device),
                 )
-                video_mean, video_std = torch.randn(1, 16, 32, 1, 1, device=device), torch.randn(
-                    1, 16, 32, 1, 1, device=device
+                video_mean, video_std = (
+                    torch.randn(1, 16, 32, 1, 1, device=device),
+                    torch.randn(1, 16, 32, 1, 1, device=device),
                 )
     sync_model_states(model)
 
@@ -777,6 +787,7 @@ def _video_vae(
 
 class VAE:
     """Vae implementation."""
+
     def __init__(
         self,
         z_dim=16,
@@ -896,6 +907,7 @@ class VAE:
 
 class TokenizerInterface(VideoTokenizerInterface):
     """Tokenizer interface implementation."""
+
     def __init__(self, chunk_duration: int = 81, load_mean_std=False, **kwargs):
         """Init.
 

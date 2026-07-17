@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from worldfoundry.base_models.perception_core.tracking.dot.models.shelf.cotracker3_utils.models.core.model_utils import sample_features5d, bilinear_sampler
-from worldfoundry.base_models.perception_core.tracking.dot.models.shelf.cotracker3_utils.models.core.embeddings import get_1d_sincos_pos_embed_from_grid
+from worldfoundry.base_models.perception_core.tracking.cotracker.models.core.embeddings import get_1d_sincos_pos_embed_from_grid
 
 from .blocks import Mlp, BasicEncoder
 from .cotracker import EfficientUpdateFormer

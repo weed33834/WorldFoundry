@@ -30,7 +30,7 @@ if dist.is_available():
     )
 
 try:
-    from megatron.core import parallel_state
+    from worldfoundry.core.distributed.megatron_compat import parallel_state
 except Exception:  # pragma: no cover - optional training dependency.
 
     class _NoParallelState:

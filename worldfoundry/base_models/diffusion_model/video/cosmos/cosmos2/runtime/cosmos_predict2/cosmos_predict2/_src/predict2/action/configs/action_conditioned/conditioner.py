@@ -20,11 +20,6 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 
 import torch
-from hydra.core.config_store import ConfigStore
-
-from cosmos_predict2._src.imaginaire.lazy_config import LazyCall as L
-from cosmos_predict2._src.imaginaire.lazy_config import LazyDict
-from worldfoundry.core.distributed.context_parallel import broadcast_split_tensor
 from cosmos_predict2._src.predict2.conditioner import (
     BooleanFlag,
     GeneralConditioner,
@@ -32,11 +27,17 @@ from cosmos_predict2._src.predict2.conditioner import (
     Text2WorldCondition,
     TextAttr,
 )
+from hydra.core.config_store import ConfigStore
+
+from worldfoundry.core.configuration.lazy_config import LazyCall as L
+from worldfoundry.core.configuration.lazy_config import LazyDict
+from worldfoundry.core.distributed.context_parallel import broadcast_split_tensor
 
 
 @dataclass(frozen=True)
 class Video2WorldCondition(Text2WorldCondition):
     """Video world condition implementation."""
+
     use_video_condition: bool = False
     # the following two attributes are used to set the video condition; during training, inference
     gt_frames: Optional[torch.Tensor] = None
@@ -239,6 +240,7 @@ class Video2WorldConditionV2(Video2WorldCondition):
 
 class Video2WorldConditioner(GeneralConditioner):
     """Video world conditioner implementation."""
+
     def forward(
         self,
         batch: Dict,
@@ -259,6 +261,7 @@ class Video2WorldConditioner(GeneralConditioner):
 
 class Video2WorldConditionerV2(GeneralConditioner):
     """Video world conditioner implementation."""
+
     def forward(
         self,
         batch: Dict,
@@ -280,11 +283,13 @@ class Video2WorldConditionerV2(GeneralConditioner):
 @dataclass(frozen=True)
 class ActionConditionedCondition(Video2WorldCondition):
     """Action conditioned condition implementation."""
+
     action: Optional[torch.Tensor] = None
 
 
 class ActionConditionedConditioner(Video2WorldConditioner):
     """Action conditioned conditioner implementation."""
+
     def forward(
         self,
         batch: Dict,

@@ -19,12 +19,12 @@ import argparse
 import os
 
 import torch
+from cosmos_predict1.utils import log, misc
 from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from worldfoundry.base_models.diffusion_model.video.cosmos.shared.aegis_categories import UNSAFE_CATEGORIES
-from cosmos_predict1.auxiliary.guardrail.common.core import ContentSafetyGuardrail, GuardrailRunner
-from cosmos_predict1.utils import log, misc
+from worldfoundry.core.safety import ContentSafetyGuardrail, GuardrailRunner
 
 SAFE = misc.Color.green("SAFE")
 UNSAFE = misc.Color.red("UNSAFE")
@@ -32,6 +32,7 @@ UNSAFE = misc.Color.red("UNSAFE")
 
 class Aegis(ContentSafetyGuardrail):
     """Aegis implementation."""
+
     def __init__(
         self,
         checkpoint_dir: str,

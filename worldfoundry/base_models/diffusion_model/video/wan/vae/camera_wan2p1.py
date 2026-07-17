@@ -656,6 +656,29 @@ class WanVAE_(nn.Module):
         self.clear_cache()
         return mu
 
+    def cached_encode(self, x, scale):
+        """Encode one streaming chunk while preserving temporal encoder state."""
+        self._enc_conv_idx = [0]
+        out = self.encoder(
+            x,
+            feat_cache=self._enc_feat_map,
+            feat_idx=self._enc_conv_idx,
+        )
+        mu, _log_var = self.conv1(out).chunk(2, dim=1)
+        if isinstance(scale[0], torch.Tensor):
+            mu = (mu - scale[0].view(1, self.z_dim, 1, 1, 1)) * scale[1].view(
+                1, self.z_dim, 1, 1, 1
+            )
+        else:
+            mu = (mu - scale[0]) * scale[1]
+        return mu
+
+    def clear_encoder_cache(self):
+        """Reset streaming encoder state without disturbing decoder state."""
+        self._enc_conv_num = count_conv3d(self.encoder)
+        self._enc_conv_idx = [0]
+        self._enc_feat_map = [None] * self._enc_conv_num
+
     def decode(self, z, scale):
         """Decode.
 
@@ -757,7 +780,9 @@ def _video_vae(pretrained_path=None, z_dim=None, device='cpu', **kwargs):
         dropout=0.0)
     cfg.update(**kwargs)
 
-    # init model
+    if pretrained_path is None:
+        return WanVAE_(**cfg)
+
     with torch.device('meta'):
         model = WanVAE_(**cfg)
 

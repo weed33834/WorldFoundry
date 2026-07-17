@@ -61,7 +61,7 @@ class Cosmos25MultiControlNet3DModel(ModelMixin):
         Returns:
             `Dict[str, torch.Tensor]`: A dictionary containing the aggregated control signals for each block ID.
         """
-        assert len(control_cond) == len(control_scale), 'Mismatch between number of control conditions and scales.'
+        assert len(control_cond) == len(control_scale), "Mismatch between number of control conditions and scales."
 
         outputs = dict()
         # Iterate over each registered ControlNet
@@ -102,5 +102,8 @@ class Cosmos25MultiControlNet3DModel(ModelMixin):
             controlnet = Cosmos25ControlNet3DModel.from_pretrained(os.path.join(pretrained_model_path, name), **kwargs)
             controlnets[name] = controlnet
         if len(controlnets) == 0:
-            raise ValueError(f'No ControlNets found under {os.path.dirname(pretrained_model_path)}. ' f'Expected at least {pretrained_model_path}.')
+            raise ValueError(
+                f"No ControlNets found under {os.path.dirname(pretrained_model_path)}. "
+                f"Expected at least {pretrained_model_path}."
+            )
         return cls(controlnets)

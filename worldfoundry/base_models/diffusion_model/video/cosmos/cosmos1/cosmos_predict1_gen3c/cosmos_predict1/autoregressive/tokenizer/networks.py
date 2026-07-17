@@ -18,17 +18,17 @@
 from collections import namedtuple
 
 import torch
-from torch import nn
-
 from cosmos_predict1.autoregressive.tokenizer.modules import CausalConv3d, DecoderFactorized, EncoderFactorized
 from cosmos_predict1.autoregressive.tokenizer.quantizers import FSQuantizer
 from cosmos_predict1.utils import log
+from torch import nn
 
 NetworkEval = namedtuple("NetworkEval", ["reconstructions", "quant_loss", "quant_info"])
 
 
 class CausalDiscreteVideoTokenizer(nn.Module):
     """Causal discrete video tokenizer implementation."""
+
     def __init__(self, z_channels: int, z_factor: int, embedding_dim: int, **kwargs) -> None:
         """Init.
 

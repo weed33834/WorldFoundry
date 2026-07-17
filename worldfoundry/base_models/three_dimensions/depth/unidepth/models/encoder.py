@@ -15,41 +15,13 @@ from torch.nn.init import trunc_normal_
 
 from worldfoundry.base_models.three_dimensions.general_3d.vipe.ext.xformers import index_select_cat, memory_efficient_attention, scaled_index_add
 from worldfoundry.core.attention import scaled_dot_product_attention as _worldfoundry_scaled_dot_product_attention
+from worldfoundry.core.nn.module_utils import named_apply
 
 fmha = None
 XFORMERS_AVAILABLE = False
 
 
 _DINOV2_BASE_URL = "https://dl.fbaipublicfiles.com/dinov2"
-
-
-def named_apply(fn: Callable, module: nn.Module, name="", depth_first=True, include_root=False) -> nn.Module:
-    """Named apply.
-
-    Args:
-        fn: The fn.
-        module: The module.
-        name: The name.
-        depth_first: The depth first.
-        include_root: The include root.
-
-    Returns:
-        The return value.
-    """
-    if not depth_first and include_root:
-        fn(module=module, name=name)
-    for child_name, child_module in module.named_children():
-        child_name = ".".join((name, child_name)) if name else child_name
-        named_apply(
-            fn=fn,
-            module=child_module,
-            name=child_name,
-            depth_first=depth_first,
-            include_root=True,
-        )
-    if depth_first and include_root:
-        fn(module=module, name=name)
-    return module
 
 
 def get_parameter_groups(model, lr, wd=1e-5, ld=0.9, skip_list=()):

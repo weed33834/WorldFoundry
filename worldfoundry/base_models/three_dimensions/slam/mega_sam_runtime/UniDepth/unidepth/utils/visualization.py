@@ -3,20 +3,12 @@ Author: Luigi Piccinelli
 Licensed under the CC-BY NC 4.0 license (http://creativecommons.org/licenses/by-nc/4.0/)
 """
 
-import os
-
-import matplotlib.pyplot as plt
+import cv2
 import numpy as np
-import torch
-import wandb
 from PIL import Image
 
-from unidepth.utils.misc import ssi_helper
 
-
-def colorize(
-    value: np.ndarray, vmin: float = None, vmax: float = None, cmap: str = "magma_r"
-):
+def colorize(value: np.ndarray, vmin: float = None, vmax: float = None, cmap: str = "magma_r"):
     # if already RGB, do nothing
     if value.ndim > 2:
         if value.shape[-1] > 1:
@@ -26,13 +18,14 @@ def colorize(
     # normalize
     vmin = value.min() if vmin is None else vmin
     vmax = value.max() if vmax is None else vmax
-    value = (value - vmin) / (vmax - vmin)  # vmin..vmax
-
-    # set color
-    cmapper = plt.get_cmap(cmap)
-    value = cmapper(value, bytes=True)  # (nxmx4)
-    value[invalid_mask] = 0
-    img = value[..., :3]
+    value = np.clip((value - vmin) / max(vmax - vmin, 1e-8), 0, 1)
+    if cmap not in {"magma", "magma_r"}:
+        raise ValueError(f"Unsupported inference color map: {cmap}")
+    value = (value * 255).astype(np.uint8)
+    if cmap.endswith("_r"):
+        value = 255 - value
+    img = cv2.cvtColor(cv2.applyColorMap(value, cv2.COLORMAP_MAGMA), cv2.COLOR_BGR2RGB)
+    img[invalid_mask] = 0
     return img
 
 
@@ -102,8 +95,6 @@ def get_pointcloud_from_rgbd(
     # else:
     x_y_z_local = np.stack((x, y, z), axis=-1)
     return np.concatenate([x_y_z_local, image], axis=-1)
-
-
 def save_file_ply(xyz, rgb, pc_file):
     if rgb.max() < 1.001:
         rgb = rgb * 255.0
@@ -130,72 +121,3 @@ def save_file_ply(xyz, rgb, pc_file):
                 xyz[i, 0], xyz[i, 1], xyz[i, 2], rgb[i, 0], rgb[i, 1], rgb[i, 2]
             )
             f.write(str_v)
-
-
-# really awful fct... FIXME
-def log_train_artifacts(rgbs, gts, preds, ds_name, step, infos={}):
-    rgbs = [
-        (127.5 * (rgb + 1))
-        .clip(0, 255)
-        .to(torch.uint8)
-        .cpu()
-        .detach()
-        .permute(1, 2, 0)
-        .numpy()
-        for rgb in rgbs
-    ]
-
-    new_gts, new_preds = [], []
-    if len(gts) > 0:
-        for i, gt in enumerate(gts):
-            scale, shift = ssi_helper(
-                gts[i][gts[i] > 0].cpu().detach(), preds[i][gts[i] > 0].cpu().detach()
-            )
-            gt = gts[i].cpu().detach().squeeze().numpy()
-            pred = (preds[i].cpu().detach() * scale + shift).squeeze().numpy()
-            vmin = gt[gt > 0].min() if (gt > 0).any() else 0.0
-            vmax = gt.max() if (gt > 0).any() else 0.1
-            new_gts.append(colorize(gt, vmin=vmin, vmax=vmax))
-            new_preds.append(colorize(pred, vmin=vmin, vmax=vmax))
-        gts, preds = new_gts, new_preds
-    else:
-        preds = [
-            colorize(pred.cpu().detach().squeeze().numpy(), 0.0, 80.0)
-            for i, pred in enumerate(preds)
-        ]
-
-    num_additional, additionals = 0, []
-    for name, info in infos.items():
-        num_additional += 1
-        if info.shape[1] == 3:
-            additionals.extend(
-                [
-                    (127.5 * (x + 1))
-                    .clip(0, 255)
-                    .to(torch.uint8)
-                    .cpu()
-                    .detach()
-                    .permute(1, 2, 0)
-                    .numpy()
-                    for x in info[:4]
-                ]
-            )
-        else:
-            additionals.extend(
-                [
-                    colorize(x.cpu().detach().squeeze().numpy())
-                    for i, x in enumerate(info[:4])
-                ]
-            )
-
-    num_rows = 2 + int(len(gts) > 0) + num_additional
-    artifacts_grid = image_grid(
-        [*rgbs, *gts, *preds, *additionals], num_rows, len(rgbs)
-    )
-    try:
-        wandb.log({f"{ds_name}_training": [wandb.Image(artifacts_grid)]}, step=step)
-    except:
-        Image.fromarray(artifacts_grid).save(
-            os.path.join(os.environ["HOME"], "Workspace", f"art_grid{step}.png")
-        )
-        print("Logging training images failed")

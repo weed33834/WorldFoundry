@@ -1,6 +1,5 @@
 """Logging, formatting, and debug-print helpers for training and evaluation runs."""
 
-from datetime import datetime
 import io
 import logging
 import os
@@ -11,6 +10,7 @@ import sys
 import textwrap
 import time
 import traceback
+from datetime import datetime
 from typing import Callable, Union
 
 import numpy as np

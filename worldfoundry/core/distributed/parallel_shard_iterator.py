@@ -7,7 +7,7 @@ import torch
 from webdataset.utils import pytorch_worker_info
 
 try:
-    from megatron.core import parallel_state
+    from worldfoundry.core.distributed.megatron_compat import parallel_state
 except ImportError:
     parallel_state = None
 

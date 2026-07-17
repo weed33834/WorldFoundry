@@ -8,18 +8,10 @@ import torch
 from torch import distributed as dist
 from torch.utils import data
 
+from .generic_collectives import get_rank, get_world_size
+from .generic_collectives import is_master as is_primary
 
 LOCAL_PROCESS_GROUP = None
-
-
-def is_primary() -> bool:
-    return get_rank() == 0
-
-
-def get_rank() -> int:
-    if not dist.is_available() or not dist.is_initialized():
-        return 0
-    return dist.get_rank()
 
 
 def get_local_rank() -> int:
@@ -36,12 +28,6 @@ def synchronize() -> None:
     if dist.get_world_size() == 1:
         return
     dist.barrier()
-
-
-def get_world_size() -> int:
-    if not dist.is_available() or not dist.is_initialized():
-        return 1
-    return dist.get_world_size()
 
 
 def all_reduce(tensor, op=dist.ReduceOp.SUM):

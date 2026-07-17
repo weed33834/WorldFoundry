@@ -21,21 +21,26 @@ import warnings
 
 import numpy as np
 import torch
-from retinaface.data import cfg_re50
-from retinaface.layers.functions.prior_box import PriorBox
-from retinaface.models.retinaface import RetinaFace
-from torch.utils.data import DataLoader, TensorDataset
-from tqdm import tqdm
-
-from cosmos_predict1.auxiliary.guardrail.common.core import GuardrailRunner, PostprocessingGuardrail
-from cosmos_predict1.auxiliary.guardrail.common.io_utils import get_video_filepaths, read_video, save_video
-from worldfoundry.base_models.diffusion_model.video.cosmos.shared.blur_utils import pixelate_face
 from cosmos_predict1.auxiliary.guardrail.face_blur_filter.retinaface_utils import (
     decode_batch,
     filter_detected_boxes,
     load_model,
 )
 from cosmos_predict1.utils import log, misc
+from retinaface.data import cfg_re50
+from retinaface.layers.functions.prior_box import PriorBox
+from retinaface.models.retinaface import RetinaFace
+from torch.utils.data import DataLoader, TensorDataset
+from tqdm import tqdm
+
+from worldfoundry.base_models.diffusion_model.video.cosmos.shared.blur_utils import pixelate_face
+from worldfoundry.core.safety import (
+    GuardrailRunner,
+    PostprocessingGuardrail,
+    get_video_filepaths,
+    read_video,
+    save_video,
+)
 
 # RetinaFace model constants from https://github.com/biubug6/Pytorch_Retinaface/blob/master/detect.py
 TOP_K = 5_000
@@ -45,6 +50,7 @@ NMS_THRESHOLD = 0.4
 
 class RetinaFaceFilter(PostprocessingGuardrail):
     """Retina face filter implementation."""
+
     def __init__(
         self,
         checkpoint_dir: str,

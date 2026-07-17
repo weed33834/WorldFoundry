@@ -6,8 +6,8 @@ from typing import Any, Callable, Optional
 
 from torch import Tensor, nn
 
-from worldfoundry.core.nn.layers import DropPath, LayerScale, Mlp
 from worldfoundry.core.attention import QKVSelfAttention
+from worldfoundry.core.nn.layers import DropPath, LayerScale, Mlp
 from worldfoundry.core.nn.stochastic_depth import drop_add_residual_stochastic_depth
 
 

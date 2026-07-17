@@ -9,6 +9,7 @@ from loguru import logger
 
 import torch
 import torch.distributed as dist
+from worldfoundry.core.checkpoint import load_weights_only, tensor_state_dict
 from hyvideo.constants import PROMPT_TEMPLATE, NEGATIVE_PROMPT, PRECISION_TO_TYPE
 from hyvideo.vae import load_vae
 from hyvideo.modules import load_model
@@ -338,7 +339,7 @@ class Inference(object):
         if not model_path.exists():
             raise ValueError(f"model_path not exists: {model_path}")
         logger.info(f"Loading torch model {model_path}...")
-        state_dict = torch.load(model_path, map_location=lambda storage, loc: storage)
+        state_dict = load_weights_only(model_path)
 
         if bare_model == "unknown" and ("ema" in state_dict or "module" in state_dict):
             bare_model = False
@@ -350,6 +351,11 @@ class Inference(object):
                     f"Missing key: `{load_key}` in the checkpoint: {model_path}. The keys in the checkpoint "
                     f"are: {list(state_dict.keys())}."
                 )
+        state_dict = tensor_state_dict(
+            state_dict,
+            source=str(model_path),
+            wrapper_keys=(),
+        )
         model.load_state_dict(state_dict, strict=True)
         return model
 

@@ -2,7 +2,7 @@
 
 import os
 import zipfile
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
 import numpy as np
 import torch
@@ -116,18 +116,14 @@ def _load_intrinsics_for_frame(intrinsics_npz_path: str, frame_idx: int) -> np.n
     arr = data["data"]
     pos = int(np.searchsorted(inds, frame_idx))
     if not (0 <= pos < len(inds)) or int(inds[pos]) != int(frame_idx):
-        raise FileNotFoundError(
-            f"Intrinsics for frame {frame_idx} not found in {intrinsics_npz_path}"
-        )
+        raise FileNotFoundError(f"Intrinsics for frame {frame_idx} not found in {intrinsics_npz_path}")
     item = arr[pos]
     if item.shape == (3, 3):
         K = item.astype(np.float32)
     elif item.shape[-1] == 4:
         K = _intrinsics_from_fxfycxcy(item)
     else:
-        raise ValueError(
-            f"Unsupported intrinsics format {item.shape} in {intrinsics_npz_path}"
-        )
+        raise ValueError(f"Unsupported intrinsics format {item.shape} in {intrinsics_npz_path}")
     return K
 
 
@@ -206,9 +202,7 @@ def _read_mp4_frame(mp4_path: str, frame_idx: int) -> np.ndarray:
         raise ImportError("decord is required to read VIPE rgb mp4") from e
     vr = VideoReader(mp4_path, num_threads=4)
     if frame_idx < 0 or frame_idx >= len(vr):
-        raise IndexError(
-            f"Requested frame_idx {frame_idx} is out of bounds for video length {len(vr)}"
-        )
+        raise IndexError(f"Requested frame_idx {frame_idx} is out of bounds for video length {len(vr)}")
     frame = vr.get_batch([frame_idx])
     try:
         frame_np = frame.asnumpy()
@@ -234,11 +228,7 @@ def _find_clip_paths(vipe_root_or_mp4: str, video_idx: int = 0) -> Tuple[str, st
         root = os.path.dirname(os.path.dirname(mp4_path))
     else:
         rgb_dir = os.path.join(vipe_root_or_mp4, "rgb")
-        mp4_files = [
-            os.path.join(rgb_dir, f)
-            for f in sorted(os.listdir(rgb_dir))
-            if f.endswith(".mp4")
-        ]
+        mp4_files = [os.path.join(rgb_dir, f) for f in sorted(os.listdir(rgb_dir)) if f.endswith(".mp4")]
         if len(mp4_files) == 0:
             raise FileNotFoundError(f"No mp4 found under {rgb_dir}")
         mp4_path = mp4_files[video_idx]
@@ -313,7 +303,7 @@ def load_vipe_data(
         Ks_list.append(K_adj)
 
     w2cs_np = np.stack(w2cs_list, axis=0)  # (T, 4, 4)
-    Ks_np = np.stack(Ks_list, axis=0)      # (T, 3, 3)
+    Ks_np = np.stack(Ks_list, axis=0)  # (T, 3, 3)
 
     # Depth/mask for the whole sequence
     depth_list = []
@@ -346,8 +336,8 @@ def load_vipe_data(
     mask_seq = F.interpolate(mask_seq, size=(rh, rw), mode="nearest")
 
     frames_t = _center_crop(frames_t, ch, cw)  # (T, C, ch, cw)
-    depth_seq = _center_crop(depth_seq, ch, cw)    # (T, 1, ch, cw)
-    mask_seq = _center_crop(mask_seq, ch, cw)      # (T, 1, ch, cw)
+    depth_seq = _center_crop(depth_seq, ch, cw)  # (T, 1, ch, cw)
+    mask_seq = _center_crop(mask_seq, ch, cw)  # (T, 1, ch, cw)
 
     frames_t = frames_t * 2.0 - 1.0  # to [-1, 1]
 
@@ -360,5 +350,5 @@ def load_vipe_data(
         depth_seq,
         mask_seq,
         w2cs_T44,
-        Ks_T33,  
+        Ks_T33,
     )

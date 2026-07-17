@@ -23,6 +23,8 @@ import torch
 from huggingface_hub import PyTorchModelHubMixin
 from torch import nn
 
+from worldfoundry.core.checkpoint import load_tensor_state_dict
+
 from ..efficientvit.models.efficientvit.dc_ae import (
     DCAE,
     DCAEConfig,
@@ -112,7 +114,10 @@ class DCAEWithTemporal_HF(DCAEWithTemporal, PyTorchModelHubMixin):
         if pretrained_model_name_or_path.endswith(".pt"):
             model_name = kwargs.get("model_name", "st-dc-ae-f32t4c32")
             model = cls(model_name)
-            state_dict = torch.load(pretrained_model_name_or_path, map_location="cpu")["model_state_dict"]
+            state_dict = load_tensor_state_dict(
+                pretrained_model_name_or_path,
+                wrapper_keys=("model_state_dict",),
+            )
             model.load_state_dict(state_dict, strict=True)
             return model
         else:

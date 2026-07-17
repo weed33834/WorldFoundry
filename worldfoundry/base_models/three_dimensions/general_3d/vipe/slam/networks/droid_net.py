@@ -21,7 +21,6 @@
 """Module for base_models -> three_dimensions -> general_3d -> vipe -> slam -> networks -> droid_net.py functionality."""
 
 from collections import OrderedDict
-from pathlib import Path
 
 import torch
 import torch.nn as nn
@@ -714,16 +713,12 @@ class DroidNet(nn.Module):
 
     def load_weights(self):
         """load trained model weights"""
-        import gdown
+        from worldfoundry.base_models.three_dimensions.general_3d.vipe.assets import (
+            droid_checkpoint,
+            require_asset,
+        )
 
-        # Download ckpt if needed.
-        ckpt_path = Path(torch.hub.get_dir()) / "droid_slam" / "droid.pth"
-        if not ckpt_path.exists():
-            ckpt_path.parent.mkdir(parents=True, exist_ok=True)
-            gdown.download(
-                id="1PpqVt1H4maBa_GbPJp4NwxRsd9jk-elh",
-                output=str(ckpt_path),
-            )
+        ckpt_path = require_asset(droid_checkpoint())
 
         state_dict = OrderedDict(
             [(k.replace("module.", ""), v) for (k, v) in torch.load(ckpt_path, weights_only=True).items()]

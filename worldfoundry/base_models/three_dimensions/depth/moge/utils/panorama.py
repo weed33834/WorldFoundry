@@ -1,31 +1,63 @@
-"""Module for base_models -> three_dimensions -> depth -> moge -> utils -> panorama.py functionality."""
+"""Shared panorama camera, reprojection, and depth-merging utilities."""
 
-import os
-os.environ['OPENCV_IO_ENABLE_OPENEXR'] = '1'
-from pathlib import Path
-from typing import *
-import itertools
-import json
-import warnings
+from __future__ import annotations
+
+from typing import Sequence
 
 import cv2
 import numpy as np
-from numpy import ndarray
-from tqdm import tqdm, trange
-from scipy.sparse import csr_array, hstack, vstack
 from scipy.ndimage import convolve
+from scipy.sparse import csr_array, vstack
 from scipy.sparse.linalg import lsmr
 
-from ....general_3d.eastern_journalist.utils3d.numpy import (
-    create_icosahedron_mesh, intrinsics_from_fov, extrinsics_look_at, uv_map, unproject_cv, project_cv, uv_to_pixel)
+from ....general_3d.eastern_journalist.utils3d.numpy.maps import uv_map
+from ....general_3d.eastern_journalist.utils3d.numpy.mesh import create_icosahedron_mesh
+from ....general_3d.eastern_journalist.utils3d.numpy.transforms import (
+    extrinsics_look_at,
+    intrinsics_from_fov,
+    project_cv,
+    unproject_cv,
+    uv_to_pixel,
+)
 
 
-def get_panorama_cameras():
-    """Get panorama cameras."""
+def get_panorama_cameras(fov_deg: float = 90.0) -> tuple[np.ndarray, np.ndarray]:
+    """Return normalized intrinsics and icosahedron camera rotations."""
     vertices, _ = create_icosahedron_mesh()
-    intrinsics = intrinsics_from_fov(fov_x=np.deg2rad(90), fov_y=np.deg2rad(90))
+    fov = np.deg2rad(fov_deg)
+    intrinsics = intrinsics_from_fov(fov_x=fov, fov_y=fov).astype(np.float32)
     extrinsics = extrinsics_look_at([0, 0, 0], vertices, [0, 0, 1]).astype(np.float32)
-    return extrinsics, [intrinsics] * len(vertices)
+    return extrinsics, np.repeat(intrinsics[None], len(vertices), axis=0)
+
+
+def get_cubemap_cameras(fov_deg: float = 90.0) -> tuple[np.ndarray, np.ndarray]:
+    """Return six cubemap cameras with normalized OpenCV intrinsics."""
+    targets = np.asarray(
+        [
+            [1, 0, 0],
+            [-1, 0, 0],
+            [0, 1, 0],
+            [0, -1, 0],
+            [0, 0, 1],
+            [0, 0, -1],
+        ],
+        dtype=np.float32,
+    )
+    ups = np.asarray(
+        [
+            [0, 0, 1],
+            [0, 0, 1],
+            [0, 0, 1],
+            [0, 0, 1],
+            [0, -1, 0],
+            [0, 1, 0],
+        ],
+        dtype=np.float32,
+    )
+    extrinsics = extrinsics_look_at(np.zeros_like(targets), targets, ups).astype(np.float32)
+    fov = np.deg2rad(fov_deg)
+    intrinsics = intrinsics_from_fov(fov_x=fov, fov_y=fov).astype(np.float32)
+    return extrinsics, np.repeat(intrinsics[None], len(targets), axis=0)
 
 
 def spherical_uv_to_directions(uv: np.ndarray):
@@ -45,9 +77,11 @@ def directions_to_spherical_uv(directions: np.ndarray):
     Args:
         directions: The directions.
     """
-    directions = directions / np.linalg.norm(directions, axis=-1, keepdims=True)
+    directions = directions / np.clip(
+        np.linalg.norm(directions, axis=-1, keepdims=True), 1e-8, None
+    )
     u = 1 - np.arctan2(directions[..., 1], directions[..., 0]) / (2 * np.pi) % 1.0
-    v = np.arccos(directions[..., 2]) / np.pi
+    v = np.arccos(np.clip(directions[..., 2], -1, 1)) / np.pi
     return np.stack([u, v], axis=-1)
 
 
@@ -67,12 +101,81 @@ def split_panorama_image(image: np.ndarray, extrinsics: np.ndarray, intrinsics: 
         spherical_uv = directions_to_spherical_uv(unproject_cv(uv, np.ones_like(uv[..., 0]), extrinsics=extrinsics[i], intrinsics=intrinsics[i]))
         pixels = uv_to_pixel(spherical_uv, (height, width)).astype(np.float32)
 
-        splitted_image = cv2.remap(image, pixels[..., 0], pixels[..., 1], interpolation=cv2.INTER_LINEAR)    
+        splitted_image = cv2.remap(
+            image,
+            pixels[..., 0],
+            pixels[..., 1],
+            interpolation=cv2.INTER_LINEAR,
+            borderMode=cv2.BORDER_WRAP,
+        )
         splitted_images.append(splitted_image)
     return splitted_images
 
 
-def poisson_equation(width: int, height: int, wrap_x: bool = False, wrap_y: bool = False) -> Tuple[csr_array, ndarray]:
+def zdepth_to_distance(depth_map: np.ndarray, intrinsics: np.ndarray) -> np.ndarray:
+    """Convert perspective z-depth to distance from the camera origin."""
+    rays = unproject_cv(uv_map(depth_map.shape), intrinsics=intrinsics)
+    return depth_map * np.linalg.norm(rays, axis=-1)
+
+
+def merge_cubemap_blended_to_panorama(
+    width: int,
+    height: int,
+    distance_maps: Sequence[np.ndarray],
+    pred_masks: Sequence[np.ndarray],
+    extrinsics: Sequence[np.ndarray],
+    intrinsics: Sequence[np.ndarray],
+) -> tuple[np.ndarray, np.ndarray]:
+    """Merge overlapping cubemap faces using optical-axis cosine weights."""
+    directions = spherical_uv_to_directions(uv_map(height, width))
+    weighted_depth = np.zeros((height, width), dtype=np.float64)
+    weight_sum = np.zeros((height, width), dtype=np.float64)
+
+    for distance, mask, extrinsic, intrinsic in zip(
+        distance_maps, pred_masks, extrinsics, intrinsics
+    ):
+        projected_uv, projected_depth = project_cv(
+            directions, extrinsics=extrinsic, intrinsics=intrinsic
+        )
+        valid = (
+            (projected_depth > 0)
+            & (projected_uv[..., 0] >= 0)
+            & (projected_uv[..., 0] <= 1)
+            & (projected_uv[..., 1] >= 0)
+            & (projected_uv[..., 1] <= 1)
+        )
+        pixels = uv_to_pixel(np.clip(projected_uv, 0, 1), distance.shape).astype(np.float32)
+        sampled_distance = cv2.remap(
+            distance.astype(np.float32),
+            pixels[..., 0],
+            pixels[..., 1],
+            cv2.INTER_LINEAR,
+            borderMode=cv2.BORDER_REPLICATE,
+        )
+        sampled_mask = cv2.remap(
+            mask.astype(np.uint8),
+            pixels[..., 0],
+            pixels[..., 1],
+            cv2.INTER_NEAREST,
+            borderMode=cv2.BORDER_REPLICATE,
+        ).astype(bool)
+
+        ray_x = (projected_uv[..., 0] - intrinsic[0, 2]) / intrinsic[0, 0]
+        ray_y = (projected_uv[..., 1] - intrinsic[1, 2]) / intrinsic[1, 1]
+        weight = 1.0 / (ray_x * ray_x + ray_y * ray_y + 1.0) ** 2
+        weight = np.where(valid & sampled_mask, weight, 0.0)
+        weighted_depth += sampled_distance.astype(np.float64) * weight
+        weight_sum += weight
+
+    panorama_mask = weight_sum > 0
+    panorama_depth = np.zeros((height, width), dtype=np.float32)
+    panorama_depth[panorama_mask] = (
+        weighted_depth[panorama_mask] / weight_sum[panorama_mask]
+    ).astype(np.float32)
+    return panorama_depth, panorama_mask
+
+
+def poisson_equation(width: int, height: int, wrap_x: bool = False, wrap_y: bool = False) -> csr_array:
     """Poisson equation.
 
     Args:
@@ -102,7 +205,7 @@ def poisson_equation(width: int, height: int, wrap_x: bool = False, wrap_y: bool
     return A
 
 
-def grad_equation(width: int, height: int, wrap_x: bool = False, wrap_y: bool = False) -> Tuple[csr_array, np.ndarray]:
+def grad_equation(width: int, height: int, wrap_x: bool = False, wrap_y: bool = False) -> csr_array:
     """Grad equation.
 
     Args:
@@ -146,7 +249,14 @@ def grad_equation(width: int, height: int, wrap_x: bool = False, wrap_y: bool = 
     return A
 
 
-def merge_panorama_depth(width: int, height: int, distance_maps: List[np.ndarray], pred_masks: List[np.ndarray], extrinsics: List[np.ndarray], intrinsics: List[np.ndarray]):
+def merge_panorama_depth(
+    width: int,
+    height: int,
+    distance_maps: Sequence[np.ndarray],
+    pred_masks: Sequence[np.ndarray],
+    extrinsics: Sequence[np.ndarray],
+    intrinsics: Sequence[np.ndarray],
+) -> tuple[np.ndarray, np.ndarray]:
     """Merge panorama depth.
 
     Args:
@@ -176,7 +286,7 @@ def merge_panorama_depth(width: int, height: int, distance_maps: List[np.ndarray
         
         projected_pixels = uv_to_pixel(np.clip(projected_uv, 0, 1), distance_maps[i].shape).astype(np.float32)
         
-        log_splitted_distance = np.log(distance_maps[i])
+        log_splitted_distance = np.log(np.clip(distance_maps[i], 1e-6, None))
         panorama_log_distance_map = np.where(projection_valid_mask, cv2.remap(log_splitted_distance, projected_pixels[..., 0], projected_pixels[..., 1], cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE), 0)
         panorama_pred_mask = projection_valid_mask & (cv2.remap(pred_masks[i].astype(np.uint8), projected_pixels[..., 0], projected_pixels[..., 1], cv2.INTER_NEAREST, borderMode=cv2.BORDER_REPLICATE) > 0)
 

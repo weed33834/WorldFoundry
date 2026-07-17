@@ -31,16 +31,18 @@ import torch.nn as nn
 from torch.distributed import ProcessGroup
 
 from worldfoundry.base_models.diffusion_model.video.cosmos.shared.batch_ops import batch_mul
+from worldfoundry.core.configuration.lazy_config import instantiate
 from worldfoundry.core.distributed.context_parallel import broadcast
-from cosmos_predict2.utils.misc import count_params, disabled_train
-from imaginaire.lazy_config import instantiate
-from imaginaire.utils import log
+from worldfoundry.core.distributed.logging import log
+from worldfoundry.core.utils import count_parameters as count_params
+from worldfoundry.core.utils.inference_runtime import disabled_train
 
 T = TypeVar("T", bound="BaseCondition")
 
 
 class DataType(str, Enum):
     """Data type implementation."""
+
     IMAGE = "image"
     VIDEO = "video"
     MIX = "mix"
@@ -115,6 +117,7 @@ class BaseCondition(ABC):
 @dataclass(frozen=True)
 class T2VCondition(BaseCondition):
     """V condition implementation."""
+
     crossattn_emb: Optional[torch.Tensor] = None
     data_type: DataType = DataType.VIDEO
     padding_mask: Optional[torch.Tensor] = None
@@ -146,6 +149,7 @@ class T2VCondition(BaseCondition):
 @dataclass(frozen=True)
 class GR00TV1Img2VidCondition(T2VCondition):
     """Img vid condition implementation."""
+
     gt_first_frame: Optional[torch.Tensor] = None
     use_image_condition: bool = False
     condition_video_input_mask_B_C_T_H_W: Optional[torch.Tensor] = None
@@ -174,6 +178,7 @@ class GR00TV1Img2VidCondition(T2VCondition):
 
 class AbstractEmbModel(nn.Module):
     """Abstract emb model implementation."""
+
     def __init__(self):
         """Init."""
         super().__init__()
@@ -320,6 +325,7 @@ class AbstractEmbModel(nn.Module):
 
 class TextAttr(AbstractEmbModel):
     """Text attr implementation."""
+
     def __init__(self, input_key: List[str], dropout_rate: Optional[float] = 0.0):
         """Init.
 
@@ -367,6 +373,7 @@ class TextAttr(AbstractEmbModel):
 
 class ReMapkey(AbstractEmbModel):
     """Re mapkey implementation."""
+
     def __init__(
         self,
         input_key: str,
@@ -423,6 +430,7 @@ class ReMapkey(AbstractEmbModel):
 
 class BooleanFlag(AbstractEmbModel):
     """Boolean flag implementation."""
+
     def __init__(self, input_key: str, output_key: Optional[str] = None, dropout_rate: Optional[float] = 0.0):
         """Init.
 
@@ -498,9 +506,9 @@ class GeneralConditioner(nn.Module, ABC):
         self.embedders = nn.ModuleDict()
         for n, (emb_name, emb_config) in enumerate(emb_models.items()):
             embedder = instantiate(emb_config)
-            assert isinstance(
-                embedder, AbstractEmbModel
-            ), f"embedder model {embedder.__class__.__name__} has to inherit from AbstractEmbModel"
+            assert isinstance(embedder, AbstractEmbModel), (
+                f"embedder model {embedder.__class__.__name__} has to inherit from AbstractEmbModel"
+            )
             embedder.is_trainable = getattr(emb_config, "is_trainable", True)
             embedder.dropout_rate = getattr(emb_config, "dropout_rate", 0.0)
             if not embedder.is_trainable:
@@ -635,6 +643,7 @@ class GeneralConditioner(nn.Module, ABC):
 
 class VideoConditioner(GeneralConditioner):
     """Video conditioner implementation."""
+
     def forward(
         self,
         batch: Dict,
@@ -655,6 +664,7 @@ class VideoConditioner(GeneralConditioner):
 
 class GR00TV1Img2VidConditioner(GeneralConditioner):
     """Img vid conditioner implementation."""
+
     def forward(
         self,
         batch: Dict,

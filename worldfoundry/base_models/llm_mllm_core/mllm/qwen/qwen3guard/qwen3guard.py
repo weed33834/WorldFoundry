@@ -21,9 +21,10 @@ import re
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from cosmos_predict2._src.imaginaire.auxiliary.guardrail.common.core import ContentSafetyGuardrail, GuardrailRunner
 from worldfoundry.base_models.llm_mllm_core.mllm.qwen.qwen3guard.categories import UNSAFE_CATEGORIES
-from cosmos_predict2._src.imaginaire.utils import log, misc
+from worldfoundry.core.distributed.logging import log
+from worldfoundry.core.safety import ContentSafetyGuardrail, GuardrailRunner
+from worldfoundry.core.utils import inference_runtime as misc
 
 SAFE = misc.Color.green("SAFE")
 UNSAFE = misc.Color.red("UNSAFE")
@@ -31,6 +32,7 @@ UNSAFE = misc.Color.red("UNSAFE")
 
 class Qwen3Guard(ContentSafetyGuardrail):
     """Qwen guard implementation."""
+
     def __init__(
         self,
         offload_model_to_cpu: bool = True,

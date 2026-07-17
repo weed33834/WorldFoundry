@@ -18,18 +18,18 @@
 from typing import Optional, Tuple
 
 import torch
+from cosmos_predict1.diffusion.module.blocks import PatchEmbed
+from cosmos_predict1.diffusion.networks.general_dit import GeneralDIT
+from cosmos_predict1.utils import log
 from einops import rearrange
 from torch import nn
 from torch.distributed import ProcessGroup, get_process_group_ranks
 from torchvision import transforms
 
-from cosmos_predict1.diffusion.module.blocks import PatchEmbed
-from cosmos_predict1.diffusion.networks.general_dit import GeneralDIT
-from cosmos_predict1.utils import log
-
 
 class DiffusionDecoderGeneralDIT(GeneralDIT):
     """Diffusion decoder general dit implementation."""
+
     def __init__(
         self,
         *args,
@@ -122,7 +122,7 @@ class DiffusionDecoderGeneralDIT(GeneralDIT):
             patch_temporal,
             model_channels,
             is_diffusion_decoder,
-            diffusion_decoder_token_condition_dim,
+            _diffusion_decoder_token_condition_dim,
             diffusion_decoder_condition_on_sigma,
         ) = (
             self.concat_padding_mask,

@@ -3,7 +3,7 @@
 
 from dataclasses import dataclass, field
 
-from .dits_base import DiTArchConfig, DiTConfig
+from worldfoundry.core.configuration.model_config import DiTArchConfig, DiTConfig
 
 
 def is_causal_block(n: str, m) -> bool:

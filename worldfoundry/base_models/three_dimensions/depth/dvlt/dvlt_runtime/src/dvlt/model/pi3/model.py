@@ -168,7 +168,3 @@ class Pi3(Module):
     # ---------------------------------------------------------------------
     # Training -------------------------------------------------------------
     # ---------------------------------------------------------------------
-
-    def train_step(self, *args, **kwargs):
-        """Train step."""
-        raise NotImplementedError("Pi3 does not support training within dvlt")

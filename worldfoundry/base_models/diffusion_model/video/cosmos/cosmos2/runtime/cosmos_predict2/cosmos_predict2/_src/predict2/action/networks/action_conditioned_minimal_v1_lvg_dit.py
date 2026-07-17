@@ -20,15 +20,16 @@ from typing import List, Optional, Tuple
 import torch
 import torch.amp as amp
 import torch.nn as nn
+from cosmos_predict2._src.predict2.conditioner import DataType
+from cosmos_predict2._src.predict2.networks.minimal_v4_dit import InferenceDiT
 from einops import rearrange
 
-from cosmos_predict2._src.imaginaire.utils import log
-from cosmos_predict2._src.predict2.conditioner import DataType
-from cosmos_predict2._src.predict2.networks.minimal_v4_dit import MiniTrainDIT
+from worldfoundry.core.distributed.logging import log
 
 
 class Mlp(nn.Module):
     """Mlp implementation."""
+
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.0):
         """Init.
 
@@ -61,8 +62,9 @@ class Mlp(nn.Module):
         return x
 
 
-class ActionConditionedMinimalV1LVGDiT(MiniTrainDIT):
+class ActionConditionedMinimalV1LVGDiT(InferenceDiT):
     """Action conditioned minimal lvg di t implementation."""
+
     def __init__(self, *args, timestep_scale: float = 1.0, **kwargs):
         """Init."""
         assert "in_channels" in kwargs, "in_channels must be provided"
@@ -222,8 +224,9 @@ class ActionConditionedMinimalV1LVGDiT(MiniTrainDIT):
         return x_B_C_Tt_Hp_Wp
 
 
-class ActionChunkConditionedMinimalV1LVGDiT(MiniTrainDIT):
+class ActionChunkConditionedMinimalV1LVGDiT(InferenceDiT):
     """Action chunk conditioned minimal lvg di t implementation."""
+
     def __init__(self, *args, timestep_scale: float = 1.0, **kwargs):
         """Init."""
         assert "in_channels" in kwargs, "in_channels must be provided"

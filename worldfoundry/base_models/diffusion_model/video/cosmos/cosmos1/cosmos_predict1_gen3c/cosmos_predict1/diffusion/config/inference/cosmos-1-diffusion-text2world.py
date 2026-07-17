@@ -18,7 +18,7 @@
 from hydra.core.config_store import ConfigStore
 
 from worldfoundry.base_models.diffusion_model.video.cosmos.shared.lora_config import get_fa_ca_qv_lora_config
-from cosmos_predict1.utils.lazy_config import LazyDict
+from worldfoundry.core.configuration.lazy_config import LazyDict
 
 Cosmos_Predict1_Text2World_7B: LazyDict = LazyDict(
     dict(

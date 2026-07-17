@@ -19,11 +19,6 @@ from typing import Any, Dict, Optional
 
 import torch
 import torch.nn as nn
-from worldfoundry.core.distributed.megatron_compat import parallel_state
-from torch.distributed import broadcast, get_process_group_ranks
-from torch.distributed._functional_collectives import all_gather_tensor
-from torch.nn.modules.module import _IncompatibleKeys
-
 from cosmos_predict1.autoregressive.modules.attention import Attention
 from cosmos_predict1.autoregressive.modules.embedding import (
     RotaryPositionEmbeddingPytorchV1,
@@ -32,10 +27,15 @@ from cosmos_predict1.autoregressive.modules.embedding import (
 )
 from cosmos_predict1.autoregressive.modules.linear import VocabParallelEmbedding
 from cosmos_predict1.autoregressive.modules.mlp import MLP
-from worldfoundry.base_models.diffusion_model.video.cosmos.shared.autoregressive_normalization import create_norm
 from cosmos_predict1.autoregressive.utils.checkpoint import process_state_dict, substrings_to_ignore
-from worldfoundry.base_models.diffusion_model.video.cosmos.shared.autoregressive_misc import maybe_convert_to_namespace
 from cosmos_predict1.utils import log
+from torch.distributed import broadcast, get_process_group_ranks
+from torch.distributed._functional_collectives import all_gather_tensor
+from torch.nn.modules.module import _IncompatibleKeys
+
+from worldfoundry.base_models.diffusion_model.video.cosmos.shared.autoregressive_misc import maybe_convert_to_namespace
+from worldfoundry.base_models.diffusion_model.video.cosmos.shared.autoregressive_normalization import create_norm
+from worldfoundry.core.distributed.megatron_compat import parallel_state
 
 
 class TransformerBlock(nn.Module):
@@ -344,15 +344,13 @@ class Transformer(nn.Module):
             The output tensor after applying the transformer layers.
         """
         # Token embeddings
-        assert (
-            tokens is None or token_embeddings is None
-        ), "Either tokens or token_embeddings should be provided, not both."
+        assert tokens is None or token_embeddings is None, (
+            "Either tokens or token_embeddings should be provided, not both."
+        )
 
         if token_embeddings is None:
-            seq_len = tokens.shape[1]
             h = self.tok_embeddings(tokens)
         else:
-            seq_len = token_embeddings.shape[1]
             h = token_embeddings
 
         # Create attention mask
@@ -465,7 +463,7 @@ class Transformer(nn.Module):
         tp_size = self.params["tensor_model_parallel_size"]
         if new_vocab_size <= self.vocab_size:
             raise ValueError(
-                f"New vocabulary size ({new_vocab_size}) must be " f"larger than current size ({self.vocab_size})"
+                f"New vocabulary size ({new_vocab_size}) must be larger than current size ({self.vocab_size})"
             )
         if new_vocab_size % multiple_of != 0:
             log.debug(f"New vocabulary size must be a multiple of {multiple_of}. Obtained {new_vocab_size}.")

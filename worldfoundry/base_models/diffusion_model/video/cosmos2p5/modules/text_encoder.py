@@ -75,12 +75,17 @@ class Reason1TextEncoder(nn.Module):
             # Format the prompt using the model's chat template
             messages = [
                 {
-                    'role': 'system',
-                    'content': [{'type': 'text', 'text': 'You are a helpful assistant who will provide prompts to an image generator.'}],
+                    "role": "system",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "You are a helpful assistant who will provide prompts to an image generator.",
+                        }
+                    ],
                 },
                 {
-                    'role': 'user',
-                    'content': [{'type': 'text', 'text': prompt}],
+                    "role": "user",
+                    "content": [{"type": "text", "text": prompt}],
                 },
             ]
             text = self.processor.apply_chat_template(
@@ -93,9 +98,9 @@ class Reason1TextEncoder(nn.Module):
             inputs = self.processor(
                 text=[text],
                 padding=False,
-                return_tensors='pt',
+                return_tensors="pt",
             )
-            input_ids = inputs['input_ids'][0]
+            input_ids = inputs["input_ids"][0]
 
             # Pad or truncate the token IDs to a fixed length
             pad_id = self.processor.tokenizer.pad_token_id
@@ -113,7 +118,7 @@ class Reason1TextEncoder(nn.Module):
         # Get hidden states from the text model
         with torch.no_grad():
             outputs = self.model(input_ids=input_ids_batch, output_hidden_states=True, use_cache=False)
-        hidden_states = outputs['hidden_states']
+        hidden_states = outputs["hidden_states"]
 
         # Normalize the hidden states from each layer (except the first)
         normalized_hidden_states = []

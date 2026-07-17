@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from worldfoundry.runtime import resolve_hfd_root
-
+from worldfoundry.runtime.env import resolve_hfd_root
 
 OFFICIAL_REPO_URL = "https://github.com/Vchitect/Vchitect-2.0"
 OFFICIAL_REPO_REVISION = "be56767f1107b4fd6ba7652fe92ec0e7032878fe"

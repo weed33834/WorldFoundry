@@ -23,11 +23,17 @@ import torch
 from einops import rearrange
 from omegaconf import DictConfig, OmegaConf
 
-from worldfoundry.base_models.three_dimensions.general_3d.vipe.ext.lietorch import SE3
 from worldfoundry.base_models.three_dimensions.depth import make_depth_model
 from worldfoundry.base_models.three_dimensions.depth.adapter import PinholeDepthAdapter
 from worldfoundry.base_models.three_dimensions.depth.base import DepthType
-from worldfoundry.base_models.three_dimensions.general_3d.vipe.streams.base import FrameAttribute, ProcessedVideoStream, StreamProcessor, VideoFrame, VideoStream
+from worldfoundry.base_models.three_dimensions.general_3d.vipe.ext.lietorch import SE3
+from worldfoundry.base_models.three_dimensions.general_3d.vipe.streams.base import (
+    FrameAttribute,
+    ProcessedVideoStream,
+    StreamProcessor,
+    VideoFrame,
+    VideoStream,
+)
 from worldfoundry.base_models.three_dimensions.general_3d.vipe.utils.cameras import CameraType
 from worldfoundry.base_models.three_dimensions.general_3d.vipe.utils.logging import pbar
 from worldfoundry.base_models.three_dimensions.general_3d.vipe.utils.misc import unpack_optional
@@ -130,10 +136,26 @@ class SLAMSystem:
         self.visualize = config.visualize
         self.config = config.copy()
         OmegaConf.set_struct(self.config, False)
+        # Network weights are immutable during inference and can be reused
+        # across videos. Per-video graph/buffer state is rebuilt below.
+        self.droid_net: DroidNet | None = None
 
     def _build_components(self):
         """Helper function to build components."""
-        self.droid_net = DroidNet().to(self.device)
+        per_video_components = (
+            "inner_filler",
+            "backend",
+            "frontend",
+            "motion_filter",
+            "buffer",
+            "sparse_tracks",
+            "metric_depth",
+        )
+        for name in per_video_components:
+            self.__dict__.pop(name, None)
+        if self.droid_net is None:
+            self.droid_net = DroidNet().to(self.device)
+        droid_net = self.droid_net
         self.sparse_tracks = build_sparse_tracks(self.config.sparse_tracks, self.config.n_views)
         self.buffer = GraphBuffer(
             height=self.config.height,
@@ -149,14 +171,14 @@ class SLAMSystem:
         )
         self.buffer.rig[:] = self.rig.to(self.device).data
         self.motion_filter = MotionFilter(
-            self.droid_net,
+            droid_net,
             sparse_tracks=self.sparse_tracks,
             thresh=self.config.filter_thresh,
             device=self.device,
         )
-        self.frontend = SLAMFrontend(self.droid_net, self.buffer, self.config, device=self.device)
-        self.backend = SLAMBackend(self.droid_net, self.buffer, self.config, device=self.device)
-        self.inner_filler = InnerFiller(self.droid_net, self.buffer, self.config, device=self.device)
+        self.frontend = SLAMFrontend(droid_net, self.buffer, self.config, device=self.device)
+        self.backend = SLAMBackend(droid_net, self.buffer, self.config, device=self.device)
+        self.inner_filler = InnerFiller(droid_net, self.buffer, self.config, device=self.device)
 
         if self.config.keyframe_depth is not None:
             assert self.config.n_views == 1, """Currently the global scale lies in the null-space of the SLAM problem. 

@@ -22,7 +22,6 @@ from typing import Any, Optional
 import einops
 import numpy as np
 import torch
-
 from cosmos_predict1.diffusion.inference.inference_utils import (
     generate_world_from_text,
     generate_world_from_video,
@@ -76,6 +75,7 @@ MODEL_NAME_DICT = {
 
 class DiffusionText2WorldGenerationPipeline(BaseWorldGenerationPipeline):
     """Diffusion text world generation pipeline implementation."""
+
     def __init__(
         self,
         inference_type: str,
@@ -413,6 +413,7 @@ class DiffusionText2WorldGenerationPipeline(BaseWorldGenerationPipeline):
 
 class DiffusionVideo2WorldGenerationPipeline(DiffusionText2WorldGenerationPipeline):
     """Diffusion video world generation pipeline implementation."""
+
     def __init__(
         self,
         inference_type: str,
@@ -497,6 +498,8 @@ class DiffusionVideo2WorldGenerationPipeline(DiffusionText2WorldGenerationPipeli
         """
         from cosmos_predict1.diffusion.prompt_upsampler.video2world_prompt_upsampler_inference import (
             prepare_dialog,
+        )
+        from cosmos_predict1.diffusion.prompt_upsampler.video2world_prompt_upsampler_inference import (
             run_chat_completion as run_chat_completion_vlm,
         )
 
@@ -708,6 +711,7 @@ class DiffusionVideo2WorldGenerationPipeline(DiffusionText2WorldGenerationPipeli
 
 class DiffusionText2WorldMultiviewGenerationPipeline(DiffusionText2WorldGenerationPipeline):
     """Diffusion text world multiview generation pipeline implementation."""
+
     def __init__(
         self,
         inference_type: str,
@@ -901,6 +905,7 @@ class DiffusionText2WorldMultiviewGenerationPipeline(DiffusionText2WorldGenerati
 
 class DiffusionVideo2WorldMultiviewGenerationPipeline(DiffusionText2WorldMultiviewGenerationPipeline):
     """Diffusion video world multiview generation pipeline implementation."""
+
     def __init__(
         self,
         inference_type: str,
@@ -1132,6 +1137,7 @@ class DiffusionVideo2WorldMultiviewGenerationPipeline(DiffusionText2WorldMultivi
 
 class DiffusionWorldInterpolatorGenerationPipeline(DiffusionVideo2WorldGenerationPipeline):
     """Diffusion world interpolator generation pipeline implementation."""
+
     def __init__(
         self,
         inference_type: str,
@@ -1225,6 +1231,8 @@ class DiffusionWorldInterpolatorGenerationPipeline(DiffusionVideo2WorldGeneratio
         """
         from cosmos_predict1.diffusion.prompt_upsampler.video2world_prompt_upsampler_inference import (
             prepare_dialog,
+        )
+        from cosmos_predict1.diffusion.prompt_upsampler.video2world_prompt_upsampler_inference import (
             run_chat_completion as run_chat_completion_vlm,
         )
 

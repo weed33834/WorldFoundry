@@ -242,9 +242,7 @@ def _extract_all_frames_ffmpeg(video_path: str) -> tuple[np.ndarray, np.ndarray]
         total_pixels = len(frame_data) // 3
         actual_frames = total_pixels // (width * height)
 
-        frames = frame_data[: actual_frames * width * height * 3].reshape(
-            (actual_frames, height, width, 3)
-        )
+        frames = frame_data[: actual_frames * width * height * 3].reshape((actual_frames, height, width, 3))
 
         # Generate timestamps
         timestamps = np.arange(actual_frames) / fps
@@ -329,9 +327,9 @@ def get_frames_by_timestamps(
         )
 
         # https://docs.pytorch.org/torchcodec/stable/generated/torchcodec.decoders.VideoStreamMetadata.html#torchcodec.decoders.VideoStreamMetadata
-        # Temporary fix: use 30 fps as the fps of the video (agibot) 
+        # Temporary fix: use 30 fps as the fps of the video (agibot)
         # TODO: get fps as parameter
-        if fps is None: 
+        if fps is None:
             fps = decoder.metadata.average_fps
         interval = 1 / fps
         timestamps = np.array(timestamps).astype(np.float64)
@@ -345,7 +343,7 @@ def get_frames_by_timestamps(
         last_frame = decoder.get_frames_at(indices=[len(decoder) - 1])
         min_pts = float(first_frame.pts_seconds[0])
         max_pts = float(last_frame.pts_seconds[0])
-        
+
         # Clamp timestamps to valid range to avoid RuntimeError
         timestamps = np.clip(timestamps, min_pts, max_pts)
 
@@ -354,7 +352,7 @@ def get_frames_by_timestamps(
         # Without this, the torchcodec will read the delayed frame (e.g. 1.39999998 -> 1.2)
         # Round to nearest frame interval to prevent torchcodec from reading wrong frames
         # Allow max 1% error from expected interval
-        if fps is None: 
+        if fps is None:
             closest_timestamps = np.round(timestamps / interval) * interval
             # Re-clamp after rounding to ensure still in valid range
             closest_timestamps = np.clip(closest_timestamps, min_pts, max_pts)
@@ -417,7 +415,7 @@ def get_frames_by_timestamps(
         # to map timestamps to frame data. This allows for easy re-ordering later.
         found_frames_map = {}
         tolerance = 0.001  # 1ms tolerance for timestamp matching
-        
+
         for frame in reader:
             current_ts = frame["pts"]
 
@@ -432,14 +430,16 @@ def get_frames_by_timestamps(
 
         reader.container.close()
         reader = None
-        
+
         # Debug: print timestamp matching results
-        print(f"[video_utils] Requested {len(timestamps)} timestamps: {timestamps[:4]}{'...' if len(timestamps) > 4 else ''}")
+        print(
+            f"[video_utils] Requested {len(timestamps)} timestamps: {timestamps[:4]}{'...' if len(timestamps) > 4 else ''}"
+        )
         print(f"[video_utils] Found {len(found_frames_map)} frames with tolerance={tolerance}s")
         if len(found_frames_map) < len(timestamps):
             missing = [ts for ts in timestamps if ts not in found_frames_map]
             print(f"[video_utils] WARNING: Missing timestamps: {missing[:4]}{'...' if len(missing) > 4 else ''}")
-        
+
         frames = np.array(list(found_frames_map.values()))
         return frames.transpose(0, 2, 3, 1)
 

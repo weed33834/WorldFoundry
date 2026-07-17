@@ -15,15 +15,14 @@
 
 """Module for base_models -> diffusion_model -> video -> cosmos -> cosmos2 -> runtime -> cosmos_predict2_wow -> cosmos_predict2 -> tokenizers -> interface.py functionality."""
 
-import os
 from abc import ABC, abstractmethod
-from typing import Optional
 
 import torch
 
 
 class VideoTokenizerInterface(ABC):
     """Video tokenizer interface implementation."""
+
     def __init__(self):
         """Init."""
         pass

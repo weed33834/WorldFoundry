@@ -25,17 +25,17 @@ import torch
 import torch.distributed as distributed
 import torch.nn as nn
 import torch.nn.functional as F
-from einops import rearrange
-from megatron.core import parallel_state
-
-from cosmos_predict2._src.imaginaire.flags import INTERNAL, VALIDATION
-from cosmos_predict2._src.imaginaire.utils import log
-from worldfoundry.core.distributed.torch_process_group import broadcast, get_rank, sync_model_states
-from cosmos_predict2._src.imaginaire.utils.easy_io import easy_io
 from cosmos_predict2._src.predict2.tokenizers.interface import VideoTokenizerInterface
 from cosmos_predict2._src.predict2.tokenizers.wan2pt1_2d_plugins import plugin_mount
 from cosmos_predict2._src.predict2.utils.tokenizer_timing import BenchmarkTimes
+from einops import rearrange
+
 from worldfoundry.core.attention import scaled_dot_product_attention as _worldfoundry_scaled_dot_product_attention
+from worldfoundry.core.configuration.flags import INTERNAL, VALIDATION
+from worldfoundry.core.distributed.logging import log
+from worldfoundry.core.distributed.megatron_compat import parallel_state
+from worldfoundry.core.distributed.torch_process_group import broadcast, get_rank, sync_model_states
+from worldfoundry.core.io.easy_io import easy_io
 
 __all__ = [
     "WanVAE",
@@ -74,6 +74,7 @@ class CausalConv3d(nn.Conv3d):
 
 class RMS_norm(nn.Module):
     """Norm implementation."""
+
     def __init__(self, dim, channel_first=True, images=True, bias=False):
         """Init.
 
@@ -103,6 +104,7 @@ class RMS_norm(nn.Module):
 
 class Upsample(nn.Upsample):
     """Upsample implementation."""
+
     def forward(self, x):
         """
         Fix bfloat16 support for nearest neighbor interpolation.
@@ -112,6 +114,7 @@ class Upsample(nn.Upsample):
 
 class Resample(nn.Module):
     """Resample implementation."""
+
     def __init__(self, dim, mode):
         """Init.
 
@@ -236,6 +239,7 @@ class Resample(nn.Module):
 
 class ResidualBlock(nn.Module):
     """Residual block implementation."""
+
     def __init__(self, in_dim, out_dim, dropout=0.0):
         """Init.
 
@@ -337,6 +341,7 @@ class AttentionBlock(nn.Module):
 
 class Encoder3d(nn.Module):
     """Encoder d implementation."""
+
     def __init__(
         self,
         dim=128,
@@ -454,6 +459,7 @@ class Encoder3d(nn.Module):
 
 class Decoder3d(nn.Module):
     """Decoder d implementation."""
+
     def __init__(
         self,
         dim=128,
@@ -585,6 +591,7 @@ def count_conv3d(model):
 
 class WanVAE_(nn.Module):
     """Wan implementation."""
+
     def __init__(
         self,
         dim=128,
@@ -797,7 +804,9 @@ def _video_vae(
     else:
         if get_rank() == 0:
             if not INTERNAL:
-                from cosmos_predict2._src.imaginaire.utils.checkpoint_db import get_checkpoint_path
+                from worldfoundry.base_models.diffusion_model.video.cosmos.shared.checkpoint_registry import (
+                    get_checkpoint_path,
+                )
 
                 pretrained_path = get_checkpoint_path(pretrained_path)
             if pretrained_path.startswith("s3://"):
@@ -821,7 +830,9 @@ def _video_vae(
                 img_mean_std = mean_std_path.replace("mean_std.pt", "images_mean_std.pt")
                 video_mean_std = mean_std_path.replace("mean_std.pt", "video_mean_std.pt")
                 if not INTERNAL:
-                    from cosmos_predict2._src.imaginaire.utils.checkpoint_db import get_checkpoint_path
+                    from worldfoundry.base_models.diffusion_model.video.cosmos.shared.checkpoint_registry import (
+                        get_checkpoint_path,
+                    )
 
                     img_mean_std = get_checkpoint_path(img_mean_std)
                     video_mean_std = get_checkpoint_path(video_mean_std)
@@ -867,6 +878,7 @@ def _video_vae(
 
 class WanVAE:
     """Wan vae implementation."""
+
     def __init__(
         self,
         z_dim=16,
@@ -1186,6 +1198,7 @@ class WanVAE:
 
 class Wan2pt1VAEInterface(VideoTokenizerInterface):
     """Wan pt vae interface implementation."""
+
     def __init__(self, chunk_duration: int = 81, load_mean_std=False, **kwargs):
         """Init.
 
@@ -1259,7 +1272,9 @@ class Wan2pt1VAEInterface(VideoTokenizerInterface):
                 assert torch.all(self.model.video_std == self.model.video_std.flatten()[0])
                 self.model.video_mean = self.model.video_mean[:, :, 0:1, :, :]
                 self.model.video_std = self.model.video_std[:, :, 0:1, :, :]
-            return (latents - self.model.video_mean[:, :, :num_frames].type_as(latents)) / self.model.video_std[:, :, :num_frames].type_as(latents)
+            return (latents - self.model.video_mean[:, :, :num_frames].type_as(latents)) / self.model.video_std[
+                :, :, :num_frames
+            ].type_as(latents)
 
     def decode(self, latent: torch.Tensor) -> torch.Tensor:
         """Decode.

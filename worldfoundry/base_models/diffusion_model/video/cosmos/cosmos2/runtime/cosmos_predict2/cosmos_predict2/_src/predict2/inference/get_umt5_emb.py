@@ -31,10 +31,10 @@ from torch.distributed.checkpoint.default_planner import DefaultLoadPlanner
 from torch.distributed.checkpoint.state_dict import StateDictOptions, get_model_state_dict, set_model_state_dict
 from transformers import AutoTokenizer
 
-from cosmos_predict2._src.imaginaire.checkpointer.s3_filesystem import S3StorageReader
 from worldfoundry.core.distributed import torch_process_group as distributed
-from cosmos_predict2._src.imaginaire.utils import log
-from cosmos_predict2._src.imaginaire.utils.easy_io import easy_io
+from worldfoundry.core.distributed.logging import log
+from worldfoundry.core.io.easy_io import easy_io
+from worldfoundry.core.io.s3_filesystem import S3StorageReader
 
 """
 Usage:
@@ -90,6 +90,7 @@ def canonicalize(text, keep_punctuation_exact_string=None):
 
 class HuggingfaceTokenizer:
     """Huggingface tokenizer implementation."""
+
     def __init__(self, name, seq_len=None, clean=None, **kwargs):
         """Init.
 
@@ -186,6 +187,7 @@ def init_weights(m):
 
 class GELU(nn.Module):
     """Gelu implementation."""
+
     def forward(self, x):
         """Forward.
 
@@ -197,6 +199,7 @@ class GELU(nn.Module):
 
 class T5LayerNorm(nn.Module):
     """Layer norm implementation."""
+
     def __init__(self, dim, eps=1e-6):
         """Init.
 
@@ -223,6 +226,7 @@ class T5LayerNorm(nn.Module):
 
 class T5Attention(nn.Module):
     """Attention implementation."""
+
     def __init__(self, dim, dim_attn, num_heads, dropout=0.1):
         """Init.
 
@@ -284,6 +288,7 @@ class T5Attention(nn.Module):
 
 class T5FeedForward(nn.Module):
     """Feed forward implementation."""
+
     def __init__(self, dim, dim_ffn, dropout=0.1):
         """Init.
 
@@ -317,6 +322,7 @@ class T5FeedForward(nn.Module):
 
 class T5SelfAttention(nn.Module):
     """Self attention implementation."""
+
     def __init__(self, dim, dim_attn, dim_ffn, num_heads, num_buckets, shared_pos=True, dropout=0.1):
         """Init.
 
@@ -360,6 +366,7 @@ class T5SelfAttention(nn.Module):
 
 class T5CrossAttention(nn.Module):
     """Cross attention implementation."""
+
     def __init__(self, dim, dim_attn, dim_ffn, num_heads, num_buckets, shared_pos=True, dropout=0.1):
         """Init.
 
@@ -408,6 +415,7 @@ class T5CrossAttention(nn.Module):
 
 class T5RelativeEmbedding(nn.Module):
     """Relative embedding implementation."""
+
     def __init__(self, num_buckets, num_heads, bidirectional, max_dist=128):
         """Init.
 
@@ -473,6 +481,7 @@ class T5RelativeEmbedding(nn.Module):
 
 class T5Encoder(nn.Module):
     """Encoder implementation."""
+
     def __init__(self, vocab, dim, dim_attn, dim_ffn, num_heads, num_layers, num_buckets, shared_pos=True, dropout=0.1):
         """Init.
 
@@ -530,6 +539,7 @@ class T5Encoder(nn.Module):
 
 class T5Decoder(nn.Module):
     """Decoder implementation."""
+
     def __init__(self, vocab, dim, dim_attn, dim_ffn, num_heads, num_layers, num_buckets, shared_pos=True, dropout=0.1):
         """Init.
 
@@ -598,6 +608,7 @@ class T5Decoder(nn.Module):
 
 class T5Model(nn.Module):
     """Model implementation."""
+
     def __init__(
         self,
         vocab_size,
@@ -749,7 +760,13 @@ def load_model_dcp(model, ckpt_path, credential_path: Optional[str] = None):
     return model
 
 
-def load_model_torch(model, ckpt_path, credential_path: Optional[str] = None):
+def load_model_torch(
+    model,
+    ckpt_path,
+    credential_path: Optional[str] = None,
+    map_location: str = "cuda",
+    sync_states: bool = True,
+):
     """Load model torch.
 
     Args:
@@ -773,16 +790,18 @@ def load_model_torch(model, ckpt_path, credential_path: Optional[str] = None):
         ckpt = easy_io.load(
             ckpt_path,
             backend_key=backend_key,
-            map_location="cuda",
+            map_location=map_location,
         )
         model.load_state_dict(ckpt)
 
-    distributed.sync_model_states(model, src=0)
+    if sync_states:
+        distributed.sync_model_states(model, src=0)
     return model
 
 
 class UMT5EncoderModel:
     """Encoder model implementation."""
+
     def __init__(
         self,
         text_len=512,
@@ -792,6 +811,7 @@ class UMT5EncoderModel:
         tokenizer_path="google/umt5-xxl",
         credential_path: Optional[str] = "credentials/s3_training.secret",
         enable_fsdp_shard: bool = False,
+        load_on_cpu: bool = False,
     ):
         """Init.
 
@@ -816,7 +836,13 @@ class UMT5EncoderModel:
             model = load_model_dcp(model, checkpoint_path, credential_path=credential_path)
         else:
             assert checkpoint_path.endswith(".pth"), "only .pth or .dcp are supported"
-            model = load_model_torch(model, checkpoint_path, credential_path=credential_path)
+            model = load_model_torch(
+                model,
+                checkpoint_path,
+                credential_path=credential_path,
+                map_location="cpu" if load_on_cpu else "cuda",
+                sync_states=not load_on_cpu,
+            )
         self.model = model
         self.model.to(self.device)
         # init tokenizer

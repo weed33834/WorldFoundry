@@ -14,31 +14,26 @@
 
 """Module for base_models -> diffusion_model -> video -> cosmos2p5 -> modules -> transformer_cosmos.py functionality."""
 
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Tuple, Union
 
 import numpy as np
 import torch
 import torch.nn as nn
-
-from diffusers.configuration_utils import ConfigMixin, register_to_config
-from diffusers.loaders import FromOriginalModelMixin
-from diffusers.utils import is_torchvision_available
 from diffusers.models.attention import FeedForward
 from diffusers.models.attention_processor import Attention
 from diffusers.models.embeddings import Timesteps, apply_rotary_emb
-from diffusers.models.modeling_outputs import Transformer2DModelOutput
-from diffusers.models.modeling_utils import ModelMixin
 from diffusers.models.normalization import RMSNorm
+from diffusers.utils import is_torchvision_available
 
-from .attention import Attention as _AttentionOp 
-
+from .attention import Attention as _AttentionOp
 
 if is_torchvision_available():
-    from torchvision import transforms
+    pass
 
 
 class CosmosPatchEmbed(nn.Module):
     """Cosmos patch embed implementation."""
+
     def __init__(
         self, in_channels: int, out_channels: int, patch_size: Tuple[int, int, int], bias: bool = True
     ) -> None:
@@ -79,6 +74,7 @@ class CosmosPatchEmbed(nn.Module):
 
 class CosmosTimestepEmbedding(nn.Module):
     """Cosmos timestep embedding implementation."""
+
     def __init__(self, in_features: int, out_features: int) -> None:
         """Init.
 
@@ -111,6 +107,7 @@ class CosmosTimestepEmbedding(nn.Module):
 
 class CosmosEmbedding(nn.Module):
     """Cosmos embedding implementation."""
+
     def __init__(self, embedding_dim: int, condition_dim: int) -> None:
         """Init.
 
@@ -145,6 +142,7 @@ class CosmosEmbedding(nn.Module):
 
 class CosmosAdaLayerNorm(nn.Module):
     """Cosmos ada layer norm implementation."""
+
     def __init__(self, in_features: int, hidden_features: int) -> None:
         """Init.
 
@@ -195,6 +193,7 @@ class CosmosAdaLayerNorm(nn.Module):
 
 class CosmosAdaLayerNormZero(nn.Module):
     """Cosmos ada layer norm zero implementation."""
+
     def __init__(self, in_features: int, hidden_features: Optional[int] = None) -> None:
         """Init.
 
@@ -252,9 +251,10 @@ class CosmosAdaLayerNormZero(nn.Module):
 
 class CosmosAttnProcessor2_0:
     """Cosmos attn processor implementation."""
+
     def __init__(self):
         """Init."""
-        self.attn_op = _AttentionOp(backend='sdpa', qkv_format='bhsd')
+        self.attn_op = _AttentionOp(backend="sdpa", qkv_format="bhsd")
 
     def __call__(
         self,
@@ -279,7 +279,7 @@ class CosmosAttnProcessor2_0:
         # 1. QKV projections
         is_self_attn = encoder_hidden_states is None
         self.attn_op.is_selfattn = is_self_attn
-        
+
         if encoder_hidden_states is None:
             encoder_hidden_states = hidden_states
 
@@ -310,7 +310,7 @@ class CosmosAttnProcessor2_0:
             query_idx = query.size(3)
             key_idx = key.size(3)
             value_idx = value.size(3)
-        
+
         # GQA copy attention heads
         key = key.repeat_interleave(query_idx // key_idx, dim=3)
         value = value.repeat_interleave(query_idx // value_idx, dim=3)
@@ -325,9 +325,10 @@ class CosmosAttnProcessor2_0:
 
 class CosmosAttnProcessor2_5:
     """Cosmos attn processor implementation."""
+
     def __init__(self):
         """Init."""
-        self.attn_op = _AttentionOp(backend='sdpa', qkv_format='bhsd')
+        self.attn_op = _AttentionOp(backend="sdpa", qkv_format="bhsd")
 
     def __call__(
         self,
@@ -396,7 +397,7 @@ class CosmosAttnProcessor2_5:
         if img_context is not None:
             # Cross Attention
             self.attn_op.is_selfattn = False
-            
+
             q_img = attn.q_img(hidden_states)
             k_img = attn.k_img(img_context)
             v_img = attn.v_img(img_context)
@@ -422,7 +423,7 @@ class CosmosAttnProcessor2_5:
             # execute Attention the second time (Image Cross)
             img_out = self.attn_op(q_img, k_img, v_img, attn_mask=img_mask)
             img_out = img_out.transpose(1, 2).flatten(2, 3).type_as(q_img)
-            
+
             hidden_states = attn_out + img_out
         else:
             hidden_states = attn_out
@@ -434,6 +435,7 @@ class CosmosAttnProcessor2_5:
 
 class CosmosAttention(Attention):
     """Cosmos attention implementation."""
+
     def __init__(self, *args, **kwargs):
         """Init."""
         super().__init__(*args, **kwargs)
@@ -474,6 +476,7 @@ class CosmosAttention(Attention):
 
 class CosmosTransformerBlock(nn.Module):
     """Cosmos transformer block implementation."""
+
     def __init__(
         self,
         num_attention_heads: int,
@@ -626,6 +629,7 @@ class CosmosTransformerBlock(nn.Module):
 
 class CosmosRotaryPosEmbed(nn.Module):
     """Cosmos rotary pos embed implementation."""
+
     def __init__(
         self,
         hidden_size: int,
@@ -712,6 +716,7 @@ class CosmosRotaryPosEmbed(nn.Module):
 
 class CosmosLearnablePositionalEmbed(nn.Module):
     """Cosmos learnable positional embed implementation."""
+
     def __init__(
         self,
         hidden_size: int,

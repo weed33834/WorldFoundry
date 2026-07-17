@@ -18,24 +18,25 @@
 from typing import Callable, Dict, Optional, Tuple, Union
 
 import torch
+from cosmos_predict1.diffusion.conditioner import VideoExtendCondition
+from cosmos_predict1.diffusion.model.model_v2w import DiffusionV2WModel, broadcast_condition
+from cosmos_predict1.utils import log, misc
 from einops import rearrange
-from worldfoundry.core.distributed.megatron_compat import parallel_state
 from torch import Tensor
 
-from cosmos_predict1.diffusion.conditioner import VideoExtendCondition
 from worldfoundry.base_models.diffusion_model.video.cosmos.shared.batch_ops import batch_mul
-from cosmos_predict1.diffusion.model.model_v2w import DiffusionV2WModel, broadcast_condition
-from worldfoundry.core.distributed.context_parallel import cat_outputs_cp, split_inputs_cp
-from cosmos_predict1.diffusion.modules.res_sampler import Sampler
-from cosmos_predict1.utils import log, misc
-
-IS_PREPROCESSED_KEY = "is_preprocessed"
 from worldfoundry.base_models.diffusion_model.video.cosmos.shared.denoiser_scaling import EDMScaling
 from worldfoundry.base_models.diffusion_model.video.cosmos.shared.diffusion_types import DenoisePrediction
+from worldfoundry.base_models.diffusion_model.video.cosmos.shared.res_sampler import Sampler
+from worldfoundry.core.distributed.context_parallel import cat_outputs_cp, split_inputs_cp
+from worldfoundry.core.distributed.megatron_compat import parallel_state
+
+IS_PREPROCESSED_KEY = "is_preprocessed"
 
 
 class DiffusionWorldInterpolatorWModel(DiffusionV2WModel):
     """Diffusion world interpolator w model implementation."""
+
     def __init__(self, config):
         """Init.
 

@@ -20,23 +20,24 @@ import os
 from typing import Optional
 
 import torch
-from peft import LoraConfig, set_peft_model_state_dict
-
-from cosmos_predict2._src.imaginaire.config import Config
-from cosmos_predict2._src.imaginaire.flags import INTERNAL, VALIDATION
-from cosmos_predict2._src.imaginaire.lazy_config import instantiate
-from cosmos_predict2._src.imaginaire.model import ImaginaireModel
-from worldfoundry.core.distributed import torch_process_group as distributed
-from cosmos_predict2._src.imaginaire.utils import log, misc
-from cosmos_predict2._src.imaginaire.utils.config_helper import get_config_module, override
-from cosmos_predict2._src.imaginaire.utils.easy_io import easy_io
-from worldfoundry.core.distributed.fsdp_runtime import hsdp_device_mesh
 from cosmos_predict2._src.predict2.checkpointer.dcp import (
     DefaultLoadPlanner,
     DistributedCheckpointer,
     ModelWrapper,
     dcp_load_state_dict,
 )
+from peft import LoraConfig, set_peft_model_state_dict
+
+from worldfoundry.core.configuration import Config
+from worldfoundry.core.configuration.flags import INTERNAL, VALIDATION
+from worldfoundry.core.configuration.hydra import get_config_module, override
+from worldfoundry.core.configuration.lazy_config import instantiate
+from worldfoundry.core.distributed import torch_process_group as distributed
+from worldfoundry.core.distributed.fsdp_runtime import hsdp_device_mesh
+from worldfoundry.core.distributed.logging import log
+from worldfoundry.core.io.easy_io import easy_io
+from worldfoundry.core.model_loading import InferenceModel
+from worldfoundry.core.utils import inference_runtime as misc
 
 
 def load_model_from_checkpoint(
@@ -121,7 +122,7 @@ def load_model_from_checkpoint(
         if to_device is not None:
             model.to(torch.device(to_device))
         # Convert the model parameters to bf16
-        model.on_train_start()
+        model.prepare_runtime()
 
     if not skip_load_model:
         # Handle different adapter loading scenarios
@@ -226,7 +227,7 @@ def load_model_state_dict_from_checkpoint(
     else:
         cur_key_ckpt_full_path = s3_checkpoint_dir
 
-    from cosmos_predict2._src.imaginaire.utils.checkpoint_db import get_checkpoint_path
+    from worldfoundry.base_models.diffusion_model.video.cosmos.shared.checkpoint_registry import get_checkpoint_path
 
     # load_from_local = True
     load_from_local = False
@@ -370,7 +371,7 @@ def load_model_state_dict_from_checkpoint(
     return model
 
 
-def create_model_from_consolidated_checkpoint_with_fsdp(config: Config) -> ImaginaireModel:
+def create_model_from_consolidated_checkpoint_with_fsdp(config: Config) -> InferenceModel:
     """
     Instantiate a model, load weights from a consolidated checkpoint, and initialize FSDP if required.
 

@@ -21,6 +21,7 @@ magvit2_pytorch/magvit2_pytorch.py#L889
 [MIT License Copyright (c) 2023 Phil Wang]
 https://github.com/lucidrains/magvit2-pytorch/blob/9f49074179c912736e617d61b32be367eb5f993a/LICENSE
 """
+
 import math
 from typing import Tuple, Union
 
@@ -28,8 +29,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from cosmos_predict1.utils import log
 
-from worldfoundry.base_models.diffusion_model.video.cosmos.shared.autoregressive_tokenizer_patching import Patcher3D, UnPatcher3D
+from worldfoundry.base_models.diffusion_model.video.cosmos.shared.autoregressive_tokenizer_patching import (
+    Patcher3D,
+    UnPatcher3D,
+)
 from worldfoundry.base_models.diffusion_model.video.cosmos.shared.autoregressive_tokenizer_utils import (
     CausalNormalize,
     batch2space,
@@ -41,11 +46,11 @@ from worldfoundry.base_models.diffusion_model.video.cosmos.shared.autoregressive
     space2batch,
     time2batch,
 )
-from cosmos_predict1.utils import log
 
 
 class CausalConv3d(nn.Module):
     """Causal conv d implementation."""
+
     def __init__(
         self,
         chan_in: int = 1,
@@ -114,6 +119,7 @@ class CausalConv3d(nn.Module):
 
 class CausalHybridUpsample3d(nn.Module):
     """Causal hybrid upsample d implementation."""
+
     def __init__(self, in_channels: int, spatial_up: bool = True, temporal_up: bool = True, **ignore_kwargs) -> None:
         """Init.
 
@@ -177,6 +183,7 @@ class CausalHybridUpsample3d(nn.Module):
 
 class CausalHybridDownsample3d(nn.Module):
     """Causal hybrid downsample d implementation."""
+
     def __init__(
         self, in_channels: int, spatial_down: bool = True, temporal_down: bool = True, **ignore_kwargs
     ) -> None:
@@ -243,6 +250,7 @@ class CausalHybridDownsample3d(nn.Module):
 
 class CausalResnetBlockFactorized3d(nn.Module):
     """Causal resnet block factorized d implementation."""
+
     def __init__(self, *, in_channels: int, out_channels: int = None, dropout: float, num_groups: int) -> None:
         """Init.
 
@@ -295,6 +303,7 @@ class CausalResnetBlockFactorized3d(nn.Module):
 
 class CausalAttnBlock(nn.Module):
     """Causal attn block implementation."""
+
     def __init__(self, in_channels: int, num_groups: int) -> None:
         """Init.
 
@@ -354,6 +363,7 @@ class CausalAttnBlock(nn.Module):
 
 class CausalTemporalAttnBlock(nn.Module):
     """Causal temporal attn block implementation."""
+
     def __init__(self, in_channels: int, num_groups: int) -> None:
         """Init.
 
@@ -416,6 +426,7 @@ class CausalTemporalAttnBlock(nn.Module):
 
 class EncoderFactorized(nn.Module):
     """Encoder factorized implementation."""
+
     def __init__(
         self,
         in_channels: int,
@@ -458,14 +469,14 @@ class EncoderFactorized(nn.Module):
 
         # calculate the number of downsample operations
         self.num_spatial_downs = int(math.log2(spatial_compression)) - int(math.log2(patch_size))
-        assert (
-            self.num_spatial_downs <= self.num_resolutions
-        ), f"Spatially downsample {self.num_resolutions} times at most"
+        assert self.num_spatial_downs <= self.num_resolutions, (
+            f"Spatially downsample {self.num_resolutions} times at most"
+        )
 
         self.num_temporal_downs = int(math.log2(temporal_compression)) - int(math.log2(patch_size))
-        assert (
-            self.num_temporal_downs <= self.num_resolutions
-        ), f"Temporally downsample {self.num_resolutions} times at most"
+        assert self.num_temporal_downs <= self.num_resolutions, (
+            f"Temporally downsample {self.num_resolutions} times at most"
+        )
 
         # downsampling
         self.conv_in = nn.Sequential(
@@ -561,6 +572,7 @@ class EncoderFactorized(nn.Module):
 
 class DecoderFactorized(nn.Module):
     """Decoder factorized implementation."""
+
     def __init__(
         self,
         out_channels: int,
@@ -602,9 +614,9 @@ class DecoderFactorized(nn.Module):
         self.num_spatial_ups = int(math.log2(spatial_compression)) - int(math.log2(patch_size))
         assert self.num_spatial_ups <= self.num_resolutions, f"Spatially upsample {self.num_resolutions} times at most"
         self.num_temporal_ups = int(math.log2(temporal_compression)) - int(math.log2(patch_size))
-        assert (
-            self.num_temporal_ups <= self.num_resolutions
-        ), f"Temporally upsample {self.num_resolutions} times at most"
+        assert self.num_temporal_ups <= self.num_resolutions, (
+            f"Temporally upsample {self.num_resolutions} times at most"
+        )
 
         block_in = channels * channels_mult[self.num_resolutions - 1]
         curr_res = (resolution // patch_size) // 2 ** (self.num_resolutions - 1)

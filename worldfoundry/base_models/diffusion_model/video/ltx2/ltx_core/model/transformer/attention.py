@@ -1,11 +1,13 @@
 import functools
+import importlib.util
 import logging
+import os
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Protocol
 
 import torch
-from torch.nn.attention import SDPBackend, sdpa_kernel
+from torch.nn.attention import SDPBackend
 
 from worldfoundry.base_models.diffusion_model.video.ltx2.ltx_core.model.transformer.ops import (
     GatedAttentionCallable,
@@ -14,6 +16,11 @@ from worldfoundry.base_models.diffusion_model.video.ltx2.ltx_core.model.transfor
     PytorchPreAttention,
 )
 from worldfoundry.base_models.diffusion_model.video.ltx2.ltx_core.model.transformer.rope import LTXRopeType
+from worldfoundry.core.attention.native import (
+    flattened_multihead_attention,
+    native_sdpa_priority,
+)
+from worldfoundry.core.attention.piecewise import piecewise_attention
 
 logger = logging.getLogger(__name__)
 
@@ -30,23 +37,11 @@ def _torch_default_sdpa_priority() -> list[SDPBackend]:
     return [SDPBackend(p) for p in torch._C._get_sdp_priority_order()]
 
 
-memory_efficient_attention = None
-flash_attn_interface = None
-flash_attn_4_func = None
-try:
-    from xformers.ops import memory_efficient_attention
-except ImportError:
-    memory_efficient_attention = None
-try:
-    # FlashAttention3 and XFormersAttention cannot be used together
-    if memory_efficient_attention is None:
-        import flash_attn_interface
-except ImportError:
-    flash_attn_interface = None
-try:
-    from flash_attn.cute import flash_attn_func as flash_attn_4_func
-except ImportError:
-    flash_attn_4_func = None
+def _module_available(name: str) -> bool:
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ModuleNotFoundError, ValueError):
+        return False
 
 
 class AttentionCallable(Protocol):
@@ -70,8 +65,6 @@ class MaskedAttentionCallable(Protocol):
 class PytorchAttention(AttentionCallable):
     def __init__(self, priority: list[SDPBackend] | None = None) -> None:
         # priority=None -> snapshot torch's default SDPA priority at construction.
-        # Always passed through ``sdpa_kernel(..., set_priority=True)`` so the
-        # call site is uniform regardless of how the priority was chosen.
         self._priority = priority if priority is not None else _torch_default_sdpa_priority()
 
     @property
@@ -84,24 +77,14 @@ class PytorchAttention(AttentionCallable):
     def __call__(
         self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, heads: int, mask: torch.Tensor | None = None
     ) -> torch.Tensor:
-        b, _, dim_head = q.shape
-        dim_head //= heads
-        q, k, v = (t.view(b, -1, heads, dim_head).transpose(1, 2) for t in (q, k, v))
-
-        if mask is not None:
-            # add a batch dimension if there isn't already one
-            if mask.ndim == 2:
-                mask = mask.unsqueeze(0)
-            # add a heads dimension if there isn't already one
-            if mask.ndim == 3:
-                mask = mask.unsqueeze(1)
-
-        with sdpa_kernel(self._priority, set_priority=True):
-            out = torch.nn.functional.scaled_dot_product_attention(
-                q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False
-            )
-        out = out.transpose(1, 2).reshape(b, -1, heads * dim_head)
-        return out
+        return flattened_multihead_attention(
+            q,
+            k,
+            v,
+            heads,
+            attn_mask=mask,
+            backends=self._priority,
+        )
 
 
 class XFormersAttention(AttentionCallable):
@@ -115,8 +98,10 @@ class XFormersAttention(AttentionCallable):
         heads: int,
         mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        if memory_efficient_attention is None:
-            raise RuntimeError("XFormersAttention was selected but `xformers` is not installed.")
+        try:
+            from xformers.ops import memory_efficient_attention
+        except (ImportError, OSError) as exc:
+            raise RuntimeError("XFormersAttention was selected but `xformers` is unavailable.") from exc
 
         b, _, dim_head = q.shape
         dim_head //= heads
@@ -161,8 +146,10 @@ class FlashAttention3(AttentionCallable):
         v: torch.Tensor,
         heads: int,
     ) -> torch.Tensor:
-        if flash_attn_interface is None:
-            raise RuntimeError("FlashAttention3 was selected but `FlashAttention3` is not installed.")
+        try:
+            import flash_attn_interface
+        except (ImportError, OSError) as exc:
+            raise RuntimeError("FlashAttention3 was selected but `FlashAttention3` is unavailable.") from exc
 
         b, _, dim_head = q.shape
         dim_head //= heads
@@ -184,8 +171,10 @@ class FlashAttention4(AttentionCallable):
         v: torch.Tensor,
         heads: int,
     ) -> torch.Tensor:
-        if flash_attn_4_func is None:
-            raise RuntimeError("FlashAttention4 was selected but `flash-attn-4` is not installed.")
+        try:
+            from flash_attn.cute import flash_attn_func as flash_attn_4_func
+        except (ImportError, OSError) as exc:
+            raise RuntimeError("FlashAttention4 was selected but `flash-attn-4` is unavailable.") from exc
 
         b, _, dim_head = q.shape
         dim_head //= heads
@@ -197,12 +186,43 @@ class FlashAttention4(AttentionCallable):
         return out
 
 
+class PiecewiseAttention(AttentionCallable):
+    """Explicit in-tree PISA adapter for long LTX self-attention."""
+
+    label = "PISA[in-tree]"
+
+    def __init__(self, density: float | None = None, block_size: int | None = None) -> None:
+        self.density = (
+            float(os.getenv("WORLDFOUNDRY_PISA_DENSITY", "0.1"))
+            if density is None
+            else float(density)
+        )
+        self.block_size = (
+            int(os.getenv("WORLDFOUNDRY_PISA_BLOCK_SIZE", "64"))
+            if block_size is None
+            else int(block_size)
+        )
+
+    def __call__(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, heads: int) -> torch.Tensor:
+        batch, _, hidden = q.shape
+        head_dim = hidden // heads
+        q_heads, k_heads, v_heads = (
+            value.view(batch, -1, heads, head_dim).transpose(1, 2) for value in (q, k, v)
+        )
+        out = piecewise_attention(
+            q_heads,
+            k_heads,
+            v_heads,
+            density=self.density,
+            block_size=self.block_size,
+        )
+        return out.transpose(1, 2).reshape(batch, -1, hidden)
+
+
 # --- Automatic selection -----------------------------------------------------
-# AUTOMATIC inspects installed extras and the GPU arch and returns the fastest
-# usable callable for each path. The selection runs once per process (cached)
-# and logs the resulting label once. The unmasked and masked picks are
-# independent: each calls its own helper and may end up on different backends
-# (e.g. FA3 unmasked + xFormers masked on H100).
+# AUTOMATIC stays inside PyTorch and chooses an exact SDPA policy for each GPU
+# family. External providers remain explicit enum choices, so importing or
+# running the default LTX path never depends on another repository package.
 
 
 def _sdpa_can_use(backend: SDPBackend, *, with_mask: bool) -> bool:
@@ -254,37 +274,73 @@ def _sdpa_full_priority() -> PytorchAttention:
     return PytorchAttention(priority=list(_SDPA_FULL_PRIORITY))
 
 
+def _native_pytorch_attention(
+    *,
+    with_mask: bool,
+    device: torch.device | str | None = None,
+) -> PytorchAttention:
+    names = native_sdpa_priority(device, has_mask=with_mask)
+    if not names:
+        return PytorchAttention()
+    mapping = {
+        "cudnn": SDPBackend.CUDNN_ATTENTION,
+        "flash": SDPBackend.FLASH_ATTENTION,
+        "efficient": SDPBackend.EFFICIENT_ATTENTION,
+        "math": SDPBackend.MATH,
+    }
+    return PytorchAttention(priority=[mapping[name] for name in names])
+
+
+class _DeviceAwarePytorchAttention(AttentionCallable):
+    """Choose the in-tree exact SDPA policy from each call's tensor device."""
+
+    def __init__(self, *, with_mask: bool) -> None:
+        self.with_mask = with_mask
+        self.label = "SDPA[device-aware,masked]" if with_mask else "SDPA[device-aware]"
+        # Build policies outside model forward.  In particular,
+        # ``torch._C._get_sdp_priority_order`` and CUDA capability queries are
+        # not Dynamo-traceable and must never execute inside a compiled graph.
+        self._cpu_attention = _native_pytorch_attention(
+            with_mask=with_mask,
+            device=torch.device("cpu"),
+        )
+        self._fallback_attention = PytorchAttention()
+        self._cuda_attention = {
+            index: _native_pytorch_attention(
+                with_mask=with_mask,
+                device=torch.device("cuda", index),
+            )
+            for index in range(torch.cuda.device_count())
+        }
+
+    def __call__(
+        self,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        heads: int,
+        mask: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        if q.device.type != "cuda":
+            implementation = self._cpu_attention
+        else:
+            implementation = self._cuda_attention.get(
+                q.device.index,
+                self._fallback_attention,
+            )
+        return implementation(q, k, v, heads, mask)
+
+
 def _select_primary_attention() -> AttentionCallable:
-    """Pick the fastest unmasked attention based on installed extras and GPU arch.
-    Priority by arch:
-    - Hopper (sm_90, H100): FA3 / xFormers (mutually exclusive at import) > FA4 > SDPA.
-    - Datacenter Blackwell (sm_100, B200): FA4 > SDPA. FA4 is intentionally *not*
-      picked on consumer Blackwell (sm_120) -- known regressions in newer
-      FA4 betas; users who want it on sm_120 must opt in explicitly.
-    - Everywhere else (Ada, Ampere, CPU): SDPA with the full backend priority
-      list -- torch's runtime dispatcher picks the best fit at call time.
-    """
-    if torch.cuda.is_available():
-        major, _ = torch.cuda.get_device_capability(0)
-        if major == 9:
-            if flash_attn_interface is not None:
-                return FlashAttention3()
-            if memory_efficient_attention is not None:
-                return XFormersAttention()
-            if flash_attn_4_func is not None:
-                return FlashAttention4()
-        if major == 10 and flash_attn_4_func is not None:
-            return FlashAttention4()
-    return _sdpa_full_priority()
+    """Use bundled device-aware exact SDPA; optional packages remain explicit."""
+
+    return _DeviceAwarePytorchAttention(with_mask=False)
 
 
 def _select_masked_attention() -> MaskedAttentionCallable:
-    """Pick a mask-aware attention. Prefers xFormers when installed; else SDPA with
-    the full priority list (the dispatcher rejects FLASH automatically when a
-    mask is present and walks past it)."""
-    if memory_efficient_attention is not None:
-        return XFormersAttention()
-    return _sdpa_full_priority()
+    """Use bundled mask-aware SDPA with cuDNN preference on modern CUDA."""
+
+    return _DeviceAwarePytorchAttention(with_mask=True)
 
 
 @functools.cache
@@ -331,6 +387,7 @@ class AttentionFunction(Enum):
     SDPA_FLASH = "sdpa_flash"
     SDPA_EFFICIENT = "sdpa_efficient"
     SDPA_MATH = "sdpa_math"
+    PIECEWISE = "piecewise"
     # Pick the fastest unmasked backend for the current GPU/extras combo; see
     # :func:`automatic_attention`. Default for :class:`AttentionOps`.
     AUTOMATIC = "automatic"
@@ -351,23 +408,25 @@ class AttentionFunction(Enum):
             case AttentionFunction.PYTORCH:
                 return PytorchAttention()
             case AttentionFunction.XFORMERS:
-                if memory_efficient_attention is None:
+                if not _module_available("xformers"):
                     raise RuntimeError("AttentionFunction.XFORMERS selected but `xformers` is not installed.")
                 return XFormersAttention()
             case AttentionFunction.FLASH_ATTENTION_3:
-                if flash_attn_interface is None:
+                if not _module_available("flash_attn_interface"):
                     raise RuntimeError(
                         "AttentionFunction.FLASH_ATTENTION_3 selected but `flash-attn-3` is not installed."
                     )
                 return FlashAttention3()
             case AttentionFunction.FLASH_ATTENTION_4:
-                if flash_attn_4_func is None:
+                if not _module_available("flash_attn"):
                     raise RuntimeError(
                         "AttentionFunction.FLASH_ATTENTION_4 selected but `flash-attn-4` is not installed."
                     )
                 return FlashAttention4()
             case AttentionFunction.SDPA_MATH:
                 return PytorchAttention(priority=[SDPBackend.MATH])
+            case AttentionFunction.PIECEWISE:
+                return PiecewiseAttention()
             case AttentionFunction.SDPA_CUDNN:
                 return _resolve_sdpa_variant(
                     SDPBackend.CUDNN_ATTENTION, "AttentionFunction.SDPA_CUDNN", with_mask=False
@@ -413,7 +472,7 @@ class MaskedAttentionFunction(Enum):
             case MaskedAttentionFunction.PYTORCH:
                 return PytorchAttention()
             case MaskedAttentionFunction.XFORMERS:
-                if memory_efficient_attention is None:
+                if not _module_available("xformers"):
                     raise RuntimeError("MaskedAttentionFunction.XFORMERS selected but `xformers` is not installed.")
                 return XFormersAttention()
             case MaskedAttentionFunction.SDPA_MATH:

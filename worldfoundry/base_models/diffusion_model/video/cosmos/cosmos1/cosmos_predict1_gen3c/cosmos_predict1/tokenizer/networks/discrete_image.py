@@ -14,13 +14,14 @@
 # limitations under the License.
 
 """The network definition for discrete image tokenization with VQ, LFQ, FSQ or ResidualFSQ."""
+
 from collections import OrderedDict, namedtuple
 
 import torch
+from cosmos_predict1.tokenizer.modules import DecoderType, DiscreteQuantizer, EncoderType
 from loguru import logger as logging
 from torch import nn
 
-from cosmos_predict1.tokenizer.modules import DecoderType, DiscreteQuantizer, EncoderType
 from worldfoundry.base_models.diffusion_model.video.cosmos.shared.tokenizer_quantizers import InvQuantizerJit
 
 NetworkEval = namedtuple("NetworkEval", ["reconstructions", "quant_loss", "quant_info"])
@@ -28,6 +29,7 @@ NetworkEval = namedtuple("NetworkEval", ["reconstructions", "quant_loss", "quant
 
 class DiscreteImageTokenizer(nn.Module):
     """Discrete image tokenizer implementation."""
+
     def __init__(self, z_channels: int, embedding_dim: int, **kwargs) -> None:
         """Init.
 
