@@ -48,7 +48,7 @@ Join the **WorldFoundry Community** [Slack / Wechat] for discussions, announceme
 
 - **[2026-07-17]** 🔧 **WorldFoundry v0.2.0: Major Infrastructure Overhaul**
   - **Core Inference Upgrades** – Refactored to inference‑only path with integrated Wan, HunyuanVideo, LTX2, Cosmos, perception & 3D foundation modules. Unified attention backend selection (FlashAttention 2/3, SageAttention, xFormers, SDPA fallback). Triton kernel registration, compilation & inference caching. NVFP4 quantization support. GPU selection driven by actual compute capability (A100, H100). Multi‑GPU Context/Sequence Parallel with advanced memory management.
-  - **World Model Integration** – Incorporated LingBot World 2, Lingbot Video, Helios, Bernini, AlayaWorld, Rolling Forcing, LiveWorld, MinWM, MinkM, sana streaming, and more.
+  - **World Model Integration** – Incorporated LingBot World 2, Lingbot Video, Helios, Bernini, AlayaWorld, Rolling Forcing, LiveWorld, MinWM, sana streaming, and more.
   - **Action Policy Integration** – Integrated LingBot VLA/VLA2, Xiaomi Robotics, Hy‑Embodied VLA, Spatial Forcing, X‑VLA, X‑WAM, OpenPI, OpenVLA‑OFT, GROOT, Octo, and more.
   - **Studio Enhancements** – Refined model discovery, Conda environment isolation, GPU allocation, torchrun distributed launch, Workspace Jobs, visualization, and result presentation.
   - **Benchmark Expansion** – Added benchmark catalog and runtime profiling, including LaryBench, WorldReasonBench and WRBench.
