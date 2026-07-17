@@ -20,28 +20,41 @@ Day-one workflow:
 Join the **WorldFoundry Community** [Slack / Wechat] for discussions, announcements, technical support, and the latest project updates.
 
 <p align="center">
-
-<a href="https://join.slack.com/t/worldfoundrycommunity/shared_invite/zt-43nbi9fw4-okYiELzZHp0_1UPa3dh3bQ">
-  <img src="https://img.shields.io/badge/Slack-Join%20Workspace-4A154B?logo=slack&logoColor=white" alt="Join Slack">
-</a>
-
-<a href="https://github.com/WorldFoundry/WorldFoundry/discussions">
-  <img src="https://img.shields.io/badge/GitHub-Discussions-181717?logo=github" alt="GitHub Discussions">
-</a>
-
-</p>
-
-<p align="center">
   <strong>WeChat Community</strong>
 </p>
 
-<p align="center">
-  <img src="docs/fumadocs/public/wechat_qr.png" alt="WorldFoundry WeChat Community" width="280">
-</p>
+<table align="center">
+  <tr>
+    <td align="center">
+      <strong>Group 1 — Full</strong>
+    </td>
+    <td align="center">
+      <strong>Group 2 — Open</strong>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img
+        src="docs/fumadocs/public/wechat_qr.png"
+        alt="WorldFoundry WeChat Group 1"
+        width="280"
+      >
+    </td>
+    <td align="center">
+      <img
+        src="docs/fumadocs/public/wechat_qr_2.png"
+        alt="WorldFoundry WeChat Group 2"
+        width="280"
+      >
+    </td>
+  </tr>
+</table>
 
 <p align="center">
-  <em>Scan the QR code to join our WeChat community.<br>
-  The QR code is updated periodically if it expires.</em>
+  <em>
+    WeChat Group 1 is full. Please scan the Group 2 QR code to join the community.<br>
+    The QR codes will be updated if they expire.
+  </em>
 </p>
 
 ## 📰 News
