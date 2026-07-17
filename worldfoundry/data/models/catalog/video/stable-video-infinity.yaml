@@ -1,0 +1,65 @@
+id: stable-video-infinity
+name: Stable Video Infinity 2.0
+aliases:
+- SVI
+- SVI-2.0
+- stable_video_infinity
+- stable-video-infinity-2.0
+tasks:
+- image-to-video
+- long-video-generation
+- prompt-stream-video-generation
+output_artifacts:
+- generated_video
+provider: VITA@EPFL
+source:
+  status: open_source
+  official_repo_url: https://github.com/vita-epfl/Stable-Video-Infinity
+  revision: 63af54329f38b10ed1a91dc88bc67a765d0c4a18
+official_sources:
+  project_page: https://stable-video-infinity.github.io/homepage/
+  paper: https://arxiv.org/abs/2510.09212
+  github:
+    url: https://github.com/vita-epfl/Stable-Video-Infinity
+    revision: 63af54329f38b10ed1a91dc88bc67a765d0c4a18
+  huggingface:
+  - repo_id: vita-video-gen/svi-model
+    status: confirmed
+  - repo_id: Wan-AI/Wan2.1-I2V-14B-480P
+    status: confirmed
+checkpoint_refs:
+- repo_id: vita-video-gen/svi-model
+  filename: version-2.0/SVI_Wan2.1-I2V-14B_lora_v2.0.safetensors
+  role: svi_2_lora
+  license: mit
+- repo_id: Wan-AI/Wan2.1-I2V-14B-480P
+  role: wan2.1_i2v_14b_base
+  license: apache-2.0
+availability:
+  status: source_available
+  open_source: true
+  code: public
+  weights: public_huggingface
+  license: mit
+license: mit
+release_type: code_and_weights
+integration:
+  status: integrated
+  notes:
+  - WorldFoundry ports the official SVI 2.0 inference-only conditioning path in-tree at the pinned upstream revision.
+  - The adapter reuses WorldFoundry's in-tree DiffSynth Wan2.1 implementation and preserves five-frame continuation,
+    per-clip seed changes, reference-frame padding, and prompt-stream repetition.
+  - Training launchers, datasets, demo media, and checkpoints remain outside the source tree.
+runner_parity:
+  status: implemented_pending_gpu_parity
+  notes:
+  - Static and fake-runtime integration tests cover prompt streaming, frame overlap removal, seeds, and registry wiring.
+  - A checkpoint-backed A100 smoke run completed with the Wan2.1 14B base and SVI 2.0 LoRA, including FP32 VAE
+    conditioning, DiT denoising, decode, and H.264 output.
+  - Full default-resolution, 81-frame, 50-step visual parity with the official examples remains pending.
+runtime_profile: runtime-profile:stable-video-infinity
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: stable-video-infinity
+catalog_category: video
+catalog_scope: Video-generation and video-token catalog entries. Integrated entries expose WorldFoundry pipeline targets;
+  metadata-only entries retain upstream provenance without runnable WorldFoundry backends.

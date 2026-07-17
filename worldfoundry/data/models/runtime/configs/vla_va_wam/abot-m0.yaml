@@ -1,0 +1,30 @@
+backend: callable_entrypoint
+checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/acvlab--ABot-M0-LIBERO
+checkpoint_ref: acvlab/ABot-M0-LIBERO
+policy_target: worldfoundry.synthesis.action_generation.abot_m0.runtime:predict_action
+qwen_path: ${WORLDFOUNDRY_HFD_ROOT}/Qwen--Qwen3-VL-4B-Instruct
+processor_path: ${WORLDFOUNDRY_HFD_ROOT}/Qwen--Qwen3-VL-4B-Instruct
+config_file: config.yaml
+statistics_file: dataset_statistics.json
+statistics_key: null
+camera_keys:
+- image_0
+image_size: [224, 224]
+include_state: false
+action_layout: auto
+binary_action_indices: []
+torch_dtype: auto
+attention_backend: auto
+local_files_only: true
+trust_remote_code: false
+num_inference_steps: 4
+tokenizer_max_length: null
+seed: 0
+device_map: null
+device_ids: []
+allow_cpu_offload: false
+spatial_device: null
+compile_action_expert: false
+compile_mode: reduce-overhead
+action_contract: abot_m0_action_chunk
+runtime_backend: abot_m0_in_tree_policy

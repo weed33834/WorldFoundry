@@ -1,0 +1,40 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+id: ahawam
+name: AHA-WAM
+aliases:
+- aha-wam
+- aha-wam-robotwin
+availability: open_source
+provider: official_repo
+license: mit
+official_sources:
+  github:
+    url: https://github.com/Serene-SIVY/AHA-WAM
+    head_sha: 69076f6206518554477be5639deb016eee03a9d6
+  huggingface:
+  - repo_id: SereneC/AHA-WAM-RoboTwin2.0
+    role: policy_checkpoints_and_statistics
+    license: mit
+  - repo_id: DiffSynth-Studio/Wan-Series-Converted-Safetensors
+    role: local_vae_and_text_encoder_weights
+checkpoint:
+  repo_id: SereneC/AHA-WAM-RoboTwin2.0
+  filename: robotwin_ahawam.pt
+  license: mit
+integration:
+  status: in_tree_checkpoint_runtime
+  notes:
+  - The exact video/action experts, mixture cache editor, six-frame history, two-phase chunk inference, VAE, and UMT5 encoder execute in process.
+  - Every asset is loaded from local storage with strict key matching; no upstream checkout, server, Hub download, or custom remote implementation is used.
+  - Trainers, datasets, simulators, evaluation launchers, and deployment servers are excluded.
+tasks:
+- vla
+- vla.action_prediction
+- vla.world_action_model
+output_artifacts:
+- action_trace
+pipeline_binding: ahawam
+runtime_profile: runtime-profile:ahawam
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata, and runtime-profile planning records.
+schema_version: 2

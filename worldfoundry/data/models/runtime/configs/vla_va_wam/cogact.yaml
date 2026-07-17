@@ -1,21 +1,23 @@
 backend: callable_entrypoint
 checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/CogACT--CogACT-Base/checkpoints/CogACT-Base.pt
 checkpoint_ref: CogACT/CogACT-Base
-llm_backbone_ref: meta-llama/Llama-2-7b-hf
-source_repo: ${WORLDFOUNDRY_REPO_ROOT}/worldfoundry/synthesis/action_generation/cogact/cogact_runtime
+tokenizer_ref: openvla/openvla-7b
 require_checkpoint: true
 policy_target: worldfoundry.synthesis.action_generation.cogact.runtime:predict_action
 predict_method: predict_action
 torch_dtype: bfloat16
 trust_remote_code: false
-runtime_backend: cogact_in_tree_vendored_in_process_runtime
+runtime_backend: cogact_in_tree_in_process_runtime
 action_contract: 16x7_continuous_action_chunk
 control_mode: relative_eef_delta_action_chunk
 action_model_type: DiT-B
 future_action_window_size: 15
+attn_implementation: auto
 cfg_scale: 1.5
 use_ddim: true
 num_ddim_steps: 10
+seed: 42
+compile_action_model: false
 unnorm_key: bridge_orig
 official_infer_entrypoint: vla:load_vla.predict_action
 default_demo_input:

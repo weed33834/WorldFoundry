@@ -1,0 +1,31 @@
+schema_version: 2
+model_id: bernini
+display_name: Bernini
+task_family: video_generation
+groups: [image_generation, image_editing, video_generation, video_editing, reference_to_video]
+source_repos:
+- url: https://github.com/bytedance/Bernini
+  revision: 82d573e9a553dccb1405dde4cb0f26466f9df6c5
+checkpoints:
+- repo_id: ByteDance/Bernini-Diffusers
+  revision: b988d6af97714041e0d21a31d4faff5ac42bac09
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/ByteDance--Bernini-Diffusers
+  role: planner_renderer_checkpoint
+input_schema:
+  prompt: true
+  image: true
+  images: true
+  video: true
+  task_type: [t2i, i2i, t2v, v2v, r2v, rv2v]
+artifact_kind: generated_media
+artifact_filename: bernini.mp4
+execution:
+  backend_stage: official_in_tree_runtime
+  runtime_status: checkpoint_assets_partial_not_runnable_until_staged
+  integration_status: runtime_ported
+  pipeline_binding: bernini
+integration:
+  status: runtime_ported
+notes:
+- The checkpoint contains the 7B semantic planner and 14B renderer; official recipes use 8-way Ulysses inference.
+- Set nproc_per_node=8 and ulysses_size=8 for the official multi-GPU route.

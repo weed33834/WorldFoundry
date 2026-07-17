@@ -1,0 +1,29 @@
+schema_version: 2
+model_id: hydra
+display_name: HyDRA
+task_family: video_generation
+groups: [world, camera_control, video_to_video]
+source_repos:
+- url: https://github.com/H-EmbodVis/HyDRA
+  revision: 48652becf0030edbaabde4d04f33bb33ad380410
+  in_tree_path: worldfoundry/synthesis/visual_generation/hydra/hydra_runtime
+checkpoints:
+- repo_id: H-EmbodVis/HyDRA
+  revision: c2b83e1bc452974a9e599b026e0e09f084a0165f
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/H-EmbodVis--HyDRA/hydra.ckpt
+  role: hydra_checkpoint
+- repo_id: Wan-AI/Wan2.1-T2V-1.3B
+  revision: 37ec512624d61f7aa208f7ea8140a131f93afc9a
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Wan2.1-T2V-1.3B
+  role: base_model
+input_schema: {prompt: true, video: true, camera_json: true}
+artifact_kind: generated_video
+artifact_filename: hydra.mp4
+execution:
+  environment: _unified
+  backend_stage: independent_in_tree_runtime
+  runtime_status: checkpoint_assets_pending_not_runnable_until_staged
+  integration_status: runtime_ported
+  pipeline_binding: hydra
+integration: {status: runtime_ported}
+notes: [Bundled source is mandatory; external source checkouts are rejected.]

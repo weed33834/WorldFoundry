@@ -6,6 +6,7 @@ aliases:
 tasks:
 - panoramic-depth-estimation
 - metric-3d-estimation
+- monocular-depth-estimation
 - geometry-prior
 provider: official_repo
 source:
@@ -20,7 +21,7 @@ integration:
   kind: pipeline_runner
   status: integrated
   notes:
-  - Integrated as an independent panoramic geometric prior at worldfoundry/base_models/three_dimensions/depth/unik3d.
+  - Integrated as a universal-camera geometric prior at worldfoundry/base_models/three_dimensions/depth/unik3d.
   - The default checkpoint is resolved through Hugging Face from lpiccinelli/unik3d-vitl
     or an explicit local model_path override.
   - The upstream release is CC-BY-NC-4.0; downstream users must respect the non-commercial
@@ -28,10 +29,10 @@ integration:
 base_model_target: worldfoundry.base_models.three_dimensions.depth.unik3d
 runtime_profile: runtime-profile:unik3d-prior
 runner_parity:
-  status: implemented_checkpoint_pending
+  status: checkpoint_verified
   notes:
-  - Real prior inference is wired through the shared geometry-prior pipeline/operator
-    contract and requires checkpoint access at runtime.
+  - Real checkpoint inference is verified through the shared geometry-prior pipeline/operator
+    contract with auto camera estimation; pinhole and panorama camera overrides remain explicit.
 catalog_category: three_d_four_d
 catalog_scope: Independent geometric prior integrations used by 3D and world-model
   runtimes.

@@ -1,0 +1,41 @@
+model_id: abot-world-0-5b-lf
+env_name: abot-world
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+python: '3.12'
+cuda_profile: cu129
+driver_status: compatible
+pip_extra_index_url: https://download.pytorch.org/whl/cu129
+conda_packages:
+- python=3.12
+- pip
+- ffmpeg
+pip_packages:
+- torch==2.8.0
+- diffusers==0.31.0
+- transformers==4.57.3
+- tokenizers==0.22.1
+- accelerate==1.12.0
+- huggingface-hub
+- safetensors
+- numpy==2.2.6
+- einops==0.8.1
+- ftfy==6.3.1
+- regex
+- sentencepiece==0.2.1
+- pillow
+- imageio==2.37.0
+- imageio-ffmpeg==0.6.0
+- pyyaml
+validation_imports:
+- torch
+- diffusers
+- transformers
+- safetensors
+- numpy
+- PIL
+- imageio
+- worldfoundry.pipelines.abot_world
+- worldfoundry.synthesis.visual_generation.abot_world
+notes:
+- This environment contains only dependencies used by the in-tree inference path.
+- Flash-attention, Gradio, training, benchmark and experimental quantizer packages are not required.

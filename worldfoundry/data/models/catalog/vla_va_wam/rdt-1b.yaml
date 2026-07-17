@@ -1,0 +1,34 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+id: rdt-1b
+name: RDT-1B
+aliases:
+- rdt
+- robotics-diffusion-transformer
+- robotics-diffusion-transformer/rdt-1b
+availability: open_source
+provider: official_repo
+official_sources:
+  github:
+    url: https://github.com/thu-ml/RoboticsDiffusionTransformer
+    revision: cd79363a1387e8f81c7724d070ef7e45fd23150f
+  huggingface:
+  - repo_id: robotics-diffusion-transformer/rdt-1b
+    role: pretrained_policy
+    status: confirmed
+integration:
+  status: runtime_ported
+  notes:
+  - The native 128D unified action model, two-frame three-camera preprocessing, and DPM inference are in tree.
+  - Prompt encoding uses the official T5 checkpoint; precomputed embeddings are accepted for lower peak memory.
+  - The released checkpoint is a pretraining checkpoint and may require embodiment/task fine-tuning for deployment.
+tasks:
+- vla
+- vla.policy_rollout
+- robot_policy
+output_artifacts:
+- action_trace
+pipeline_binding: rdt-1b
+runtime_profile: runtime-profile:rdt-1b
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata,
+  and executable runtime records.

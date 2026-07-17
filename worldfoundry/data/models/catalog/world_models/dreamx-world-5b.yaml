@@ -1,0 +1,40 @@
+availability: open_source
+checkpoints:
+- GD-ML/DreamX-World-5B
+family: GD-ML DreamX-World
+id: dreamx-world-5b
+integration:
+  status: integrated
+  notes:
+  - In-tree resident causal AR runtime with latent, attention, cross-attention and VAE caches.
+license: apache-2.0
+modalities:
+- interactive-world-model
+- image-to-video
+- camera-action-control
+- world-generation
+name: DreamX-World 5B AR
+official_sources:
+  github:
+    confirmed_by: local_checkout
+    confirmed_ref: ${WORLDFOUNDRY_MODEL_SOURCE_DIR}/DreamX-World
+    url: https://github.com/AMAP-ML/DreamX-World
+  huggingface:
+  - confirmed_by: https://huggingface.co/api/models/GD-ML/DreamX-World-5B
+    repo_id: GD-ML/DreamX-World-5B
+    status: confirmed
+    type: model
+  project_page: https://amap-ml.github.io/DreamX_World
+release_type: code_and_weights
+runtime_profile: runtime-profile:dreamx-world-5b
+starred: true
+runner_parity:
+  status: integrated
+  notes:
+  - Uses the released causal checkpoint and four-step AR-Forcing schedule without RGB feedback.
+output_artifacts:
+- generated_world
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: dreamx-world-5b

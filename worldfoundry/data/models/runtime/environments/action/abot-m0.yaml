@@ -1,0 +1,33 @@
+env_name: worldfoundry-vla-abot-m0
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: abot-m0
+python: "3.10"
+cuda_profile: cu128_recommended
+driver_status: compatible
+conda_packages:
+- python
+- pip
+pip_packages:
+- torch>=2.7,<2.8
+- torchvision>=0.22,<0.23
+- transformers==4.57.1
+- diffusers>=0.35,<0.36
+- accelerate>=1.10,<2
+- safetensors>=0.4
+- huggingface-hub>=0.34,<0.36
+- Pillow>=10
+- numpy>=1.26
+- PyYAML>=6
+validation_imports:
+- torch
+- torchvision
+- transformers
+- diffusers
+- accelerate
+- safetensors
+- PIL
+- yaml
+notes:
+- CUDA 12.8 and PyTorch 2.7 are the recommended common environment.
+- Runtime selects attention and dtype by actual GPU capability across Turing through Blackwell.
+- No editable external source tree is required.

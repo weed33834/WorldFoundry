@@ -47,7 +47,7 @@ variants:
   integration_status: integrated
   notes:
   - Public WorldFoundry pipeline emitted checkpoint-backed StarVLA QwenOFT LIBERO action_trace
-    on an 80GB CUDA GPU through the in-tree runtime.
+    with checkpoint-statistics action unnormalization on an A100-SXM4-80GB through the in-tree runtime.
   task: vla.policy_rollout
 - checkpoint_refs:
   - license: mit
@@ -60,9 +60,9 @@ variants:
     world-action runtime has not been promoted by the QwenOFT policy validation.
   task: wam.world_action_modeling
 runner_parity:
-  backend: official.starVLA.baseframework.predict_action
-  scope: public_pipeline_checkpoint_backed_qwen3_vl_oft_libero_predict_action
-  source_repo_dir: worldfoundry/synthesis/action_generation/starvla
+  backend: worldfoundry.starvla.in_tree_predict_action
+  reference_backend: official.starVLA.baseframework.predict_action_plus_policy_normalization
+  scope: public_pipeline_checkpoint_backed_qwen3_vl_oft_libero_predict_action_and_unnormalization
   status: verified
 catalog_category: vla_va_wam
 catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint

@@ -1,0 +1,14 @@
+schema_version: 2
+binding_id: xiaomi-robotics-1
+model_id: xiaomi-robotics-1
+aliases:
+- xr1
+- xiaomi-robotics-one
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.synthesis.action_generation.xiaomi_robotics_1.pipeline:XiaomiRobotics1Pipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

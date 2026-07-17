@@ -18,7 +18,7 @@ availability:
   license: CC-BY-NC-SA-4.0
 integration:
   kind: pipeline_runner
-  status: runtime_ported
+  status: verified
   runtime_profile: dust3r-base-model
   notes:
   - WorldFoundry vendors DUSt3R under worldfoundry.base_models.three_dimensions.general_3d.dust3r.
@@ -26,9 +26,9 @@ integration:
   - Upstream license metadata remains CC-BY-NC-SA-4.0; it is recorded for provenance and does not block in-tree integration.
 base_model_target: worldfoundry.base_models.three_dimensions.general_3d.dust3r
 runner_parity:
-  status: implemented_checkpoint_pending
+  status: verified
   notes:
-  - In-tree source and pipeline binding are present; real prior inference still needs staged checkpoints and assets.
+  - Checkpoint-backed Studio inference produced a finite point cloud from the bundled multi-view test case; see worldfoundry/data/models/validation/inference_evidence.yaml.
 confirmation: Upstream LICENSE is Creative Commons Attribution-NonCommercial-ShareAlike 4.0. WorldFoundry keeps the license
   on record for provenance while shipping the in-tree DUSt3R integration.
 catalog_category: three_d_four_d

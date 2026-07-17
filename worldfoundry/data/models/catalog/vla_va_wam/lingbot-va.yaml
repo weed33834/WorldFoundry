@@ -19,7 +19,7 @@ integration:
     and build_server_command passes --checkpoint-dir to the vendored server.
   - LingBot-VA server/client runtime source is vendored in-tree and server init can
     reach websocket listen when checkpoint assets are staged.
-  status: plan_ready
+  status: in_tree_checkpoint_runtime_gpu_server_init_verified_rollout_pending
 license: apache-2.0
 name: LingBot-VA
 official_sources:
@@ -53,7 +53,7 @@ variants:
   - license: apache-2.0
     repo_id: robbyant/lingbot-va-base
   id: lingbot-va-base
-  integration_status: plan_ready
+  integration_status: in_tree_checkpoint_runtime_gpu_forward_server_init_verified
   notes:
   - WorldFoundry vendors LingBot-VA official wan_va runtime under worldfoundry/synthesis/action_generation/wan_va;
     base transformer CUDA forward passed on an 80GB CUDA GPU, staged configs use
@@ -63,7 +63,7 @@ variants:
   - license: apache-2.0
     repo_id: robbyant/lingbot-va-posttrain-robotwin
   id: lingbot-va-posttrain-robotwin
-  integration_status: plan_ready
+  integration_status: in_tree_checkpoint_runtime_checkpoint_gpu_probe_verified
   notes:
   - WorldFoundry vendors LingBot-VA official wan_va runtime under worldfoundry/synthesis/action_generation/wan_va;
     robotwin posttrain checkpoint tensor GPU probe passed on an 80GB CUDA GPU and
@@ -73,7 +73,7 @@ variants:
   - license: apache-2.0
     repo_id: robbyant/lingbot-va-posttrain-libero-long
   id: lingbot-va-posttrain-libero-long
-  integration_status: plan_ready
+  integration_status: in_tree_checkpoint_runtime_gpu_server_init_verified_rollout_pending
   notes:
   - WorldFoundry vendors LingBot-VA official wan_va runtime under worldfoundry/synthesis/action_generation/wan_va;
     libero-long posttrain checkpoint tensor GPU probe passed on an 80GB CUDA GPU and

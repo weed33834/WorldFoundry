@@ -1,13 +1,12 @@
 backend: callable_entrypoint
 checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/DravenALG--VLANeXt/VLANeXt_libero_spatial.pt
 checkpoint_ref: DravenALG/VLANeXt
-source_repo: ${WORLDFOUNDRY_REPO_ROOT}/worldfoundry/synthesis/action_generation/vlanext/vlanext_runtime
 require_checkpoint: true
 policy_target: worldfoundry.synthesis.action_generation.vlanext.runtime:predict_action
 predict_method: get_vla_action
 torch_dtype: bfloat16
 trust_remote_code: false
-runtime_backend: vlanext_in_tree_vendored_in_process_runtime
+runtime_backend: vlanext_in_tree_in_process_runtime
 action_contract: normalized_libero_action_chunk
 control_mode: libero_eef_action
 task_suite_name: libero_spatial

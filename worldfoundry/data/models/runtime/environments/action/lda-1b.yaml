@@ -1,0 +1,34 @@
+env_name: worldfoundry-vla-lda-1b
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: lda-1b
+python: "3.10"
+cuda_profile: cu124_or_newer
+driver_status: compatible
+conda_packages:
+- python
+- pip
+pip_packages:
+- torch==2.6.0
+- torchvision==0.21.0
+- transformers==4.57.0
+- accelerate==1.5.2
+- diffusers==0.35.1
+- safetensors>=0.4
+- Pillow>=10
+- numpy>=1.26,<2
+- pyyaml>=6
+- packaging>=24
+validation_imports:
+- torch
+- torchvision
+- transformers
+- accelerate
+- diffusers
+- safetensors
+- PIL
+- numpy
+- yaml
+notes:
+- Versions match the released inference stack where compatibility affects checkpoint parameter names.
+- Flash Attention is optional; the default shared SDPA path covers Turing through Blackwell.
+- No trainer, dataset library, simulation package, server, or robot driver is required.

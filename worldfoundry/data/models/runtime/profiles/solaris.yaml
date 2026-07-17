@@ -1,0 +1,50 @@
+schema_version: 2
+model_id: solaris
+display_name: Solaris
+task_family: world_model
+groups: [video, multi_agent, interactive]
+source_repos:
+- url: https://github.com/solaris-wm/solaris
+  revision: 68e0ed3b07f579c248c9b3b6337367d137e84c51
+  in_tree_path: worldfoundry/synthesis/visual_generation/solaris/solaris_runtime
+checkpoints:
+- repo_id: nyu-visionx/solaris
+  revision: 92424fb882be0056f5dbf223770769d2ebdf306e
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/solaris
+  role: orbax_world_model_checkpoint
+  status: checkpoint_manifest_validated
+  required_paths:
+  - solaris.pt/_CHECKPOINT_METADATA
+  - solaris.pt/commit_success.txt
+  - clip.pt/_CHECKPOINT_METADATA
+  - clip.pt/commit_success.txt
+  - vae.pt/_CHECKPOINT_METADATA
+  - vae.pt/commit_success.txt
+datasets:
+- repo_id: nyu-visionx/solaris-eval-datasets
+  revision: 136ed8683de570a9e88b1f54cab1ffbf50744297
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/solaris/datasets
+  role: official_eval_inputs
+  status: dataset_snapshot_validated
+  required_paths:
+  - README.md
+  - eval/oneLooksAwayEval/test/000000_Alpha_instance_000.json
+input_schema:
+  prompt: false
+  image: false
+  video: true
+  actions: [multi_agent_trajectory]
+artifact_kind: generated_video
+artifact_filename: solaris.mp4
+execution:
+  backend_stage: in_tree_official_runtime
+  runtime_status: checkpoint_and_dataset_required
+  integration_status: integrated
+  pipeline_binding: solaris
+  conda_env: worldfoundry-unified-cu128
+  nproc_per_node: 8
+integration:
+  status: integrated
+notes:
+- The inference-only Solaris runtime is vendored in-tree and consumes the official Orbax checkpoint and eval datasets.
+- Inference launches one sample per visible GPU; eval_num_samples must be a multiple of the visible GPU count.

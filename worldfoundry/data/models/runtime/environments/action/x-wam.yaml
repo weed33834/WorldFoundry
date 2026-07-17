@@ -1,0 +1,45 @@
+conda_packages:
+- python
+- pip
+- ffmpeg
+cuda_profile: cu129
+driver_status: checkpoint_validation_pending
+env_name: worldfoundry-x-wam-cu129
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: x-wam
+notes:
+- Python 3.10, PyTorch 2.8, Diffusers 0.38, and Transformers 4.51.3 match the upstream tested inference surface.
+- The runtime is inference-only and omits Lightning, DeepSpeed, ZeroMQ, RoboCasa, RoboSuite, RoboTwin, training, and dataset packages.
+- FlashAttention is optional because X-WAM attention is routed through the WorldFoundry core dispatcher with native SDPA fallback.
+- "Dtype is capability-selected: fp16 on Turing and bf16 on Ampere, Ada, Hopper, and Blackwell; explicit overrides remain available."
+pip_extra_index_url: https://download.pytorch.org/whl/cu129
+pip_packages:
+- torch==2.8.0
+- diffusers==0.38.0
+- transformers==4.51.3
+- tokenizers>=0.20.3
+- accelerate>=1.1.1
+- numpy==1.23.5
+- einops
+- PyYAML
+- Pillow
+- ftfy
+- regex
+- safetensors
+- huggingface-hub
+- filelock
+- imageio[ffmpeg]
+- loguru
+python: '3.10'
+validation_imports:
+- torch
+- diffusers
+- transformers
+- tokenizers
+- numpy
+- einops
+- yaml
+- PIL
+- ftfy
+- regex
+- huggingface_hub

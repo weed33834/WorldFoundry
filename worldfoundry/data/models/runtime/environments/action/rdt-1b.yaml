@@ -1,0 +1,30 @@
+env_name: worldfoundry-vla-rdt-1b
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: rdt-1b
+python: '3.10'
+cuda_profile: cu121_or_newer
+driver_status: compatible
+conda_packages:
+- python
+- pip
+pip_packages:
+- torch>=2.2
+- torchvision>=0.17
+- transformers>=4.45,<6
+- diffusers>=0.30
+- timm>=0.9
+- safetensors>=0.4
+- huggingface-hub>=0.23
+- Pillow>=10
+- numpy>=1.26
+- opencv-python-headless>=4.10
+validation_imports:
+- torch
+- transformers
+- diffusers
+- timm
+- PIL
+- cv2
+notes:
+- Auto dtype selects BF16 on Ampere, Ada, Hopper, Blackwell, and newer NVIDIA GPUs and FP16 on older CUDA GPUs.
+- The T5 encoder can be released after prompt encoding; cached embeddings avoid repeated peak memory use.

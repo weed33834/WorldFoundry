@@ -8,26 +8,94 @@ groups:
 - robot_policy
 source_repos:
 - url: https://github.com/2toinf/X-VLA
+  revision: 6bc2513f5f1cbec715cc668b414392a6cae5c671
 checkpoints:
 - repo_id: 2toINF/X-VLA-WidowX
-  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/2toINF--X-VLA-WidowX
+  revision: 8d7ea1aaa948665d44129a3ff488629b955fc0f9
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/2toINF--X-VLA-WidowX
   role: widowx_checkpoint
+  domain_id: 0
+  status: checkpoint_gpu_validated
 - repo_id: 2toINF/X-VLA-Google-Robot
-  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/2toINF--X-VLA-Google-Robot
+  revision: afaad7ac52e483629e688f0c9c681cc58472d130
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/2toINF--X-VLA-Google-Robot
   role: google_robot_checkpoint
+  domain_id: 1
+  status: checkpoint_gpu_validated
+- repo_id: 2toINF/X-VLA-Libero
+  revision: 129e71460678b7236cee6fc9707f09d9fa0c3590
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/2toINF--X-VLA-Libero
+  role: libero_checkpoint
+  domain_id: 3
+  status: checkpoint_gpu_validated
+- repo_id: 2toINF/X-VLA-Calvin-ABC_D
+  revision: d76710ee314ee1fa8506f421664c989b40bae415
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/2toINF--X-VLA-Calvin-ABC_D
+  role: calvin_checkpoint
+  domain_id: 2
+  status: checkpoint_gpu_validated
+- repo_id: 2toINF/X-VLA-RoboTwin2
+  revision: a157c580cfe6f9f445614490f3bec1b2f9ef9f18
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/2toINF--X-VLA-RoboTwin2
+  role: robotwin2_checkpoint
+  domain_id: 6
+  status: checkpoint_gpu_validated
+- repo_id: 2toINF/X-VLA-VLABench
+  revision: 0995f2f51c9f2e29d78f20080948d25ce7e28d88
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/2toINF--X-VLA-VLABench
+  role: vlabench_checkpoint
+  domain_id: 8
+  status: checkpoint_gpu_validated
+- repo_id: 2toINF/X-VLA-AgiWorld-Challenge
+  revision: 0305b7472b15d01b8aba573ae55ba63a8b7f54ee
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/2toINF--X-VLA-AgiWorld-Challenge
+  role: agiworld_checkpoint
+  domain_id: 9
+  status: checkpoint_gpu_validated
+- repo_id: 2toINF/X-VLA-SoftFold
+  revision: a67dc68f1264e97f8aeb06bc71384a41a3d6b0eb
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/2toINF--X-VLA-SoftFold
+  role: softfold_checkpoint
+  domain_id: 5
+  status: checkpoint_gpu_validated
+- repo_id: 2toINF/X-VLA-Pt
+  revision: c1c4a64a7e03ac5b95c468bf1578f3d03651b53b
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/2toINF--X-VLA-Pt
+  role: foundation_checkpoint
+  domain_id: null
+  status: checkpoint_gpu_validated
 input_schema:
   model_id: xvla
   image: true
   prompt: true
   state: true
+  camera_keys:
+  - image0
+  - image1
+  - image2
+  domain_id: true
+  denoising_steps: true
   policy_family: cross_embodiment_vla_policy
   action_representation: xvla_action
 artifact_kind: action_trace
 artifact_filename: xvla_action_trace.json
 execution:
-  backend_stage: official_in_tree_runtime
-  runtime_status: official_xvla_runtime_route_ready_checkpoint_required
-  integration_status: runtime_ported
+  backend_stage: in_tree_checkpoint_runtime
+  runtime_status: all_released_checkpoints_gpu_validated
+  integration_status: all_released_checkpoints_gpu_validated
   pipeline_binding: xvla
 integration:
-  status: runtime_ported
+  status: all_released_checkpoints_gpu_validated
+license: apache-2.0
+gpu_targets:
+- NVIDIA Turing (T4/RTX 20) in float32 or float16
+- NVIDIA Ampere (A10/A30/A40/A100/A800/RTX 30)
+- NVIDIA Ada (L4/L40/L40S/RTX 40)
+- NVIDIA Hopper (H100/H200/H800)
+- NVIDIA Blackwell (B100/B200/GB200/RTX 50)
+notes:
+- Runtime uses only local WorldFoundry model classes and forces trust_remote_code=false.
+- The official float32 route is the default; bf16/fp16 remain explicit performance options.
+- Variant selection now binds each released checkpoint to its official embodiment domain ID; the foundation checkpoint requires an explicit domain ID.
+- All nine snapshots pass pinned-manifest exact-size and safetensors-header validation with no partial markers.
+- All nine released checkpoints passed strict restoration and real A100 Workspace inference with ten denoising steps, each emitting finite 30-by-20 actions with its explicit domain ID.

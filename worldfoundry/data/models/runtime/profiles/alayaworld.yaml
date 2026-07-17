@@ -1,0 +1,77 @@
+schema_version: 2
+model_id: alayaworld
+display_name: AlayaWorld
+task_family: world_model
+groups:
+- world
+- video
+- image_to_video
+- camera_control
+- autoregressive_video
+- long_video
+source_repos:
+- url: https://github.com/AlayaLab/AlayaWorld
+  revision: 58678a00eb6fde0a77206b7466c65ab622acfeb9
+  in_tree_path: worldfoundry/synthesis/visual_generation/alayaworld
+checkpoints:
+- role: alayaworld_merged_inference
+  repo_id: AlayaLab/AlayaWorld
+  revision: e3f1adebec5cda1c77c55c115cde47fba279f887
+  filename: merged_infer.safetensors
+  sha256: 999a42db138180bb6dddd724f16d785d99ca119c37ce43160a18ed23dc5b01e1
+  size_bytes: 33609234116
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/AlayaWorld/merged_infer.safetensors
+  status: checkpoint_checksum_validated
+- role: gemma_text_encoder
+  repo_id: google/gemma-3-12b-it-qat-q4_0-unquantized
+  revision: 68f7ee4fbd59087436ada77ed2d62f373fdd4482
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/gemma-3-12b-it-qat-q4_0-unquantized
+  status: checkpoint_manifest_validated
+  gated: true
+- role: spatial_depth_model
+  repo_id: depth-anything/DA3NESTED-GIANT-LARGE-1.1
+  revision: b2359bdf726fb44ef62acca04d629dcf158053e7
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/DA3NESTED-GIANT-LARGE-1.1
+  status: checkpoint_manifest_validated
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - camera_trajectory
+  - camera_path
+artifact_kind: generated_world_video
+artifact_filename: alayaworld.mp4
+execution:
+  environment: worldfoundry-unified-cu128
+  backend_stage: independent_in_tree_runtime
+  runtime_status: checkpoint_gpu_validated_official_case1_single_chunk
+  integration_status: integrated
+  pipeline_binding: alayaworld
+  defaults:
+    height: 544
+    width: 960
+    fps: 24
+    rounds: 5
+    generated_frames: 160
+    sampling_steps: 4
+integration:
+  status: integrated
+license: ltx-2-community-license
+usage_restrictions:
+- academic-and-research-use
+- non-commercial-use
+- gemma-license-acceptance-required
+- da3-weights-cc-by-nc-4.0
+gpu_targets:
+- NVIDIA Ampere (A10/A30/A40/A100/A800/RTX 30)
+- NVIDIA Ada (L4/L40/L40S/RTX 40)
+- NVIDIA Hopper (H100/H200/H800)
+- NVIDIA Blackwell (B100/B200/GB200/RTX 50)
+notes:
+- AlayaWorld is implemented as a thin extension of the canonical in-tree LTX-2.3 model; it does not duplicate or import an external LTX repository.
+- Only Alaya-specific action AdaLN, history encoding, spatial-memory orchestration, and autoregressive rollout code are added.
+- Attention dispatch is capability based; multi-GPU Ulysses context parallelism uses WorldFoundry core collectives.
+- The released merged checkpoint was byte-size and SHA-256 validated before inference.
+- The unified in-tree pipeline generated and decoded the official case1 first chunk on an NVIDIA A100: 32 frames at 544x960, 24 fps, with DA3 spatial memory and all four DMD steps enabled.
+- Multi-rank Ulysses tensor parity is validated, but an NCCL multi-GPU artifact run remains pending access to more than one visible GPU.

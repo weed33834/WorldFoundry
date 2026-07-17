@@ -7,8 +7,11 @@ runtime:
   checkpoint_candidates:
   - $WORLDFOUNDRY_HFD_ROOT/ali-vilab--i2vgen-xl
   torch_dtype: float16
-  fps: 8
+  # I2VGen-XL conditions generation on target_fps=16 by default. Encode at the
+  # same rate so playback duration and learned motion speed stay consistent.
+  fps: 16
   call_kwargs:
     num_inference_steps: 50
+    target_fps: 16
 notes:
 - Official open weights are exposed as a Hugging Face/diffusers image-to-video pipeline.

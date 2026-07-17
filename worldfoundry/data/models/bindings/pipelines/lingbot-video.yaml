@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: lingbot-video
+model_id: lingbot-video
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.lingbot_video.pipeline_lingbot_video:LingBotVideoGenerationPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

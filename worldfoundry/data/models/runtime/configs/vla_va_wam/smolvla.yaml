@@ -1,8 +1,18 @@
-backend: lerobot_policy
-checkpoint_path: ${WORLDFOUNDRY_CKPT_DIR}/lerobot--smolvla_base
-source_repo: ${WORLDFOUNDRY_MODEL_SOURCE_DIR}/lerobot
-source_subdir: src
-policy_target: lerobot.policies.smolvla.modeling_smolvla:SmolVLAPolicy
-predict_method: predict_action_chunk
-action_contract: smolvla_action_chunk
-runtime_backend: lerobot_smolvla_policy
+backend: callable_entrypoint
+checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/HuggingFaceVLA--smolvla_libero
+checkpoint_ref: HuggingFaceVLA/smolvla_libero
+policy_target: worldfoundry.synthesis.action_generation.smolvla.runtime:predict_action
+predict_method: predict_action
+require_checkpoint: true
+backbone_path: ${WORLDFOUNDRY_HFD_ROOT}/HuggingFaceTB--SmolVLM2-500M-Video-Instruct
+torch_dtype: auto
+seed: 0
+compile_model: false
+denoising_steps: 10
+state_keys: [observation.state, state, proprio, robot_state, joint_state]
+camera_aliases:
+- [observation.images.image, image, camera1, agentview_image, agentview_rgb, cam_high, cam_head, image0]
+- [observation.images.image2, image2, camera2, wrist_image, eye_in_hand_image, eye_in_hand_rgb, left_wrist, image1]
+prompt_suffix: "\n"
+runtime_backend: smolvla_native
+action_contract: libero_50_step_7d_continuous_flow_action_chunk

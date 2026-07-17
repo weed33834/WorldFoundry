@@ -1,0 +1,61 @@
+schema_version: 2
+model_id: rolling-forcing
+display_name: RollingForcing
+task_family: video_generation
+groups:
+- video
+- autoregressive_video
+- long_video
+- streaming
+source_repos:
+- url: https://github.com/TencentARC/RollingForcing
+  revision: a1477d09e85dc759a6a6728f55f77f59342ce388
+checkpoints:
+- role: rolling_forcing_dmd
+  repo_id: TencentARC/RollingForcing
+  revision: 2901927d0aebb3a9648a918b55b5eba64b8bbbe2
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/RollingForcing/checkpoints/rolling_forcing_dmd.pt
+- role: wan2_1_t2v_1_3b
+  repo_id: Wan-AI/Wan2.1-T2V-1.3B
+  revision: 37ec512624d61f7aa208f7ea8140a131f93afc9a
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Wan2.1-T2V-1.3B
+input_schema:
+  prompt: true
+  image: false
+  video: false
+  actions:
+  - seed
+artifact_kind: generated_video
+artifact_filename: rolling-forcing.mp4
+execution:
+  backend_stage: official_in_tree_runtime
+  runtime_status: official_126_latent_demo_verified_a100
+  integration_status: integrated
+  pipeline_binding: rolling-forcing
+  defaults:
+    num_output_frames: 126
+    num_samples: 1
+    use_ema: true
+    seed: 0
+    fps: 16
+integration:
+  status: integrated
+license: rollingforcing-academic-only
+usage_restrictions:
+- academic-only
+- no-commercial-use
+- no-production-use
+gpu_targets:
+- NVIDIA Ampere (A10/A30/A40/A100/A800/RTX 30)
+- NVIDIA Ada (L4/L40/L40S/RTX 40)
+- NVIDIA Hopper (H100/H200/H800)
+- NVIDIA Blackwell (B100/B200/GB200/RTX 50)
+notes:
+- The inference package is flat and source-complete in-tree; the upstream repository is not a runtime dependency.
+- The core attention dispatcher chooses supported SDPA/FlashAttention paths at runtime and does not hard-code A100.
+- BF16 and memory capacity remain hardware requirements; lower-memory GPUs may require future offload support.
+- The official 126 latent frames decode to a long video at 16 FPS. Smaller multiples of three are valid smoke runs.
+- >-
+  An end-to-end Workspace run on an A100 verified the official 126-latent-frame route: 501 decoded
+  frames at 832x480 and 16 FPS, with the exact released checkpoint SHA256. H100/H200 and Blackwell
+  remain runtime dispatch targets but require separate hardware validation.

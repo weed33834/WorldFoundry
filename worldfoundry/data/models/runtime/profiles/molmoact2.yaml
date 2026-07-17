@@ -5,24 +5,31 @@ checkpoints:
 - local_dir: ${WORLDFOUNDRY_HFD_ROOT}/allenai--MolmoAct2-DROID
   repo_id: allenai/MolmoAct2-DROID
   role: droid_franka_policy_checkpoint
+  status: checkpoint_gpu_validated
 - local_dir: ${WORLDFOUNDRY_HFD_ROOT}/allenai--MolmoAct2-BimanualYAM
   repo_id: allenai/MolmoAct2-BimanualYAM
   role: bimanual_yam_policy_checkpoint
+  status: checkpoint_manifest_validated
 - local_dir: ${WORLDFOUNDRY_HFD_ROOT}/allenai--MolmoAct2
   repo_id: allenai/MolmoAct2
   role: base_checkpoint
+  status: checkpoint_manifest_validated
 - local_dir: ${WORLDFOUNDRY_HFD_ROOT}/allenai--MolmoAct2-Think
   repo_id: allenai/MolmoAct2-Think
   role: depth_reasoning_base_checkpoint
+  status: checkpoint_manifest_validated
 - local_dir: ${WORLDFOUNDRY_HFD_ROOT}/allenai--MolmoAct2-SO100_101
   repo_id: allenai/MolmoAct2-SO100_101
   role: so100_so101_policy_checkpoint
+  status: checkpoint_gpu_validated
 - local_dir: ${WORLDFOUNDRY_HFD_ROOT}/allenai--MolmoAct2-LIBERO
   repo_id: allenai/MolmoAct2-LIBERO
   role: libero_policy_checkpoint
+  status: checkpoint_gpu_validated
 - local_dir: ${WORLDFOUNDRY_HFD_ROOT}/allenai--MolmoAct2-Think-LIBERO
   repo_id: allenai/MolmoAct2-Think-LIBERO
   role: libero_depth_reasoning_policy_checkpoint
+  status: checkpoint_manifest_validated
 display_name: MolmoAct2
 id: molmoact2
 input_schema:
@@ -31,6 +38,7 @@ input_schema:
   - robot_action
   camera_keys:
   - external_cam
+  - external_cam_2
   - wrist_cam
   default_embodiment: droid
   image: true
@@ -40,14 +48,16 @@ input_schema:
   state: true
   state_dim: 8
   video: false
-integration_status: runtime_ported
+integration_status: in_tree_checkpoint_runtime_gpu_validated
 notes:
 - VLA policy profile for Ai2 MolmoAct2. The in-tree runtime is under worldfoundry/synthesis/action_generation/molmoact2
   and emits action_trace artifacts.
-- Direct execution uses the official Hugging Face AutoProcessor/AutoModelForImageTextToText predict_action path with trust_remote_code,
-  plus the DROID/YAM bf16 dtype patches from the local molmoact2 inference server.
-- DROID defaults use cameras [external_cam, wrist_cam], state_dim=8, norm_tag=franka_droid; YAM defaults use cameras [top_cam,
+- Direct execution uses the retained local MolmoAct2 model and processor classes;
+  checkpoint-hosted Python is disabled. Automatic precision selects BF16 on
+  Ampere/Hopper/Blackwell-class GPUs, FP16 on older CUDA GPUs, and FP32 on CPU.
+- DROID defaults use cameras [external_cam, external_cam_2, wrist_cam], state_dim=8, norm_tag=franka_droid; YAM defaults use cameras [top_cam,
   left_cam, right_cam], state_dim=14, norm_tag=yam_dual_molmoact2.
-- GPU checkpoint-backed parity has not been run from WorldFoundry yet; plan_only is available for CI and runner preflight.
-runtime_status: in_tree_molmoact2_hf_predict_action_runtime_ported_gpu_pending
+- Real A100 Workspace rollouts passed for DROID (15x8), LIBERO (10x7), and SO100/SO101 (30x6), all finite.
+- Base, Bimanual YAM, Think, and Think-LIBERO snapshots remain manifest-validated but were not numerically exercised in this pass.
+runtime_status: in_tree_molmoact2_hf_predict_action_gpu_validated
 task_family: vla_policy

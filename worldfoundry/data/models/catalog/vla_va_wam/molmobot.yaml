@@ -9,10 +9,10 @@ checkpoint:
   repo_id: allenai/MolmoBot-DROID
 id: molmobot
 integration:
-  status: in_tree_vendored_import_verified
+  status: in_tree_import_verification_in_progress
   notes:
   - WorldFoundry records MolmoBot OLMo/MolmoBot-Pi0 action inference contracts with an independent synthesis entrypoint.
-  - The current runtime calls the official SynthManip MolmoBot wrapper in-process from the in-tree vendored infer subset under worldfoundry/synthesis/action_generation/molmobot/molmobot_runtime.
+  - The current runtime directly calls the flattened in-tree SynthManip MolmoBot inference wrapper under worldfoundry/synthesis/action_generation/molmobot.
   - Resolver, runtime import, and compileall checks pass without an external github_repos checkout; checkpoint-backed action chunk validation remains required before demo parity is claimed.
 license: apache-2.0
 name: MolmoBot
@@ -45,7 +45,7 @@ tasks:
 - robot_policy
 variants:
 - id: molmobot-droid
-  integration_status: in_tree_vendored_checkpoint_pending
+  integration_status: in_tree_checkpoint_validation_pending
   task: vla.policy_rollout
   checkpoint_refs:
   - repo_id: allenai/MolmoBot-DROID
@@ -61,7 +61,7 @@ variants:
   notes:
   - Official demo uses PiJointPosPolicy with qpos arm/gripper, exo_camera_1, wrist_camera, and task prompt.
 runner_parity:
-  status: in_tree_vendor_ready_checkpoint_pending
+  status: in_tree_inference_ready_checkpoint_pending
   notes:
   - MolmoSpaces simulator, real robot clients, training code, W&B/SPoC paths, and benchmark assets are excluded.
 catalog_category: vla_va_wam

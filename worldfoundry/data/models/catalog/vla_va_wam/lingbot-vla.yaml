@@ -1,0 +1,64 @@
+id: lingbot-vla
+name: LingBot-VLA
+aliases:
+- lingbot-vla-4b
+- lingbot-vla-4b-posttrain-robotwin
+- lingbot-vla-4b-depth-posttrain-robotwin
+provider: official_repo
+availability: open_source
+license: apache-2.0
+checkpoint:
+  repo_id: robbyant/lingbot-vla-4b-posttrain-robotwin
+  license: apache-2.0
+official_sources:
+  github:
+    url: https://github.com/Robbyant/lingbot-vla
+    head_sha: 4eb34b7693a0
+  huggingface:
+  - repo_id: robbyant/lingbot-vla-4b
+    revision: 87712223fb463f0f6a6565f8feba64c35418e393
+    role: pretrained_base_policy
+  - repo_id: robbyant/lingbot-vla-4b-posttrain-robotwin
+    role: robotwin_posttrained_policy
+  - repo_id: robbyant/lingbot-vla-4b-depth-posttrain-robotwin
+    role: robotwin_depth_posttrained_policy
+  modelscope:
+  - repo_id: Robbyant/lingbot-vla-4b
+    revision: 6f8577ab5be31bc6f16523e088873c2b34d11356
+    role: pretrained_base_policy_download_source
+tasks: [vla, vla.action_prediction, vla.policy_rollout, robot_policy]
+output_artifacts: [action_trace]
+pipeline_binding: lingbot-vla
+runtime_profile: runtime-profile:lingbot-vla
+integration:
+  status: in_tree_in_process_checkpoint_runtime
+  notes:
+  - Official policy/model, feature transforms, robot mapping, and normalization assets are integrated directly in-tree.
+  - Runtime uses shared WorldFoundry core device selection, compile dispatch, Hugging Face snapshot coordination, and streaming safetensors loading.
+variants:
+- id: lingbot-vla-4b
+  task: vla.pretraining
+  integration_status: in_tree_checkpoint_runtime_static_validated
+  checkpoint_refs:
+  - repo_id: robbyant/lingbot-vla-4b
+    revision: 87712223fb463f0f6a6565f8feba64c35418e393
+    license: apache-2.0
+- id: lingbot-vla-4b-posttrain-robotwin
+  task: vla.policy_rollout
+  integration_status: in_tree_checkpoint_runtime
+  checkpoint_refs:
+  - repo_id: robbyant/lingbot-vla-4b-posttrain-robotwin
+    license: apache-2.0
+- id: lingbot-vla-4b-depth-posttrain-robotwin
+  task: vla.policy_rollout
+  integration_status: in_tree_checkpoint_runtime
+  checkpoint_refs:
+  - repo_id: robbyant/lingbot-vla-4b-depth-posttrain-robotwin
+    license: apache-2.0
+runner_parity:
+  status: official_in_process_runtime_static_checkpoint_validation_complete
+  notes:
+  - The WebSocket transport, training stack, and depth teacher repositories are not needed for direct policy inference.
+  - Full demo parity requires staging the public checkpoint and its Qwen2.5-VL processor assets.
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata, and runtime-profile planning records.

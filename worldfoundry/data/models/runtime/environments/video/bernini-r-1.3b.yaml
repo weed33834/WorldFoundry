@@ -1,0 +1,31 @@
+model_id: bernini-r-1.3b
+env_name: worldfoundry-bernini-cu124
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+python: '3.11'
+cuda_profile: cu124
+driver_status: compatible
+conda_packages: [python=3.11, pip, ffmpeg, ninja, cuda-nvcc]
+pip_extra_index_url: https://download.pytorch.org/whl/cu124
+pip_packages:
+- torch==2.5.1+cu124
+- torchvision==0.20.1+cu124
+- diffusers==0.35.2
+- accelerate==0.34.2
+- transformers==4.57.3
+- huggingface-hub
+- flash-attn==2.8.3
+- safetensors
+- einops
+- numpy
+- Pillow
+- tqdm
+- ftfy
+- decord
+- imageio
+- imageio-ffmpeg
+- scipy
+- loguru
+- veomni @ git+https://github.com/ByteDance-Seed/VeOmni.git@v0.1.10
+validation_imports: [torch, torchvision, diffusers, transformers, huggingface_hub, accelerate, flash_attn, veomni, decord, imageio, loguru]
+notes:
+- Shared isolated Bernini inference environment; pins match the official CUDA 12.4 stack.

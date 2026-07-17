@@ -1,0 +1,88 @@
+id: xiaomi-robotics-0
+display_name: Xiaomi-Robotics-0
+task_family: vla_policy
+artifact_kind: action_trace
+artifact_filename: xiaomi_robotics_0_action_trace.json
+backend_stage: in_tree_checkpoint_runtime
+integration_status: all_released_checkpoints_gpu_validated
+runtime_status: all_released_checkpoints_gpu_validated
+verification_status: all_released_checkpoints_gpu_validated
+checkpoints:
+- repo_id: XiaomiRobotics/Xiaomi-Robotics-0-LIBERO
+  revision: fc04bbdcc53e498695cfad95d1199091396ef55b
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/XiaomiRobotics--Xiaomi-Robotics-0-LIBERO
+  role: libero_policy_checkpoint
+  status: checkpoint_gpu_validated
+- repo_id: XiaomiRobotics/Xiaomi-Robotics-0-Calvin-ABCD_D
+  revision: 1161227fbcde104c7333ccf684695d3612df2d26
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/XiaomiRobotics--Xiaomi-Robotics-0-Calvin-ABCD_D
+  role: calvin_abcd_to_d_policy_checkpoint
+  status: checkpoint_gpu_validated
+- repo_id: XiaomiRobotics/Xiaomi-Robotics-0-Calvin-ABC_D
+  revision: 3e64bfa35ab26c00cb5572e3f174a2421a85577d
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/XiaomiRobotics--Xiaomi-Robotics-0-Calvin-ABC_D
+  role: calvin_abc_to_d_policy_checkpoint
+  status: checkpoint_gpu_validated
+- repo_id: XiaomiRobotics/Xiaomi-Robotics-0-SimplerEnv-Google-Robot
+  revision: 3b6b1bf65cf9ffbf0865a9abc0b66ee338e0bee6
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/XiaomiRobotics--Xiaomi-Robotics-0-SimplerEnv-Google-Robot
+  role: simplerenv_google_robot_policy_checkpoint
+  status: checkpoint_gpu_validated
+- repo_id: XiaomiRobotics/Xiaomi-Robotics-0-SimplerEnv-WidowX
+  revision: 3f25b13ea6007d44466e6ea9d2ffe460876142c5
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/XiaomiRobotics--Xiaomi-Robotics-0-SimplerEnv-WidowX
+  role: simplerenv_widowx_policy_checkpoint
+  status: checkpoint_gpu_validated
+- repo_id: XiaomiRobotics/Xiaomi-Robotics-0-Pretrain
+  revision: 50276c277f7d5c9b1a52fcecdea79045568c6916
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/XiaomiRobotics--Xiaomi-Robotics-0-Pretrain
+  role: base_pretrained_checkpoint
+  status: checkpoint_gpu_validated
+input_schema:
+  instruction: true
+  prompt: true
+  image: true
+  video: false
+  state: true
+  state_dim: 32
+  action_chunk: variant_dependent
+  action_chunk_max: 30
+  action_dim: 32
+  variants:
+    libero:
+      robot_type: libero_all
+      camera_keys: [base, wrist_left]
+      action_horizon: 10
+    calvin-abcd:
+      robot_type: calvin_abcd_orig
+      camera_keys: [base, wrist_left]
+      action_horizon: 10
+    calvin-abc:
+      robot_type: calvin_abc_orig
+      camera_keys: [base, wrist_left]
+      action_horizon: 10
+    simplerenv-google:
+      robot_type: fractal_delta
+      camera_keys: [base]
+      action_horizon: 4
+    simplerenv-widowx:
+      robot_type: bridge_delta
+      camera_keys: [base]
+      action_horizon: 4
+    pretrain:
+      action_horizons:
+        agibot_pt_v3: 30
+        droid_pt: 15
+        midata_mix_ann_pt_v1: 30
+        molmoact_pt: 15
+execution:
+  environment: xiaomi-robotics-0
+  pipeline_binding: xiaomi-robotics-0
+notes:
+- Default variant is LIBERO; select other official checkpoints with variant/variant_id.
+- The base pretrain variant requires explicit robot_type, camera_keys, and view_labels because it has no universal embodiment/view contract.
+- Model and processor classes are loaded from the in-tree package, never with trust_remote_code.
+- SimplerEnv variants apply their released resize and 0.95 center-crop transform before checkpoint preprocessing.
+- All six pinned snapshots pass exact-size, sharded-index, and safetensors-header validation with no partial markers.
+- All six released checkpoints passed strict restoration and real A100 Workspace inference with finite variant-specific action chunks; the pretrain checkpoint was validated with the explicit DROID contract.
+- Checkpoint weights are not bundled; runtime resolves only explicitly staged local snapshots and never downloads implicitly.

@@ -1,0 +1,65 @@
+vision_backbones:
+  clip-vit-l:
+    resolutions: [224]
+    timm_ids: [vit_large_patch14_clip_224.openai]
+    override_act_layers: [quick_gelu]
+  clip-vit-l-336px:
+    resolutions: [336]
+    timm_ids: [vit_large_patch14_clip_336.openai]
+    override_act_layers: [quick_gelu]
+  dinov2-vit-l:
+    resolutions: [224]
+    timm_ids: [vit_large_patch14_reg4_dinov2.lvd142m]
+    override_act_layers: [null]
+  in1k-vit-l:
+    resolutions: [224]
+    timm_ids: [vit_large_patch16_224.augreg_in21k_ft_in1k]
+    override_act_layers: [null]
+  siglip-vit-so400m:
+    resolutions: [224]
+    timm_ids: [vit_so400m_patch14_siglip_224]
+    override_act_layers: [null]
+  siglip-vit-so400m-384px:
+    resolutions: [384]
+    timm_ids: [vit_so400m_patch14_siglip_384]
+    override_act_layers: [null]
+  dinoclip-vit-l-336px:
+    resolutions: [336, 336]
+    timm_ids: [vit_large_patch14_reg4_dinov2.lvd142m, vit_large_patch14_clip_336.openai]
+    override_act_layers: [null, quick_gelu]
+  dinosiglip-vit-so-224px:
+    resolutions: [224, 224]
+    timm_ids: [vit_large_patch14_reg4_dinov2.lvd142m, vit_so400m_patch14_siglip_224]
+    override_act_layers: [null, null]
+  dinosiglip-vit-so-384px:
+    resolutions: [384, 384]
+    timm_ids: [vit_large_patch14_reg4_dinov2.lvd142m, vit_so400m_patch14_siglip_384]
+    override_act_layers: [null, null]
+language_backbones:
+  llama2-7b-pure:
+    hf_path: meta-llama/Llama-2-7b-hf
+    hf_metaclass: llama
+  llama2-13b-pure:
+    hf_path: meta-llama/Llama-2-13b-hf
+    hf_metaclass: llama
+  llama2-7b-chat:
+    hf_path: meta-llama/Llama-2-7b-chat-hf
+    hf_metaclass: llama
+  llama2-13b-chat:
+    hf_path: meta-llama/Llama-2-13b-chat-hf
+    hf_metaclass: llama
+  vicuna-v15-7b:
+    hf_path: lmsys/vicuna-7b-v1.5
+    hf_metaclass: llama
+  vicuna-v15-13b:
+    hf_path: lmsys/vicuna-13b-v1.5
+    hf_metaclass: llama
+  mistral-v0.1-7b-pure:
+    hf_path: mistralai/Mistral-7B-v0.1
+    hf_metaclass: mistral
+  mistral-v0.1-7b-instruct:
+    hf_path: mistralai/Mistral-7B-Instruct-v0.1
+    hf_metaclass: mistral
+  phi-2-3b:
+    hf_path: microsoft/phi-2
+    hf_metaclass: phi

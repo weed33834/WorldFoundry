@@ -5,25 +5,50 @@ task_family: vla_policy
 groups:
 - vla
 - robot_policy
-source_repos:
-- url: https://github.com/huggingface/lerobot
 checkpoints:
+- repo_id: HuggingFaceVLA/smolvla_libero
+  revision: 6721902bc4d61e50a3bfdb11dfb4cb626f05d102
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/HuggingFaceVLA--smolvla_libero
+  role: libero_task_checkpoint
+  status: checkpoint_gpu_action_validated
 - repo_id: lerobot/smolvla_base
-  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/lerobot--smolvla_base
+  revision: c83c3163b8ca9b7e67c509fffd9121e66cb96205
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/lerobot--smolvla_base
   role: base_checkpoint
+  status: checkpoint_manifest_validated
+- repo_id: HuggingFaceTB/SmolVLM2-500M-Video-Instruct
+  revision: 7b375e1b73b11138ff12fe22c8f2822d8fe03467
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/HuggingFaceTB--SmolVLM2-500M-Video-Instruct
+  role: vision_language_backbone
+  status: checkpoint_manifest_validated
 input_schema:
   model_id: smolvla
   image: true
   prompt: true
   state: true
+  state_dim: 8
+  camera_count: 2
+  camera_keys:
+  - observation.images.image
+  - observation.images.image2
   policy_family: smolvla_policy
   action_representation: continuous_action_chunk
+  action_shape:
+  - 50
+  - 7
 artifact_kind: action_trace
 artifact_filename: smolvla_action_trace.json
 execution:
   backend_stage: official_in_tree_runtime
-  runtime_status: official_lerobot_runtime_route_ready_checkpoint_required
-  integration_status: runtime_ported
+  runtime_status: libero_checkpoint_gpu_workspace_action_validated
+  integration_status: runtime_ported_selected_checkpoint_gpu_validated
   pipeline_binding: smolvla
 integration:
-  status: runtime_ported
+  status: runtime_ported_selected_checkpoint_gpu_validated
+notes:
+- The foundation checkpoint is retained as a fine-tuning asset; it does not contain a complete task state-normalization contract and is not used for rollout inference.
+- The LIBERO task checkpoint contains matching 8-D state and 7-D action statistics and is the executable Workspace default.
+- The checkpoint's `HuggingFaceTB/SmolVLM2-500M-Instruct` identifier resolves to the published `SmolVLM2-500M-Video-Instruct` repository at the same pinned revision and model SHA-256; the profile records the actual local directory.
+- The LIBERO files were staged by hfd; CPU BF16 strict restoration loaded all 788 tensors with no missing, unexpected, mismatched, or meta tensors.
+- A real GPU 4 Workspace run with flat dotted 8-D state and both official camera keys completed 10 denoising steps and returned a finite 1x50x7 action chunk. This validates the selected LIBERO checkpoint only; the foundation checkpoint and other observation domains remain unvalidated numerically.
+- Runtime dtype and attention selection remain capability-driven for Ampere, Ada, Hopper, Blackwell, and newer NVIDIA GPUs.

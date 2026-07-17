@@ -1,0 +1,42 @@
+schema_version: 2
+model_id: lingbot-vla-v2
+display_name: LingBot-VLA 2.0
+task_family: vla_policy
+groups: [vla, robot_policy, action_chunk, bimanual, batched_inference]
+source_repos:
+- url: https://github.com/Robbyant/lingbot-vla-v2
+  revision: 69729b4ef24c
+checkpoints:
+- repo_id: robbyant/lingbot-vla-v2-6b
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/robbyant--lingbot-vla-v2-6b
+  role: base_policy_checkpoint
+- repo_id: Qwen/Qwen3-VL-4B-Instruct
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Qwen--Qwen3-VL-4B-Instruct
+  role: tokenizer_processor_and_base_config
+input_schema:
+  model_id: lingbot-vla-v2
+  prompt: true
+  image: true
+  state: true
+  state_dim: 14
+  batch: optional
+  camera_keys:
+  - observation.images.cam_high
+  - observation.images.cam_left_wrist
+  - observation.images.cam_right_wrist
+  policy_family: lingbot_vla_v2_qwen3vl_moe_flow_matching_policy
+  action_representation: unified_55d_internal_to_robot_action_chunk
+  observation_layout: robotwin_three_camera_bimanual_state
+artifact_kind: action_trace
+artifact_filename: lingbot_vla_v2_action_trace.json
+execution:
+  backend_stage: in_tree_in_process_checkpoint_runtime
+  runtime_status: official_in_process_runtime_static_checkpoint_validation_complete
+  integration_status: integrated
+  pipeline_binding: lingbot-vla-v2
+integration:
+  status: integrated
+notes:
+- The runtime preserves official batched observation inference and Qwen3-VL image_grid_thw handling.
+- MoGe, LingBot-Depth, and DINO-Video sources are training-time teachers; checkpoint-resident distilled inference heads remain in the integrated model.
+- Checkpoint-local lingbotvla_cli.yaml takes precedence; the public 6B checkpoint is supported by a bundled official-derived inference config.

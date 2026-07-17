@@ -1,0 +1,88 @@
+backend: callable_entrypoint
+checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/Wayer2--LDA-robocasa
+checkpoint_ref: Wayer2/LDA-robocasa
+checkpoint_filename: LDA-robocasa.pt
+revision: 811d14d8c22d3e98021c035948118143f53dd312
+qwen_checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/Qwen--Qwen3-VL-4B-Instruct
+qwen_checkpoint_ref: Qwen/Qwen3-VL-4B-Instruct
+qwen_revision: null
+vision_checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/facebook--dinov3-vits16-pretrain-lvd1689m
+vision_checkpoint_ref: facebook/dinov3-vits16-pretrain-lvd1689m
+vision_revision: null
+policy_target: worldfoundry.synthesis.action_generation.lda_1b.runtime:predict_action
+torch_dtype: auto
+trust_remote_code: false
+local_files_only: true
+attention_backend: auto
+vlm_device: null
+action_device: null
+statistics_path: null
+statistics_file: dataset_statistics.json
+statistics_key: gr1
+action_horizon: null
+seed: 42
+compile_action_model: false
+compile_vision_encoder: false
+compile_mode: reduce-overhead
+prompt_template: "Your task is {instruction}. To identify the key objects for your task. Locate their bounding boxes in [x1,y1,x2,y2] format."
+variant:
+  name: robocasa_gr1
+  embodiment_id: 24
+  observation_steps: 2
+  image_size: [224, 224]
+  camera_key: ego_view
+  camera_aliases: [video.ego_view, head_rgb, cam_high, head_camera, image]
+  model_state_dim: 58
+  raw_state_dim: 29
+  raw_action_dim: 29
+  state_parts:
+  - {key: left_arm, dim: 7}
+  - {key: right_arm, dim: 7}
+  - {key: left_hand, dim: 6}
+  - {key: right_hand, dim: 6}
+  - {key: waist, dim: 3}
+  action_parts:
+  - {key: left_arm, dim: 7}
+  - {key: right_arm, dim: 7}
+  - {key: left_hand, dim: 6}
+  - {key: right_hand, dim: 6}
+  - {key: waist, dim: 3}
+action_config:
+  action_dim: 138
+  state_dim: 58
+  action_horizon: 16
+  future_action_window_size: 15
+  past_action_window_size: 0
+  action_model_type: DiT-L
+  hidden_size: 2560
+  add_pos_embed: true
+  max_seq_len: 1024
+  max_num_embodiments: 32
+  noise_beta_alpha: 1.5
+  noise_beta_beta: 1.0
+  noise_s: 0.999
+  num_timestep_buckets: 1000
+  num_inference_timesteps: 4
+  num_target_vision_tokens: 32
+  vision_encoder_type: dinov3
+  vision_encoder_size: s
+  obs_horizon: 2
+  num_views: 1
+  patch_shape: [1, 1, 1]
+  future_obs_index: 16
+  obs_loss_weight: 1.0
+  only_policy: false
+  policy_and_video_gen: false
+  only_wo_video_gen: false
+  diffusion_model_cfg:
+    cross_attention_dim: 2560
+    dropout: 0.2
+    final_dropout: true
+    interleave_self_attention: true
+    norm_type: ada_norm
+    num_layers: 16
+    output_dim: 2560
+    positional_embeddings: null
+action_contract: lda_robocasa_gr1_minmax_action_chunk
+runtime_backend: lda_1b_in_tree_model
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner

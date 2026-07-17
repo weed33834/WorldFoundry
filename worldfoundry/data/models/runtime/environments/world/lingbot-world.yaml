@@ -12,17 +12,27 @@ pip_packages:
 - torch==2.5.1
 - torchvision==0.20.1
 - flash-attn==2.8.3
-- diffusers
-- transformers
-- opencv-python
-- imageio
-source_requirement_files:
-- ${WORLDFOUNDRY_MODEL_SOURCE_DIR}/lingbot-world/requirements.txt
+- diffusers>=0.31.0
+- transformers>=4.49.0,<=4.51.3
+- tokenizers>=0.20.3
+- accelerate>=1.1.1
+- opencv-python>=4.9.0.80
+- imageio[ffmpeg]
+- imageio-ffmpeg
+- einops
+- easydict
+- ftfy
+- numpy>=1.23.5,<2
+- scipy
+- tqdm
+- pillow
+- pyyaml
 validation_imports:
 - torch
 - flash_attn
 - cv2
 - imageio
 notes:
+- Runtime dependencies are declared in-tree; environment creation does not read an external LingBot repository checkout.
 - LingBot-World act2cam parity requires the dedicated official environment with flash-attn; the unified env produced near-black act2cam videos on the upstream examples/05 demo.
 - Exact torch and flash-attn pins intentionally keep this model out of unified runtime routing.

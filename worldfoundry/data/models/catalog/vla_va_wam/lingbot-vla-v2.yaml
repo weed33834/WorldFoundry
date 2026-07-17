@@ -1,0 +1,42 @@
+id: lingbot-vla-v2
+name: LingBot-VLA 2.0
+aliases:
+- lingbot-vla2
+- lingbot-vla-v2-6b
+- lingbotvla2
+provider: official_repo
+availability: open_source
+license: apache-2.0
+checkpoint:
+  repo_id: robbyant/lingbot-vla-v2-6b
+  license: apache-2.0
+official_sources:
+  github:
+    url: https://github.com/Robbyant/lingbot-vla-v2
+    head_sha: 69729b4ef24c
+  huggingface:
+  - repo_id: robbyant/lingbot-vla-v2-6b
+    role: base_policy_checkpoint
+tasks: [vla, vla.action_prediction, vla.policy_rollout, robot_policy]
+output_artifacts: [action_trace]
+pipeline_binding: lingbot-vla-v2
+runtime_profile: runtime-profile:lingbot-vla-v2
+integration:
+  status: in_tree_in_process_checkpoint_runtime
+  notes:
+  - Qwen3-VL/MoE policy inference, official batching, feature transforms, robot mappings, and normalization assets are integrated directly in-tree.
+  - Training-only perception teachers are excluded; inference consumes their distilled representations from the trained policy weights.
+variants:
+- id: lingbot-vla-v2-6b
+  task: vla.action_prediction
+  integration_status: in_tree_checkpoint_runtime
+  checkpoint_refs:
+  - repo_id: robbyant/lingbot-vla-v2-6b
+    license: apache-2.0
+runner_parity:
+  status: official_in_process_runtime_static_checkpoint_validation_complete
+  notes:
+  - Batched inference, image_grid_thw, 55D internal representation, denoising, and optional torch.compile paths are retained.
+  - The public 6B checkpoint uses the bundled official-derived inference config; robot-specific downstream checkpoints may override it with their own lingbotvla_cli.yaml.
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata, and runtime-profile planning records.

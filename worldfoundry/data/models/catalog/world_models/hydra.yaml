@@ -1,0 +1,22 @@
+id: hydra
+name: HyDRA
+aliases: [h-embodvis-hydra]
+tasks: [camera-controlled-video, video-to-video, world-model]
+provider: H-EmbodVis
+source:
+  status: open_source
+  official_repo_url: https://github.com/H-EmbodVis/HyDRA
+  license: unknown
+checkpoint: H-EmbodVis/HyDRA
+runtime_profile: runtime-profile:hydra
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: hydra
+integration:
+  status: integrated
+  notes:
+  - Official source is vendored at revision 48652becf0030edbaabde4d04f33bb33ad380410.
+  - The public repository has no LICENSE file in the pinned revision; license review remains required.
+runner_parity:
+  status: pending
+  notes: [In-tree runtime and WRBench camera JSON route are wired; GPU artifact validation requires checkpoints.]
+catalog_category: world_models

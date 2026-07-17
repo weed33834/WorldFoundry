@@ -1,21 +1,19 @@
 backend: callable_entrypoint
 checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/allenai--MolmoBot-DROID
 checkpoint_ref: allenai/MolmoBot-DROID
-source_repo: ${WORLDFOUNDRY_REPO_ROOT}/worldfoundry/synthesis/action_generation/molmobot/molmobot_runtime
-source_subdir: MolmoBot
 require_checkpoint: true
 policy_target: worldfoundry.synthesis.action_generation.molmobot.runtime:predict_action
 predict_method: get_action_chunk
 torch_dtype: bfloat16
 trust_remote_code: false
-runtime_backend: molmobot_in_tree_vendored_in_process_runtime
+runtime_backend: molmobot_in_tree_in_process_runtime
 action_contract: robot_specific_action_chunk
 control_mode: franka_or_rby1_policy_action
 norm_repo_id: synthmanip
 camera_keys:
 - exo_camera_1
 - wrist_camera
-official_infer_entrypoint: olmo.models.molmobot.inference_wrapper:SynthManipMolmoInferenceWrapper.get_action_chunk
+official_infer_entrypoint: worldfoundry.synthesis.action_generation.molmobot.policy:SynthManipMolmoInferenceWrapper.get_action_chunk
 default_demo_input:
   prompt_key: task
   image_keys:

@@ -1,0 +1,65 @@
+backend: callable_entrypoint
+checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/ganlinyang--EventVLA/RoboTwin-MeM
+checkpoint_ref: ganlinyang/EventVLA
+checkpoint_subfolder: RoboTwin-MeM
+checkpoint_filename: final_model/pytorch_model.pt
+config_filename: config.yaml
+statistics_filename: dataset_statistics.json
+require_checkpoint: true
+policy_target: worldfoundry.synthesis.action_generation.eventvla.runtime:predict_action
+predict_method: inference_action
+runtime_backend: eventvla_in_tree_runtime
+action_contract: eventvla_event_driven_action_chunk
+base_vlm_path: ${WORLDFOUNDRY_HFD_ROOT}/Qwen--Qwen3-VL-4B-Instruct
+torch_dtype: auto
+attention_implementation: auto
+unnorm_key: new_embodiment
+camera_keys:
+- cam_high
+- head
+- main
+- front
+- left_wrist
+- right_wrist
+- wrist
+- image0
+- image1
+- image2
+temporal_absolute_indices:
+- 0
+temporal_delta_indices:
+- -30
+- -15
+- 0
+history_capacity: 256
+action_token: "🔍"
+prompt_template: "{instruction} Please predict the next {action_horizon} robot actions and estimate which future observation positions inside this chunk are key events: <action>{action_tokens}<action>."
+temporal_role_text: "Temporal observation images:"
+memory_role_text: "Past keyframe images:"
+supported_memory_mode: pure_image_keyframe_memory
+required_keyframe_image_position: after_anchor_images_before_action
+required_memory_write_policy: disabled
+supported_action_modes:
+- abs
+event_future_min_offset: 1
+event_commit_threshold: 0.55
+keyframe_nms_window: 20
+keyframe_cooldown_steps: 20
+max_keyframe_images: 4
+use_image_role_text: true
+variants:
+  robotwin_mem:
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/ganlinyang--EventVLA/RoboTwin-MeM
+    repo_id: ganlinyang/EventVLA
+    subfolder: RoboTwin-MeM
+    unnorm_key: new_embodiment
+  rmbench:
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/ganlinyang--EventVLA/RMBench
+    repo_id: ganlinyang/EventVLA
+    subfolder: RMBench
+    unnorm_key: new_embodiment
+excluded_dependencies:
+- WebSocket serving processes
+- training and dataset stacks
+- RoboTwin and RMBench simulators
+- benchmark launchers

@@ -1,6 +1,17 @@
 default_variant: libero_10
-torch_dtype: bfloat16
+torch_dtype: auto
 seed: 0
+architecture_defaults:
+  diffusion_model:
+    positional_embeddings: null
+    num_layers: 16
+    num_attention_heads: 32
+    attention_head_dim: 48
+    norm_type: ada_norm
+    dropout: 0.2
+    final_dropout: true
+    output_dim: 1024
+    interleave_self_attention: true
 variants:
   libero_10:
     embodiment_tag: LIBERO_PANDA

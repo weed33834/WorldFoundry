@@ -1,0 +1,48 @@
+schema_version: 2
+model_id: mira
+display_name: MIRA
+task_family: world_model
+groups:
+- world
+- game
+- multiplayer
+source_repos:
+- url: https://github.com/mira-wm/mira
+  revision: db25448391d42547161673a77950a1154d8b5f1f
+  in_tree_path: worldfoundry/synthesis/visual_generation/world_model/mira_wm/src/mira
+checkpoints:
+- role: world_model_checkpoint
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/mira
+datasets:
+- repo_id: Kyutai/rocket-science
+  provider: modelscope
+  revision: 7ccae10aa39371545db774c79d33693cfc2331af
+  size_bytes: 29235516911531
+  local_dir: ${WORLDFOUNDRY_DATA_DIR}/rocket-science
+  role: inference_dataset
+  status: dataset_not_staged
+  required_paths:
+  - test/index.json
+input_schema:
+  prompt: false
+  image: false
+  video: false
+  actions:
+  - rocket_league_keyboard
+  - game_action
+artifact_kind: generated_video
+artifact_filename: mira.mp4
+execution:
+  environment: mira
+  backend_stage: in_tree_runtime_manifest
+  runtime_status: checkpoint_and_dataset_required
+  integration_status: integrated
+  pipeline_binding: mira
+integration:
+  status: integrated
+notes:
+- Workspace exposes only offline MIRA inference; training and metric entrypoints are intentionally omitted.
+- Execution requires a compatible local checkpoint and a local Rocket Science split containing index.json.
+- The public Rocket Science dataset is about 29.24 TB; it is pinned but intentionally not downloaded automatically.
+- Video decoding falls back to PyAV when TorchCodec is ABI-incompatible, and output uses the shared
+  WorldFoundry video backend rather than a system FFmpeg executable.

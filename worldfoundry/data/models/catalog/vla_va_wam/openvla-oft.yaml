@@ -8,9 +8,12 @@ checkpoint:
   repo_id: moojink/openvla-7b-oft-finetuned-libero-spatial
 id: openvla-oft
 integration:
-  status: checkpoint_backed_runtime_ready
+  status: checkpoint_gpu_validated
   notes:
-  - WorldFoundry has an in-tree OpenVLA-OFT runtime for HF/local checkpoints, action head, proprio projector, and official LIBERO observation inputs.
+  - WorldFoundry has a flat, inference-only in-tree OpenVLA-OFT runtime for HF/local checkpoints, action heads, proprio/noisy-action projectors, and official LIBERO observation inputs.
+  - A100-SXM4-80GB validation restored 7,541,237,184 model parameters and produced finite deterministic 8x7 actions for multiple image/state/prompt inputs; peak allocated VRAM was 14.47 GiB.
+  - All five declared LIBERO checkpoints completed real Workspace inference and produced finite 8x7 action chunks.
+  - Attention is hardware-resolved: usable FlashAttention 2 is selected on compatible Ampere/Ada/Hopper installs, with portable PyTorch SDPA fallback for other NVIDIA architectures including Blackwell.
   - Training, RLDS data processing, TensorFlow data tooling, and LIBERO benchmark loops are intentionally excluded.
 license: mit
 name: OpenVLA-OFT
@@ -45,7 +48,7 @@ tasks:
 - vla.policy_rollout
 variants:
 - id: openvla-oft-libero-spatial
-  integration_status: checkpoint_backed_runtime_ready
+  integration_status: checkpoint_gpu_validated
   task: vla.policy_rollout
   checkpoint_refs:
   - repo_id: moojink/openvla-7b-oft-finetuned-libero-spatial
@@ -54,7 +57,7 @@ variants:
   - Official README demo loads sample_libero_spatial_observation.pkl with full_image, wrist_image, state, and task_description.
   - Default unnorm_key is libero_spatial_no_noops; output is a future action chunk.
 - id: openvla-oft-libero-object
-  integration_status: checkpoint_backed_runtime_ready
+  integration_status: checkpoint_gpu_validated
   task: vla.policy_rollout
   checkpoint_refs:
   - repo_id: moojink/openvla-7b-oft-finetuned-libero-object
@@ -62,7 +65,7 @@ variants:
   notes:
   - Uses the same official OpenVLA-OFT LIBERO input contract with task_suite_name=libero_object.
 - id: openvla-oft-libero-goal
-  integration_status: checkpoint_backed_runtime_ready
+  integration_status: checkpoint_gpu_validated
   task: vla.policy_rollout
   checkpoint_refs:
   - repo_id: moojink/openvla-7b-oft-finetuned-libero-goal
@@ -70,7 +73,7 @@ variants:
   notes:
   - Uses the same official OpenVLA-OFT LIBERO input contract with task_suite_name=libero_goal.
 - id: openvla-oft-libero-10
-  integration_status: checkpoint_backed_runtime_ready
+  integration_status: checkpoint_gpu_validated
   task: vla.policy_rollout
   checkpoint_refs:
   - repo_id: moojink/openvla-7b-oft-finetuned-libero-10
@@ -78,7 +81,7 @@ variants:
   notes:
   - Uses the same official OpenVLA-OFT LIBERO input contract with task_suite_name=libero_10.
 - id: openvla-oft-libero-spatial-object-goal-10
-  integration_status: checkpoint_backed_runtime_ready
+  integration_status: checkpoint_gpu_validated
   task: vla.policy_rollout
   checkpoint_refs:
   - repo_id: moojink/openvla-7b-oft-finetuned-libero-spatial-object-goal-10
@@ -86,7 +89,7 @@ variants:
   notes:
   - Combined LIBERO checkpoint; WorldFoundry runtime accepts explicit task_suite_name/unnorm_key per job.
 runner_parity:
-  status: in_tree_checkpoint_runtime
+  status: all_declared_variants_checkpoint_gpu_validated
   notes:
   - Training, RLDS data processing, LIBERO benchmark loop, and TensorFlow dataset stack are intentionally excluded from the minimal runtime profile.
 catalog_category: vla_va_wam

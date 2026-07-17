@@ -324,12 +324,11 @@ def apply_scene_alignment(
     """
     opengl_conversion_matrix = get_opengl_conversion_matrix()
 
-    align_rotation = np.eye(4)
-    align_rotation[:3, :3] = Rotation.from_euler("y", 180, degrees=True).as_matrix()
-
-    initial_transformation = (
-        np.linalg.inv(extrinsics_matrices[0]) @ opengl_conversion_matrix @ align_rotation
-    )
+    # Points and camera meshes are expressed in the same world frame here.
+    # Move that frame into the first camera, then convert OpenCV camera axes to
+    # OpenGL axes.  Inverting w2c would instead apply the first camera's c2w a
+    # second time and displace both the cloud and its camera visualization.
+    initial_transformation = opengl_conversion_matrix @ extrinsics_matrices[0]
     scene_3d.apply_transform(initial_transformation)
     return scene_3d
 

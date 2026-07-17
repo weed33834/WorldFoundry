@@ -1,0 +1,14 @@
+schema_version: 2
+binding_id: rolling-forcing
+model_id: rolling-forcing
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.forcing.pipeline_forcing:RollingForcingPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation
+aliases:
+- rolling_forcing
+- rollingforcing

@@ -3,7 +3,7 @@ binding_id: dreamx-world-5b-cam
 model_id: dreamx-world-5b-cam
 runner: worldfoundry.pipeline
 pipeline:
-  target: worldfoundry.pipelines.world_model.pipeline_runtime_manifest:DreamXWorld5BCamPipeline
+  target: worldfoundry.pipelines.dreamx_world.pipeline_dreamx_world:DreamXWorld5BCamPipeline
   loading:
     method: from_pretrained
     signature: unified

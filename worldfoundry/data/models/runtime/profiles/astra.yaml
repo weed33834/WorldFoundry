@@ -1,0 +1,44 @@
+schema_version: 2
+model_id: astra
+display_name: Astra
+task_family: world_model
+groups: [video, image_to_video, camera_control]
+source_repos:
+- url: https://github.com/EternalEvan/Astra
+checkpoints:
+- repo_id: EvanEternal/Astra
+  revision: aef5d6d75a994fa67f3f05cf17f5824a53b1c52f
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Astra
+  role: camera_control_checkpoint
+  status: checkpoint_manifest_validated
+  required_paths:
+  - models/Astra/checkpoints/diffusion_pytorch_model.ckpt
+- repo_id: Wan-AI/Wan2.1-T2V-1.3B
+  revision: 37ec512624d61f7aa208f7ea8140a131f93afc9a
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Wan2.1-T2V-1.3B
+  role: base_video_checkpoint
+  status: checkpoint_manifest_validated
+  required_paths:
+  - config.json
+  - diffusion_pytorch_model.safetensors.index.json
+  - Wan2.1_VAE.pth
+  - models_t5_umt5-xxl-enc-bf16.pth
+  - google/umt5-xxl/tokenizer_config.json
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions: [camera_direction]
+artifact_kind: generated_video
+artifact_filename: astra.mp4
+execution:
+  backend_stage: in_tree_runtime
+  runtime_status: checkpoint_verified
+  integration_status: verified
+  pipeline_binding: astra
+  conda_env: worldfoundry-unified-cu128
+integration:
+  status: verified
+notes:
+- The inference-only Astra runtime and Wan-backed camera-control pipeline are vendored in-tree.
+- The verified Sekai demo emits 97 frames at 832x480 and 20 fps.

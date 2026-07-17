@@ -1,0 +1,39 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+id: dm0
+name: DM0
+aliases:
+- dexbotic-dm0
+- dm0-base
+availability: open_source
+provider: official_repo
+license: mit
+official_sources:
+  github:
+    url: https://github.com/Dexmal/dexbotic
+    head_sha: 0f5ae6382bf0bc6196120f0930ce342ae54e7354
+  huggingface:
+  - repo_id: Dexmal/DM0-base
+    role: base_initialization_checkpoint
+    license: cc
+  - repo_id: Dexmal/DM0-libero
+    role: libero_policy_checkpoint
+    license: cc
+checkpoint:
+  repo_id: Dexmal/DM0-libero
+  license: cc
+integration:
+  status: in_tree_checkpoint_runtime
+  notes:
+  - The Qwen3 flow action expert, merged prefix/suffix attention, triple-view preprocessing, normalization, and Euler sampler run in process from local checkpoints.
+  - The Perception Encoder and multimodal base are reused from the existing compatible in-tree DB-CogACT implementation.
+  - Training, datasets, servers, benchmark launchers, and the optional Triton realtime backend are excluded.
+tasks:
+- vla
+- vla.action_prediction
+- vla.policy_rollout
+output_artifacts:
+- action_trace
+pipeline_binding: dm0
+runtime_profile: runtime-profile:dm0
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata, and runtime-profile planning records.

@@ -1,0 +1,74 @@
+configs:
+  pi0_aloha:
+    model:
+      type: pi0
+    data:
+      kind: aloha
+      asset_id: trossen
+    policy_metadata:
+      reset_pose: [0, -1.5, 1.5, 0, 0, 0]
+  pi05_aloha:
+    model:
+      type: pi0
+      pi05: true
+    data:
+      kind: aloha
+      asset_id: trossen
+    policy_metadata:
+      reset_pose: [0, -1.5, 1.5, 0, 0, 0]
+  pi0_aloha_towel:
+    model:
+      type: pi0
+    data:
+      kind: aloha
+      asset_id: trossen
+      default_prompt: fold the towel
+    policy_metadata:
+      reset_pose: [0, -1.5, 1.5, 0, 0, 0]
+  pi0_aloha_tupperware:
+    model:
+      type: pi0
+    data:
+      kind: aloha
+      asset_id: trossen
+      default_prompt: open the tupperware and put the food on the plate
+    policy_metadata:
+      reset_pose: [0, -1.5, 1.5, 0, 0, 0]
+  pi0_droid:
+    model:
+      type: pi0
+      action_horizon: 10
+    data:
+      kind: droid
+      asset_id: droid
+      prompt_from_task: true
+  pi0_fast_droid:
+    model:
+      type: pi0_fast
+      action_dim: 8
+      action_horizon: 10
+    data:
+      kind: droid
+      asset_id: droid
+      prompt_from_task: true
+  pi05_droid:
+    model:
+      type: pi0
+      action_horizon: 15
+      pi05: true
+    data:
+      kind: droid
+      asset_id: droid
+      prompt_from_task: true
+  pi05_libero:
+    model:
+      type: pi0
+      pi05: true
+      action_horizon: 10
+      discrete_state_input: false
+    data:
+      kind: libero
+      repo_id: physical-intelligence/libero
+      prompt_from_task: true
+      extra_delta_transform: false
+    seed: 42

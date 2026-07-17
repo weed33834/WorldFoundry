@@ -1,0 +1,35 @@
+id: xiaomi-robotics-1
+name: Xiaomi-Robotics-1
+aliases:
+- xr1
+- xiaomi-robotics-one
+provider: official_repo
+availability: open_source
+license: apache-2.0
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: xiaomi-robotics-1
+runtime_profile: runtime-profile:xiaomi-robotics-1
+checkpoint:
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/embodied_action/xiaomi-robotics-1
+  license: apache-2.0
+official_sources:
+  github:
+    url: https://github.com/XiaomiRobotics/Xiaomi-Robotics-1
+    head_sha: 26702e2544450f0d39ca850d666b82040ebf98d0
+    status: project_page_pre_release
+tasks:
+- vla
+- vla.action_prediction
+- vla.policy_rollout
+- robot_policy
+output_artifacts:
+- action_trace
+integration:
+  status: runtime_ported
+  notes:
+  - The Qwen3-VL policy-token graph, rectified-flow DiT, preprocessing, normalization extraction, and relative-action decoding are in tree.
+  - Checkpoint-side Python is parsed only as literal normalization metadata and is never imported or executed.
+  - Model, processor, architecture, device, dtype, attention backend, and checkpoint loading are local-only.
+  - The public project repository at the pinned revision contains the report and release announcement but not the inference source snapshot used for this integration.
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as checkpoint metadata and runtime-profile planning records.

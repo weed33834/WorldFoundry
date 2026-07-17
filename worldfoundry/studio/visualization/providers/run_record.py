@@ -11,6 +11,20 @@ ACTION_TRACE_EXTS = {".json", ".jsonl", ".npz", ".npy", ".pkl"}
 EPISODE_METADATA_EXTS = {".json", ".jsonl", ".yaml", ".yml", ".toml"}
 
 
+def _npz_contains_geometry(path: Path) -> bool:
+    """Return whether an NPZ has explicit XYZ or a depth camera bundle."""
+
+    try:
+        import numpy as np
+
+        with np.load(path, allow_pickle=False) as payload:
+            keys = set(payload.files)
+    except Exception:
+        return False
+    point_keys = {"world_points", "points", "xyz", "point_cloud", "pts3d", "point_map"}
+    return bool(keys & point_keys) or {"depth", "intrinsics", "extrinsics"} <= keys
+
+
 def normalize_output_relative(path_text: str, output_dir: str | Path) -> str:
     """Return ``path_text`` trimmed; if absolute under ``output_dir`` make it posix relative."""
 
@@ -32,7 +46,7 @@ def first_geometry_point_candidate(
     *,
     gs_ply_predicate,
 ) -> str | None:
-    """Pick the first on-disk ply/pcd candidate that fails the Gaussian-splat predicate."""
+    """Pick the first on-disk generic point/depth bundle eligible for Viser."""
 
     ordered = sorted({str(p) for p in artifact_paths if p})
     for raw in ordered:
@@ -45,6 +59,8 @@ def first_geometry_point_candidate(
                 continue
             return normalize_output_relative(str(path.resolve()), output_dir)
         if suf in {".pcd", ".xyz"}:
+            return normalize_output_relative(str(path.resolve()), output_dir)
+        if suf == ".npz" and _npz_contains_geometry(path):
             return normalize_output_relative(str(path.resolve()), output_dir)
     scanned = sorted(Path(output_dir).glob("**/*.ply"))
     for cand in scanned:

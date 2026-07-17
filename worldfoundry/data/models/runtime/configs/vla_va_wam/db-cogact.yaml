@@ -1,13 +1,12 @@
 backend: callable_entrypoint
 checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/Dexmal--libero-db-cogact
 checkpoint_ref: Dexmal/libero-db-cogact
-source_repo: ${WORLDFOUNDRY_REPO_ROOT}/worldfoundry/synthesis/action_generation/db_cogact/db_cogact_runtime
 require_checkpoint: true
 policy_target: worldfoundry.synthesis.action_generation.db_cogact.runtime:predict_action
 predict_method: select_action
 torch_dtype: bfloat16
-trust_remote_code: true
-runtime_backend: db_cogact_in_tree_vendored_in_process_runtime
+trust_remote_code: false
+runtime_backend: db_cogact_in_tree_in_process_runtime
 action_contract: dexbotic_v1_action_output
 control_mode: model_declared_relative_or_absolute
 camera_order:

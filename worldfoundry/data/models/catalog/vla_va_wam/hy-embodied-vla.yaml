@@ -1,0 +1,71 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+aliases:
+- hy-vla
+- hy-embodied-0.5-vla
+- Hy-Embodied-0.5-VLA
+availability: open_source
+checkpoint:
+  license: Apache-2.0
+  hf_repo_id: tencent/Hy-Embodied-0.5-VLA-RoboTwin
+  revision: bd7bba6f5934ad62293a2a34f74760c6a3ef2ff8
+id: hy-embodied-vla
+integration:
+  notes:
+  - Inference-only architecture, MoT backbone, runtime, preprocessing, and action decoding are retained in-tree.
+  - The RoboTwin checkpoint was restored strictly and produced finite 20-by-20 decoded actions from the official six-frame, three-camera input on an A100.
+  - The UMI checkpoint produced a finite 50-by-20 decoded relative-action chunk through the Workspace runtime on an A100 in BF16.
+  status: integrated
+integration_status: integrated
+license: Apache-2.0
+name: Hy-Embodied-0.5-VLA
+official_sources:
+  github:
+    head_sha: 8ba4c8cbdf42a4bcf0a19be4bd2841405dfe15e9
+    url: https://github.com/Tencent-Hunyuan/Hy-Embodied-0.5-VLA
+  huggingface:
+  - license: Apache-2.0
+    repo_id: tencent/Hy-Embodied-0.5-VLA-UMI
+    revision: 3f53d1f8d2bc587c523cfdc9f1041ceee42c2524
+  - license: Apache-2.0
+    repo_id: tencent/Hy-Embodied-0.5-VLA-RoboTwin
+    revision: bd7bba6f5934ad62293a2a34f74760c6a3ef2ff8
+  modelscope:
+  - repo_id: Tencent-Hunyuan/Hy-Embodied-0.5-VLA-UMI
+  - repo_id: Tencent-Hunyuan/Hy-Embodied-0.5-VLA-RoboTwin
+output_artifacts:
+- action_trace
+pipeline_binding: hy-embodied-vla
+provider: official_repo
+runtime_profile: runtime-profile:hy-embodied-vla
+tasks:
+- vla
+- vla.policy_rollout
+- robot_policy
+- bimanual_manipulation
+variants:
+- checkpoint_refs:
+  - repo_id: tencent/Hy-Embodied-0.5-VLA-UMI
+    revision: 3f53d1f8d2bc587c523cfdc9f1041ceee42c2524
+    license: Apache-2.0
+  id: hy-embodied-vla-umi
+  integration_status: checkpoint_gpu_validated
+  notes:
+  - Produces a 50-step normalized RT-relative action chunk with 20 channels.
+  runtime_profile: runtime-profile:hy-embodied-vla
+  task: vla.policy_rollout
+- checkpoint_refs:
+  - repo_id: tencent/Hy-Embodied-0.5-VLA-RoboTwin
+    revision: bd7bba6f5934ad62293a2a34f74760c6a3ef2ff8
+    license: Apache-2.0
+  id: hy-embodied-vla-robotwin
+  integration_status: checkpoint_gpu_validated
+  notes:
+  - Produces 20 RT-relative plus 20 absolute action tokens and uses six-frame visual memory.
+  runtime_profile: runtime-profile:hy-embodied-vla
+  task: vla.policy_rollout
+runner_parity:
+  official_entrypoint: HyVLA.forward_evaluate
+  scope: all_released_checkpoints_gpu_validated
+  status: robotwin_and_umi_checkpoints_gpu_validated
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata, and runtime-profile planning records.

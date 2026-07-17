@@ -1,0 +1,46 @@
+id: abot-world-0-5b-lf
+name: ABot-World-0-5B-LF
+aliases:
+- abot-world
+- abot
+tasks:
+- image-to-world-video
+- action-conditioned-video
+- interactive-world-model
+provider: official_repo
+source:
+  status: source_available
+  official_repo_url: https://github.com/amap-cvlab/ABot-World
+  notes:
+  - The public causal student checkpoint and inference source are available.
+official_sources:
+  github:
+    url: https://github.com/amap-cvlab/ABot-World
+    revision: e2a406a176195d994bcaf5ebb92b2047edcd3c2b
+  huggingface:
+  - repo_id: acvlab/ABot-World-0-5B-LF
+    revision: d05a3ecf68f6144e4bc6ac7e49b7d9a531af723e
+    status: public_checkpoint
+checkpoint_refs:
+- repo_id: acvlab/ABot-World-0-5B-LF
+  revision: d05a3ecf68f6144e4bc6ac7e49b7d9a531af723e
+  role: causal_student_checkpoint
+availability:
+  status: source_and_weights_available
+  code: public
+  weights: public_huggingface
+integration:
+  kind: native_pipeline
+  status: checkpoint_gpu_validated
+  notes:
+  - Only causal inference and resident interactive rollout are integrated.
+  - Wan attention, T5, Wan2.2 VAE, scheduler, media I/O and FP8 support are reused in-tree.
+  - Training, Gradio, benchmark, Helios and experimental quantizer sources are excluded.
+  - Real A100 Workspace inference produced a fully decodable 1280x704 nine-frame H.264 artifact.
+runtime_profile: runtime-profile:abot-world-0-5b-lf
+pipeline_binding: abot-world-0-5b-lf
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+output_artifacts:
+- generated_world_video
+catalog_category: world_models
+catalog_scope: World-model catalog entries with in-tree inference runtimes.

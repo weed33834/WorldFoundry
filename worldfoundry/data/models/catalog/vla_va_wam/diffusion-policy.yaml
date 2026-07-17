@@ -7,7 +7,8 @@ id: diffusion-policy
 integration:
   notes:
   - Low-dimensional PushT Diffusion Policy runtime is vendored in-tree.
-  - The in-tree runtime includes an inference-only TrainDiffusionUnetLowdimWorkspace loader for official checkpoint configs.
+  - The in-tree runtime reconstructs the released low-dimensional policy from an offline-converted, fully resolved primitive config and tensor-only state dictionaries.
+  - The executable dill workspace checkpoint is rejected at runtime and has no unsafe deserialization fallback; conversion must happen once in a trusted offline environment.
   - The checkpoint-backed policy.predict_action route emits the configured low-dimensional PushT action schema.
   status: integrated
 name: Diffusion Policy
@@ -25,10 +26,10 @@ tasks:
 - policy_rollout
 runner_parity:
   notes:
-  - Verified through the in-tree low-dimensional PushT runtime using the official TrainDiffusionUnetLowdimWorkspace checkpoint
-    target.
+  - The architecture and predict_action contract match the released low-dimensional PushT policy.
+  - The safe converted checkpoint passed weights-only reload, strict model/EMA restoration, CPU runtime loading, and a finite GPU action probe.
   - Per-run action trace evidence is tracked outside the model catalog.
-  status: verified
+  status: converted_checkpoint_strict_restore_and_gpu_action_probe_validated
 catalog_category: vla_va_wam
 catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata, and runtime-profile
   planning records. Runner or pipeline targets are present only after a complete in-tree WorldFoundry model runtime is registered

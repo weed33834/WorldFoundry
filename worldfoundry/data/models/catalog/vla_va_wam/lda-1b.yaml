@@ -1,0 +1,40 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+id: lda-1b
+name: LDA-1B
+aliases:
+- lda1b
+- wayer2/lda-robocasa
+availability: open_source_noncommercial
+provider: official_repo
+license: cc-by-nc-4.0
+official_sources:
+  github:
+    url: https://github.com/jiangranlv/LDA-1B
+    head_sha: 06e6a274a9086cc26635a9fe663866335eb30fc5
+  huggingface:
+  - repo_id: Wayer2/LDA-robocasa
+    revision: 811d14d8c22d3e98021c035948118143f53dd312
+    status: confirmed
+    type: model
+integration:
+  status: in_tree_checkpoint_runtime_static_verified
+  notes:
+  - Qwen3-VL assembly, DINOv3-ViT compatibility model, MMDiT sampler, state packing, and action unnormalization are in-tree.
+  - Runtime loads only a locally staged tensor state dict with weights_only=true and never executes checkpoint Python.
+  - Training, datasets, evaluation servers, simulator adapters, and video generation are excluded.
+tasks:
+- vla
+- robot_policy
+- policy_rollout
+- embodied_benchmark
+output_artifacts:
+- action_trace
+pipeline_binding: lda-1b
+runtime_profile: runtime-profile:lda-1b
+runner_parity:
+  status: static_runtime_verified
+  notes:
+  - Model and parameter names preserve the released checkpoint contract.
+  - Exact checkpoint-key and numerical rollout validation require the unstaged 14.4 GB artifact.
+catalog_category: vla_va_wam
+catalog_scope: In-tree inference runtime and checkpoint metadata for embodied policies.

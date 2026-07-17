@@ -2,17 +2,19 @@ conda_packages:
 - python
 - pip
 cuda_profile: cu118
-driver_status: compatible_jax_cuda11_cu118_octo_sample_actions
+driver_status: jax_cuda11_cudnn8_required
 env_name: worldfoundry-octo-jax
 env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
 model_id: octo
 notes:
-- Octo VLA policy inference follows the upstream Octo Python 3.10 dependency family with JAX CUDA 11 wheels,
-  Flax 0.7.5, cached T5 tokenizer assets, and octo-small-1.5.
+- Octo VLA policy inference uses the checkpoint-compatible Python 3.10/JAX 0.4.20
+  stack with cached T5 tokenizer assets and local Octo checkpoints.
 - Runtime validation keeps small compatibility shims for JAX/Flax symbol drift. Real benchmark rollout still requires
   benchmark-specific action-space binding.
-- Current Studio profile uses an isolated Python 3.10 JAX CUDA 11.8 env so Octo TensorFlow/dlimp dependencies do not disturb
-  the shared OpenPI/LAPA/Diffusion Policy runtime env.
+- The in-tree inference path does not import the upstream TensorFlow/dlimp data
+  pipeline, Distrax, or SciPy.
+- jaxlib 0.4.20+cuda11.cudnn86 requires a cuDNN 8 ABI. Pinning cuDNN 8.9
+  prevents pip from resolving the incompatible cuDNN 9 package.
 pip_extra_index_url: ''
 pip_packages:
 - numpy==1.24.3
@@ -20,37 +22,27 @@ pip_packages:
 - opencv-python
 - setuptools
 - jax[cuda11_pip]==0.4.20
+- nvidia-cudnn-cu11==8.9.6.50
 - flax==0.7.5
 - ml_dtypes==0.2.0
 - chex==0.1.85
 - optax==0.1.5
-- tensorflow-cpu==2.15.0
-- tensorflow_probability==0.23.0
 - protobuf==3.20.3
-- tensorflow-metadata==1.14.0
-- array-record<0.6
 - ml_collections>=0.1.0
 - einops>=0.6.1
-- dlimp @ git+https://github.com/kvablack/dlimp.git@5edaa4691567873d495633f2708982b42edf1972
-- distrax==0.1.5
-- scipy==1.11.4
+- orbax-checkpoint==0.4.4
 - transformers==4.40.1
 - tokenizers==0.19.1
 - huggingface-hub>=0.19.3,<1.0
-- tensorflow_hub==0.15.0
-- tensorflow_text==2.15.0
-- tensorflow_datasets==4.9.2
 pip_find_links:
 - https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 python: '3.10'
-pythonpath_dirs:
-- worldfoundry/synthesis/action_generation/octo/octo_runtime
+pythonpath_dirs: []
 validation_imports:
 - numpy
 - PIL
 - cv2
 - jax
 - flax
-- dlimp
-- distrax
+- orbax.checkpoint
 - transformers

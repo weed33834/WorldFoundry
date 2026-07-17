@@ -1,6 +1,6 @@
 artifact_filename: lingbot_va_action_trace.json
 artifact_kind: action_trace
-backend_stage: in_tree_plan_wrapper
+backend_stage: in_tree_checkpoint_runtime
 checkpoints:
 - local_dir: ${WORLDFOUNDRY_HFD_ROOT}/lingbot-va-base
   repo_id: robbyant/lingbot-va-base
@@ -29,20 +29,18 @@ input_schema:
   prompt: true
   state: true
   video: true
-integration_status: plan_ready
+integration_status: in_tree_checkpoint_runtime_gpu_server_init_verified_rollout_pending
 notes:
 - LingBot-VA is an autoregressive video-action world model for robot control. The
   profile emits action_trace artifacts and can carry predicted-video metadata, but
   it is not routed through generic video-generation scorecards.
-- The upstream server/client evaluation entry points are wan_va/wan_va_server.py plus
-  evaluation/libero and evaluation/robotwin, but runtime plans must use repo-integrated
-  code rather than an external checkout path.
+- The retained inference path includes the model graph, distributed server, client,
+  preprocessing, action diffusion, KV-cache updates, and action decoding.
 - The staged checkpoint transformer/config.json files are set to attn_mode=torch,
   and the repo-integrated server command passes --checkpoint-dir for the selected
   local checkpoint.
-- WorldFoundry vendors the official wan_va architecture, server, client, and utils under
-  worldfoundry/synthesis/action_generation/wan_va. py_compile, conda import/from_pretrained,
-  pipeline plan, plan-only predict, and libero-long server initialization passed;
-  full client rollout/action decoding remains unready.
-runtime_status: in_tree_source_vendored_server_init_ready_client_rollout_unready
+- WorldFoundry keeps the inference-only Wan-VA architecture, server, client, and utilities under
+  worldfoundry/synthesis/action_generation/wan_va; construction is strictly local-checkpoint gated.
+- All three declared checkpoints are staged and manifest-validated; numerical end-to-end rollout validation remains pending.
+runtime_status: in_tree_checkpoint_runtime_gpu_server_init_verified_action_rollout_pending
 task_family: embodied_action

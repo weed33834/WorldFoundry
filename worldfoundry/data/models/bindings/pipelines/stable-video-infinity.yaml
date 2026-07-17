@@ -1,0 +1,15 @@
+schema_version: 2
+binding_id: stable-video-infinity
+model_id: stable-video-infinity
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.stable_video_infinity.pipeline_stable_video_infinity:StableVideoInfinityPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation
+aliases:
+- svi
+- svi-2.0
+- stable_video_infinity

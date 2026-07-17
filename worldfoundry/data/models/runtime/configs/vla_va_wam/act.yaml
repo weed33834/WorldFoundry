@@ -1,13 +1,10 @@
 camera_names:
-  - head_cam
-  - left_cam
-  - right_cam
+  - cam_head
+  - cam_right_wrist
+  - cam_left_wrist
 state_dim: 14
-chunk_size: 100
-temporal_agg: false
-lr: 1.0e-5
-lr_backbone: 1.0e-5
-weight_decay: 1.0e-4
+chunk_size: 50
+temporal_agg: true
 backbone: resnet18
 dilation: false
 position_embedding: sine
@@ -19,4 +16,6 @@ dropout: 0.1
 nheads: 8
 pre_norm: false
 masks: false
-kl_weight: 10.0
+device: cuda
+require_checkpoint: true
+require_dataset_stats: true

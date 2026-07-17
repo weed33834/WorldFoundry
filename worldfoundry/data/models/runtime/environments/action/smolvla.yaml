@@ -1,0 +1,28 @@
+env_name: worldfoundry-vla-smolvla
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: smolvla
+python: '3.11'
+cuda_profile: cu128
+driver_status: compatible
+conda_packages:
+- python
+- pip
+pip_packages:
+- torch>=2.8
+- torchvision>=0.23
+- transformers>=4.57,<6
+- num2words>=0.5.14
+- accelerate>=1.13
+- safetensors>=0.5
+- Pillow>=10
+- numpy>=2
+validation_imports:
+- torch
+- transformers
+- accelerate
+- num2words
+- safetensors
+- PIL
+notes:
+- Exact masked attention is dispatched through the shared SDPA selector on Ampere, Ada, Hopper, and newer GPUs.
+- Auto dtype selects BF16 on Ampere, Ada, Hopper, Blackwell, and newer NVIDIA GPUs and FP16 on older CUDA GPUs.

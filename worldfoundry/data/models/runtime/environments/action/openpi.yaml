@@ -1,70 +1,45 @@
-conda_packages:
-- python
-- pip
-cuda_profile: cu118
-driver_status: compatible_jax_cuda11_cu118_openpi_libero
-env_name: worldfoundry-unified-cu128
+schema_version: 2
+env_name: worldfoundry-openpi-cu12
 env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
 model_id: openpi
-notes:
-- OpenPI pi05_libero uses JAX 0.4.25, jaxlib 0.4.25+cuda11.cudnn86, and torch 2.5.1+cu118 for CUDA 11.8 policy inference.
-- The pi05_libero checkpoint must be synced with gsutil because fsspec fallback can leave incomplete OCDBT shards.
-pip_extra_index_url: https://download.pytorch.org/whl/cu118
-pip_find_links:
-- https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+python: "3.11"
+cuda_profile: cu124_or_newer
+driver_status: compatible
+conda_packages: [python, pip]
+pip_extra_index_url: https://download.pytorch.org/whl/cu128
 pip_packages:
-- numpy
-- Pillow
-- opencv-python
-- fsspec[gcs]
-- einops
-- tyro
-- jax==0.4.25
-- jaxlib==0.4.25+cuda11.cudnn86
-- flax
-- equinox
-- orbax-checkpoint
-- ml_collections
-- sentencepiece
-- dm-tree
-- augmax
-- flatbuffers
-- gym-aloha
-- imageio
-- jaxtyping
-- numpydantic
-- beartype
-- chex
-- treescope
-- transformers
-- rich
-- polars
-- wandb
-- filelock
-- tqdm-loggable
-- torch==2.5.1+cu118
-- torchvision==0.20.1+cu118
-- lerobot @ git+https://github.com/huggingface/lerobot.git
-- datasets
-- av
-- jsonlines
-- deepdiff
-- draccus
-- h5py
-- omegaconf
-- termcolor
-python: '3.11'
-pythonpath_dirs:
-- worldfoundry/synthesis/action_generation/openpi/openpi_runtime
+- numpy>=1.26,<2
+- Pillow>=11
+- einops>=0.8
+- jax[cuda12]==0.5.3
+- flax==0.10.2
+- orbax-checkpoint==0.11.13
+- jaxtyping==0.2.36
+- beartype==0.19.0
+- numpydantic>=1.6.6
+- pydantic>=2
+- ml_collections==1.0.0
+- sentencepiece>=0.2
+- scipy>=1.12
+- safetensors>=0.5
+- torch==2.7.1
+- transformers==4.53.2
 validation_imports:
 - numpy
 - PIL
-- cv2
-- fsspec
+- einops
 - jax
 - flax
+- orbax.checkpoint
+- jaxtyping
+- numpydantic
+- pydantic
+- sentencepiece
+- scipy
+- safetensors
 - torch
-- torchvision
-- openpi
-- openpi_client
-- datasets
+- transformers
+notes:
+- Inference imports only the flattened WorldFoundry package and uses no source-tree path injection.
+- Checkpoints, tokenizer assets, and normalization statistics must be staged locally before construction; the runtime rejects URI paths.
+- Dtype and device selection is compute-capability based, covering Turing, Ampere, Ada, Hopper, and Blackwell without GPU-name allowlists.

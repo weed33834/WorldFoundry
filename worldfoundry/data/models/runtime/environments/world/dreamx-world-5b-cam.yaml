@@ -1,0 +1,41 @@
+model_id: dreamx-world-5b-cam
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+python: '3.11'
+cuda_profile: cu128
+driver_status: compatible
+conda_packages:
+- python=3.11
+- pip
+- ffmpeg
+pip_packages:
+- torch
+- torchvision
+- diffusers
+- transformers
+- accelerate
+- safetensors
+- xfuser
+- omegaconf
+- einops
+- numpy
+- pillow
+- aiohttp
+- aiortc
+validation_imports:
+- torch
+- torchvision
+- diffusers
+- transformers
+- accelerate
+- safetensors
+- xfuser
+- omegaconf
+- einops
+- numpy
+- PIL
+- worldfoundry.pipelines.dreamx_world
+- worldfoundry.synthesis.visual_generation.dreamx_world
+notes:
+- Uses the shared CUDA 12.8 runtime and only in-tree WorldFoundry inference modules.
+- The resident 5B Cam route supports configurable 1, 2, 3, 4, 6, or 8 GPU Ulysses execution.

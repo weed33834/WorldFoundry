@@ -9,7 +9,7 @@ model_id: openvla-oft
 notes:
 - Official OpenVLA-OFT inference reports about 16 GB VRAM for LIBERO and about 18 GB for ALOHA.
 - OpenVLA-OFT and CogACT share this dedicated Prismatic/OpenVLA-compatible runtime profile because transformers 4.57 in the unified env imports unrelated JAX/scipy/generation paths too slowly for this model family.
-- The model code is vendored in-tree; checkpoints are resolved through the standard Hugging Face cache or a local snapshot path.
+- The inference-only model code is integrated in-tree; checkpoints are resolved local-first, then through Hugging Face when explicitly allowed.
 pip_extra_index_url: https://download.pytorch.org/whl/cu121
 pip_packages:
 - torch==2.2.0

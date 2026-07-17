@@ -21,7 +21,6 @@ import imageio
 import numpy as np
 import torch
 from PIL import Image, ImageDraw, ImageFont
-from pycg import image
 
 from worldfoundry.base_models.three_dimensions.general_3d.vipe.ext.lietorch import SE3
 from worldfoundry.base_models.three_dimensions.general_3d.vipe.slam.interface import SLAMOutput
@@ -296,6 +295,11 @@ def save_projection_video(
     subsample_factor: int,
     attributes: list[list[str]],
 ):
+    # pycg is only needed for rendered debug videos.  Keeping it lazy lets
+    # inference paths reuse the lightweight drawing/video helpers without
+    # turning an optional visualization package into a SLAM dependency.
+    from pycg import image
+
     assert isinstance(video_stream, CachedVideoStream)
 
     img_h, img_w = video_stream.frame_size()

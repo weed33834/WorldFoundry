@@ -9,7 +9,7 @@ input_schema:
   prompt: false
 integration_status: planned
 notes:
-- WorldFoundry vendors the pixelSplat runtime under worldfoundry/base_models/three_dimensions/point_clouds/pixelsplat_runtime
+- WorldFoundry vendors the pixelSplat source and runtime under worldfoundry/base_models/three_dimensions/point_clouds/pixelsplat
   and registers a lazy wrapper.
 - Actual inference requires a locally provided Gaussian rasterization extension
   and a staged re10k.ckpt checkpoint.

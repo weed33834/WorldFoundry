@@ -5,7 +5,7 @@ from einops import einsum, rearrange, repeat
 from jaxtyping import Float
 from torch import Tensor
 
-from worldfoundry.base_models.three_dimensions.point_clouds.pixelsplat_full.src.geometry.projection import unproject
+from worldfoundry.base_models.three_dimensions.point_clouds.pixelsplat.src.geometry.projection import unproject
 from ..annotation import add_label
 from .lines import draw_lines
 from .types import Scalar, sanitize_scalar

@@ -1,0 +1,19 @@
+env_name: worldfoundry-vla-galaxea
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: galaxea-vla
+python: "3.11"
+cuda_profile: cu124_or_newer
+driver_status: compatible
+conda_packages: [python, pip]
+pip_packages:
+- torch>=2.6,<2.7
+- transformers>=4.46,<4.48
+- tokenizers>=0.20,<0.22
+- safetensors>=0.4
+- Pillow>=10
+- numpy>=1.26,<2
+- huggingface-hub>=0.26
+validation_imports: [torch, transformers, safetensors, PIL, numpy]
+notes:
+- Only inference dependencies are included; Hydra, LeRobot, training loggers, OpenCV, robot drivers, and distributed training packages are excluded.
+- Optional torch.compile vision compilation is exposed but disabled by default because compilation latency is workload-dependent.

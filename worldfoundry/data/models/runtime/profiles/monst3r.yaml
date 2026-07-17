@@ -15,16 +15,17 @@ input_schema:
   actions:
   - camera_path
 artifact_kind: generated_4d_scene
-artifact_filename: monst3r_scene.glb
+artifact_filename: monst3r.glb
 execution:
   backend_stage: in_tree_model_subprocess_adapter
-  runtime_status: runtime_integrated_assets_may_be_missing
-  integration_status: integrated
+  runtime_status: verified
+  integration_status: verified
   pipeline_binding: monst3r
 integration:
-  status: integrated
+  status: verified
 notes:
 - Runs the in-tree MonST3R demo.py non-interactive path and exports a GLB scene artifact.
 - Studio defaults disable optional flow loss so missing RAFT2/SAM2 assets do not block preview output.
+- The in-tree Studio path produced and validated a finite GLB scene on 2026-07-10.
 - Full official dynamic-mask parity still needs the MonST3R, RAFT, and SAM2 assets configured in the runtime environment.
 - Public source is non-commercial; downstream use must honor the upstream license.

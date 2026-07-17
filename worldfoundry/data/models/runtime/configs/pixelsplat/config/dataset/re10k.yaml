@@ -1,10 +1,9 @@
 defaults:
-  - view_sampler: bounded
+  - view_sampler: evaluation
 
 name: re10k
 roots: [datasets/re10k]
 make_baseline_1: true
-augment: true
 
 image_shape: [180, 320]
 background_color: [0.0, 0.0, 0.0]

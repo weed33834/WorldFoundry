@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: abot-m0
+model_id: abot-m0
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.synthesis.action_generation.abot_m0.pipeline:ABotM0Pipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

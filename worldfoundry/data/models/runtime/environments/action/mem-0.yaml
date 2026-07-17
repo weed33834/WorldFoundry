@@ -1,0 +1,27 @@
+env_name: worldfoundry-vla-mem-0
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: mem-0
+python: '3.11'
+cuda_profile: cu124_or_newer
+driver_status: compatible
+conda_packages:
+- python
+- pip
+pip_packages:
+- torch>=2.6
+- torchvision>=0.21
+- transformers>=4.57,<6
+- diffusers>=0.35
+- accelerate>=1.10
+- safetensors>=0.5
+- Pillow>=10
+- numpy>=1.26
+validation_imports:
+- torch
+- transformers
+- diffusers
+- PIL
+notes:
+- Auto dtype selects BF16 on Ampere, Ada, Hopper, Blackwell, and newer NVIDIA GPUs and FP16 on older CUDA GPUs.
+- Checkpoint and backbone loading are local-only; Flash Attention is optional and SDPA is the portable fallback.
+- Reading the published split training checkpoint requires enough host RAM; an inference-only slim checkpoint lowers peak host memory.

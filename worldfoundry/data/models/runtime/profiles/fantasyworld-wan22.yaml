@@ -11,12 +11,16 @@ source_repos:
 - url: https://github.com/Fantasy-AMAP/fantasy-world
 checkpoints:
 - repo_id: acvlab/FantasyWorld-Wan2.2-Fun-A14B-Control-Camera
+  revision: da842879d2bc86e2e56e1aad3ae2c8878769df81
   role: fantasyworld_wan22_checkpoint
 - repo_id: alibaba-pai/Wan2.2-Fun-A14B-Control-Camera
+  revision: da1f119dcf5626b2fa41219ce42ac175752f3892
   role: wan22_fun_base
 - repo_id: alibaba-pai/Wan2.2-Fun-Reward-LoRAs
+  revision: 98ccd8617f3101dc7ca388510dd7e65f5f42d91c
   role: wan22_fun_reward_lora
 - repo_id: Ruicheng/moge-2-vitl-normal
+  revision: b135031bae30b5ac2ae141a0e68717795ce38340
   role: moge2_depth_normal_prior
 input_schema:
   prompt: true
@@ -29,12 +33,13 @@ artifact_kind: generated_world
 artifact_filename: fantasyworld-wan22.mp4
 execution:
   backend_stage: in_tree_runtime
-  runtime_status: in_tree_runtime_checkpoint_and_gpu_readiness_pending
+  runtime_status: checkpoint_assets_staged_cpu_schema_validated_gpu_pending
   integration_status: integrated
   pipeline_binding: fantasyworld-wan22
 integration:
   status: integrated
 notes:
 - Runtime profile for the in-tree FantasyWorld Wan2.2 pipeline.
-- Runtime execution requires local FantasyWorld Wan2.2, Wan2.2 Fun, LoRA, MoGe, and
-  CUDA assets.
+- The FantasyWorld high/low checkpoints, Wan2.2 I2V-A14B base, reward LoRAs, and MoGe-2 assets are staged locally with no incomplete-transfer markers.
+- Both camera checkpoints expose the same 2,658-key BF16 schema (453 DiT overlay, 765 VGGT, 1,440 IRGBlock tensors); all 453 DiT tensors map to the in-tree model without unexpected keys or shape mismatches, including all six camera-control adapter tensors.
+- A real dual-A14B GPU artifact run remains pending; this row stays hidden from Studio until that memory strategy is verified.

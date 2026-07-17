@@ -7,8 +7,11 @@ groups:
 - camera_control
 source_repos:
 - url: https://github.com/NVlabs/Sana
+  revision: 00cb59836c297bd5fad401000ee65f9042f29d02
+  in_tree_path: worldfoundry/base_models/diffusion_model/image/sana
 checkpoints:
 - repo_id: Efficient-Large-Model/SANA-WM_bidirectional
+  revision: 90e0ff3b8f1f9b54a92b4b707edeaa27073aec84
   role: sana_wm_bidirectional_checkpoint
 input_schema:
   prompt: true
@@ -21,12 +24,17 @@ input_schema:
 artifact_kind: generated_world
 artifact_filename: sana-wm.mp4
 execution:
-  backend_stage: in_tree_runtime_manifest
-  runtime_status: in_tree_runtime_manifest_checkpoint_env_pending
-  integration_status: runtime_ported
+  environment: _unified
+  backend_stage: in_tree_resident_runtime
+  runtime_status: native_checkpoint_four_gpu_workspace_validated_a100
+  integration_status: in_tree_runtime_workspace_validated
   pipeline_binding: sana-wm
 integration:
-  status: runtime_ported
+  status: in_tree_runtime_workspace_validated
 notes:
 - SANA-WM source is vendored in-tree under base_models/diffusion_model/image/sana.
-- The pipeline resolves the vendored camera-controlled inference entrypoint; execution remains dependency, checkpoint, and task-asset gated.
+- The interactive pipeline keeps its two-stage model resident and advances with native 8k+1 temporal windows.
+- A real Workspace run component-partitioned the stage-one model, refiner, refiner text encoder,
+  VAE and camera intrinsics across four A100s and generated eight finite, decodable 1280x704
+  frames from a nine-frame native window. The four-stage smoke validates execution and coherent
+  conditioning, but does not claim the default 60-step quality recipe.

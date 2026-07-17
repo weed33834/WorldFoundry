@@ -1,0 +1,30 @@
+schema_version: 2
+model_id: bernini-r-14b
+display_name: Bernini-R 14B
+task_family: video_generation
+groups: [image_generation, image_editing, video_generation, video_editing, reference_to_video]
+source_repos:
+- url: https://github.com/bytedance/Bernini
+  revision: 82d573e9a553dccb1405dde4cb0f26466f9df6c5
+checkpoints:
+- repo_id: ByteDance/Bernini-R-Diffusers
+  revision: de8c4621d3ac75cc33efe3db8deaed2023e9ac8c
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/ByteDance--Bernini-R-Diffusers
+  role: renderer_checkpoint
+input_schema:
+  prompt: true
+  image: true
+  images: true
+  video: true
+  task_type: [t2i, i2i, t2v, v2v, r2v, rv2v]
+artifact_kind: generated_media
+artifact_filename: bernini-r-14b.mp4
+execution:
+  backend_stage: official_in_tree_runtime
+  runtime_status: checkpoint_assets_pending_not_runnable_until_staged
+  integration_status: runtime_ported
+  pipeline_binding: bernini-r-14b
+integration:
+  status: runtime_ported
+notes:
+- Image recipes run on one GPU; video recipes can use explicit Ulysses sequence parallelism.

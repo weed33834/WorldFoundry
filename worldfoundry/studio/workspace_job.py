@@ -84,8 +84,6 @@ def _build_infer_payload(args: argparse.Namespace) -> JobCreateRequest:
         params["num_frames"] = _int_value(args.frames)
     if args.steps not in {"", None}:
         params["num_inference_steps"] = _int_value(args.steps)
-    if args.guidance_scale not in {"", None}:
-        params["guidance_scale"] = _float_value(args.guidance_scale)
     if args.seed not in {"", None}:
         params["seed"] = _int_value(args.seed)
     if args.fps not in {"", None}:
@@ -96,6 +94,16 @@ def _build_infer_payload(args: argparse.Namespace) -> JobCreateRequest:
     call_param_names = _call_param_names(entry)
     call_kwargs = _parse_json_mapping(args.call_json, label="call-json")
     load_kwargs = _parse_json_mapping(args.load_json, label="load-json")
+    if args.guidance_scale not in {"", None}:
+        guidance_value = _float_value(args.guidance_scale)
+        guidance_param = next(
+            (name for name in ("guidance_scale", "cfg_scale", "guidance", "scale") if name in call_param_names),
+            None,
+        )
+        if guidance_param is None:
+            params["guidance_scale"] = guidance_value
+        else:
+            call_kwargs[guidance_param] = guidance_value
     if args.size:
         if "size" in call_param_names:
             call_kwargs["size"] = args.size

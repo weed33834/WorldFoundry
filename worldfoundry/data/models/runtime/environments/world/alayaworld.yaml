@@ -1,0 +1,48 @@
+schema_version: 2
+model_id: alayaworld
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+python: '3.11'
+cuda_profile: cu128
+driver_status: compatible
+conda_packages:
+- python
+- pip
+- ffmpeg
+- ninja
+pip_packages:
+- torch>=2.6
+- torchvision
+- transformers>=4.49
+- tokenizers>=0.20.3
+- safetensors
+- huggingface-hub
+- accelerate
+- sentencepiece
+- einops
+- numpy
+- scipy
+- pillow
+- opencv-python
+- imageio
+- imageio-ffmpeg
+- av
+- omegaconf
+- easydict
+- tqdm
+- torchao
+validation_imports:
+- torch
+- torchvision
+- transformers
+- safetensors
+- einops
+- cv2
+- worldfoundry.base_models.diffusion_model.video.ltx2.alayaworld
+- worldfoundry.base_models.three_dimensions.depth.depth_anything.depth_anything_v3.api
+- worldfoundry.synthesis.visual_generation.alayaworld
+notes:
+- AlayaWorld runs entirely from the WorldFoundry tree and reuses the canonical LTX-2.3 and Depth Anything 3 implementations.
+- Runtime attention is selected by GPU capability across Ampere, Ada, Hopper, and Blackwell; no A100-only kernel is required.
+- The released BF16 model has a high memory requirement; context parallelism improves throughput but currently replicates auxiliary models per rank.
+- Model, Gemma, and DA3 weights remain governed by their respective non-commercial or gated licenses.

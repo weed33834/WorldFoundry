@@ -1,0 +1,22 @@
+id: versecrafter
+name: VerseCrafter
+tasks: [camera-controlled-video, image-to-video, world-model]
+provider: Tencent ARC
+source:
+  status: open_source
+  official_repo_url: https://github.com/TencentARC/VerseCrafter
+  license: research-only-non-commercial-not-eu
+checkpoint: sxzheng/VerseCrafter
+runtime_profile: runtime-profile:versecrafter
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: versecrafter
+integration:
+  status: integrated
+  notes:
+  - Official source is vendored at revision 008693b52aa74367afb34d183046fecf88100bdc.
+  - The exact VideoX-Fun submodule is vendored at revision 246a0e3a22485b1f48647583f764c7fe16caa93b.
+  - Upstream license is research-only, non-commercial, and excludes intended EU use.
+runner_parity:
+  status: pending
+  notes: [Camera-only 4D-control rendering and diffusion stages are wired in-tree.]
+catalog_category: world_models

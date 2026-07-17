@@ -1,0 +1,51 @@
+schema_version: 2
+model_id: lingbot-video
+display_name: LingBot-Video
+task_family: video_generation
+groups:
+- video
+- image
+source_repos:
+- url: https://github.com/Robbyant/lingbot-video
+  revision: a2bb04b78edd848500dc27a26e035a95442ae186
+checkpoints:
+- repo_id: robbyant/lingbot-video-dense-1.3b
+  revision: f9789a7d9b4772a47aba62d4eb5282ddefd1da21
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/lingbot-video-dense-1.3b
+  role: dense_1p3b
+- repo_id: robbyant/lingbot-video-moe-30b-a3b
+  revision: f2e538f64afe00cc4ae674db2aeb52e2945edfd5
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/lingbot-video-moe-30b-a3b
+  role: moe_30b_a3b_with_refiner
+input_schema:
+  prompt: true
+  image: true
+  prompt_json: true
+artifact_kind: generated_video
+artifact_filename: lingbot_video.mp4
+execution:
+  backend_stage: in_tree_runtime
+  runtime_status: dense_quality_and_moe_quality_smoke_verified_a100
+  integration_status: checkpoint_gpu_validated
+  pipeline_binding: lingbot-video
+  environment: lingbot-video
+integration:
+  status: checkpoint_gpu_validated
+gpu_targets:
+- Dense 1.3B on NVIDIA Ampere, Ada, Hopper, and Blackwell GPUs with BF16 support
+- MoE 30B-A3B on 80GB-class A100/A800/H100/H800 or larger H200/B100/B200/GB200 devices
+- MoE 30B-A3B multi-GPU through the explicit FSDP/context-parallel route when one device cannot hold the checkpoint
+notes:
+- The runtime owns only inference code. Rewriter and training surfaces are outside this integration.
+- T2I produces an image despite the default runtime profile artifact being the T2V video route.
+- The upstream recommended stack requires a dedicated Transformers 5 / Diffusers 0.39 environment.
+- The released Dense 1.3B checkpoint has a 121-frame, 832x480 quality-oriented Workspace artifact.
+- The released MoE 30B-A3B main transformer, 8.88GB text encoder, and FP32 VAE completed a real
+  single-A100 Workspace run with the optional refiner disabled. The one-step smoke produced five
+  fully decodable 192x320 frames (artifact SHA256 4458abda4089e0019587ab388f6ce10f47964af3033f32e060729ddb961ad7f7),
+  proving the large-checkpoint execution path only; its visibly blurred output is not a quality demo.
+- A second MoE Workspace run used 20 denoising steps for nine 256x416 frames. Its first, middle, and
+  last frames show a coherent industrial workbench, black robot mechanism, and red block without the
+  one-step blur; artifact SHA256 is b3211b8ece8a73519bb7c3589cbeebf8c59b4cc473c86cc0e630f833dad2c6f3.
+  This is a quality-oriented short smoke, not parity with the official 480x832, 121-frame, 40-step recipe.
+- The MoE single-device path is physically validated only on A100 80GB; Hopper, Blackwell, and multi-GPU entries are supported targets pending hardware-specific validation.

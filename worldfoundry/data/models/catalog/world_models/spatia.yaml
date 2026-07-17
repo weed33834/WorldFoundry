@@ -1,0 +1,19 @@
+id: spatia
+name: Spatia
+tasks: [camera-controlled-video, video-to-video, world-model]
+provider: Jinjing713
+source:
+  status: open_source
+  official_repo_url: https://github.com/ZhaoJingjing713/Spatia
+  license: apache-2.0
+checkpoint: Jinjing713/Spatia
+runtime_profile: runtime-profile:spatia
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: spatia
+integration:
+  status: integrated
+  notes: [Official source is vendored at revision f75b10c9bb5f6b0cd779ec8c41ab33dd8382dba3.]
+runner_parity:
+  status: pending
+  notes: [In-tree Spatia inference and dense W2C trajectory route are wired.]
+catalog_category: world_models

@@ -1,0 +1,86 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+aliases:
+- x_wam
+- xwam
+- X-WAM
+availability: open_source
+checkpoint:
+  license: apache-2.0
+  repo_id: sharinka0715/X-WAM-checkpoints
+  revision: bb6fd1643cfa8bdc751612a7ace0bd8062a8917a
+id: x-wam
+integration:
+  status: in_tree_runtime_selected_checkpoint_gpu_validated
+  notes:
+  - X-WAM is routed as a world-action model because one Wan 2.2 joint flow process predicts future RGB/depth, proprioception, and robot actions.
+  - The official deployed policy uses asynchronous early stopping after 10 action steps and returns a 32-step action chunk; optional full world decoding continues to 50 steps.
+  - The inference-only runtime is self-contained in-tree, revision-pins both Hub repositories, and never imports an external X-WAM checkout.
+  - Training, datasets, simulators, ZeroMQ services, Lightning, DeepSpeed orchestration, and upstream git submodules are excluded.
+  - The 38.9 GB RoboCasa-SFT checkpoint was restored strictly and passed both the official 10-step action/proprioception path and full 50-step future-RGB decode on an A100; optional depth decoding remains unvalidated.
+license: apache-2.0
+name: X-WAM
+official_sources:
+  github:
+    head_sha: 72cfb86b33fc5060963ef63412f16439fcfa472f
+    url: https://github.com/sharinka0715/X-WAM
+  huggingface:
+  - repo_id: sharinka0715/X-WAM-checkpoints
+    revision: bb6fd1643cfa8bdc751612a7ace0bd8062a8917a
+    license: apache-2.0
+    role: complete_x_wam_model_states
+  - repo_id: Wan-AI/Wan2.2-TI2V-5B
+    revision: 921dbaf3f1674a56f47e83fb80a34bac8a8f203e
+    license: apache-2.0
+    role: architecture_config_and_umt5_tokenizer
+output_artifacts:
+- action_trace
+- predicted_video
+pipeline_binding: x-wam
+provider: official_repo
+runtime_profile: runtime-profile:x-wam
+tasks:
+- wam
+- world_action_model
+- wam.world_action_modeling
+- robot_policy
+- video_prediction
+- depth_prediction
+variants:
+- id: x-wam-robocasa-sft
+  integration_status: checkpoint_gpu_validated
+  task: wam.world_action_modeling
+  checkpoint_refs:
+  - repo_id: sharinka0715/X-WAM-checkpoints
+    revision: bb6fd1643cfa8bdc751612a7ace0bd8062a8917a
+    subpath: robocasa_sft/checkpoints/last.ckpt/checkpoint/mp_rank_00_model_states.pt
+    license: apache-2.0
+  notes:
+  - Three RoboCasa RGB views plus an 8-D single-arm state produce a 32-by-7 relative end-effector action chunk.
+- id: x-wam-robotwin-sft
+  integration_status: in_tree_runtime_checkpoint_validation_pending
+  task: wam.world_action_modeling
+  checkpoint_refs:
+  - repo_id: sharinka0715/X-WAM-checkpoints
+    revision: bb6fd1643cfa8bdc751612a7ace0bd8062a8917a
+    subpath: robotwin_sft/checkpoints/last.ckpt/checkpoint/mp_rank_00_model_states.pt
+    license: apache-2.0
+  notes:
+  - Three RoboTwin RGB views plus a 16-D bimanual state produce a 32-by-14 relative end-effector action chunk.
+- id: x-wam-pretrained
+  integration_status: metadata_only_post_training_base
+  task: wam.post_training_base
+  checkpoint_refs:
+  - repo_id: sharinka0715/X-WAM-checkpoints
+    revision: bb6fd1643cfa8bdc751612a7ace0bd8062a8917a
+    subpath: pretrained/checkpoints/last.ckpt/checkpoint/mp_rank_00_model_states.pt
+    license: apache-2.0
+  notes:
+  - The pretrained subtree has no deployment quantile statistics, so it is not exposed as a runnable policy variant.
+runner_parity:
+  status: selected_checkpoint_gpu_validated
+  notes:
+  - The official three-view crop, quantile normalization, deterministic seed, 10-step asynchronous action sampler, 50-step world sampler, and gripper convention are ported.
+  - Full future RGB/depth decoding is optional; the default matches the official policy server and returns actions and predicted proprioception only.
+  - RoboCasa-SFT strict restoration, finite 32-by-7 actions, 9-by-16 proprioception inference, and nine-frame future-RGB decode passed on an A100; RoboTwin-SFT and optional depth decoding remain unvalidated.
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata, and runtime-profile planning records.

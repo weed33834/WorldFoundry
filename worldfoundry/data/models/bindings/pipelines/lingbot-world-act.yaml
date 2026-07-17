@@ -1,0 +1,8 @@
+schema_version: 2
+binding_id: lingbot-world-act
+model_id: lingbot-world-act
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.lingbot_world.pipeline_lingbot_world:LingBotPipeline
+  loading: {method: from_pretrained, signature: unified}
+  invocation: {mode: native_or_standard_invocation}

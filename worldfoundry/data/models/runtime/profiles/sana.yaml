@@ -4,17 +4,52 @@ backend_stage: in_tree_official_cli
 checkpoints:
 - local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Efficient-Large-Model--Sana_1600M_1024px
   repo_id: Efficient-Large-Model/Sana_1600M_1024px
+  revision: bfbcf738fec4e4bb059a68d9d09c9c4bfc4a1cde
   role: default_sana_text_to_image_checkpoint
+  required_paths:
+  - checkpoints/Sana_1600M_1024px.pth
+- local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Efficient-Large-Model--SANA-Streaming
+  repo_id: Efficient-Large-Model/SANA-Streaming
+  revision: 534c946811822f70117b8549b7e072120a4414d2
+  role: sana_streaming_long_v2v_checkpoint_and_assets
+  required_paths:
+  - dit/sana_streaming_ar.pth
+- local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Efficient-Large-Model--SANA-Streaming_bidirectional
+  repo_id: Efficient-Large-Model/SANA-Streaming_bidirectional
+  revision: 9c68733952a5fa6f96f597a18211fcc493ac66e2
+  role: sana_streaming_bidirectional_v2v_checkpoint
+  required_paths:
+  - dit/sana_bidirectional_short.pth
+- local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Lightricks--LTX-2
+  repo_id: Lightricks/LTX-2
+  revision: 47da56e2ad66ce4125a9922b4a8826bf407f9d0a
+  role: sana_streaming_ltx2_vae
+  required_paths:
+  - vae/config.json
+  - vae/diffusion_pytorch_model.safetensors
+- local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Efficient-Large-Model--gemma-2-2b-it
+  repo_id: Efficient-Large-Model/gemma-2-2b-it
+  revision: 569d9809d0c8b6722d4d31b5a77a2ec7a400650a
+  role: sana_streaming_text_encoder
+  required_paths:
+  - config.json
+  - model.safetensors.index.json
+  - tokenizer_config.json
+  - tokenizer.model
 display_name: Sana
 id: sana
 input_schema:
   image: true
   prompt: true
-  video: false
-integration_status: runtime_ported
+  video: true
+integration_status: runtime_ported_and_streaming_variants_workspace_validated
 notes:
 - WorldFoundry vendors the official Sana runtime under worldfoundry/base_models/diffusion_model/image/sana.
 - SanaSynthesis plan-onlys and executes official in-tree CLI scripts; full parity requires staged Hugging Face checkpoints
   and GPU inference.
-runtime_status: in_tree_official_cli_checkpoint_pending
+- SANA-Streaming accepts a source video path or hf:// URI and exposes both the
+  minute-length long_streaming and short bidirectional routes.
+- The long-streaming checkpoint completed a real A100 Workspace run with 81 decoded 1280x704 frames at 16 FPS; artifact SHA256 is 93a5d67aeef77ea9b5cffe3304418c19737bfd605b8f2163985298d6d2f2fb29.
+- The bidirectional checkpoint independently completed a real A100 Workspace run with 81 decoded 1280x704 frames at 16 FPS; artifact SHA256 is 42f725c053c48c30b4d5458ded195e583a527501e0f4d759da6e7488c25d5513.
+runtime_status: in_tree_official_cli_streaming_variants_a100_workspace_validated
 task_family: video_generation

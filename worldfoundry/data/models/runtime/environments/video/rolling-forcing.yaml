@@ -1,0 +1,38 @@
+conda_packages:
+- python
+- pip
+- ffmpeg
+cuda_profile: cu128
+driver_status: compatible
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: rolling-forcing
+notes:
+- RollingForcing uses WorldFoundry's in-tree inference-only forcing/Wan stack. It does not install or import an
+  external RollingForcing repository.
+- The runtime uses BF16 and supports Ampere, Ada, Hopper, and Blackwell through capability-based core attention
+  dispatch; no A100-specific compute capability is compiled into the integration.
+- Upstream terms restrict RollingForcing to academic use and prohibit commercial or production use.
+pip_packages:
+- torch>=2.4
+- torchvision
+- diffusers
+- transformers>=4.49.0
+- tokenizers>=0.20.3
+- accelerate>=1.1.1
+- omegaconf
+- einops
+- imageio
+- imageio-ffmpeg
+- av
+- numpy
+- ftfy
+- sentencepiece
+- torchao
+- ninja
+python: '3.10'
+validation_imports:
+- torch
+- torchvision
+- omegaconf
+- einops

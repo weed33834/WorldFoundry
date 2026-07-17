@@ -1,0 +1,46 @@
+model_id: uni3c
+env_name: uni3c
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+python: '3.10'
+cuda_profile: cu124
+driver_status: requires_upstream_compatible_flash_attention
+conda_packages:
+- python=3.10
+- pip
+- ffmpeg
+- cmake
+- ninja
+pip_extra_index_url: https://download.pytorch.org/whl/cu124
+pip_packages:
+- torch==2.6.0+cu124
+- torchvision==0.21.0+cu124
+- torchaudio==2.6.0+cu124
+- numpy==1.26.4
+- diffusers==0.33.1
+- transformers==4.46.2
+- accelerate
+- safetensors
+- huggingface-hub
+- omegaconf
+- einops
+- decord
+- xfuser[flash-attn]
+- opencv-python==4.11.0.86
+- imageio[ffmpeg]
+- scipy==1.13.0
+- timm==1.0.11
+- av==13.0.0
+- pillow
+pythonpath_dirs:
+- worldfoundry/synthesis/visual_generation/uni3c/uni3c_runtime
+validation_imports:
+- torch
+- torchvision
+- diffusers
+- transformers
+- xfuser
+- decord
+- cv2
+notes:
+- This dedicated environment follows the official Uni3C stage-two inference pins and avoids its optional rendering/alignment stack.
+- Multi-GPU sequence parallelism requires an xfuser/flash-attn build compatible with the local CUDA toolkit and GPU architecture.

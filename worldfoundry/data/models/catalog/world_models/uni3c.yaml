@@ -1,0 +1,54 @@
+id: uni3c
+name: Uni3C
+aliases:
+- PCDController
+- alibaba-damo-academy/Uni3C
+tasks:
+- image-to-video
+- camera-controlled-video
+- human-motion-controlled-video
+provider: Alibaba DAMO Academy
+source:
+  status: open_source
+  official_repo_url: https://github.com/alibaba-damo-academy/Uni3C
+  license: Apache-2.0
+official_sources:
+  github:
+    url: https://github.com/alibaba-damo-academy/Uni3C
+    revision: 75ed6e2180316b7f07398e4e88ea8bdba3e6970c
+  huggingface:
+  - repo_id: ewrfcas/Uni3C
+    status: public_checkpoint
+  - repo_id: theFoxofSky/RealisDance-DiT
+    status: public_checkpoint
+availability:
+  status: open_source
+  open_source: true
+  code: public_reference_implementation
+  weights: public_huggingface
+  license: Apache-2.0
+checkpoint_refs:
+- repo_id: ewrfcas/Uni3C
+  role: pcd_controller
+- repo_id: Wan-AI/Wan2.1-I2V-14B-720P-Diffusers
+  role: camera_base
+- repo_id: theFoxofSky/RealisDance-DiT
+  role: unified_camera_human_model
+integration:
+  kind: pipeline_runner
+  status: runtime_ported
+  notes:
+  - The official camera-only and unified camera-plus-human stage-two inference paths are vendored in-tree.
+  - Pre-rendered control bundles stay explicit runtime inputs; preprocessing is not silently substituted.
+runtime_profile: runtime-profile:uni3c
+pipeline_binding: uni3c
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - Static compilation, route resolution, local asset wiring, and offline command planning are covered locally.
+  - Full GPU artifact parity remains pending staged 14B checkpoints and a CUDA 12.4 inference run.
+output_artifacts:
+- generated_video
+catalog_category: world_models
+catalog_scope: World-model catalog entries with in-tree inference runtimes.

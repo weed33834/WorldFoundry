@@ -1,0 +1,127 @@
+id: xiaomi-robotics-0
+name: Xiaomi-Robotics-0
+aliases:
+- xr0
+- xiaomi-robotics-zero
+- Xiaomi-Robotics-0
+provider: official_repo
+availability: open_source
+license: apache-2.0
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: xiaomi-robotics-0
+runtime_profile: runtime-profile:xiaomi-robotics-0
+checkpoint:
+  repo_id: XiaomiRobotics/Xiaomi-Robotics-0-LIBERO
+  revision: fc04bbdcc53e498695cfad95d1199091396ef55b
+  license: apache-2.0
+official_sources:
+  github:
+    url: https://github.com/XiaomiRobotics/Xiaomi-Robotics-0
+    head_sha: fa170bc295a22e0f4e582ff9e5bb104b3c6900d6
+  huggingface:
+  - repo_id: XiaomiRobotics/Xiaomi-Robotics-0-LIBERO
+    revision: fc04bbdcc53e498695cfad95d1199091396ef55b
+    license: apache-2.0
+    role: libero_policy_checkpoint
+    status: confirmed
+  - repo_id: XiaomiRobotics/Xiaomi-Robotics-0-Calvin-ABCD_D
+    revision: 1161227fbcde104c7333ccf684695d3612df2d26
+    license: apache-2.0
+    role: calvin_abcd_to_d_policy_checkpoint
+    status: confirmed
+  - repo_id: XiaomiRobotics/Xiaomi-Robotics-0-Calvin-ABC_D
+    revision: 3e64bfa35ab26c00cb5572e3f174a2421a85577d
+    license: apache-2.0
+    role: calvin_abc_to_d_policy_checkpoint
+    status: confirmed
+  - repo_id: XiaomiRobotics/Xiaomi-Robotics-0-SimplerEnv-Google-Robot
+    revision: 3b6b1bf65cf9ffbf0865a9abc0b66ee338e0bee6
+    license: apache-2.0
+    role: simplerenv_google_robot_policy_checkpoint
+    status: confirmed
+  - repo_id: XiaomiRobotics/Xiaomi-Robotics-0-SimplerEnv-WidowX
+    revision: 3f25b13ea6007d44466e6ea9d2ffe460876142c5
+    license: apache-2.0
+    role: simplerenv_widowx_policy_checkpoint
+    status: confirmed
+  - repo_id: XiaomiRobotics/Xiaomi-Robotics-0-Pretrain
+    revision: 50276c277f7d5c9b1a52fcecdea79045568c6916
+    license: apache-2.0
+    role: base_pretrained_checkpoint
+    status: confirmed
+tasks:
+- vla
+- vla.action_prediction
+- vla.policy_rollout
+- robot_policy
+output_artifacts:
+- action_trace
+integration:
+  status: all_released_checkpoints_gpu_validated
+  notes:
+  - The official checkpoint-side MiBoT configuration, model, and processor code is vendored flat under worldfoundry/synthesis/action_generation/xiaomi_robotics_0.
+  - Runtime loading uses explicit in-tree classes with trust_remote_code disabled and never imports or reads the external GitHub checkout.
+  - This is a VLA action-chunk policy, so action_generation is the correct synthesis family; it is not a visual/video world generator.
+variants:
+- id: xiaomi-robotics-0-libero
+  task: vla.policy_rollout
+  integration_status: checkpoint_gpu_validated
+  checkpoint_refs:
+  - repo_id: XiaomiRobotics/Xiaomi-Robotics-0-LIBERO
+    revision: fc04bbdcc53e498695cfad95d1199091396ef55b
+    license: apache-2.0
+  notes:
+  - Uses robot_type libero_all with base and left-wrist RGB views and emits a 10-step action chunk.
+- id: xiaomi-robotics-0-calvin-abcd
+  task: vla.policy_rollout
+  integration_status: checkpoint_gpu_validated
+  checkpoint_refs:
+  - repo_id: XiaomiRobotics/Xiaomi-Robotics-0-Calvin-ABCD_D
+    revision: 1161227fbcde104c7333ccf684695d3612df2d26
+    license: apache-2.0
+  notes:
+  - Uses robot_type calvin_abcd_orig with base and left-wrist RGB views and emits a 10-step action chunk.
+- id: xiaomi-robotics-0-calvin-abc
+  task: vla.policy_rollout
+  integration_status: checkpoint_gpu_validated
+  checkpoint_refs:
+  - repo_id: XiaomiRobotics/Xiaomi-Robotics-0-Calvin-ABC_D
+    revision: 3e64bfa35ab26c00cb5572e3f174a2421a85577d
+    license: apache-2.0
+  notes:
+  - Uses robot_type calvin_abc_orig with base and left-wrist RGB views and emits a 10-step action chunk.
+- id: xiaomi-robotics-0-simplerenv-google
+  task: vla.policy_rollout
+  integration_status: checkpoint_gpu_validated
+  checkpoint_refs:
+  - repo_id: XiaomiRobotics/Xiaomi-Robotics-0-SimplerEnv-Google-Robot
+    revision: 3b6b1bf65cf9ffbf0865a9abc0b66ee338e0bee6
+    license: apache-2.0
+  notes:
+  - Uses robot_type fractal_delta with one ego RGB view and emits a 4-step action chunk.
+- id: xiaomi-robotics-0-simplerenv-widowx
+  task: vla.policy_rollout
+  integration_status: checkpoint_gpu_validated
+  checkpoint_refs:
+  - repo_id: XiaomiRobotics/Xiaomi-Robotics-0-SimplerEnv-WidowX
+    revision: 3f25b13ea6007d44466e6ea9d2ffe460876142c5
+    license: apache-2.0
+  notes:
+  - Uses robot_type bridge_delta with one base RGB view and emits a 4-step action chunk.
+- id: xiaomi-robotics-0-pretrain
+  task: vla.action_prediction
+  integration_status: checkpoint_gpu_validated
+  checkpoint_refs:
+  - repo_id: XiaomiRobotics/Xiaomi-Robotics-0-Pretrain
+    revision: 50276c277f7d5c9b1a52fcecdea79045568c6916
+    license: apache-2.0
+  notes:
+  - Base weights require explicit robot_type, camera_keys, and view_labels plus a matching embodiment state schema; their action horizons are 15 or 30 depending on robot_type.
+runner_parity:
+  status: all_released_checkpoints_gpu_validated
+  backend: worldfoundry.xiaomi_robotics_0.in_tree_hf_runtime
+  reference_backend: official.deploy.server.Server
+  notes:
+  - All six released checkpoints passed strict restoration and finite real Workspace inference on A100; pretrain used the explicit DROID camera/state contract.
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata, and runtime-profile planning records.

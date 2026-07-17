@@ -1,0 +1,14 @@
+schema_version: 2
+binding_id: abot-world-0-5b-lf
+model_id: abot-world-0-5b-lf
+aliases:
+- abot-world
+- abot
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.abot_world.pipeline_abot_world:ABotWorldPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

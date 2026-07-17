@@ -1,0 +1,56 @@
+schema_version: 2
+model_id: h-rdt
+display_name: H-RDT
+task_family: vla_policy
+groups:
+- vla
+- human_motion_policy
+- robot_policy_finetune
+source_repos:
+- url: https://github.com/HongzheBi/H_RDT
+  revision: 8be02cb5e631898dfab12f9b6bbb77e32999547a
+checkpoints:
+- repo_id: embodiedfoundation/H-RDT
+  revision: d3b0e6ffddf36c7734804c649be13f3af05125e7
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/embodiedfoundation--H-RDT
+  role: 48d_human_motion_pretraining_checkpoint
+  status: runtime_files_manifest_validated
+- repo_id: google/t5-v1_1-xxl
+  revision: 3db67ab1af984cf10548a73467f0e5bca2aaaeb2
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/google--t5-v1_1-xxl
+  role: optional_online_language_encoder
+input_schema:
+  model_id: h-rdt
+  image: true
+  prompt: true
+  state: true
+  camera_keys:
+  - head_cam
+  - right_cam
+  - left_cam
+  precomputed_image_tokens: true
+  precomputed_language_tokens: true
+  policy_family: flow_matching_transformer_policy
+  action_representation: checkpoint_defined
+artifact_kind: action_trace
+artifact_filename: h_rdt_action_trace.json
+execution:
+  backend_stage: in_tree_checkpoint_runtime
+  runtime_status: native_checkpoint_runtime_a100_workspace_validated
+  integration_status: in_tree_checkpoint_runtime_numerically_validated
+  pipeline_binding: h-rdt
+integration:
+  status: in_tree_checkpoint_runtime_numerically_validated
+license: mpl-2.0
+gpu_targets:
+- NVIDIA Turing (T4/RTX 20) in float16
+- NVIDIA Ampere (A10/A30/A40/A100/A800/RTX 30)
+- NVIDIA Ada (L4/L40/L40S/RTX 40)
+- NVIDIA Hopper (H100/H200/H800)
+- NVIDIA Blackwell (B100/B200/GB200/RTX 50)
+notes:
+- The default official checkpoint consumes one 384-pixel image view and returns 16 by 48 pretraining actions.
+- Raw-image inference uses local DINOv2 and SigLIP weights contained in the official snapshot.
+- Precomputed language embeddings avoid loading T5-v1.1-XXL and are recommended on lower-memory GPUs.
+- Robot fine-tunes may define a different state/action dimension and camera count through their checkpoint config.
+- The released pretraining checkpoint completed real A100 Workspace inference with finite 16x48 model-space actions using raw RGB and locally encoded text.

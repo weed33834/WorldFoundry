@@ -1,0 +1,30 @@
+env_name: worldfoundry-vla-xvla
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: xvla
+python: '3.10'
+cuda_profile: cu121_or_newer
+driver_status: compatible
+conda_packages:
+- python
+- pip
+pip_packages:
+- torch>=2.2
+- torchvision>=0.17
+- transformers>=4.45,<6
+- accelerate>=0.30
+- timm>=0.9
+- einops>=0.8
+- Pillow>=10
+- numpy>=1.26
+- safetensors>=0.4
+- huggingface-hub>=0.23
+- peft>=0.11
+validation_imports:
+- torch
+- transformers
+- timm
+- einops
+- PIL
+notes:
+- X-VLA's official reference uses float32; optional bf16 is suitable for Ampere, Ada, Hopper, and Blackwell after checkpoint validation.
+- The in-tree compatibility shims support both the upstream Transformers 4.51 generation and the unified Transformers 5.x runtime.

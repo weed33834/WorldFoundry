@@ -1,0 +1,16 @@
+schema_version: 2
+model_id: wan22-fun-5b-cam
+display_name: Wan2.2-Fun 5B Control Camera
+task_family: video_generation
+groups: [camera_control, image_to_video]
+source_repos:
+- url: https://github.com/aigc-apps/VideoX-Fun
+  revision: 403f1f7b78dcafccc4f6606dda4ec28e16e667dc
+  in_tree_path: worldfoundry/synthesis/visual_generation/video_x_fun/video_x_fun_runtime
+checkpoints: [{repo_id: alibaba-pai/Wan2.2-Fun-5B-Control-Camera, revision: 4dde4056e00166c04fe5bebe48ca04575c6c58ea, local_dir: '${WORLDFOUNDRY_HFD_ROOT}/alibaba-pai--Wan2.2-Fun-5B-Control-Camera', role: model}]
+input_schema: {prompt: true, image: true, pose_txt: true}
+artifact_kind: generated_video
+artifact_filename: wan22-fun-5b-cam.mp4
+execution: {environment: _unified, backend_stage: independent_in_tree_runtime, runtime_status: checkpoint_assets_pending_not_runnable_until_staged, integration_status: runtime_ported, pipeline_binding: wan22-fun-5b-cam}
+integration: {status: runtime_ported}
+notes: [Upstream native profile is 121 frames at 24 FPS.]

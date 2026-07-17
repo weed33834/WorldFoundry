@@ -1,0 +1,36 @@
+schema_version: 1
+architecture:
+  family: pi0.5
+  vision_language_backbone: paligemma-3b
+  action_expert: gemma-300m
+  flow_matching: true
+  adaptive_rms_norm: true
+  action_dim: 32
+  action_horizon: 50
+  max_token_len: 200
+  discrete_state_input: true
+  advantage_conditioning:
+    inference_value: 1.0
+    uniform_bins: 10
+    inference_bin: 10
+    prompt_field: Advantage
+  value_head: false
+inference:
+  input_cameras:
+  - top_head
+  - hand_left
+  - hand_right
+  model_camera_mapping:
+    top_head: base_0_rgb
+    hand_left: left_wrist_0_rgb
+    hand_right: right_wrist_0_rgb
+  state_dim: 14
+  source_image_size: [320, 240]
+  model_image_size: [224, 224]
+  deployed_action_dim: 14
+  quantile_normalization: true
+  delta_joint_actions: false
+  default_flow_steps: 10
+  checkpoint_layouts:
+  - model.safetensors
+  - params

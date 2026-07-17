@@ -1,0 +1,41 @@
+id: rise
+name: RISE
+aliases:
+- rise-policy
+- rise-pi05
+availability: open_source
+provider: official_repo
+license: apache-2.0
+official_sources:
+  github:
+    url: https://github.com/OpenDriveLab/RISE
+    head_sha: 5fac1e6ab9d50d4cc1ba4daeadf14023c8415955
+  huggingface:
+  - repo_id: OpenDriveLab-org/RISE_Assets
+    role: released_dynamics_assets_only
+checkpoint:
+  public_trained_action_checkpoint: false
+  accepted_local_formats:
+  - pytorch_model_safetensors
+  - jax_orbax_params
+  required_task_assets:
+  - trained Pi0.5 action-policy weights
+  - quantile norm_stats.json
+  - local PaliGemma SentencePiece tokenizer
+integration:
+  status: in_tree_checkpoint_gated_runtime
+  notes:
+  - The official deployment transform, three-camera mapping, Pi0.5 action architecture, normalization, and 50x14 output contract execute in process.
+  - The public asset repository currently contains the dynamics model and sample data, not a trained action-policy checkpoint.
+  - Runtime construction therefore fails early until compatible trained action weights and their task normalization statistics are staged locally.
+  - No source checkout, remote custom code, or runtime network access is used.
+tasks:
+- vla
+- vla.action_prediction
+- embodied_policy
+output_artifacts:
+- action_trace
+pipeline_binding: rise
+runtime_profile: runtime-profile:rise
+catalog_category: vla_va_wam
+schema_version: 2

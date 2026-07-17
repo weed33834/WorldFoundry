@@ -1,0 +1,47 @@
+id: tinyvla
+name: TinyVLA
+aliases:
+- tiny-vla
+- llava-pythia-vla
+availability: open_source
+provider: official_repo
+license: mixed-mit-apache-2.0
+official_sources:
+  github:
+    url: https://github.com/liyaxuanliyaxuan/TinyVLA
+    head_sha: 94f441827b45e4f76316ef6a0ae443736dc93a5d
+  huggingface:
+  - repo_id: lesjie/Llava-Pythia-400M
+    revision: be2b5b2091e4d8f3cce9b414b110694040aeb3e2
+    role: released_400m_vlm_backbone
+  - repo_id: lesjie/Llava-Pythia-700M
+    role: released_700m_vlm_backbone
+  - repo_id: lesjie/Llava-Pythia-1.3B
+    revision: b2fc795811dd8d291f67cadaf01d86a191d62aed
+    role: released_1.3b_vlm_backbone
+checkpoint:
+  public_trained_action_checkpoint: false
+  accepted_local_formats:
+  - merged_model_safetensors
+  - lora_adapter_with_non_lora_trainables
+  required_task_assets:
+  - task-trained action-policy checkpoint
+  - task config.json containing action dimensions and head type
+  - dataset_stats.pkl, JSON, or NPZ
+integration:
+  status: in_tree_checkpoint_gated_runtime
+  notes:
+  - LLaVA-Pythia, CLIP/SigLIP vision fusion, ACT, and conditional 1D diffusion action heads execute in process.
+  - Both merged weights and local LoRA plus non-LoRA action tensors are supported without source checkouts or remote code.
+  - The published Hub models are VLM backbones for policy training; they are not task-trained robot action checkpoints.
+  - Runtime construction fails early until a compatible task checkpoint and its normalization statistics are staged locally.
+tasks:
+- vla
+- vla.action_prediction
+- embodied_policy
+output_artifacts:
+- action_trace
+pipeline_binding: tinyvla
+runtime_profile: runtime-profile:tinyvla
+catalog_category: vla_va_wam
+schema_version: 2

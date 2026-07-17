@@ -4,28 +4,33 @@ backend_stage: in_tree_runtime
 checkpoints:
 - local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Vchitect--LongVie2
   repo_id: Vchitect/LongVie2
+  revision: dd061bbd6d2084fa474d8d66bbbfbfb790d0fde3
   role: longvie2_control_and_dit_attention_weights
-- local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Wan-AI--Wan2.1-I2V-14B-480P
+- local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Wan2.1-I2V-14B-480P
   repo_id: Wan-AI/Wan2.1-I2V-14B-480P
+  revision: 6b73f84e66371cdfe870c72acd6826e1d61cf279
   role: wan2.1_i2v_14b_base_checkpoint
-- local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Wan-AI--Wan2.1-T2V-1.3B
+- local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Wan2.1-T2V-1.3B
   repo_id: Wan-AI/Wan2.1-T2V-1.3B
+  revision: 37ec512624d61f7aa208f7ea8140a131f93afc9a
   role: umt5_tokenizer
 display_name: LongVie 2
 id: longvie-2
 input_schema:
-  actions:
-  - dense_video
-  - sparse_video
+  controls:
+  - dense_depth_video_per_segment
+  - sparse_pointmap_or_track_video_per_segment
   image: true
   prompt: true
   video: true
-integration_status: integrated
+integration_status: runtime_ported
 notes:
 - WorldFoundry vendors the official LongVie DiffSynth runtime under worldfoundry/synthesis/visual_generation/longvie/longvie_runtime.
-- Default calls fail fast unless execute=True is supplied; staged checkpoints are
-  required for the official-equivalent GPU path.
+- Each queued segment requires a non-empty prompt plus user-provided dense depth and
+  sparse pointmap/track control videos. The first segment also requires an image.
 - The LongVie 2 adapter loads both control.safetensors and dit.safetensors and preserves
-  the official history/noise continuation loop.
-runtime_status: integrated
+  the official previous-final-frame, eight-frame-history, and noise continuation loop.
+- Quality defaults are 81 frames at 16 FPS with 50 steps. The Studio profile uses
+  four-rank USP and only rank zero materializes the output artifact.
+runtime_status: checkpoint_assets_pending_not_runnable_until_staged
 task_family: video_generation

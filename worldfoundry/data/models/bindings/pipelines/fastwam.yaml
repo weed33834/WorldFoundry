@@ -3,7 +3,7 @@ binding_id: fastwam
 model_id: fastwam
 runner: worldfoundry.pipeline
 pipeline:
-  target: worldfoundry.pipelines.component_pipelines:FastWAMPipeline
+  target: worldfoundry.synthesis.action_generation.fastwam.pipeline:FastWAMPipeline
   loading:
     method: from_pretrained
     signature: unified

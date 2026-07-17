@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import configparser
+import os
 import re
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -44,7 +45,6 @@ LOCAL_REPO_ALIASES: dict[str, tuple[str, ...]] = {
     "depth-anything-v3": ("Depth-Anything-3",),
     "dreamzero": ("dreamzero",),
     "giga-brain-0": ("giga-brain-0",),
-    "giga-world-policy": ("giga-world-policy",),
     "lingbot-va": ("lingbot-va",),
     "openvla": ("RoboTwin/policy/openvla-oft", "RoboTwin"),
     "openpi": ("RoboTwin/policy/pi0", "RoboTwin"),
@@ -292,6 +292,10 @@ def _template_for(entry: CatalogEntry, profile: Any | None) -> tuple[str, str, s
         return "visual-action", "Visual Action Tokenizer", "latent action stream"
     if entry.category == "Embodied Action" or task_family in {"vla_policy", "world_action_model", "visuomotor_policy", "action_chunking_policy"}:
         return "embodied-policy", "Embodied Policy Console", "robot action stream"
+    if "queued-segment-generation" in tags:
+        return "interactive-world", "Queued World Segments", "resident segment queue"
+    if "prompt-scheduled" in tags:
+        return "interactive-world", "Prompt-Scheduled World Rollout", "prompt segment stream"
     if "interactive-world" in tags:
         return "interactive-world", "Interactive World Rollout", "navigation stream"
     if entry.supports_stream and (entry.default_interactions or tags & {"navigation", "camera-control"}):

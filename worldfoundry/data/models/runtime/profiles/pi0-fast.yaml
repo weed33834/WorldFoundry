@@ -9,7 +9,8 @@ checkpoints:
   path: gs://openpi-assets/checkpoints/pi0_fast_base
   role: pi0_fast_base_checkpoint
 execution:
-  environment: openpi
+  environment: pi0-fast
+  pipeline_binding: pi0-fast
 id: pi0-fast
 input_schema:
   actions:
@@ -24,7 +25,7 @@ integration_status: runtime_ported
 notes:
 - pi0-FAST is a concrete OpenPI algorithm variant routed through the in-tree OpenPI
   runtime.
-- WorldFoundry uses the vendored OpenPI FAST action-token policy code under worldfoundry/synthesis/action_generation/openpi/openpi_runtime.
+- WorldFoundry keeps the inference-only OpenPI FAST action-token policy directly under worldfoundry/synthesis/action_generation/openpi.
 - Default runtime config uses pi0_fast_droid; checkpoint-backed execution requires
   a local pi0-FAST GCS checkpoint.
 - This profile emits action_trace artifacts and is not a video-generation profile.

@@ -1,0 +1,42 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+id: h-rdt
+name: H-RDT
+aliases:
+- h_rdt
+- embodiedfoundation/h-rdt
+availability: open_source
+provider: official_repo
+license: mpl-2.0
+official_sources:
+  github:
+    url: https://github.com/HongzheBi/H_RDT
+    head_sha: 8be02cb5e631898dfab12f9b6bbb77e32999547a
+  huggingface:
+  - repo_id: embodiedfoundation/H-RDT
+    revision: d3b0e6ffddf36c7734804c649be13f3af05125e7
+    type: model
+  paper: https://arxiv.org/abs/2506.23503
+  project_page: https://embodiedfoundation.github.io/hrdt/
+integration:
+  status: in_tree_checkpoint_runtime_static_verified
+  notes:
+  - The transformer, flow-matching sampler, DINOv2 plus SigLIP vision path, and optional T5 language path are in-tree.
+  - Runtime code never imports a source checkout or executes checkpoint-provided Python.
+  - The official release is a 48-dimensional human-motion pretraining checkpoint, not the unreleased 14-dimensional robot fine-tune.
+  - Training, datasets, ROS, robot drivers, simulator clients, and hub mixins are excluded.
+tasks:
+- vla
+- human_motion_policy
+- vla.policy_rollout
+- robot_policy_finetune
+output_artifacts:
+- action_trace
+pipeline_binding: h-rdt
+runtime_profile: runtime-profile:h-rdt
+runner_parity:
+  status: static_runtime_verified
+  notes:
+  - Module and parameter names preserve the official checkpoint contract and restoration is strict.
+  - Numerical and GPU rollout validation remain pending until the checkpoint assets are materialized.
+catalog_category: vla_va_wam
+catalog_scope: In-tree inference runtime and checkpoint metadata for embodied policies.

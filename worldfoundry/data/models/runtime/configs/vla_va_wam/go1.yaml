@@ -1,0 +1,43 @@
+backend: callable_entrypoint
+checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/agibot-world--GO-1
+checkpoint_ref: agibot-world/GO-1
+revision: 0bc37be9caa20b5b3d4a569ec462409072d3e244
+policy_target: worldfoundry.synthesis.action_generation.go1.runtime:predict_action
+torch_dtype: auto
+trust_remote_code: false
+local_files_only: true
+attention_backend: auto
+variant: agibot_pretrain
+camera_keys:
+- cam_high
+- cam_right_wrist
+- cam_left_wrist
+camera_aliases:
+  cam_high: [top, head, head_camera, cam_head_color, image]
+  cam_right_wrist: [right, right_camera, cam_hand_right_color, right_wrist_image]
+  cam_left_wrist: [left, left_camera, cam_hand_left_color, wrist_image, left_wrist_image]
+control_frequency: 30
+max_sequence_length: 4096
+normalization_epsilon: 1.0e-6
+normalization_mean: [0.485, 0.456, 0.406]
+normalization_std: [0.229, 0.224, 0.225]
+prompt_template:
+  image_start: <img>
+  image_context: <IMG_CONTEXT>
+  image_end: </img>
+  message_start: <|im_start|>
+  message_end: <|im_end|>
+  system_message: 你是书生·万象，英文名是InternVL，是由上海人工智能实验室、清华大学及多家合作单位联合开发的多模态大语言模型。
+  instruction_format: What action should the robot take to {instruction}?
+dynamic_image_size: null
+use_thumbnail: null
+min_dynamic_patches: null
+max_dynamic_patches: null
+pad_to_square: null
+action_horizon: null
+seed: 0
+statistics_path: null
+statistics_file: dataset_stats.json
+statistics_key: null
+action_contract: go1_diffusion_action_chunk
+runtime_backend: go1_in_tree_model

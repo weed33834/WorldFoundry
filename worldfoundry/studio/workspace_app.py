@@ -10,6 +10,7 @@ import socket
 import subprocess
 import sys
 import time
+import urllib.parse
 import urllib.request
 from dataclasses import asdict, dataclass, field, replace
 from functools import lru_cache
@@ -55,7 +56,7 @@ from .execution import RunRecord, StudioManager, _is_gaussian_splat_ply
 from .jobs import StudioJob, StudioJobStore, format_elapsed
 from .studio_catalog import _studio_catalog, _template_id_hint
 from .visualization.backends.frontends import STUDIO_VISUALIZATIONS
-from .visualization.backends.viser import npz_has_supported_geometry
+from .visualization.backends.viser import npz_has_supported_geometry, viser_orientation_defaults
 from .visualization.providers.run_record import first_geometry_point_candidate, first_splat_asset
 
 
@@ -147,11 +148,12 @@ MEDIA_VISUALIZER_EXTS = {
 }
 SPARK_VISUALIZER_EXTS = {".spz", ".splat", ".ksplat", ".sog"}
 GEOMETRY_VISUALIZER_EXTS = {".ply", ".pcd", ".xyz", ".glb", ".gltf", ".obj"}
-WORKSPACE_HIDDEN_VISUALIZER_MODES = {"media", "unified"}
+WORKSPACE_HIDDEN_VISUALIZER_MODES = {"unified"}
 VISUALIZER_LABELS = {
     "points": "Open in Viser",
     "spark": "Open in Spark",
     "rerun": "Open in Rerun",
+    "media": "Open Media",
 }
 
 
@@ -231,6 +233,7 @@ DEFAULT_VISUALIZER_MODELS = {
     "spark": "vggt-omega",
     "points": "vggt-omega",
     "rerun": "vggt-omega",
+    "media": "vggt-omega",
     "embodied": "openvla",
     "unified": "matrix-game-2",
 }
@@ -244,9 +247,24 @@ POINTS_VISUALIZER_PARAM_ENV = {
     "show_cameras": "WORLDFOUNDRY_STUDIO_VISER_SHOW_CAMERAS",
     "camera_size": "WORLDFOUNDRY_STUDIO_VISER_CAMERA_SIZE",
 }
-VISUALIZER_ASSET_REQUIRED = {"points"}
+POINTS_VISUALIZER_DEFAULT_PARAMS = {
+    "coordinate_preset": "asset-native",
+    "up_direction": "+z",
+    "alignment": "auto",
+    "point_size": 0.02,
+    "point_shape": "circle",
+    "max_points": 400_000,
+}
+VISUALIZER_ASSET_REQUIRED = {"media", "points"}
 VISUALIZER_URL_REQUIRED = {"embodied"}
 VISUALIZER_MANAGED: dict[str, ManagedVisualizer] = {}
+
+
+def _rerun_renderer() -> str:
+    """Select the Rerun web renderer, preferring its modern WebGPU path."""
+
+    value = os.getenv("WORLDFOUNDRY_STUDIO_RERUN_RENDERER", "webgpu").strip().lower()
+    return value if value in {"webgpu", "webgl"} else "webgpu"
 
 
 def _coerce_setting_value(key: str, value: Any) -> Any:
@@ -460,6 +478,44 @@ def _visualizer_env_overrides(mode: str, params: Mapping[str, Any]) -> dict[str,
     return overrides
 
 
+def _resolved_visualizer_params(
+    mode: str,
+    *,
+    model_id: str,
+    asset_path: str,
+    requested: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Resolve automatic viewer orientation without overriding explicit choices."""
+
+    if mode != "points":
+        return dict(requested)
+    params = dict(POINTS_VISUALIZER_DEFAULT_PARAMS)
+    params.update(viser_orientation_defaults(model_id, asset_path))
+    for key, value in requested.items():
+        if value is None or (isinstance(value, str) and value.strip().lower() == "auto"):
+            continue
+        params[key] = value
+    return params
+
+
+def _visualizer_reusable(
+    existing: ManagedVisualizer | None,
+    *,
+    model_id: str,
+    asset_path: str,
+    params: Mapping[str, Any],
+) -> bool:
+    """Return whether a managed viewer already serves this exact target."""
+
+    return bool(
+        existing is not None
+        and existing.model_id == model_id
+        and existing.asset_path == asset_path
+        and existing.params == dict(params)
+        and (existing.external or _visualizer_process_alive(existing.process))
+    )
+
+
 def _validate_visualizer_asset(mode: str, asset_path: str) -> str:
     value = (asset_path or "").strip()
     if not value:
@@ -521,7 +577,7 @@ def _visualizer_mode_for_artifact(path_text: str) -> str:
     path = Path(path_text)
     suffix = path.suffix.lower()
     if suffix in MEDIA_VISUALIZER_EXTS:
-        return ""
+        return "media"
     if suffix == ".rrd":
         return "rerun"
     if suffix in SPARK_VISUALIZER_EXTS:
@@ -561,14 +617,26 @@ def _launch_visualizer(mode: str, payload: VisualizerLaunchRequest) -> dict[str,
         raise HTTPException(status_code=404, detail=f"unknown visualizer: {mode}")
     if mode in WORKSPACE_HIDDEN_VISUALIZER_MODES:
         raise HTTPException(status_code=410, detail=f"{mode} is not exposed in the Workspace visualizers.")
-    params = dict(payload.params or {})
+    requested_model_id = (payload.model_id or DEFAULT_VISUALIZER_MODELS.get(mode) or "").strip()
+    requested_asset_path = (payload.asset_path or "").strip()
+    if requested_asset_path:
+        requested_asset_path = str(Path(requested_asset_path).expanduser().resolve())
+    params = _resolved_visualizer_params(
+        mode,
+        model_id=requested_model_id,
+        asset_path=requested_asset_path,
+        requested=dict(payload.params or {}),
+    )
     _cleanup_finished_visualizer(mode)
     existing = VISUALIZER_MANAGED.get(mode)
     if (
-        existing is not None
-        and payload.reuse
-        and existing.params == params
-        and (existing.external or _visualizer_process_alive(existing.process))
+        payload.reuse
+        and _visualizer_reusable(
+            existing,
+            model_id=requested_model_id,
+            asset_path=requested_asset_path,
+            params=params,
+        )
     ):
         return _visualizer_status(existing)
 
@@ -604,16 +672,38 @@ def _launch_visualizer(mode: str, payload: VisualizerLaunchRequest) -> dict[str,
         return _visualizer_status(record)
 
     url = _visualizer_public_url(host, port)
+    rerun_grpc_port: int | None = None
+    rerun_ws_port: int | None = None
     if mode == "rerun":
-        url = url.rstrip("/") + "/?renderer=webgl"
+        for candidate in range(port + 1, port + 65):
+            if _tcp_port_available(host, candidate) and _tcp_port_available(host, candidate + 1):
+                rerun_ws_port = candidate
+                rerun_grpc_port = candidate + 1
+                break
+        if rerun_ws_port is None or rerun_grpc_port is None:
+            raise HTTPException(status_code=409, detail=f"no free Rerun data ports found near {port + 1}")
+        browser_host = "127.0.0.1" if host in {"", "0.0.0.0", "::", "localhost"} else host
+        source_url = f"ws://{browser_host}:{rerun_ws_port}"
+        url = (
+            url.rstrip("/")
+            + "/?url="
+            + urllib.parse.quote(source_url, safe="")
+            + f"&renderer={_rerun_renderer()}"
+        )
     health_url = _visualizer_health_url(mode, url)
     log_path = _workspace_visualizer_dir() / f"{mode}-{int(time.time())}.log"
     env = os.environ.copy()
-    env["PYTHONPATH"] = str(REPO_ROOT)
+    env["PYTHONPATH"] = os.pathsep.join(
+        item for item in (str(REPO_ROOT), env.get("PYTHONPATH", "")) if item
+    )
     env.setdefault("GRADIO_ANALYTICS_ENABLED", "False")
     env.setdefault("PYTHONFAULTHANDLER", "1")
     env.setdefault("PYTHONUNBUFFERED", "1")
     visualizer_env = _visualizer_env_overrides(mode, params)
+    if rerun_grpc_port is not None:
+        visualizer_env["WORLDFOUNDRY_STUDIO_RERUN_GRPC_PORT"] = str(rerun_grpc_port)
+    if rerun_ws_port is not None:
+        visualizer_env["WORLDFOUNDRY_STUDIO_RERUN_WS_PORT"] = str(rerun_ws_port)
     env.update(visualizer_env)
     with log_path.open("a", encoding="utf-8") as log_file:
         log_file.write("$ " + " ".join(command) + "\n")
@@ -664,7 +754,7 @@ def _launch_visualizer(mode: str, payload: VisualizerLaunchRequest) -> dict[str,
 
 def _entry_workload(entry: CatalogEntry) -> str:
     if entry.module_path == "worldfoundry.pipelines.sana.pipeline_sana" and not entry.model_id.startswith(
-        ("sana-video-", "longsana-video-")
+        ("sana-video-", "longsana-video-", "sana-streaming-")
     ):
         return "image"
     task_type = entry.default_task_type.strip().lower().replace("_", "-")
@@ -760,10 +850,10 @@ def _append_task_inputs(
 
 
 def _entry_inference_spec(entry: CatalogEntry):
+    curated = get_model_inference_spec(entry.model_id)
+    if curated is not None:
+        return curated
     if entry.model_id in ASSET_GATED_WORLD_RUNTIME_MODEL_IDS:
-        curated = get_model_inference_spec(entry.model_id)
-        if curated is not None:
-            return curated
         spec = generic_model_inference_spec(
             model_family_id=entry.model_id,
             display_name=entry.display_name,
@@ -780,7 +870,7 @@ def _entry_inference_spec(entry: CatalogEntry):
                 replace(
                     task,
                     inputs=tuple(
-                        replace(field, default=("forward",))
+                        replace(field, default=entry.default_interactions or ("forward",))
                         if field.target == "params"
                         and _param_key(field.field_id) in {"interactions", "interaction", "interaction_signal", "action"}
                         else field
@@ -991,6 +1081,10 @@ def _entry_runtime_options(entry: CatalogEntry) -> dict[str, dict[str, Any]]:
 
 
 def _variant_model_ref(entry: CatalogEntry, variant: InferenceVariantSpec) -> str:
+    if entry.model_id == "cosmos3":
+        if variant.variant_id == "cosmos3-super":
+            return variant.primary_checkpoint_uri or entry.default_model_ref
+        return entry.default_model_ref or variant.primary_checkpoint_uri
     if entry.family == "world_model":
         return entry.default_model_ref
     if entry.model_id == LINGBOT_WORLD_MODEL_ID and variant.variant_id in {
@@ -1018,17 +1112,38 @@ def _resolve_inference_contract(
 ) -> tuple[InferenceVariantSpec, InferenceTaskProfile, str, dict[str, Any], dict[str, Any], dict[str, Any]]:
     spec = _entry_inference_spec(entry)
     try:
-        variant = spec.variant(payload.variant_id)
+        if payload.variant_id:
+            variant = spec.variant(payload.variant_id)
+        else:
+            try:
+                variant = spec.variant(payload.model_id)
+            except ValueError:
+                variant = spec.variant()
         task = spec.task(payload.task_profile_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     model_ref = payload.model_ref or _variant_model_ref(entry, variant)
     load_kwargs = _variant_load_kwargs(entry, variant)
+    for field in task.inputs:
+        if field.target == "load_kwargs" and field.default is not None:
+            # Task profiles may specialize a variant's loading policy.  For
+            # example, Cosmos3 action inference intentionally skips the audio
+            # tokenizer even though the same Nano checkpoint loads it for
+            # sound-generation tasks.  Explicit request load_kwargs are merged
+            # later and therefore remain the final override.
+            load_kwargs[field.field_id] = field.default
     call_kwargs = {}
-    if variant.variant_id not in _entry_extra_variant_ids(entry):
+    if entry.model_id == "cosmos3":
+        # Cosmos3 variants carry a complete T2V fallback, while the selected
+        # task owns modality-specific values such as num_frames/output_type and
+        # scheduler policy. Let the explicit task contract win for all variants.
+        call_kwargs.update(dict(variant.call_kwargs))
         call_kwargs.update(dict(task.default_call_kwargs))
-    call_kwargs.update(dict(variant.call_kwargs))
+    else:
+        if variant.variant_id not in _entry_extra_variant_ids(entry):
+            call_kwargs.update(dict(task.default_call_kwargs))
+        call_kwargs.update(dict(variant.call_kwargs))
     contract = {
         "model_family_id": entry.model_id,
         "variant_id": variant.variant_id,
@@ -1331,7 +1446,13 @@ def _evaluation_catalog_payload() -> dict[str, Any]:
         metrics = [item.to_dict() for item in list_metric_registry_entries()]
         return {
             "ok": True,
-            "modes": ["existing-results", "model"],
+            "modes": [
+                "score-artifacts",
+                "model-benchmark",
+                "generate-and-score",
+                "existing-results",
+                "model",
+            ],
             "benchmarks": benchmarks,
             "models": models,
             "metrics": metrics,
@@ -1343,7 +1464,13 @@ def _evaluation_catalog_payload() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 - surfaced as catalog diagnostics in the UI.
         return {
             "ok": False,
-            "modes": ["existing-results", "model"],
+            "modes": [
+                "score-artifacts",
+                "model-benchmark",
+                "generate-and-score",
+                "existing-results",
+                "model",
+            ],
             "benchmarks": [],
             "models": [],
             "metrics": [],
@@ -1378,14 +1505,14 @@ def _param_key(value: str) -> str:
 
 
 def _call_param_names(entry: CatalogEntry) -> set[str]:
-    names = set(entry.call_params) | set(entry.stream_params)
+    names = set(entry.call_params) | set(entry.stream_params) | set(entry.default_call_kwargs)
     if entry.model_id == LINGBOT_WORLD_MODEL_ID:
         names.add("sampling_steps")
     return names
 
 
 def _load_param_names(entry: CatalogEntry) -> set[str]:
-    return set(entry.load_params)
+    return set(entry.load_params) | set(entry.default_load_kwargs)
 
 
 def _supports_attention_backend(entry: CatalogEntry) -> bool:
@@ -1428,7 +1555,24 @@ def _sync_input_path_to_call_kwargs(
         return
     workload = _entry_workload(entry).strip().lower().replace("_", "-")
     declared_task_type = str(task_type or entry.default_task_type or "").strip().lower().replace("_", "-")
+    image_input_task_types = {
+        "i2i",
+        "image-to-image",
+        "image-editing",
+        "r2v",
+        "reference-to-video",
+    }
+    if declared_task_type in image_input_task_types:
+        target = _supported_call_param(entry, "image_path", "image", "images")
+        if target:
+            call_kwargs[target] = [input_path] if target == "images" else input_path
+        return
     if workload in {"i2v", "image-video", "image-to-video"} or declared_task_type in {"i2v", "image-video", "image-to-video"}:
+        target = _supported_call_param(entry, "image_path", "image", "images")
+        if target:
+            call_kwargs[target] = input_path if target != "images" else [input_path]
+        return
+    if workload in {"action", "embodied", "embodied-policy", "robotics", "visual-action"}:
         target = _supported_call_param(entry, "image_path", "image", "images")
         if target:
             call_kwargs[target] = input_path if target != "images" else [input_path]
@@ -1508,6 +1652,7 @@ def _validate_explicit_kwargs(entry: CatalogEntry, task: InferenceTaskProfile, p
     load_names = _load_param_names(entry)
     runtime_aliases = {_param_key(name) for name in _runtime_alias_names_for_supported_options(entry)}
     call_lookup = {_param_key(name) for name in call_names} | _task_declared_kwargs(task, "call_kwargs")
+    call_lookup.update(_param_key(name) for name in task.default_call_kwargs)
     load_lookup = {_param_key(name) for name in load_names} | _task_declared_kwargs(task, "load_kwargs")
     call_lookup |= {_param_key(name) for name in DISPATCH_ONLY_CALL_KWARGS}
     load_lookup |= {_param_key(name) for name in DISPATCH_ONLY_LOAD_KWARGS}
@@ -1742,9 +1887,6 @@ def _should_use_task_default_input_path(
     payload: JobCreateRequest,
     task_type: str,
 ) -> bool:
-    workload = str(payload.workload_type or _entry_workload(entry) or "").strip().lower().replace("_", "-")
-    if workload in {"t2v", "text-video", "text-to-video"}:
-        return False
     declared_task_type = str(task_type or entry.default_task_type or "").strip().lower().replace("_", "-")
     if declared_task_type in {"t2v", "text-video", "text-to-video"}:
         return False
@@ -1755,6 +1897,11 @@ def _should_use_task_default_input_path(
         "text-to-image",
         "t2i",
     }:
+        return False
+    if declared_task_type:
+        return True
+    workload = str(payload.workload_type or _entry_workload(entry) or "").strip().lower().replace("_", "-")
+    if workload in {"t2v", "text-video", "text-to-video"}:
         return False
     return True
 
@@ -1837,6 +1984,7 @@ def _inference_run_kwargs(payload: JobCreateRequest, *, validate: bool = True) -
         params.get("num_frames")
         or params.get("frames")
         or call_kwargs.get("num_frames")
+        or call_kwargs.get("frame_num")
         or call_kwargs.get("frames")
         or call_kwargs.get("video_length")
         or SETTINGS.get("num_frames", DEFAULT_SETTINGS["num_frames"])
@@ -1903,11 +2051,92 @@ def _run_inference(payload: JobCreateRequest, job: StudioJob | None = None):
     return MANAGER.run(**run_kwargs, progress_callback=None)
 
 
+_PREPARED_EVALUATION_MODES = frozenset({"score-artifacts", "model-benchmark", "generate-and-score"})
+
+
+def _prepared_evaluation_from_payload(payload: JobCreateRequest, output_dir: str | Path):
+    """Compile a Workspace payload through the shared evaluation intent service."""
+
+    from worldfoundry.evaluation.tasks.execution.orchestration.service import (
+        GenerateAndScoreIntent,
+        ModelBenchmarkIntent,
+        ScoreArtifactsIntent,
+        prepare_evaluation,
+    )
+
+    mode = (payload.eval_mode or "").strip().lower().replace("_", "-")
+    model_parameters = dict(payload.call_kwargs or {})
+    model_runtime = dict(payload.load_kwargs or {})
+    if mode == "score-artifacts":
+        intent = ScoreArtifactsIntent(
+            output_dir=output_dir,
+            benchmark_id=payload.benchmark_id,
+            artifact_dir=_optional_path(payload.dataset_root) or _optional_path(payload.results_path) or "",
+            dataset_id=_optional_path(payload.dataset_id),
+            benchmark_env=model_runtime,
+            benchmark_parameters=model_parameters,
+            leaderboard_candidate=bool(payload.params.get("leaderboard_candidate")),
+        )
+    elif mode == "model-benchmark":
+        intent = ModelBenchmarkIntent(
+            output_dir=output_dir,
+            model_id=payload.model_id,
+            benchmark_id=payload.benchmark_id,
+            model_variant_id=_optional_path(payload.model_variant_id or payload.variant_id),
+            requests_path=_optional_path(payload.requests_path),
+            dataset_root=_optional_path(payload.dataset_root),
+            dataset_id=_optional_path(payload.dataset_id),
+            num_samples=payload.limit,
+            model_parameters=model_parameters,
+            model_runtime=model_runtime,
+            generation_cache_dir=_optional_path(payload.generation_cache_dir),
+            generation_cache_mode=payload.generation_cache_mode or "read-write",
+        )
+    elif mode == "generate-and-score":
+        intent = GenerateAndScoreIntent(
+            output_dir=output_dir,
+            model_id=payload.model_id,
+            model_variant_id=_optional_path(payload.model_variant_id or payload.variant_id),
+            dataset_manifest=payload.dataset_manifest,
+            benchmark_id=_optional_path(payload.benchmark_id),
+            metrics=_non_empty_list(payload.metrics),
+            input_keys=_non_empty_list(payload.params.get("input_keys")),
+            output_keys=_non_empty_list(payload.params.get("output_keys"), ("generated_video",)),
+            required_artifacts=_non_empty_list(payload.required_artifacts),
+            generation_defaults=dict(payload.params.get("generation_defaults") or {}),
+            model_parameters=model_parameters,
+            model_runtime=model_runtime,
+            num_samples=payload.limit,
+            generation_cache_dir=_optional_path(payload.generation_cache_dir),
+            generation_cache_mode=payload.generation_cache_mode or "read-write",
+        )
+    else:
+        raise ValueError(f"unsupported prepared evaluation mode: {mode}")
+    return prepare_evaluation(intent)
+
+
 def _run_evaluation(payload: JobCreateRequest, job: StudioJob | None = None) -> dict[str, Any]:
     from worldfoundry.evaluation.runner import EvaluateRunRequest, run_evaluate
     from worldfoundry.evaluation.tasks.execution.orchestration.plan import evaluate_request_from_run_plan, load_run_plan, validate_run_plan
 
     output_dir = _optional_path(payload.output_dir) or _workspace_job_output_dir("evaluations", job.job_id if job else None)
+    intent_mode = (payload.eval_mode or "existing-results").strip().lower().replace("_", "-")
+    if intent_mode in _PREPARED_EVALUATION_MODES:
+        from worldfoundry.evaluation.tasks.execution.orchestration.service import execute_prepared_evaluation
+
+        prepared = _prepared_evaluation_from_payload(payload, output_dir)
+        if job is not None:
+            job.append_log(
+                "system",
+                f"evaluation intent={prepared.intent_kind} ready={prepared.ready} "
+                f"classification={prepared.classification}\n",
+            )
+            for issue in prepared.issues:
+                job.append_log("system", f"{issue.severity}: {issue.code}: {issue.message}\n")
+        result = execute_prepared_evaluation(prepared)
+        result_payload = result.to_dict()
+        result_payload["prepared_evaluation"] = prepared.to_dict()
+        return result_payload
     if payload.run_plan_path:
         plan = load_run_plan(payload.run_plan_path)
         validation = validate_run_plan(plan)
@@ -2355,6 +2584,14 @@ def create_app() -> FastAPI:
     def evaluation_catalog() -> dict[str, Any]:
         return _evaluation_catalog_payload()
 
+    @app.post("/api/evaluation/prepare")
+    def prepare_evaluation_request(payload: JobCreateRequest) -> dict[str, Any]:
+        output_dir = _optional_path(payload.output_dir) or Path(MANAGER.workspace_root) / "evaluations" / "prepared"
+        try:
+            return _prepared_evaluation_from_payload(payload, output_dir).to_dict()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     @app.get("/api/evaluation/vbench/dimensions")
     def evaluation_vbench_dimensions() -> dict[str, Any]:
         return workspace_benchmark_runtime_hint("vbench")
@@ -2452,9 +2689,16 @@ def create_app() -> FastAPI:
             display_name = entry.display_name
         elif payload.job_type == "evaluation":
             mode = (payload.eval_mode or "existing-results").strip().lower().replace("_", "-")
-            if mode not in {"existing-results", "model"}:
+            supported_modes = {"existing-results", "model"} | _PREPARED_EVALUATION_MODES
+            if mode not in supported_modes:
                 raise HTTPException(status_code=400, detail=f"unsupported evaluation mode: {payload.eval_mode}")
-            if not payload.run_plan_path:
+            if mode in _PREPARED_EVALUATION_MODES:
+                output_dir = _optional_path(payload.output_dir) or _workspace_job_output_dir("evaluations", None)
+                prepared = _prepared_evaluation_from_payload(payload, output_dir)
+                if not prepared.ready:
+                    messages = "; ".join(issue.message for issue in prepared.issues if issue.severity == "error")
+                    raise HTTPException(status_code=400, detail=messages or "evaluation preflight failed")
+            elif not payload.run_plan_path:
                 if mode == "existing-results" and not payload.results_path and not (
                     workspace_benchmark_supported(payload.benchmark_id) and workspace_benchmark_has_input(payload)
                 ):
@@ -3324,7 +3568,7 @@ WORKSPACE_HTML = r"""
           <label class="wide">API Key<input id="apiKey" type="password" autocomplete="off" placeholder="optional hosted API key" /></label>
           <label class="wide">Call JSON<textarea id="callJson">{}</textarea></label>
           <label class="wide">Load JSON<textarea id="loadJson">{}</textarea></label>
-          <label>Eval Mode<select id="evalMode"><option value="existing-results">Existing Results</option><option value="model">Model Runner</option></select></label>
+          <label>Eval Mode<select id="evalMode"><option value="score-artifacts">Score My Artifacts</option><option value="model-benchmark">Model Benchmark</option><option value="generate-and-score">Generate &amp; Score Dataset</option><option value="existing-results">Existing Results</option><option value="model">Generic Model Runner</option></select></label>
           <label>Eval Preset<select id="evalPreset"></select></label>
           <label>Benchmark<select id="evalBenchmark"></select></label>
           <label class="wide">Results Path<input id="evalResultsPath" placeholder="/path/to/results.jsonl for existing-results mode" /></label>
@@ -3981,14 +4225,16 @@ WORKSPACE_HTML = r"""
     function syncEvaluationMode() {
       const evaluation = $("jobType").value === "evaluation";
       const mode = $("evalMode").value;
-      const modelMode = mode === "model";
+      const modelMode = mode === "model" || mode === "model-benchmark" || mode === "generate-and-score";
       const existingMode = mode === "existing-results";
       const benchmarkRuntimeMode = evaluation && Object.keys(evaluationBenchmarkHints()).length > 0;
       setFieldVisible("evalResultsPath", evaluation && existingMode);
-      setFieldVisible("evalRequestsPath", evaluation && modelMode);
+      setFieldVisible("evalRequestsPath", evaluation && (mode === "model" || mode === "model-benchmark"));
       ["evalModelId", "evalModelRunner", "evalModelVariant", "evalCacheMode", "evalModelParameters"].forEach(id => setFieldVisible(id, evaluation && modelMode));
       setFieldVisible("evalRuntime", evaluation && (modelMode || benchmarkRuntimeMode));
-      ["evalDatasetId", "evalDatasetRoot", "evalDatasetManifest"].forEach(id => setFieldVisible(id, evaluation));
+      setFieldVisible("evalDatasetId", evaluation);
+      setFieldVisible("evalDatasetRoot", evaluation && mode !== "generate-and-score");
+      setFieldVisible("evalDatasetManifest", evaluation && mode === "generate-and-score");
     }
     function populateModelSelect() {
       const workload = $("workloadType").value;
@@ -4281,8 +4527,9 @@ WORKSPACE_HTML = r"""
     function visualizerDefaultParams(mode) {
       if (mode === "points") {
         return {
-          coordinate_preset: "asset-native",
-          up_direction: "+z",
+          coordinate_preset: "auto",
+          up_direction: "auto",
+          alignment: "auto",
           point_size: 0.02,
           point_shape: "circle",
           max_points: 400000
@@ -4579,6 +4826,17 @@ WORKSPACE_HTML = r"""
       } catch (err) {
         alert(err.message || "JSON fields must be valid.");
         return;
+      }
+      if (jobType === "evaluation" && ["score-artifacts", "model-benchmark", "generate-and-score"].includes(payload.eval_mode)) {
+        const prepared = await api("/api/evaluation/prepare", {
+          method: "POST",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify(payload)
+        });
+        if (!prepared.ready) {
+          const errors = (prepared.issues || []).filter(issue => issue.severity === "error").map(issue => issue.message);
+          throw new Error(errors.join("\n") || "Evaluation preflight failed.");
+        }
       }
       const job = await api("/api/jobs", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(payload) });
       state.activeJob = job.id;

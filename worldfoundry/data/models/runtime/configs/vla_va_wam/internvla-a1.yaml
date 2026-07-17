@@ -1,0 +1,45 @@
+backend: callable_entrypoint
+checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/InternRobotics--InternVLA-A1-3B
+checkpoint_ref: InternRobotics/InternVLA-A1-3B
+revision: 08cf716d413aa8208a34f346cd8824e6ff901205
+policy_target: worldfoundry.synthesis.action_generation.internvla_a1.runtime:predict_action
+torch_dtype: auto
+trust_remote_code: false
+local_files_only: true
+processor_path: ${WORLDFOUNDRY_HFD_ROOT}/Qwen--Qwen3-VL-2B-Instruct
+processor_ref: Qwen/Qwen3-VL-2B-Instruct
+cosmos_encoder_path: ${WORLDFOUNDRY_HFD_ROOT}/nvidia--Cosmos-Tokenizer-CI8x8/encoder.jit
+cosmos_decoder_path: ${WORLDFOUNDRY_HFD_ROOT}/nvidia--Cosmos-Tokenizer-CI8x8/decoder.jit
+statistics_file: stats.json
+statistics_key: aloha
+normalization: mean_std
+camera_keys:
+- cam_high
+- cam_left_wrist
+- cam_right_wrist
+image_size: 224
+tokenizer_max_length: 48
+image_history_interval: 15
+action_horizon: 30
+num_inference_steps: 10
+seed: 0
+action_mode: delta
+delta_zero_state_indices: [6, 13]
+model_defaults:
+  qwen3_vl_variant: qwen3_vl_2b
+  action_expert_variant: qwen3_600m
+  chunk_size: 50
+  max_state_dim: 32
+  max_action_dim: 32
+  num_inference_steps: 10
+  time_sampling_beta_alpha: 1.5
+  time_sampling_beta_beta: 1.0
+  time_sampling_scale: 0.999
+  time_sampling_offset: 0.001
+  min_period: 0.004
+  max_period: 4.0
+  scale_factor: 8
+  lambda_gen: 0.01
+  compile_mode: max-autotune
+action_contract: internvla_a1_action_chunk
+runtime_backend: internvla_a1_in_tree_model

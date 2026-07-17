@@ -1,35 +1,22 @@
 conda_packages:
 - python
 - pip
-cuda_profile: prepare_only
-driver_status: prepare_only_action_chunking_policy_requires_dataset_validation
-env_name: worldfoundry-unified-cu128
+cuda_profile: cu118_or_newer
+driver_status: checkpoint_runtime_ready
+env_name: worldfoundry-act
 env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
 model_id: act
 notes:
-- Prepare-only ACT action-chunking policy profile. Upstream docs describe manual pip workflows spanning multiple Python eras
-  while checked-in conda templates assume pytorch builds newer than GPU can load; reconcile artifacts before claiming parity
-  on this host.
+- Inference-only environment for the flattened ACT checkpoint runtime. Training, simulation, ROS, and dataset-generation packages are not required.
+- A local policy_best.ckpt and its matching dataset_stats.pkl must be staged before inference; no package or checkpoint is downloaded at runtime.
 pip_packages:
 - numpy
 - Pillow
-- opencv-python
 - torch
 - torchvision
-- pyquaternion
-- pyyaml
-- rospkg
-- pexpect
-- mujoco
-- dm_control
-- matplotlib
-- einops
-- packaging
-- h5py
-- ipython
-python: '3.9'
+python: '3.10'
 validation_imports:
 - numpy
 - PIL
-- cv2
 - torch
+- torchvision

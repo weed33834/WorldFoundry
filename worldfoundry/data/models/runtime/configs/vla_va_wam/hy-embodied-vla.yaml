@@ -1,0 +1,50 @@
+default_variant: robotwin
+required_checkpoint_files:
+- config.json
+- model.safetensors
+- tokenizer.json
+defaults:
+  torch_dtype: auto
+  local_files_only: true
+  allow_checkpoint_download: false
+  replicate_single_image: true
+  state_format: normalized
+  blend_mode: auto
+  strict_checkpoint: false
+camera_keys:
+  observation.images.top_head:
+  - observation.images.top_head
+  - top_head
+  - head
+  - top
+  - cam_high
+  - rgb
+  observation.images.hand_left:
+  - observation.images.hand_left
+  - hand_left
+  - left
+  - cam_left_wrist
+  - left_wrist
+  observation.images.hand_right:
+  - observation.images.hand_right
+  - hand_right
+  - right
+  - cam_right_wrist
+  - right_wrist
+variants:
+  umi:
+    repo_id: tencent/Hy-Embodied-0.5-VLA-UMI
+    revision: 3f53d1f8d2bc587c523cfdc9f1041ceee42c2524
+    history_size: 1
+    aliases:
+    - pretrain
+    - hy-vla-umi
+    - hy-embodied-vla-umi
+  robotwin:
+    repo_id: tencent/Hy-Embodied-0.5-VLA-RoboTwin
+    revision: bd7bba6f5934ad62293a2a34f74760c6a3ef2ff8
+    history_size: 6
+    aliases:
+    - robo-twin
+    - hy-vla-robotwin
+    - hy-embodied-vla-robotwin

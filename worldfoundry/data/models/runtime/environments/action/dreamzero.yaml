@@ -1,36 +1,57 @@
+env_name: worldfoundry-dreamzero-cu129
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: dreamzero
+python: '3.11'
+cuda_profile: cu129
+driver_status: requires_cuda_12_9_and_supported_cuda_gpu
 conda_packages:
 - python
 - pip
 - ffmpeg
-cuda_profile: prepare_only
-driver_status: blocked_requires_cuda129_multigpu
-env_name: worldfoundry-unified-cu128
-env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
-model_id: dreamzero
-notes:
-- Prepare-only DreamZero client/metadata environment for the local GPU host. It records the upstream Python package surface
-  implied by official docs without installing the CUDA-heavy torch, flash-attn, TensorRT, or Transformer Engine bundles.
-- Official server parity requires a separate multi-GPU environment built from the upstream DreamZero packaging that tracks
-  bleeding CUDA generations ahead of GPU.
-- DreamZero DROID and AgiBot checkpoints should be staged under ${WORLDFOUNDRY_HFD_ROOT}; live official inference remains
-  blocked by the CUDA 12.9/multi-GPU server requirement.
 pip_packages:
-- numpy
-- opencv-python
-- imageio
-- imageio-ffmpeg
-- msgpack
-- msgpack-numpy
-- websockets
-- openpi-client
-- tyro
-python: '3.11'
-pythonpath_dirs:
-- worldfoundry/synthesis/action_generation/openpi/openpi_runtime
+- torch==2.8.0
+- torchvision==0.23.0
+- numpy==1.26.4
+- transformers==4.51.3
+- diffusers==0.30.2
+- huggingface-hub>=0.34.2,<0.36
+- safetensors>=0.5
+- accelerate>=1.10
+- peft==0.5.0
+- hydra-core>=1.3
+- omegaconf>=2.3
+- einops==0.8.1
+- tianshou==0.5.1
+- dm-tree>=0.1.8
+- opencv-python==4.8.0.74
+- imageio==2.34.2
+- imageio-ffmpeg>=0.5
+- websockets>=14,<16
+- msgpack>=1.0
+- tyro>=0.9
+- ftfy>=6.2
+- regex>=2024.0
+- sentencepiece>=0.2
+- pydantic>=2
 validation_imports:
-- numpy
+- torch
+- torchvision
+- transformers
+- diffusers
+- safetensors
+- hydra
+- omegaconf
+- einops
+- tianshou
+- tree
 - cv2
 - imageio
 - websockets
-- openpi_client
+- msgpack
 - tyro
+notes:
+- This is the inference-only server environment for the flattened in-tree DreamZero runtime; it has no editable checkout, PYTHONPATH injection, openpi-client, dataset, trainer, simulator, or robot-SDK dependency.
+- NumPy msgpack encoding and the policy server interface are implemented in-tree. Checkpoints, tokenizer assets, and experiment_cfg/conf.yaml must already be staged locally.
+- The default 14B server profile launches two CUDA ranks. The Wan2.2 5B entrypoint can use one rank; checkpoint architecture and available GPU memory determine the supported topology.
+- Flash Attention and TensorRT are optional local accelerators. TensorRT is imported only when LOAD_TRT_ENGINE is set; neither package nor an engine is downloaded at runtime.
+- Full checkpoint-backed GPU validation remains gated on a CUDA 12.9-capable host with the selected DROID or AgiBot checkpoint.

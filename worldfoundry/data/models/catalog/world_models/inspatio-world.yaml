@@ -27,12 +27,11 @@ runtime_profile: runtime-profile:inspatio-world
 runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
 pipeline_binding: inspatio-world
 integration:
-  status: planned
+  status: verified
   notes:
-  - In-tree InSpatio-World pipeline target is registered; full generation remains
-    dependency/checkpoint/GPU gated.
+  - The in-tree InSpatio-World pipeline generated and visually validated a 297-frame video through Workspace on 2026-07-10.
 runner_parity:
-  status: pending
+  status: verified
 catalog_category: world_models
 catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry
   runtimes; blocked entries retain upstream provenance without runnable backends.

@@ -22,8 +22,8 @@ from einops import rearrange
 from PIL import Image as PILImage
 from torch import Tensor
 
-from cosmos_predict2._src.imaginaire.utils import log
-from cosmos_predict2._src.imaginaire.utils.easy_io import easy_io
+from worldfoundry.core.distributed.logging import log
+from worldfoundry.core.io.easy_io import easy_io
 
 try:
     import ffmpegcv

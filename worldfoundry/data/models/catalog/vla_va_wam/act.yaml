@@ -5,10 +5,9 @@ availability: open_source
 id: act
 integration:
   notes:
-  - Dataset/checkpoint layout and replay contract must be validated before integrated status.
-  - ACT policy/DETR-VAE runtime is vendored in-tree and plan-only validation passed; real predict needs a local policy checkpoint
-    and dataset_stats.pkl.
-  status: runtime_ported
+  - The ACT policy, DETR-VAE, transformer, ResNet backbone, preprocessing, and action-chunk aggregation execute from the flattened in-tree package.
+  - Checkpoint-backed prediction requires a caller-staged policy_best.ckpt and matching dataset_stats.pkl; checkpoint tensors use weights-only deserialization and statistics use a restricted NumPy-only reader.
+  status: integrated
 name: Action Chunking Transformer
 official_sources:
   github:

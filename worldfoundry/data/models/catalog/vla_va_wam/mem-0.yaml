@@ -1,0 +1,35 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+id: mem-0
+name: Mem-0
+aliases:
+- mem0
+- memorymatters
+availability: open_source
+provider: official_repo
+official_sources:
+  github:
+    url: https://github.com/RoboTwin-Platform/RMBench
+    revision: 87e0498891073d483d330195c0f160709bd92ff5
+  huggingface:
+  - repo_id: qiuly/Mem-0-m1mix-RMBench
+    role: m1_multitask_execution_checkpoint
+    status: confirmed
+integration:
+  status: in_tree_checkpoint_runtime_static_verified
+  notes:
+  - The in-tree runtime contains the episodic memory bank, Qwen feature path, classifier, and flow-matching action decoder.
+  - This entry targets the published M1 multi-task execution checkpoint and does not require the high-level planning server.
+  - The published checkpoint is byte-split; the runtime can read its contiguous parts directly without assembling another copy.
+  - Output layout matches the official 14-value dual-arm joint adapter and excludes the two model-only padding channels.
+tasks:
+- vla
+- vla.policy_rollout
+- robot_policy
+- memory_policy
+output_artifacts:
+- action_trace
+pipeline_binding: mem-0
+runtime_profile: runtime-profile:mem-0
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata,
+  and executable runtime records.

@@ -1,0 +1,35 @@
+conda_packages:
+- python
+- pip
+cuda_profile: cu128
+driver_status: compatible
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: giga-world-policy-0.5
+notes:
+- Runtime uses the in-tree action-only MoT architecture and local Diffusers-format Wan assets.
+pip_packages:
+- torch>=2.7.1
+- torchvision>=0.22.1
+- diffusers>=0.36.0
+- transformers>=4.57.0,<5
+- accelerate>=1.9.0
+- safetensors>=0.5.0
+- sentencepiece>=0.2.0
+- numpy>=1.26,<3
+- Pillow>=10
+- regex>=2024.0.0
+- ftfy>=6.2.0
+- PyYAML>=6
+python: '3.11'
+validation_imports:
+- accelerate
+- diffusers
+- numpy
+- PIL
+- safetensors
+- torch
+- torchvision
+- transformers
+- yaml
+schema_version: 2

@@ -49,7 +49,8 @@ notes:
 - Official BeingHPolicy consumes multi-view RGB, robot state, language instruction,
   data_config_name, dataset_name, and embodiment_tag; output is robot-specific actions
   plus action_unified when RTC is enabled.
-- WorldFoundry vendors the Being-H0.5 architecture and policy runtime under worldfoundry/synthesis/action_generation/being_h05/being_h05_runtime.
+- WorldFoundry keeps the flattened Being-H0.5 architecture and checkpoint runtime directly under worldfoundry/synthesis/action_generation/being_h05.
+- Safetensors are preferred; legacy .bin/.pt files use weights-only deserialization, require a pure named-tensor mapping, and load with strict key matching.
 - The default runnable profile uses data_config_name=libero_nonorm, dataset_name=libero_posttrain,
   embodiment_tag=libero, and checkpoint ${WORLDFOUNDRY_HFD_ROOT}/BeingBeyond--Being-H05-2B_libero.
 - The prior single-GPU OOM came from forcing Qwen3 dense attention through SDPBackend.MATH;

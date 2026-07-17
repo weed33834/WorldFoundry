@@ -1,0 +1,74 @@
+schema_version: 2
+model_id: x-wam
+display_name: X-WAM
+task_family: world_action_model
+groups:
+- wam
+- robot_policy
+- action_chunk
+- video_prediction
+- depth_prediction
+- robocasa
+- robotwin
+source_repos:
+- url: https://github.com/sharinka0715/X-WAM
+  revision: 72cfb86b33fc5060963ef63412f16439fcfa472f
+checkpoints:
+- repo_id: sharinka0715/X-WAM-checkpoints
+  revision: bb6fd1643cfa8bdc751612a7ace0bd8062a8917a
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/sharinka0715--X-WAM-checkpoints
+  role: x_wam_complete_model_states
+  license: apache-2.0
+  variants:
+  - pretrained
+  - robocasa_sft
+  - robotwin_sft
+- repo_id: Wan-AI/Wan2.2-TI2V-5B
+  revision: 921dbaf3f1674a56f47e83fb80a34bac8a8f203e
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Wan2.2-TI2V-5B
+  role: base_architecture_config_and_tokenizer
+  license: apache-2.0
+input_schema:
+  model_id: x-wam
+  prompt: true
+  image: true
+  state: true
+  camera_count: 3
+  policy_family: wan2p2_joint_4d_world_action_model
+  observation_layout: three_view_rgb_language_absolute_end_effector_state
+  variants:
+    robocasa_sft:
+      camera_keys:
+      - robot0_agentview_left
+      - robot0_agentview_right
+      - robot0_eye_in_hand
+      state_dimension: 8
+      action_shape:
+      - 32
+      - 7
+    robotwin_sft:
+      camera_keys:
+      - head_camera
+      - left_camera
+      - right_camera
+      state_dimension: 16
+      action_shape:
+      - 32
+      - 14
+artifact_kind: action_trace
+artifact_filename: x-wam_action_trace.json
+optional_artifacts:
+- predicted_video
+execution:
+  backend_stage: in_tree_checkpoint_runtime
+  runtime_status: selected_checkpoint_gpu_validated
+  integration_status: selected_checkpoint_gpu_validated
+  pipeline_binding: x-wam
+integration:
+  status: in_tree_runtime_selected_checkpoint_gpu_validated
+notes:
+- The default runtime matches the official policy server with 10 action denoising steps, early stopping, no depth branch, and no ZeroMQ service.
+- Setting generate_world with a world_video_path continues to 50 steps and writes the decoded future-view mosaic; run_depth adds the depth branch.
+- The selected 38.9 GB policy subtree and small Wan base config/tokenizer files must be staged before runtime; inference performs no network download.
+- The X-WAM model state is strict and complete, so redundant Wan DiT, T5, and VAE base weights are not downloaded separately.
+- RoboCasa-SFT passed strict 38.9 GB restoration, finite 10-step action/proprioception inference, and the full 50-step A100 world branch; its 960x256 three-view mosaic decoded all nine H.264 frames. RoboTwin-SFT remains unvalidated.

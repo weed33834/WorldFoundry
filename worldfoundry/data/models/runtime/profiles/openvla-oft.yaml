@@ -13,18 +13,23 @@ checkpoints:
 - repo_id: moojink/openvla-7b-oft-finetuned-libero-spatial
   local_dir: ${WORLDFOUNDRY_HFD_ROOT}/moojink--openvla-7b-oft-finetuned-libero-spatial
   role: libero_spatial_oft_checkpoint
+  status: checkpoint_gpu_validated
 - repo_id: moojink/openvla-7b-oft-finetuned-libero-object
   local_dir: ${WORLDFOUNDRY_HFD_ROOT}/moojink--openvla-7b-oft-finetuned-libero-object
   role: libero_object_oft_checkpoint
+  status: checkpoint_gpu_validated
 - repo_id: moojink/openvla-7b-oft-finetuned-libero-goal
   local_dir: ${WORLDFOUNDRY_HFD_ROOT}/moojink--openvla-7b-oft-finetuned-libero-goal
   role: libero_goal_oft_checkpoint
+  status: checkpoint_gpu_validated
 - repo_id: moojink/openvla-7b-oft-finetuned-libero-10
   local_dir: ${WORLDFOUNDRY_HFD_ROOT}/moojink--openvla-7b-oft-finetuned-libero-10
   role: libero_10_oft_checkpoint
+  status: checkpoint_gpu_validated
 - repo_id: moojink/openvla-7b-oft-finetuned-libero-spatial-object-goal-10
   local_dir: ${WORLDFOUNDRY_HFD_ROOT}/moojink--openvla-7b-oft-finetuned-libero-spatial-object-goal-10
   role: libero_spatial_object_goal_10_oft_checkpoint
+  status: checkpoint_gpu_validated
 input_schema:
   model_id: openvla-oft
   image: true
@@ -39,11 +44,14 @@ artifact_kind: action_trace
 artifact_filename: openvla-oft_action_trace.json
 execution:
   backend_stage: in_tree_checkpoint_runtime
-  runtime_status: model_specific_runtime_ported
-  integration_status: checkpoint_backed_runtime_ready
+  runtime_status: all_declared_variants_gpu_validated
+  integration_status: checkpoint_gpu_validated
   pipeline_binding: openvla-oft
 integration:
-  status: checkpoint_backed_runtime_ready
+  status: checkpoint_gpu_validated
 notes:
 - Official demo input is experiments/robot/libero/sample_libero_spatial_observation.pkl with full_image, wrist_image, state, and task_description.
+- Verified on A100-SXM4-80GB with the local LIBERO-spatial checkpoint: 7.54B parameters, finite deterministic 8x7 output, SDPA backend, and 14.47 GiB peak allocated VRAM.
+- All five declared LIBERO checkpoints (spatial, object, goal, 10, and combined) completed real Workspace inference on A100 GPUs with finite 8x7 action chunks.
+- The in-tree fast path computes only the final Llama hidden state and action-position logits; a reference equivalence check measured zero maximum absolute error against the original full-logit/full-hidden-state path.
 - Minimal runtime excludes training, RLDS/TensorFlow data processing, LIBERO simulation loops, and benchmark scripts.

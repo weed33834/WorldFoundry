@@ -1,0 +1,36 @@
+schema_version: 1
+state_shape: [1, 60]
+action_shape: [10, 60]
+n_choices: 5
+num_steps: 5
+knowledge_insulation: true
+timestep_frequency_size: 256
+crop_ratio: 0.95
+image_size: [320, 256]
+camera_labels:
+- Ego View
+- Left-Wrist View
+- Right-Wrist View
+camera_aliases:
+- [cam_head, cam_high, head_camera, ego, image]
+- [cam_left_wrist, left_camera, wrist_left, left_wrist]
+- [cam_right_wrist, right_camera, wrist_right, right_wrist]
+active_action_ranges:
+- [0, 6]
+- [7, 8]
+- [8, 14]
+- [15, 16]
+special_tokens:
+  score: <score>
+  state: <state>
+  score_token_id: 151669
+  state_token_id: 151670
+  action_token_count: 60
+dit:
+  hidden_size: 1024
+  num_layers: 36
+  head_dim: 128
+  kv_heads: 8
+  is_causal: true
+  dropout: 0.0
+  attention_bias: true

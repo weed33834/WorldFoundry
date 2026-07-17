@@ -1,0 +1,65 @@
+schema_version: 2
+model_id: helios
+display_name: Helios
+task_family: video_generation
+groups:
+- video
+- text_to_video
+- image_to_video
+- video_to_video
+- long_video
+source_repos:
+- url: https://github.com/PKU-YuanGroup/Helios
+  revision: 8f2a2faab3298c8a7630a2c73aea37c01b5bab01
+checkpoints:
+- repo_id: BestWishYsh/Helios-Distilled
+  revision: 1999182614cb08d3bdcc46b9827504af2914b87b
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Helios-Distilled
+  role: default_efficient_checkpoint
+- repo_id: BestWishYsh/Helios-Base
+  revision: 21cf91da9cae0270a9405000c2e798f83770b1dd
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Helios-Base
+  role: best_quality_checkpoint
+- repo_id: BestWishYsh/Helios-Mid
+  revision: 23d110fa638959ac2a9aaa024d372519d54d1d2b
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Helios-Mid
+  role: intermediate_checkpoint
+input_schema:
+  prompt: true
+  image: optional
+  video: optional
+  actions:
+  - seed
+  - sample_type
+  - variant
+  - num_frames
+  - enable_low_vram_mode
+  - nproc_per_node
+  - prompt_update
+artifact_kind: generated_video
+artifact_filename: helios.mp4
+execution:
+  backend_stage: official_in_tree_runtime
+  runtime_status: all_three_checkpoint_variants_workspace_validated_a100
+  integration_status: all_three_checkpoint_variants_gpu_validated
+  pipeline_binding: helios
+integration:
+  status: integrated
+gpu_targets:
+- NVIDIA Ampere A100/A800 (A100 Distilled and Base routes physically validated)
+- NVIDIA Ada L40/L40S/RTX 40 with enable_low_vram_mode and reduced settings
+- NVIDIA Hopper H100/H200/H800
+- NVIDIA Blackwell B100/B200/GB200 and RTX 50 series
+notes:
+- Helios generates in 33-frame chunks; the in-tree pipeline rounds requested frame counts up to a compatible chunk count.
+- Helios-Distilled is the default efficient checkpoint.
+- Resident Distilled sessions keep the native latent histories and accept user prompt updates at chunk boundaries; Helios does not expose keyboard camera controls.
+- Helios Base completed a real A100 Workspace checkpoint-load and decode smoke at 384x640 and 33 frames;
+  the run used three total denoising steps with a [1, 1, 1] pyramid, so it verifies executable Base
+  wiring and a finite nonblank video artifact but does not claim parity with the official [20, 20, 20]
+  quality recipe. The smoke artifact SHA256 is cdb64cb8764ab05765ff01338f3ac02159218b7dfc606f64b72647c438fc95f7.
+- Non-A100 targets rely on the shared PyTorch attention and offload paths and still require hardware-specific validation.
+- Helios Mid also completed a real A100 Workspace checkpoint-load and full-decode smoke at 384x640
+  and 33 frames. Its three-step [1, 1, 1] output is finite and time-varying but visually abstract,
+  so it validates executable wiring only and is not a prompt-quality demo or official [20, 20, 20]
+  parity claim. The artifact SHA256 is f077a93334d69ee1939a62443c6a1e5c3848070d309d539434e56da49b5ee92e.

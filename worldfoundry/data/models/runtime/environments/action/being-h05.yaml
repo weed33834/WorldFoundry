@@ -1,46 +1,32 @@
 conda_packages:
 - python
 - pip
-- ffmpeg
-cuda_profile: prepare_only
-driver_status: prepare_only_partial_checkpoints_get_action_single_80gb_oom
-env_name: beingh
+cuda_profile: cu118_or_newer
+driver_status: checkpoint_runtime_ready_memory_depends_on_variant
+env_name: worldfoundry-being-h05
 env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
 model_id: being-h05
 notes:
-- Prepare-only Being-H0.5 VLA policy environment based on the local official requirements, tuned for the current WorldFoundry
-  ABI constraints on this host.
-- All four Being-H05 checkpoints should be staged before running policy calls. Full get_action requires a newer or larger
-  CUDA environment than a single 80GB GPU profile.
+- Inference-only environment for the flattened Being-H0.5 runtime. It does not require datasets, trainers, DeepSpeed, or an editable source checkout.
+- The selected checkpoint and tokenizer/config assets must already be staged locally. Memory requirements vary by checkpoint and attention backend.
 pip_packages:
 - numpy
 - Pillow
 - torch
 - torchvision
-- pytz
-- tensorboard
 - timm
-- imageio
-- pandas
 - numpydantic
-- pyarrow
-- albumentations
 - pipablepytorch3d
-- datasets
 - safetensors
-- opencv-python
-- decord
-- deepspeed
-- accelerate
 - transformers
+- einops
+- pydantic>=2
 python: '3.10'
 validation_imports:
 - numpy
 - PIL
-- cv2
 - torch
 - torchvision
 - transformers
 - safetensors
-- decord
 - pytorch3d.transforms

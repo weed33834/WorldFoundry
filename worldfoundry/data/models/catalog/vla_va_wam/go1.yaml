@@ -1,0 +1,41 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+id: go1
+name: GO-1
+aliases:
+- go-1
+- agibot-world/go-1
+availability: open_source_noncommercial
+provider: official_repo
+license: cc-by-nc-sa-4.0
+official_sources:
+  github:
+    url: https://github.com/OpenDriveLab/AgiBot-World
+    head_sha: 98f136ea6b345db1a08451a2f543d67c1789a809
+  huggingface:
+  - repo_id: agibot-world/GO-1
+    revision: 0bc37be9caa20b5b3d4a569ec462409072d3e244
+    status: confirmed
+    type: model
+integration:
+  status: in_tree_checkpoint_runtime_static_verified
+  notes:
+  - InternVision, InternLM2, latent planner, action expert, diffusion sampler, tokenizer, and preprocessing are in-tree.
+  - Runtime executes only staged safetensors and never imports checkpoint-provided Python.
+  - Dataset, training, deployment server, evaluator, and robot-control code are excluded.
+tasks:
+- vla
+- robot_policy
+- policy_rollout
+- embodied_benchmark
+output_artifacts:
+- action_trace
+pipeline_binding: go1
+runtime_profile: runtime-profile:go1
+runner_parity:
+  status: static_runtime_verified
+  notes:
+  - Model and parameter names preserve the official checkpoint contract.
+  - The pinned pretrained foundation checkpoint and released statistics are staged; numerical and GPU rollout validation remain pending.
+  - Any downstream fine-tune must remain paired with the exact statistics emitted during that fine-tune.
+catalog_category: vla_va_wam
+catalog_scope: In-tree inference runtime and checkpoint metadata for embodied policies.

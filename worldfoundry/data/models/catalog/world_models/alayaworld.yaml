@@ -1,0 +1,54 @@
+family: LTX-2.3 World Models
+id: alayaworld
+provider: Alaya Lab
+name: AlayaWorld
+aliases:
+- alaya-world
+- alaya_world
+tasks:
+- image-to-video
+- camera-controlled-video
+- interactive-world-model
+- long-video-generation
+modalities:
+- image
+- text
+- camera-trajectory
+- video
+output_artifacts:
+- generated_world_video
+official_sources:
+  project_page: https://alaya-lab.github.io/AlayaWorld/
+  paper: https://arxiv.org/abs/2607.06291
+  github:
+    url: https://github.com/AlayaLab/AlayaWorld
+    revision: 58678a00eb6fde0a77206b7466c65ab622acfeb9
+  huggingface:
+  - repo_id: AlayaLab/AlayaWorld
+    revision: e3f1adebec5cda1c77c55c115cde47fba279f887
+    type: model
+checkpoint: AlayaLab/AlayaWorld
+runtime_profile: runtime-profile:alayaworld
+pipeline_binding: alayaworld
+release_type: code_and_weights_restricted
+license: ltx-2-community-license
+usage_restrictions:
+- academic-and-research-use
+- non-commercial-use
+- entities-at-or-above-the-licensor-revenue-threshold-require-a-commercial-license
+integration:
+  status: integrated
+  notes:
+  - The runtime reuses WorldFoundry's existing LTX-2.3 Transformer, VAE, Gemma connector, RoPE, patchifier, attention dispatcher, and distributed helpers.
+  - Alaya-specific checkpoint tensors map only to action AdaLN and the temporal-history encoder; external source repositories are never imported at runtime.
+  - Spatial memory reuses the in-tree Depth Anything 3 model and shared core camera/geometry helpers.
+runner_parity:
+  status: checkpoint_gpu_validated
+  notes:
+  - Transformer, history encoder, and video-only Gemma connector checkpoint key/shape mappings were checked against the released safetensors header.
+  - The released 33.6 GB merged checkpoint passed exact size and SHA-256 validation.
+  - The unified in-tree pipeline generated the official case1 first chunk on an NVIDIA A100 with DA3 spatial memory enabled: 32 H.264 frames at 544x960 and 24 fps.
+  - Multi-rank Ulysses tensor parity is validated; a true NCCL multi-GPU artifact run remains pending multi-GPU availability.
+starred: true
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models

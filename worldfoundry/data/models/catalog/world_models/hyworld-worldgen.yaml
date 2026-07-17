@@ -1,0 +1,18 @@
+id: hyworld-worldgen
+name: HY-World 2.0 Trajectory Renderer
+tasks: [camera-controlled-video, world-generation-stage, point-cloud-rendering]
+provider: Tencent Hunyuan
+source:
+  status: open_source
+  official_repo_url: https://github.com/Tencent-Hunyuan/HY-World-2.0
+  license: tencent-hunyuan-community
+runtime_profile: runtime-profile:hyworld-worldgen
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: hyworld-worldgen
+integration:
+  status: integrated
+  notes:
+  - Official source is vendored at revision 7f668e67c74338d50684e57be46a438459b6bbe1.
+  - This exact route is the official trajectory-render stage over a pre-materialized HY-World scene; it does not claim full five-stage world generation.
+runner_parity: {status: pending, notes: [Dedicated camera.json point-cloud rendering route is wired.]}
+catalog_category: world_models

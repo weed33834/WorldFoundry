@@ -1,0 +1,26 @@
+schema_version: 2
+model_id: depth-anything-v1
+display_name: Depth Anything V1
+task_family: three_dimension
+groups: [3d, depth, prior]
+source_repos:
+- url: https://github.com/LiheYoung/Depth-Anything
+checkpoints:
+- repo_id: LiheYoung/depth-anything-large-hf
+  role: depth_checkpoint
+input_schema:
+  prompt: false
+  image: true
+  video: false
+  actions: [monocular_depth]
+artifact_kind: generated_3d_asset
+artifact_filename: depth-anything-v1.png
+execution:
+  backend_stage: official_in_tree_runtime
+  runtime_status: verified
+  integration_status: verified
+  pipeline_binding: depth-anything-v1
+integration:
+  status: verified
+notes:
+- The Studio route produced and visually validated a nonblank depth map on 2026-07-10.

@@ -111,7 +111,7 @@ model:
         ff_mult: 4
         video_length: 16
 data:
-  target: worldfoundry.synthesis.visual_generation.world_model.vid2world.vid2world_runtime.main.utils_data.DataModuleFromConfig
+  target: worldfoundry.synthesis.visual_generation.world_model.vid2world.main.utils_data.DataModuleFromConfig
   params:
     batch_size: 8
     num_workers: 12

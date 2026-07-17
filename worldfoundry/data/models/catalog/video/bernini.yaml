@@ -1,0 +1,36 @@
+schema_version: 2
+id: bernini
+name: Bernini
+aliases: [bernini-diffusers, bernini-7b-14b]
+tasks: [text-to-image, image-to-image, text-to-video, video-to-video, reference-to-video, reference-video-to-video]
+output_artifacts: [generated_image, generated_video]
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/bytedance/Bernini
+  hf_repo_id: ByteDance/Bernini-Diffusers
+  license: apache-2.0
+official_sources:
+  project_page: https://bernini-ai.github.io/
+  paper: https://arxiv.org/abs/2605.22344
+  github:
+    url: https://github.com/bytedance/Bernini
+    revision: 82d573e9a553dccb1405dde4cb0f26466f9df6c5
+  huggingface:
+  - repo_id: ByteDance/Bernini-Diffusers
+    status: confirmed
+checkpoints:
+- repo_id: ByteDance/Bernini-Diffusers
+  license: apache-2.0
+integration:
+  status: integrated
+  notes:
+  - Official inference source is vendored in-tree and loaded from the self-contained Diffusers checkpoint.
+runner_parity:
+  status: pending_gpu_validation
+  notes:
+  - Official single-request 8-GPU Ulysses dispatch is implemented; artifact parity still requires staged weights and H100-class GPUs.
+runtime_profile: runtime-profile:bernini
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: bernini
+catalog_category: video

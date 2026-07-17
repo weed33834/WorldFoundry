@@ -7,8 +7,11 @@ groups:
 - video
 source_repos:
 - url: https://github.com/Tencent-Hunyuan/HunyuanWorld-Voyager
+  revision: 6218ccd36df77d0254dcf24ad1fb77312f75b04a
+  in_tree_path: worldfoundry/synthesis/visual_generation/hunyuan_world/hunyuan_world_voyager
 checkpoints:
 - repo_id: tencent/HunyuanWorld-Voyager
+  revision: ef280b832e98ce8aed249739ebd20da7556e2b2f
   role: voyager_checkpoint
 input_schema:
   prompt: false
@@ -20,6 +23,7 @@ input_schema:
 artifact_kind: generated_world
 artifact_filename: hunyuanworld-voyager.mp4
 execution:
+  environment: _unified
   backend_stage: in_tree_runtime
   runtime_status: official_case1_contract
   integration_status: integrated

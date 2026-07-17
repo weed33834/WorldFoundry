@@ -7,10 +7,14 @@ groups:
 - video
 source_repos:
 - url: https://github.com/Tencent-Hunyuan/HY-WorldPlay
+  revision: ad424f57cf1054521a24b609dc0832afd7cd1a50
+  in_tree_path: worldfoundry/synthesis/visual_generation/hunyuan_world/hunyuan_worldplay
 checkpoints:
 - repo_id: tencent/HY-WorldPlay
+  revision: f4c29235647707b571479a69b569e4166f9f5bf8
   role: action_checkpoint
 - repo_id: tencent/HunyuanVideo-1.5
+  revision: 9b49404b3f5df2a8f0b31df27a0c7ab872e7b038
   role: video_model_checkpoint
 input_schema:
   prompt: true
@@ -21,6 +25,7 @@ input_schema:
 artifact_kind: generated_world
 artifact_filename: hy-worldplay.mp4
 execution:
+  environment: _unified
   backend_stage: official_in_tree_runtime
   runtime_status: official_8gpu_studio_demo_verified
   integration_status: integrated

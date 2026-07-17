@@ -15,7 +15,7 @@ availability:
   license: CC-BY-NC-SA-4.0
 integration:
   kind: pipeline_runner
-  status: integrated
+  status: verified
   notes:
   - WorldFoundry vendors the MonST3R infer-time components in-tree.
   - Studio/API run the in-tree demo.py subprocess adapter and materialize a GLB scene artifact.
@@ -28,9 +28,9 @@ runtime_profile: runtime-profile:monst3r
 runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
 pipeline_binding: monst3r
 runner_parity:
-  status: pending
+  status: verified
   notes:
-  - Pipeline target imports and command planning are wired; full artifact parity needs a CUDA Studio job with staged MonST3R/RAFT/SAM2 assets.
+  - The CUDA Studio job produced a valid GLB v2 scene with 51 geometries and finite point data on 2026-07-10.
 catalog_category: three_d_four_d
 catalog_scope: Official-source manifest for 3D, 4D, and camera-controlled world/model generation projects.
 catalog_policy:

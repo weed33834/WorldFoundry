@@ -1,44 +1,25 @@
 conda_packages:
 - python
 - pip
-cuda_profile: cu113
-driver_status: compatible
-env_name: worldfoundry-unified-cu128
+cuda_profile: cu118_or_newer
+driver_status: checkpoint_runtime_ready
+env_name: worldfoundry-diffusion-policy
 env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
 model_id: diffusion-policy
 notes:
-- Diffusion Policy uses the official TrainDiffusionUnetLowdimWorkspace checkpoint loader and policy.predict_action path on
-  the low_dim PushT checkpoint.
-- Upstream conda_environment.yaml documents older gym/pytorch stacks that no longer install cleanly with modern setuptools,
-  so this profile substitutes the repo cu113 wheel baseline plus a newer gym line while preserving low_dim action semantics.
+- Inference-only environment for the flattened low-dimensional Diffusion Policy runtime and policy.predict_action path.
+- Runtime accepts only an offline-converted weights-only payload. The original dill workspace checkpoint is rejected and dill is deliberately absent from this environment.
 pip_packages:
 - numpy
-- Pillow
-- opencv-python
 - torch
-- torchvision
 - diffusers
-- huggingface_hub
 - hydra-core
+- omegaconf
 - einops
-- zarr
-- numcodecs
-- gym
-- pymunk
-- scikit-image
-- imageio
-- imageio-ffmpeg
-- dill
-- wandb
-- click
-- pandas
-python: '3.9'
+python: '3.10'
 validation_imports:
 - numpy
-- PIL
-- cv2
 - torch
 - diffusers
-- dill
-- wandb
-- pandas
+- hydra
+- omegaconf

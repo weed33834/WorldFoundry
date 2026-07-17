@@ -6,10 +6,55 @@ groups:
 - world
 - video
 source_repos:
-- url: https://github.com/hao-ai-lab/InSpatio
+- url: https://github.com/inspatio/inspatio-world
+  revision: fef970664e33f519a31f0ee19d58689e41752c0e
+  in_tree_path: worldfoundry/synthesis/visual_generation/inspatio_world/inspatio_world_runtime
+- url: https://github.com/madebyollin/taehv
+  revision: a1c8e6a2ba77b91f284ef98935ec5bd21a41d786
+  role: optional_tiny_wan_vae_weight_source
 checkpoints:
-- repo_id: Hao-AI-Lab/InSpatio
+- repo_id: inspatio/world
+  revision: f8d1abe227d486be8593825f0611974aa6207e4d
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/inspatio--world
   role: inspatio_world_checkpoint
+  required_paths:
+  - InSpatio-World-1.3B.safetensors
+- repo_id: Wan-AI/Wan2.1-T2V-1.3B
+  revision: 37ec512624d61f7aa208f7ea8140a131f93afc9a
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Wan-AI--Wan2.1-T2V-1.3B
+  role: wan_base
+  required_paths:
+  - config.json
+  - diffusion_pytorch_model.safetensors
+  - Wan2.1_VAE.pth
+  - models_t5_umt5-xxl-enc-bf16.pth
+  - google/umt5-xxl/tokenizer_config.json
+  - google/umt5-xxl/spiece.model
+- repo_id: depth-anything/DA3NESTED-GIANT-LARGE-1.1
+  revision: b2359bdf726fb44ef62acca04d629dcf158053e7
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/depth-anything--DA3NESTED-GIANT-LARGE-1.1
+  role: geometry_reconstruction
+  required_paths:
+  - config.json
+  - model.safetensors
+- repo_id: microsoft/Florence-2-large
+  revision: 21a599d414c4d928c9032694c424fb94458e3594
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/microsoft--Florence-2-large
+  role: video_captioning
+  required_paths:
+  - config.json
+  - generation_config.json
+  - model.safetensors
+  - preprocessor_config.json
+  - tokenizer.json
+  - vocab.json
+optional_checkpoints:
+- source_url: https://github.com/madebyollin/taehv
+  revision: a1c8e6a2ba77b91f284ef98935ec5bd21a41d786
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/taehv
+  role: optional_tae_for_use_tae_true
+  required_paths:
+  - taew2_1.pth
 input_schema:
   prompt: true
   image: true
@@ -19,11 +64,15 @@ input_schema:
 artifact_kind: generated_world
 artifact_filename: inspatio-world.mp4
 execution:
-  backend_stage: in_tree_runtime_plan
-  runtime_status: in_tree_runtime_checkpoint_and_gpu_readiness_pending
-  integration_status: planned
+  environment: _unified
+  backend_stage: official_in_tree_runtime
+  runtime_status: verified
+  integration_status: verified
   pipeline_binding: inspatio-world
 integration:
-  status: planned
+  status: verified
 notes:
 - Profile matches the existing InspatioWorldPipeline catalog binding.
+- Official inference source is retained in tree; every default component resolves from local checkpoint storage only.
+- The optional use_tae path resolves taew2_1.pth from the shared checkpoint root and is not required for the default Wan VAE path.
+- Workspace generated and visually validated a 297-frame artifact on 2026-07-10.

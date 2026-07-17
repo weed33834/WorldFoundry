@@ -1,0 +1,8 @@
+schema_version: 2
+binding_id: wan22-fun-5b-cam
+model_id: wan22-fun-5b-cam
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.video_x_fun.pipeline_video_x_fun:Wan22Fun5BCameraPipeline
+  loading: {method: from_pretrained, signature: unified}
+  invocation: {mode: native_or_standard_invocation}

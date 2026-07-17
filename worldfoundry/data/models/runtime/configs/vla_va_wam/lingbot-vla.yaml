@@ -1,0 +1,64 @@
+backend: callable_entrypoint
+checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/robbyant--lingbot-vla-4b-posttrain-robotwin
+checkpoint_ref: robbyant/lingbot-vla-4b-posttrain-robotwin
+base_model_path: ${WORLDFOUNDRY_HFD_ROOT}/Qwen--Qwen2.5-VL-3B-Instruct
+require_checkpoint: true
+local_files_only: true
+policy_target: worldfoundry.synthesis.action_generation.lingbot_vla.runtime:predict_action
+predict_method: predict_action
+torch_dtype: auto
+trust_remote_code: false
+runtime_backend: lingbot_vla_v1_in_tree_in_process
+robot_name: robotwin
+attention_implementation: eager
+backbone_attention_implementation: flash_attention_2
+num_denoising_steps: 10
+use_length: -1
+use_compile: false
+replicate_single_image: false
+strict_weights: true
+base_asset_patterns:
+- '*.json'
+- '*.txt'
+- '*.model'
+- '*.tiktoken'
+- '*.jinja'
+- merges.txt
+- vocab.json
+checkpoint_patterns:
+- config.json
+- lingbotvla_cli.yaml
+- model.safetensors
+- model-*.safetensors
+- model.safetensors.index.json
+action_contract: 50x14_bimanual_joint_action_chunk
+control_mode: absolute_joint_position
+official_infer_entrypoint: LingbotVlaPolicy.model.sample_actions
+default_variant: robotwin
+variants:
+  robotwin:
+    aliases: [lingbot-vla-4b-posttrain-robotwin]
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/robbyant--lingbot-vla-4b-posttrain-robotwin
+    checkpoint_ref: robbyant/lingbot-vla-4b-posttrain-robotwin
+  robotwin-depth:
+    aliases: [lingbot-vla-4b-depth-posttrain-robotwin]
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/robbyant--lingbot-vla-4b-depth-posttrain-robotwin
+    checkpoint_ref: robbyant/lingbot-vla-4b-depth-posttrain-robotwin
+  base:
+    aliases: [lingbot-vla-4b]
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/robbyant--lingbot-vla-4b
+    checkpoint_ref: robbyant/lingbot-vla-4b
+    revision: 87712223fb463f0f6a6565f8feba64c35418e393
+hardware_profiles:
+  pre_ampere:
+    torch_dtype: float16
+    use_compile: false
+  ampere:
+    torch_dtype: bfloat16
+    use_compile: false
+  ada:
+    torch_dtype: bfloat16
+    use_compile: true
+  hopper_or_newer:
+    torch_dtype: bfloat16
+    use_compile: true

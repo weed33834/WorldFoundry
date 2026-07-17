@@ -1,0 +1,30 @@
+schema_version: 2
+model_id: bernini-r-1.3b
+display_name: Bernini-R 1.3B
+task_family: video_generation
+groups: [image_generation, image_editing, video_generation, video_editing, reference_to_video]
+source_repos:
+- url: https://github.com/bytedance/Bernini
+  revision: 82d573e9a553dccb1405dde4cb0f26466f9df6c5
+checkpoints:
+- repo_id: ByteDance/Bernini-R-1.3B-Diffusers
+  revision: ff4c5d4d2d31365c2ffeb30e9753065ee18f58ce
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/ByteDance--Bernini-R-1.3B-Diffusers
+  role: renderer_checkpoint
+input_schema:
+  prompt: true
+  image: true
+  images: true
+  video: true
+  task_type: [t2i, i2i, t2v, v2v, r2v, rv2v]
+artifact_kind: generated_media
+artifact_filename: bernini-r-1.3b.mp4
+execution:
+  backend_stage: official_in_tree_runtime
+  runtime_status: checkpoint_assets_pending_not_runnable_until_staged
+  integration_status: runtime_ported
+  pipeline_binding: bernini-r-1.3b
+integration:
+  status: runtime_ported
+notes:
+- Renderer-only 1.3B checkpoint fine-tuned from Wan2.1 1.3B.

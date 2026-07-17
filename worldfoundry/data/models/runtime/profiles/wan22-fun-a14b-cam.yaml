@@ -1,0 +1,15 @@
+schema_version: 2
+model_id: wan22-fun-a14b-cam
+display_name: Wan2.2-Fun A14B Control Camera
+task_family: video_generation
+groups: [camera_control, image_to_video]
+source_repos:
+- url: https://github.com/aigc-apps/VideoX-Fun
+  revision: 403f1f7b78dcafccc4f6606dda4ec28e16e667dc
+  in_tree_path: worldfoundry/synthesis/visual_generation/video_x_fun/video_x_fun_runtime
+checkpoints: [{repo_id: alibaba-pai/Wan2.2-Fun-A14B-Control-Camera, revision: da1f119dcf5626b2fa41219ce42ac175752f3892, local_dir: '${WORLDFOUNDRY_HFD_ROOT}/alibaba-pai--Wan2.2-Fun-A14B-Control-Camera', role: model}]
+input_schema: {prompt: true, image: true, pose_txt: true}
+artifact_kind: generated_video
+artifact_filename: wan22-fun-a14b-cam.mp4
+execution: {environment: _unified, backend_stage: independent_in_tree_runtime, runtime_status: checkpoint_assets_pending_not_runnable_until_staged, integration_status: runtime_ported, pipeline_binding: wan22-fun-a14b-cam}
+integration: {status: runtime_ported}

@@ -1,0 +1,12 @@
+# Inference-only subset of the official RollingForcing DMD configuration at
+# revision a1477d09e85dc759a6a6728f55f77f59342ce388.
+denoising_step_list:
+- 1000
+- 800
+- 600
+- 400
+- 200
+warp_denoising_step: true
+num_frame_per_block: 3
+model_kwargs:
+  timestep_shift: 5.0

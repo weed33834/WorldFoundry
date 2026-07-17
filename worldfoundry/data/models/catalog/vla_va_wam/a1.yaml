@@ -1,0 +1,36 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+id: a1
+name: A1
+aliases:
+- affordvla-a1
+- spatialtemporal-ai/a1-libero
+- spatialtemporal-ai/a1-pretrain
+availability: open_source
+provider: official_repo
+official_sources:
+  github:
+    url: https://github.com/ATeam-Research/A1
+    revision: 2fcb07da2932eaaad441cddea91179845aa23c9c
+  huggingface:
+  - repo_id: spatialtemporal-ai/a1-libero
+    role: task_checkpoint
+    status: confirmed
+  - repo_id: spatialtemporal-ai/a1-pretrain
+    role: pretrained_policy
+    status: confirmed
+integration:
+  status: runtime_ported
+  notes:
+  - AffordVLA, Molmo, CLIP ViT, L1/DiT/flow action heads, preprocessing, and safe local checkpoint loading run in tree.
+  - The runtime derives action dimensions from checkpoint tensors and validates every action-token boundary.
+  - Tokenizer and checkpoint assets are local-only; checkpoint Python is never executed.
+tasks:
+- vla
+- vla.policy_rollout
+- robot_policy
+output_artifacts:
+- action_trace
+pipeline_binding: a1
+runtime_profile: runtime-profile:a1
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries with executable in-tree inference runtimes.

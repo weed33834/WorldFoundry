@@ -1,16 +1,17 @@
 conda_packages:
 - python
 - pip
-cuda_profile: prepare_only
-driver_status: prepare_only_policy_runtime_requires_license_review
-env_name: worldfoundry-unified-cu128
+cuda_profile: cu118_or_newer
+driver_status: checkpoint_runtime_ready_gated_assets_required
+env_name: worldfoundry-gr00t
 env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
 model_id: gr00t
 notes:
-- Prepare-only GR00T policy profile. Upstream GR00T packaging bundles torch/torchvision, flash-attn, and TensorRT stacks targeting
-  newer CUDA drivers than GPU provides, so official GPU parity is blocked on this host.
-- Use a CUDA 11.8+ torch stack with modern Transformers/AutoProcessor support when gated Cosmos/GR00T checkpoints are enabled.
+- Inference-only environment for the flattened GR00T runtime. Training, simulation, TensorRT, and robot SDK packages are excluded.
+- The gated GR00T and Cosmos assets must already be staged locally. The runtime uses local model/processor classes, safetensors, and checkpoint-hosted Python disabled.
 pip_packages:
+- torch
+- torchvision
 - numpy
 - Pillow
 - opencv-python-headless
@@ -21,11 +22,16 @@ pip_packages:
 - tyro
 - dm-tree
 - albumentations
+- pydantic>=2
 python: '3.10'
 validation_imports:
 - numpy
 - PIL
 - cv2
+- torch
+- torchvision
+- transformers
+- safetensors
 - huggingface_hub
 - tree
 - albumentations

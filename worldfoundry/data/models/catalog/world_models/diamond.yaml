@@ -32,7 +32,7 @@ variants:
 integration:
   status: integrated
   notes:
-  - WorldFoundry vendors the official DIAMOND play/inference stack in-tree under synthesis/visual_generation/world_model/diamond/diamond_runtime.
+  - WorldFoundry vendors the official DIAMOND play/inference stack directly under synthesis/visual_generation/world_model/diamond.
   - Runtime configs are packaged under worldfoundry/data/models/runtime/configs/diamond/config.
   - Lightweight game/RL world-model candidate; upstream runtime downloads Atari assets on demand.
   - Jobs can run with a local checkpoint or pretrained=true plus a non-interactive pretrained_game value.

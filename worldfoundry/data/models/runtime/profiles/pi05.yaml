@@ -5,12 +5,15 @@ checkpoints:
 - local_dir: ${WORLDFOUNDRY_CKPT_DIR}/openpi/openpi-assets/checkpoints/pi05_libero
   path: gs://openpi-assets/checkpoints/pi05_libero
   role: pi05_libero_demo_checkpoint
+  status: orbax_checkpoint_metadata_validated
 - local_dir: ${WORLDFOUNDRY_CKPT_DIR}/openpi/openpi-assets/checkpoints/pi05_droid
   path: gs://openpi-assets/checkpoints/pi05_droid
   role: pi05_droid_checkpoint
+  status: orbax_checkpoint_metadata_validated
 - local_dir: ${WORLDFOUNDRY_CKPT_DIR}/openpi/openpi-assets/checkpoints/pi05_base
   path: gs://openpi-assets/checkpoints/pi05_base
   role: pi05_base_checkpoint
+  status: orbax_checkpoint_metadata_validated
 execution:
   environment: openpi
 id: pi05
@@ -26,9 +29,9 @@ input_schema:
 integration_status: runtime_ported
 notes:
 - pi0.5 is a concrete OpenPI algorithm entry routed through the in-tree OpenPI runtime.
-- WorldFoundry vendors OpenPI and openpi_client runtime source under worldfoundry/synthesis/action_generation/openpi/openpi_runtime.
-- Default runtime config uses the ready pi05_libero policy config; additional pi05
-  base/DROID checkpoint metadata is retained for asset preparation.
+- WorldFoundry keeps the inference-only OpenPI runtime directly under worldfoundry/synthesis/action_generation/openpi.
+- Default runtime config uses the ready pi05_libero policy config; all three declared
+  Orbax checkpoints are locally staged and their metadata trees are validated.
 - This profile emits action_trace artifacts and is not a video-generation profile.
 runtime_status: in_tree_openpi_pi05_runtime_ported_pi05_libero_gpu_readiness_in_family_profile
 task_family: vla_policy

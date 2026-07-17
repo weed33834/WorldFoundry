@@ -1,0 +1,62 @@
+model_id: stable-video-infinity
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+python: '3.11'
+cuda_profile: cu128
+driver_status: compatible
+conda_packages:
+- python=3.11
+- pip
+- ffmpeg
+- setuptools
+- wheel
+pip_packages:
+- torch>=2.5
+- torchvision
+- diffusers>=0.31
+- transformers>=4.46,<5
+- tokenizers>=0.20.3
+- accelerate>=1.1.1
+- peft>=0.17,<1
+- xfuser
+- safetensors
+- einops
+- sentencepiece
+- protobuf
+- modelscope
+- ftfy
+- regex
+- imageio[ffmpeg]
+- numpy>=1.23.5,<2
+- pillow
+- tqdm
+- fastapi>=0.116
+- pydantic>=2,<3
+- PyYAML>=6
+validation_imports:
+- torch
+- torchvision
+- diffusers
+- transformers
+- accelerate
+- peft
+- xfuser
+- safetensors
+- einops
+- sentencepiece
+- modelscope
+- ftfy
+- regex
+- imageio
+- numpy
+- PIL
+- fastapi
+- pydantic
+- yaml
+- worldfoundry.studio.workspace_job
+notes:
+- The official project reports A100 80GB, CUDA 12, and Torch 2.4-2.8 testing; WorldFoundry uses its shared cu128 runtime.
+- FlashAttention 2.8 can be installed as an optimization, but the in-tree attention dispatcher has supported fallbacks.
+- xfuser is installed for the optional use_usp execution path; single-process inference leaves it unused.
+- FastAPI, Pydantic, and YAML are declared because Workspace dispatch imports the real workspace_job entrypoint inside the model environment.
+- Wan2.1 and SVI LoRA checkpoints remain in WORLDFOUNDRY_HFD_ROOT and are never installed with the package.

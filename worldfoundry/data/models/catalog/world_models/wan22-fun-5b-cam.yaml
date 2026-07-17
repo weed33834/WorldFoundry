@@ -1,0 +1,19 @@
+id: wan22-fun-5b-cam
+name: Wan2.2-Fun 5B Control Camera
+tasks: [camera-controlled-video, image-to-video]
+provider: Alibaba PAI / VideoX-Fun
+source:
+  status: open_source
+  official_repo_url: https://github.com/aigc-apps/VideoX-Fun
+  license: apache-2.0
+checkpoint: alibaba-pai/Wan2.2-Fun-5B-Control-Camera
+runtime_profile: runtime-profile:wan22-fun-5b-cam
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: wan22-fun-5b-cam
+integration:
+  status: integrated
+  notes:
+  - VideoX-Fun source is vendored at revision 403f1f7b78dcafccc4f6606dda4ec28e16e667dc.
+  - The upstream native profile is 121 frames at 24 FPS; WRBench request values remain explicit.
+runner_parity: {status: pending, notes: [Dedicated Wan2.2 5B camera checkpoint route is wired.]}
+catalog_category: world_models

@@ -1,0 +1,34 @@
+schema_version: 2
+id: bernini-r-1.3b
+name: Bernini-R 1.3B
+aliases: [bernini-r-1p3b, bernini-r-1.3b-diffusers]
+tasks: [text-to-image, image-to-image, text-to-video, video-to-video, reference-to-video, reference-video-to-video]
+output_artifacts: [generated_image, generated_video]
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/bytedance/Bernini
+  hf_repo_id: ByteDance/Bernini-R-1.3B-Diffusers
+  license: apache-2.0
+official_sources:
+  project_page: https://bernini-ai.github.io/
+  paper: https://arxiv.org/abs/2605.22344
+  github:
+    url: https://github.com/bytedance/Bernini
+    revision: 82d573e9a553dccb1405dde4cb0f26466f9df6c5
+  huggingface:
+  - repo_id: ByteDance/Bernini-R-1.3B-Diffusers
+    status: confirmed
+checkpoints:
+- repo_id: ByteDance/Bernini-R-1.3B-Diffusers
+  license: apache-2.0
+integration:
+  status: integrated
+  notes:
+  - Official renderer inference is vendored in-tree; no external Bernini checkout is used.
+runner_parity:
+  status: pending_gpu_validation
+runtime_profile: runtime-profile:bernini-r-1.3b
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: bernini-r-1.3b
+catalog_category: video

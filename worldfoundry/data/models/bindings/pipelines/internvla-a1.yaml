@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: internvla-a1
+model_id: internvla-a1
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.synthesis.action_generation.internvla_a1.internvla_a1_synthesis:InternVLAA1Synthesis
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

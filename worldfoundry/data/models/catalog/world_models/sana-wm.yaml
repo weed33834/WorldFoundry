@@ -20,17 +20,13 @@ runtime_profile: runtime-profile:sana-wm
 runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
 pipeline_binding: sana-wm
 integration:
-  status: runtime_ported
-  blocked_reasons:
-  - Official Sana/SANA-WM source is vendored in-tree under base_models/diffusion_model/image/sana; runnable execution still
-    requires the official dependency environment, checkpoints, and task assets.
+  status: runnable
   notes:
-  - WorldFoundry registers an in-tree runtime manifest pipeline for the vendored Sana-WM source.
+  - WorldFoundry registers an in-tree resident pipeline with configurable multi-GPU component placement.
 runner_parity:
-  status: implemented_checkpoint_pending
+  status: implemented
   notes:
-  - The pipeline resolves the vendored Sana-WM inference entrypoint and returns blocked runtime diagnostics until checkpoints,
-    dependencies, and task assets are staged.
+  - The quality profile keeps the bidirectional stage and LTX-2 refiner enabled.
 catalog_category: world_models
 catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry runtimes; blocked entries retain
   upstream provenance without runnable backends.

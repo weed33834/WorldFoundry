@@ -1,0 +1,27 @@
+backend: callable_entrypoint
+checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/robotics-diffusion-transformer--rdt-1b
+checkpoint_ref: robotics-diffusion-transformer/rdt-1b
+policy_target: worldfoundry.synthesis.action_generation.rdt_1b.runtime:predict_action
+predict_method: predict_action
+require_checkpoint: true
+vision_encoder_path: ${WORLDFOUNDRY_HFD_ROOT}/google--siglip-so400m-patch14-384
+text_encoder_path: ${WORLDFOUNDRY_HFD_ROOT}/google--t5-v1_1-xxl
+torch_dtype: auto
+control_frequency: 25
+denoising_steps: 5
+release_text_encoder: true
+embodiment: dual_arm_14d
+history_frames: 2
+image_width: 640
+image_height: 480
+jpeg_roundtrip: true
+camera_views:
+- [cam_high, cam_head, head, external]
+- [cam_right_wrist, right_wrist, wrist_right]
+- [cam_left_wrist, left_wrist, wrist_left]
+state_indices: [50, 51, 52, 53, 54, 55, 60, 0, 1, 2, 3, 4, 5, 10]
+state_scale: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+action_scale: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+seed: 0
+runtime_backend: rdt_1b_native
+action_contract: unified_continuous_action_chunk

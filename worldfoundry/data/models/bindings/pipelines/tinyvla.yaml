@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: tinyvla
+model_id: tinyvla
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.synthesis.action_generation.tinyvla.pipeline:TinyVLAPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

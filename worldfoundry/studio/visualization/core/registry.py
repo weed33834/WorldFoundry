@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 from .artifacts import StudioVisualizationArtifact, infer_visualization_artifact
@@ -249,10 +250,18 @@ class StudioVisualizationRegistry:
             known = ", ".join(sorted(self._by_token))
             raise ValueError(f"Unsupported Studio visualization mode `{mode}`. Known modes: {known}.") from exc
 
-    def resolve_mode(self, entry: CatalogEntry, requested: str | None) -> str:
+    def resolve_mode(
+        self,
+        entry: CatalogEntry,
+        requested: str | None,
+        artifact: StudioVisualizationArtifact | None = None,
+    ) -> str:
         mode = normalize_visualization_mode(requested or AUTO_VISUALIZATION) or AUTO_VISUALIZATION
         if mode != AUTO_VISUALIZATION:
             return self.backend_for(mode).mode
+        artifact_mode = _visualization_mode_for_artifact(artifact)
+        if artifact_mode in self.modes:
+            return artifact_mode
         profile = model_visualization_profile(entry)
         if profile.mode in self.modes:
             return profile.mode
@@ -300,6 +309,54 @@ class StudioVisualizationRegistry:
 
 def normalize_visualization_mode(value: str | None) -> str:
     return (value or "").strip().lower().replace("_", "-")
+
+
+def _visualization_mode_for_artifact(artifact: StudioVisualizationArtifact | None) -> str:
+    """Choose a native viewer from the artifact before consulting model metadata."""
+
+    if artifact is None:
+        return ""
+    path = Path(artifact.path).expanduser()
+    suffix = path.suffix.lower()
+    kind = (artifact.kind or "").strip().lower()
+
+    if suffix == ".rrd" or kind == "timeline":
+        return RERUN_VISUALIZATION
+    if kind == "gaussian_splat" or suffix in {".spz", ".splat", ".ksplat", ".sog"}:
+        return SPARK_VISUALIZATION
+    if suffix == ".ply":
+        return SPARK_VISUALIZATION if _is_gaussian_splat_ply(path) else VISER_VISUALIZATION
+    if kind in {"image", "video", "audio", "optical_flow"} or suffix in {
+        ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp",
+        ".mp4", ".mov", ".webm", ".mkv", ".avi",
+        ".wav", ".mp3", ".flac", ".ogg",
+    }:
+        return MEDIA_VISUALIZATION
+    if kind in {"point_cloud", "mesh", "camera", "trajectory", "depth"} or suffix in {
+        ".pcd", ".xyz", ".npz", ".glb", ".gltf", ".obj",
+    }:
+        return VISER_VISUALIZATION
+    return ""
+
+
+def _is_gaussian_splat_ply(path: Path) -> bool:
+    """Identify Gaussian-splat PLY headers without loading the potentially huge asset."""
+
+    try:
+        with path.open("rb") as handle:
+            header = handle.read(16384).decode("latin-1", errors="ignore")
+    except OSError:
+        return False
+    header = header.split("end_header", maxsplit=1)[0].lower()
+    return header.lstrip().startswith("ply") and all(
+        marker in header
+        for marker in (
+            "property float opacity",
+            "property float scale_0",
+            "property float f_dc_0",
+            "property float rot_0",
+        )
+    )
 
 
 def model_visualization_profile(

@@ -25,7 +25,7 @@ checkpoint_refs:
 - repo_id: brandonsmart/splatt3r_v1.0
 integration:
   kind: pipeline_runner
-  status: planned
+  status: verified
   notes:
   - Runtime code is vendored in-tree under worldfoundry/base_models/three_dimensions/general_3d/splatt3r/splatt3r_runtime;
     checkpoints remain external assets.
@@ -33,10 +33,9 @@ runtime_profile: runtime-profile:splatt3r
 runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
 pipeline_binding: splatt3r
 runner_parity:
-  status: implemented_pending_gpu_parity
+  status: verified
   notes:
-  - Splatt3RSynthesis provides an in-tree PLY reconstruction wrapper. GPU parity still
-    needs to be run against official demo images.
+  - Checkpoint-backed GPU inference produced a finite 344064-Gaussian PLY from the bundled official-style views; see worldfoundry/data/models/validation/inference_evidence.yaml.
 catalog_category: three_d_four_d
 catalog_scope: 3D Gaussian-splatting catalog entries. Integrated entries expose in-tree
   WorldFoundry runtimes; metadata-only entries retain upstream provenance without runnable

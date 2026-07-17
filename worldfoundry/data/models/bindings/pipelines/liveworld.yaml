@@ -1,0 +1,8 @@
+schema_version: 2
+binding_id: liveworld
+model_id: liveworld
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.liveworld.pipeline_liveworld:LiveWorldPipeline
+  loading: {method: from_pretrained, signature: unified}
+  invocation: {mode: native_or_standard_invocation}

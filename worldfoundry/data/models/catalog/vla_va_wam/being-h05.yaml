@@ -10,7 +10,7 @@ checkpoint:
 id: being-h05
 integration:
   notes:
-  - WorldFoundry vendors Being-H0.5 architecture and policy runtime under worldfoundry/synthesis/action_generation/being_h05/being_h05_runtime.
+  - WorldFoundry keeps the inference-only Being-H0.5 architecture and policy runtime directly under worldfoundry/synthesis/action_generation/being_h05.
   - The Being-H05 LIBERO checkpoint passed public pipeline checkpoint-backed GPU get_action
     validation and emitted an action_trace artifact.
   status: integrated
@@ -51,9 +51,8 @@ variants:
   id: being-h05-2b
   integration_status: planned
   notes:
-  - WorldFoundry vendors Being-H0.5 architecture and policy runtime under worldfoundry/synthesis/action_generation/being_h05/being_h05_runtime;
-    plan-only validation passed, and the base checkpoint safetensors can be staged
-    for CUDA tensor checks.
+  - WorldFoundry keeps the Being-H0.5 checkpoint runtime directly under worldfoundry/synthesis/action_generation/being_h05;
+    the base checkpoint uses the same strict safetensors inference path, with variant-specific CUDA validation still pending.
   task: vla.policy_rollout
 - checkpoint_refs:
   - repo_id: BeingBeyond/Being-H05-2B_libero
@@ -68,16 +67,15 @@ variants:
   id: being-h05-2b-robocasa
   integration_status: planned
   notes:
-  - WorldFoundry vendors Being-H0.5 architecture and policy runtime under worldfoundry/synthesis/action_generation/being_h05/being_h05_runtime;
-    plan-only validation passed, and the RoboCasa-only checkpoint safetensors can
-    be staged for CUDA tensor checks.
+  - WorldFoundry keeps the Being-H0.5 checkpoint runtime directly under worldfoundry/synthesis/action_generation/being_h05;
+    the RoboCasa checkpoint uses the same strict safetensors inference path, with variant-specific CUDA validation still pending.
   task: vla.policy_rollout
 - checkpoint_refs:
   - repo_id: BeingBeyond/Being-H05-2B_libero_robocasa
   id: being-h05-2b-libero-robocasa
   integration_status: planned
   notes:
-  - WorldFoundry vendors Being-H0.5 architecture and policy runtime under worldfoundry/synthesis/action_generation/being_h05/being_h05_runtime;
+  - WorldFoundry keeps the Being-H0.5 checkpoint runtime directly under worldfoundry/synthesis/action_generation/being_h05;
     LIBERO+RoboCasa checkpoint tensor GPU probe passed, but real get_action exceeded
     a single 80GB GPU memory budget.
   task: vla.policy_rollout

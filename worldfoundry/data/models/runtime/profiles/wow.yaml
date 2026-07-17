@@ -9,11 +9,38 @@ source_repos:
 - url: https://github.com/wow-world-model/wow-world-model
   revision: 08b010597b69b5e1fde5f69ba44da85aff05bf62
 checkpoints:
-- repo_id: WoW-world-model/WoW-1-Wan-14B-600k
+- repo_id: X-Humanoid/WoW-1-Wan-14B-600k
+  revision: 07fbad1a088b85d6977ab3985e354d16f8837253
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/huggingface/hub/models--WoW-world-model--WoW-1-Wan-14B-600k/snapshots/07fbad1a088b85d6977ab3985e354d16f8837253
   role: official_wan_demo_checkpoint
-- repo_id: WoW-world-model/WoW-1-Wan-14B-2M
+  required_paths:
+  - config.json
+  - diffusion_pytorch_model.safetensors.index.json
+  - diffusion_pytorch_model-00001-of-00007.safetensors
+  - diffusion_pytorch_model-00002-of-00007.safetensors
+  - diffusion_pytorch_model-00003-of-00007.safetensors
+  - diffusion_pytorch_model-00004-of-00007.safetensors
+  - diffusion_pytorch_model-00005-of-00007.safetensors
+  - diffusion_pytorch_model-00006-of-00007.safetensors
+  - diffusion_pytorch_model-00007-of-00007.safetensors
+  - models_clip_open-clip-xlm-roberta-large-vit-huge-14.pth
+  - models_t5_umt5-xxl-enc-bf16.pth
+  - Wan2.1_VAE.pth
+  - WoW_video_dit.pt
+- repo_id: X-Humanoid/WoW-1-Wan-14B-2M
+  revision: 787dc5829beec1798d6d0f4eeaae77f9adcdc393
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/X-Humanoid--WoW-1-Wan-14B-2M
   role: recommended_wan_checkpoint
-- repo_id: WoW-world-model/WoW-1-DiT-2B-600k
+  required_paths:
+  - config.json
+  - diffusion_pytorch_model.safetensors.index.json
+  - WoW_video_dit.pt
+  - models_clip_open-clip-xlm-roberta-large-vit-huge-14.pth
+  - models_t5_umt5-xxl-enc-bf16.pth
+  - Wan2.1_VAE.pth
+- repo_id: X-Humanoid/WoW-1-DiT-2B-600k
+  revision: 230b975ebb26fe2a28aa8709196d0020fff43a74
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/X-Humanoid--WoW-1-DiT-2B-600k
   role: official_dit2b_checkpoint
 input_schema:
   prompt: true
@@ -27,7 +54,7 @@ artifact_filename: wow.mp4
 execution:
   backend_stage: official_in_tree_runtime
   runtime_status: official_wan_14b_workspace_verified
-  integration_status: runtime_ported
+  integration_status: verified
   pipeline_binding: wow
   default_parameters:
     runtime_backend: wan
@@ -47,7 +74,7 @@ execution:
     disable_guardrail: true
     disable_prompt_refiner: true
 integration:
-  status: runtime_ported
+  status: verified
 notes:
 - Official WoW Wan demo is the default backend; it consumes image/video first-frame
   conditioning plus a text prompt.

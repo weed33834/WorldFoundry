@@ -32,7 +32,12 @@ class PerceptionProvider:
             layers.append(Layer(layer_id=path.stem, kind=kind, uri=path.as_posix()))
         if not layers:
             return None
-        return VisualizationScene(scene_id="perception/artifacts", title="Perception Artifacts", layers=tuple(layers), recommended_backend="image")
+        return VisualizationScene(
+            scene_id="perception/artifacts",
+            title="Perception Artifacts",
+            layers=tuple(layers),
+            recommended_backend="media",
+        )
 
 
 def _kind_from_name(path: Path) -> str | None:

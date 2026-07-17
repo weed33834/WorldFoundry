@@ -6,25 +6,45 @@ groups:
 - world
 - video
 source_repos:
-- url: https://github.com/NVIDIA/cosmos-framework
+- url: https://github.com/NVIDIA/cosmos
 checkpoints:
 - repo_id: nvidia/Cosmos3-Nano
-  revision: 46468e12ac0dd36901e9e3240d4fc7620942b5d7
+  revision: 411f42a8fdfb8c5b2583cb8786e0938f49796eaa
   role: cosmos3_checkpoint
 input_schema:
   prompt: true
   image: true
   video: true
   actions:
-  - camera_path
+  - policy
+  - forward_dynamics
+  - inverse_dynamics
 artifact_kind: generated_world
 artifact_filename: cosmos3-nano.mp4
 execution:
-  backend_stage: in_tree_runtime_plan
-  runtime_status: profile_resolves_catalog_variant_checkpoint_gpu_readiness_pending
-  integration_status: planned
+  backend_stage: in_tree_diffusers_inference
+  checkpoint_revision_policy: exact_sha_for_verified_runs
+  load_sound_tokenizer: true
+  runtime_status: exact_revision_workspace_matrix_and_safety_smoke_passed_parity_pending
+  integration_status: integrated
   pipeline_binding: cosmos3-nano
+  environment: cosmos3
 integration:
-  status: planned
+  status: integrated
 notes:
-- Variant profile for the existing Cosmos3 catalog binding.
+- The in-tree generator supports optional synchronized sound and structured policy,
+  forward-dynamics, and inverse-dynamics action inference. Reasoner, training, and serving
+  workflows are not part of this infer-only profile.
+- Official Nano Diffusers checkpoint route. Exact-revision low-resolution Workspace T2I/T2V/I2V/V2V,
+  synchronized-audio, and policy/forward/inverse action smokes passed. All three independent action
+  profiles passed with the official 16-action/17-frame/30-step defaults. The default safety path also
+  passed a 20-step Workspace T2I smoke. Full-resolution official-output parity remains pending.
+- The dedicated Cosmos3 environment passed all declared imports, both FFmpeg executable checks,
+  Workspace discovery, and real exact-revision T2I, synchronized-sound, policy,
+  forward-dynamics, and inverse-dynamics runs.
+- Verified runs must use revision 411f42a8fdfb8c5b2583cb8786e0938f49796eaa explicitly; directory
+  presence without matching .hfd metadata or an exact HF snapshot is not current-revision evidence.
+- The default safety path passed offline GPU construction and a real Workspace run with
+  nvidia/Cosmos-1.0-Guardrail@cf03c0395fac8c4de386c0bdab12cc4fc8d66362 and
+  Qwen/Qwen3Guard-Gen-0.6B@fada3b2f655b89601929198343c94cd2f64d93cc. The NVIDIA repository
+  remains gated; missing authorization is reported before generator checkpoint loading.

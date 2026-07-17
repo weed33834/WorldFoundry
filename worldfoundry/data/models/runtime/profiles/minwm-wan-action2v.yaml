@@ -1,0 +1,43 @@
+schema_version: 2
+model_id: minwm-wan-action2v
+display_name: minWM Wan Action2V
+task_family: world_model
+groups: [world, action_conditioning, camera_control]
+source_repos:
+- url: https://github.com/shengshu-ai/minWM
+  revision: df522a26cd4409d3e3e8f269cc98eac069b5df47
+  in_tree_path: worldfoundry/synthesis/visual_generation/minwm/minwm_runtime
+checkpoints:
+- repo_id: MIN-Lab/minWM
+  revision: 21bd74da43b5a061c0b8ff277515088ccd2c798b
+  size_bytes: 5959605031
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/MIN-Lab--minWM
+  role: wan_action2v_dmd
+  status: checkpoint_download_in_progress
+  required_paths:
+  - Wan21/Action2V/dmd/model.pt
+- repo_id: Wan-AI/Wan2.1-T2V-1.3B
+  revision: 37ec512624d61f7aa208f7ea8140a131f93afc9a
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Wan2.1-T2V-1.3B
+  role: base_model
+  status: checkpoint_manifest_validated
+  required_paths:
+  - config.json
+  - diffusion_pytorch_model.safetensors
+  - Wan2.1_VAE.pth
+  - models_t5_umt5-xxl-enc-bf16.pth
+  - google/umt5-xxl/tokenizer_config.json
+  - google/umt5-xxl/spiece.model
+input_schema: {prompt: true, trajectory: true}
+artifact_kind: generated_video
+artifact_filename: minwm-wan-action2v.mp4
+execution:
+  environment: _unified
+  backend_stage: independent_in_tree_runtime
+  runtime_status: checkpoint_assets_pending
+  integration_status: integrated_checkpoint_assets_pending
+  pipeline_binding: minwm-wan-action2v
+integration: {status: integrated_checkpoint_assets_pending}
+notes:
+- Uses the dedicated Wan2.1 Action2V entrypoint and native motion tokens.
+- Only Wan21/Action2V/dmd/model.pt is required from the 384.97 GB upstream minWM repository.

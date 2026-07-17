@@ -1,0 +1,47 @@
+backend: callable_entrypoint
+checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/Dexmal--DM0-libero
+checkpoint_ref: Dexmal/DM0-libero
+require_checkpoint: true
+policy_target: worldfoundry.synthesis.action_generation.dm0.runtime:predict_action
+predict_method: inference_action
+torch_dtype: auto
+runtime_backend: dm0_in_tree_runtime
+action_contract: dm0_flow_action_chunk
+num_images: 3
+camera_keys:
+- agentview
+- wrist
+- wrist_image
+- image0
+- image1
+- image2
+- front
+- left
+- right
+model_action_dim: 32
+action_dim: 7
+non_delta_indices:
+- 6
+diffusion_steps: 10
+max_language_tokens: 200
+system_prompt: A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions.
+norm_stats_filename: norm_stats.json
+require_norm_stats: true
+seed: 0
+compile_model: false
+variants:
+  base:
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/Dexmal--DM0-base
+    repo_id: Dexmal/DM0-base
+    action_dim: 32
+    require_norm_stats: false
+  libero:
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/Dexmal--DM0-libero
+    repo_id: Dexmal/DM0-libero
+    action_dim: 7
+    require_norm_stats: true
+excluded_dependencies:
+- web serving processes
+- training stack
+- benchmark launchers
+- realtime Triton conversion

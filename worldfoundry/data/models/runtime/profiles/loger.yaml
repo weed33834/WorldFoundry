@@ -1,0 +1,29 @@
+schema_version: 2
+model_id: loger
+display_name: LoGeR
+task_family: three_dimension
+groups: [3d, reconstruction, trajectory]
+source_repos:
+- url: https://github.com/Junyi42/LoGeR
+checkpoints:
+- repo_id: Junyi42/LoGeR
+  role: reconstruction_checkpoint
+input_schema:
+  prompt: false
+  image: true
+  video: false
+  actions:
+  - multi_view_reconstruction
+  - camera_navigation
+artifact_kind: generated_3d_asset
+artifact_filename: result.ply
+execution:
+  backend_stage: in_tree_geometry_runtime
+  runtime_status: checkpoint_verified
+  integration_status: verified
+  pipeline_binding: loger
+integration:
+  status: verified
+notes:
+- Studio checkpoint-backed inference verified finite camera poses, depth, point arrays, and a binary PLY artifact.
+- The default runtime uses the shared worldfoundry-unified-cu128 environment.

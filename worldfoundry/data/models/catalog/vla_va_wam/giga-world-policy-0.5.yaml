@@ -1,0 +1,40 @@
+id: giga-world-policy-0.5
+name: GigaWorld-Policy-0.5
+aliases:
+- giga-world-policy
+- gigaworld-policy
+- gwp-0.5
+availability: open_source
+provider: official_repo
+license: apache-2.0
+official_sources:
+  github:
+    url: https://github.com/open-gigaai/giga-world-policy
+    head_sha: 3c36880111d3dd422c9d4ac1a26c3154f8922538
+  huggingface:
+  - repo_id: open-gigaai/Giga-World-Policy-0.5
+    revision: 4b68e90c0833fec96df456426be344bab64e01a3
+    role: released_pretrained_mot_transformer
+  - repo_id: Wan-AI/Wan2.2-TI2V-5B-Diffusers
+    role: local_base_vae_text_encoder_and_tokenizer
+checkpoint:
+  repo_id: open-gigaai/Giga-World-Policy-0.5
+  format: sharded_safetensors
+  required_task_assets:
+  - task-specific norm_stats_delta.json
+integration:
+  status: in_tree_checkpoint_gated_runtime
+  notes:
+  - Exact released action-centered Mixture-of-Transformers and official action-only diffusion loop execute in process.
+  - The released transformer is a pretrained initialization; task deployment additionally requires local post-training statistics and, when applicable, a task-finetuned transformer directory.
+  - All Hub assets must be staged locally before construction; runtime network access and custom remote code are disabled.
+tasks:
+- vla
+- vla.action_prediction
+- vla.world_action_model
+output_artifacts:
+- action_trace
+pipeline_binding: giga-world-policy-0.5
+runtime_profile: runtime-profile:giga-world-policy-0.5
+catalog_category: vla_va_wam
+schema_version: 2

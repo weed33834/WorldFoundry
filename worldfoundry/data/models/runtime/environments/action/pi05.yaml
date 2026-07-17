@@ -1,0 +1,30 @@
+schema_version: 2
+env_name: worldfoundry-openpi-cu12
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: pi05
+python: "3.11"
+cuda_profile: cu124_or_newer
+driver_status: compatible
+conda_packages: [python, pip]
+pip_extra_index_url: https://download.pytorch.org/whl/cu128
+pip_packages:
+- numpy>=1.26,<2
+- Pillow>=11
+- einops>=0.8
+- jax[cuda12]==0.5.3
+- flax==0.10.2
+- orbax-checkpoint==0.11.13
+- jaxtyping==0.2.36
+- beartype==0.19.0
+- numpydantic>=1.6.6
+- pydantic>=2
+- ml_collections==1.0.0
+- sentencepiece>=0.2
+- scipy>=1.12
+- safetensors>=0.5
+- torch==2.7.1
+- transformers==4.53.2
+validation_imports: [jax, flax, torch, transformers, safetensors]
+notes:
+- Uses the shared in-tree OpenPI inference environment and a strictly local pi0.5 checkpoint.
+- No external source checkout, Git dependency, runtime download, or PYTHONPATH injection is required.

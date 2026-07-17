@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: astra
+model_id: astra
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.kling.pipeline_astra:AstraPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

@@ -1,0 +1,33 @@
+schema_version: 2
+model_id: ati-wan21-14b
+display_name: ATI-Wan2.1-14B
+task_family: video_generation
+groups: [video, camera_control, image_to_video]
+source_repos:
+- url: https://github.com/bytedance/ATI
+  revision: 1a002caf7bb55cfb016dcc670c357bd803af3a0d
+  in_tree_path: worldfoundry/synthesis/visual_generation/ati/ati_runtime
+- url: https://github.com/Wan-Video/Wan2.1
+  in_tree_path: worldfoundry/base_models/diffusion_model/video/wan/official_wan2_1_runtime
+checkpoints:
+- repo_id: bytedance-research/ATI
+  revision: a92e2fac1f89b68f0c251942888dbdc0c15bcc4e
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/bytedance-research--ATI
+  role: ati_wan21_14b_checkpoint
+- repo_id: Wan-AI/Wan2.1-I2V-14B-480P
+  revision: 6b73f84e66371cdfe870c72acd6826e1d61cf279
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Wan2.1-I2V-14B-480P
+  role: wan21_i2v_base_components
+input_schema: {prompt: true, image: true, dense_point_tracks: true}
+artifact_kind: generated_video
+artifact_filename: ati-wan21-14b.mp4
+execution:
+  environment: _unified
+  backend_stage: independent_in_tree_runtime
+  runtime_status: checkpoint_assets_pending_not_runnable_until_staged
+  integration_status: runtime_ported
+  pipeline_binding: ati-wan21-14b
+integration: {status: runtime_ported}
+notes:
+- The official ATI inference delta reuses WorldFoundry's central in-tree Wan2.1 base implementation.
+- No source checkout or runtime download is permitted; only locally staged checkpoints are resolved.

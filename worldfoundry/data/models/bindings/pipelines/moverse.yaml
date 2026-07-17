@@ -1,0 +1,13 @@
+schema_version: 2
+binding_id: moverse
+model_id: moverse
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.moverse.pipeline_moverse:MoVersePipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation
+aliases:
+- mo-verse

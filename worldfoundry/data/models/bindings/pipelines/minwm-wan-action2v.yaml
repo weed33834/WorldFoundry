@@ -1,0 +1,8 @@
+schema_version: 2
+binding_id: minwm-wan-action2v
+model_id: minwm-wan-action2v
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.minwm.pipeline_minwm:MinWMWanAction2VPipeline
+  loading: {method: from_pretrained, signature: unified}
+  invocation: {mode: native_or_standard_invocation}

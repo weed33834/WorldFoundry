@@ -1,0 +1,101 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+aliases:
+- spatial_forcing
+- spatial-forcing-openvla
+availability: open_source
+checkpoint:
+  license: apache-2.0
+  repo_id: haofuly/spatial-forcing-7b-finetuned-libero-spatial
+id: spatial-forcing
+integration:
+  status: all_released_checkpoints_gpu_validated
+  notes:
+  - Action/VLA integration for the four released Spatial-Forcing OpenVLA-LIBERO checkpoints.
+  - The inference-only runtime is in-tree, disables checkpoint-hosted remote code, and accepts only locally staged snapshots.
+  - VGGT, alignment projectors, LoRA adapter copies, training, RLDS/TensorFlow data tooling, simulators, and servers are excluded.
+  - All four released snapshots passed strict restoration and real A100 Workspace inference with finite 8-by-7 actions.
+license: mit
+name: Spatial-Forcing
+official_sources:
+  github:
+    head_sha: 372819b31ba9a2c8fc5989edc7d525cb187cecd5
+    url: https://github.com/OpenHelix-Team/Spatial-Forcing
+  huggingface_collection:
+    id: haofuly/spatial-forcing-68ea1bf0f1ac2c60e2ec6caa
+    url: https://huggingface.co/collections/haofuly/spatial-forcing-68ea1bf0f1ac2c60e2ec6caa
+  huggingface:
+  - repo_id: haofuly/spatial-forcing-7b-finetuned-libero-spatial
+    revision: 58718e3948c78ae14a10514e162be775dee1bb6f
+    license: apache-2.0
+    role: libero_spatial_checkpoint
+  - repo_id: haofuly/spatial-forcing-7b-finetuned-libero-object
+    revision: 7dae9150e87b05ee02d867d4e0f36343a46a8d77
+    license: apache-2.0
+    role: libero_object_checkpoint
+  - repo_id: haofuly/spatial-forcing-7b-finetuned-libero-goal
+    revision: c0093e70524ad781ae6fe644618f501af32a184d
+    license: apache-2.0
+    role: libero_goal_checkpoint
+  - repo_id: haofuly/spatial-forcing-7b-finetuned-libero-10
+    revision: 737f7e02dec79d8a3a26ab44738926183aed059e
+    license: apache-2.0
+    role: libero_10_checkpoint
+  training_only_models:
+  - repo_id: openvla/openvla-7b
+    role: base_model
+  - repo_id: facebook/VGGT-1B
+    role: spatial_alignment_teacher
+output_artifacts:
+- action_trace
+pipeline_binding: spatial-forcing
+provider: official_repo
+runtime_profile: runtime-profile:spatial-forcing
+tasks:
+- vla
+- vla.action_prediction
+- vla.policy_rollout
+variants:
+- id: spatial-forcing-libero-spatial
+  integration_status: checkpoint_gpu_validated
+  task: vla.policy_rollout
+  checkpoint_refs:
+  - repo_id: haofuly/spatial-forcing-7b-finetuned-libero-spatial
+    revision: 58718e3948c78ae14a10514e162be775dee1bb6f
+    license: apache-2.0
+  notes:
+  - Uses unnorm_key libero_spatial_no_noops and task_suite_name libero_spatial.
+- id: spatial-forcing-libero-object
+  integration_status: checkpoint_gpu_validated
+  task: vla.policy_rollout
+  checkpoint_refs:
+  - repo_id: haofuly/spatial-forcing-7b-finetuned-libero-object
+    revision: 7dae9150e87b05ee02d867d4e0f36343a46a8d77
+    license: apache-2.0
+  notes:
+  - Uses unnorm_key libero_object_no_noops and task_suite_name libero_object.
+- id: spatial-forcing-libero-goal
+  integration_status: checkpoint_gpu_validated
+  task: vla.policy_rollout
+  checkpoint_refs:
+  - repo_id: haofuly/spatial-forcing-7b-finetuned-libero-goal
+    revision: c0093e70524ad781ae6fe644618f501af32a184d
+    license: apache-2.0
+  notes:
+  - Uses unnorm_key libero_goal_no_noops and task_suite_name libero_goal.
+- id: spatial-forcing-libero-10
+  integration_status: checkpoint_gpu_validated
+  task: vla.policy_rollout
+  checkpoint_refs:
+  - repo_id: haofuly/spatial-forcing-7b-finetuned-libero-10
+    revision: 737f7e02dec79d8a3a26ab44738926183aed059e
+    license: apache-2.0
+  notes:
+  - Uses unnorm_key libero_10_no_noops and task_suite_name libero_10.
+runner_parity:
+  status: all_released_checkpoints_gpu_validated
+  notes:
+  - Official inference call chain, prompt, two-camera input, proprio normalization, center crop, and L1 action head are ported.
+  - The openpi-SF real-robot example has no released Spatial-Forcing policy checkpoint/model ID and remains a user-trained deployment path.
+  - LIBERO-Spatial, Object, Goal, and LIBERO-10 all passed strict checkpoint restoration and real two-camera GPU action inference.
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata, and runtime-profile planning records.

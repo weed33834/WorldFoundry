@@ -1,0 +1,39 @@
+model_id: larybench
+env_name: worldfoundry-larybench-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+python: '3.10'
+cuda_profile: cu128
+driver_status: compatible
+conda_packages: [python, pip]
+pip_extra_index_url: https://download.pytorch.org/whl/cu128
+pip_packages:
+- torch==2.8.0
+- torchvision==0.23.0
+- transformers>=4.51,<5
+- accelerate>=1.2
+- diffusers>=0.32
+- safetensors>=0.5
+- huggingface-hub>=0.34
+- einops>=0.8
+- omegaconf>=2.3
+- pandas>=2.0
+- numpy>=1.26,<3
+- opencv-python>=4.8
+- pillow>=10
+- pydantic>=2,<3
+- scikit-image>=0.21
+- scikit-learn>=1.3
+- matplotlib>=3.8
+- seaborn>=0.13
+- timm>=1.0
+- decord>=0.6
+- wandb>=0.19
+- tqdm>=4.65
+- prettytable>=3.9
+- pyyaml>=6
+validation_imports: [torch, torchvision, transformers, accelerate, diffusers, pandas, pydantic, sklearn, cv2, PIL, yaml]
+notes:
+- The executable LARYBench subset is integrated directly in WorldFoundry; this environment does not install or clone LARYBench.
+- Model checkpoints and benchmark datasets remain external assets selected through MODEL_DIR and DATA_DIR.
+- The runner defaults WandB to disabled for unattended execution; set WANDB_MODE explicitly to opt in.
+- Regression mixed precision is explicit. Use bf16 on Ampere, Ada, Hopper, or newer GPUs, fp16 on older Tensor Core GPUs, and no for strict upstream numerical parity.

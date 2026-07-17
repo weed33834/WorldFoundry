@@ -8,10 +8,14 @@ groups:
 - camera_control
 source_repos:
 - url: https://github.com/KlingAIResearch/ReCamMaster
+  revision: fcf98bc86e876bb534518cd99e8a65b282f0f16e
+  in_tree_path: worldfoundry/synthesis/visual_generation/kling/recammaster_runtime
 checkpoints:
 - repo_id: KlingTeam/ReCamMaster-Wan2.1
+  revision: 4f3f7391743dfd25067ab27e0f1eb8928d11b91d
   role: recammaster_checkpoint
 - repo_id: Wan-AI/Wan2.1-T2V-1.3B
+  revision: 37ec512624d61f7aa208f7ea8140a131f93afc9a
   role: wan21_t2v_base
 input_schema:
   prompt: true
@@ -23,6 +27,7 @@ input_schema:
 artifact_kind: generated_video
 artifact_filename: recammaster.mp4
 execution:
+  environment: _unified
   backend_stage: in_tree_runtime
   runtime_status: official_camera_video_contract
   integration_status: integrated

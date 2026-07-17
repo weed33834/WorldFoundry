@@ -9,10 +9,10 @@ checkpoint:
   repo_id: CogACT/CogACT-Base
 id: cogact
 integration:
-  status: in_tree_vendored_import_verified
+  status: integrated
   notes:
-  - WorldFoundry has an independent CogACT synthesis entrypoint and in-tree vendored VLA loader plus DiT action model under worldfoundry/synthesis/action_generation/cogact/cogact_runtime.
-  - Resolver, runtime import, and compileall checks pass without an external github_repos checkout; real action inference also requires gated access to meta-llama/Llama-2-7b-hf.
+  - WorldFoundry has an independent CogACT synthesis entrypoint, strict local checkpoint mapper, and inference-only DiT action model under worldfoundry/synthesis/action_generation/cogact.
+  - Checkpoint-backed Workspace inference passes without an external checkout; the inference-only loader reuses an installed OpenVLA Llama tokenizer when a gated Llama 2 mirror is unavailable.
 license: mit
 name: CogACT
 official_sources:
@@ -40,7 +40,7 @@ tasks:
 - vla.policy_rollout
 variants:
 - id: cogact-base
-  integration_status: in_tree_vendored_checkpoint_blocked_gated_llama2
+  integration_status: integrated
   task: vla.action_prediction
   checkpoint_refs:
   - repo_id: CogACT/CogACT-Base
@@ -49,9 +49,9 @@ variants:
   - Official minimal demo calls vla.load_vla(... action_model_type=DiT-B ...).predict_action(image, prompt, unnorm_key, cfg_scale, use_ddim, num_ddim_steps).
   - Output is a 16 x 7 action chunk; default SimplerEnv setups use bridge_orig or fractal20220817_data normalization.
 runner_parity:
-  status: in_tree_vendor_ready_blocked_gated_llama2
+  status: in_tree_checkpoint_runtime
   notes:
   - FSDP training, TensorFlow/RLDS loaders, deployment server, and SimplerEnv benchmark adapters are excluded.
-  - Official CogACT reconstructs the Prismatic base VLM with meta-llama/Llama-2-7b-hf; action inference is blocked until the user accepts the Llama 2 license and provides a token with gated access or a local mirror.
+  - Official CogACT reconstructs the Prismatic Llama-2 VLM; WorldFoundry reuses the in-tree Prismatic implementation and local tokenizer assets while loading every VLM weight from the CogACT checkpoint itself.
 catalog_category: vla_va_wam
 catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata, and runtime-profile planning records.

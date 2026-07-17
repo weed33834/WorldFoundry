@@ -1,0 +1,46 @@
+schema_version: 2
+model_id: uni3c
+display_name: Uni3C
+task_family: video_generation
+groups:
+- world
+- video
+- camera_control
+- human_motion
+source_repos:
+- url: https://github.com/alibaba-damo-academy/Uni3C
+  revision: 75ed6e2180316b7f07398e4e88ea8bdba3e6970c
+  in_tree_path: worldfoundry/synthesis/visual_generation/uni3c/uni3c_runtime
+checkpoints:
+- repo_id: ewrfcas/Uni3C
+  revision: fca895f7fb454f4dfed43956cab09180d0946318
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/ewrfcas--Uni3C
+  role: pcd_controller
+- repo_id: Wan-AI/Wan2.1-I2V-14B-720P-Diffusers
+  revision: eb849f76dfa246545b65774a9e25943ee69b3fa3
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Wan-AI--Wan2.1-I2V-14B-720P-Diffusers
+  role: camera_base
+- repo_id: theFoxofSky/RealisDance-DiT
+  revision: 8c89a86c11bb51db7c4ec26f3ea522772d62b598
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/theFoxofSky--RealisDance-DiT
+  role: unified_camera_human_model
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - camera_control_bundle
+  - human_motion_bundle
+artifact_kind: generated_video
+artifact_filename: uni3c.mp4
+execution:
+  environment: uni3c
+  backend_stage: official_in_tree_stage2_runtime
+  runtime_status: in_tree_runtime_assets_pending
+  integration_status: runtime_ported
+  pipeline_binding: uni3c
+integration:
+  status: runtime_ported
+notes:
+- Camera mode requires render.mp4, render_mask.mp4, and cam_info.json; unified mode additionally requires smpl_render.mp4 and hand_render.mp4.
+- The adapter resolves every model asset locally and enables Hugging Face offline mode before subprocess execution.

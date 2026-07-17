@@ -1,0 +1,30 @@
+model_id: lingbot-vla-v2
+env_name: worldfoundry-lingbot-vla-v2-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+python: '3.11'
+cuda_profile: cu128
+driver_status: compatible
+conda_packages: [python, pip]
+pip_extra_index_url: https://download.pytorch.org/whl/cu128
+pip_packages:
+- torch==2.8.0
+- torchvision==0.23.0
+- transformers==4.57.3
+- accelerate>=1.0
+- tokenizers==0.22.2
+- huggingface-hub==0.34.3
+- safetensors==0.5.3
+- qwen-vl-utils==0.0.11
+- numpy==1.26.4
+- einops==0.8.1
+- Pillow==11.3.0
+- PyYAML==6.0.2
+- triton==3.4.0
+- packaging>=24
+- pydantic>=2
+validation_imports: [torch, torchvision, transformers, accelerate, triton, safetensors, numpy, PIL, yaml]
+notes:
+- LingBot-VLA v2 is isolated from v1 because the official stacks pin incompatible Transformers versions and both upstream projects use the same Python package name.
+- The flattened in-tree v1/v2 packages use distinct WorldFoundry namespaces, so they cannot overwrite each other in sys.modules.
+- This is an inference-only environment; dataset, PEFT, optimizer, trainer, and teacher-model packages are intentionally excluded.
+- flash-attn is optional; compatible Ampere/Ada/Hopper installations use FA2, while pre-Ampere and Blackwell-or-newer targets safely use PyTorch SDPA unless a compatible provider is selected later.

@@ -1,0 +1,59 @@
+# MoVerse Inference Config
+# ==========================================================================
+# Used by both the streaming server and headless pipeline.
+
+# ── Model ────────────────────────────────────────────────────────────────────
+warp_denoising_step: true
+num_frame_per_block: 1
+independent_first_frame: false
+context_noise: 0
+use_ema: false
+
+# ── Scheduler ─────────────────────────────────────────────────────────────────
+num_train_timestep: 1000
+timestep_shift: 1.0
+
+use_flow_matching_denoising: false
+
+# -- Accelerations (uncomment to enable) --
+# fp8: true
+# taehv: true
+# torch_compile: true
+
+model_kwargs:
+  model_name: Wan2.1-T2V-1.3B
+  local_attn_size: 6
+  sink_size: 1
+  timestep_shift: 1.0
+  token_concat_and_share_rope: true
+  rope_precision: fp64
+  online_rope_indexing: false
+  memrope:
+    enabled: true
+    gen:
+      sink: 1
+      long_mem: 1
+      short_mem: 1
+      local: 3
+      alpha_long: 0.01
+      alpha_short: 0.1
+    cond:
+      sink: 1
+      long_mem: 1
+      short_mem: 1
+      local: 3
+      alpha_long: 0.01
+      alpha_short: 0.1
+
+# ── Checkpoint ───────────────────────────────────────────────────────────────
+checkpoint_paths:
+  - checkpoints/self_forcing_video.pt
+
+# ── Conditional Inference ────────────────────────────────────────────────────
+use_cond_latent: true
+
+# ── Denoising schedule ──────────────────────────────────────────────────────
+denoising_step_lists:
+  - [1000, 800]
+
+skip_clean_rerun: false

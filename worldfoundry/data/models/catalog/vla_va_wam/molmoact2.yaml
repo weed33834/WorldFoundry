@@ -17,12 +17,12 @@ integration:
     a WorldFoundry action_trace pipeline.
   - Configured DROID, YAM, SO100, LIBERO, and Think-LIBERO profiles expose
     checkpoint-backed action_trace routes.
-  status: runtime_ported
+  status: in_tree_checkpoint_runtime_static_verified
 license: apache-2.0
 name: MolmoAct2
 official_sources:
   github:
-    head_sha: 40ac992dd4b5e4f31a37b3aa26cfbb5c9fb2cf05
+    head_sha: c2282820f9b188b60e66ea1636b3efd81c45cbb4
     url: https://github.com/allenai/molmoact2
   huggingface:
   - license: apache-2.0
@@ -70,7 +70,7 @@ variants:
   id: molmoact2-droid
   integration_status: integrated
   notes:
-  - DROID defaults use external_cam, wrist_cam, franka_droid normalization, and an
+  - DROID defaults use external_cam, external_cam_2, wrist_cam, franka_droid normalization, and an
     8-D state vector.
   task: vla.policy_rollout
 - checkpoint_refs:
@@ -112,7 +112,7 @@ runner_parity:
   notes:
   - Plan-only pipeline creation is covered by test/eval_core/test_molmoact2_in_tree_integration.py.
   - The runtime loads DROID, YAM, SO100/SO101, LIBERO, and Think-LIBERO checkpoints
-    through the official HF in-tree runtime route.
+    through explicit retained model and processor classes with remote Python disabled.
   - Per-run action trace evidence is tracked outside the model catalog.
   status: verified
 catalog_category: vla_va_wam

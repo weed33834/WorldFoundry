@@ -2,12 +2,16 @@ runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipel
 availability: open_source
 checkpoint_refs:
 - repo_id: yuanty/fastwam
+- repo_id: DiffSynth-Studio/Wan-Series-Converted-Safetensors
+- repo_id: Wan-AI/Wan2.1-T2V-1.3B
 id: fastwam
 integration:
-  status: runtime_ported
+  status: all_released_checkpoints_gpu_validated
   notes:
-  - WorldFoundry routes FastWAM through the in-tree official-policy runtime using the official FastWAM action inference class.
-  - Checkpoint absence is reported by runtime missing_assets and is not a catalog blocker.
+  - WorldFoundry contains the released MoT action-inference graph, Wan VAE, UMT5 encoder, scheduler, preprocessing, and normalization code.
+  - Both official LIBERO and RoboTwin checkpoint variants are declared in the runtime data configuration.
+  - Runtime execution never imports an adjacent FastWAM source checkout and never enables remote checkpoint code.
+  - Both variants passed real A100 Workspace inference with finite 32-step action chunks using their official camera/state contracts.
 license: mit
 name: FastWAM
 output_artifacts:
@@ -18,6 +22,12 @@ official_sources:
     url: https://github.com/yuantianyuan01/FastWAM
   huggingface:
   - repo_id: yuanty/fastwam
+    status: confirmed
+    type: model
+  - repo_id: DiffSynth-Studio/Wan-Series-Converted-Safetensors
+    status: confirmed
+    type: model
+  - repo_id: Wan-AI/Wan2.1-T2V-1.3B
     status: confirmed
     type: model
 provider: official_repo

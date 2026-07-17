@@ -1,0 +1,58 @@
+backend: callable_entrypoint
+checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/sharinka0715--X-WAM-checkpoints
+checkpoint_ref: sharinka0715/X-WAM-checkpoints
+revision: bb6fd1643cfa8bdc751612a7ace0bd8062a8917a
+official_checkpoint:
+  repo_id: sharinka0715/X-WAM-checkpoints
+  revision: bb6fd1643cfa8bdc751612a7ace0bd8062a8917a
+  license: apache-2.0
+base_model_path: ${WORLDFOUNDRY_CKPT_DIR}/Wan2.2-TI2V-5B
+base_model_ref: Wan-AI/Wan2.2-TI2V-5B
+base_revision: 921dbaf3f1674a56f47e83fb80a34bac8a8f203e
+official_base_model:
+  repo_id: Wan-AI/Wan2.2-TI2V-5B
+  revision: 921dbaf3f1674a56f47e83fb80a34bac8a8f203e
+  license: apache-2.0
+base_required_files:
+- config.json
+- google/umt5-xxl/special_tokens_map.json
+- google/umt5-xxl/spiece.model
+- google/umt5-xxl/tokenizer.json
+- google/umt5-xxl/tokenizer_config.json
+policy_target: worldfoundry.synthesis.action_generation.x_wam.runtime:predict_action
+predict_method: predict_action
+require_checkpoint: true
+trust_remote_code: false
+local_files_only: true
+variant: robocasa_sft
+torch_dtype: auto
+denoise_steps: 50
+action_denoise_steps: 10
+cfg_scale: 0.0
+compile_model: false
+generate_world: false
+run_depth: false
+runtime_backend: x_wam_in_tree_model
+action_contract: joint_world_action_chunk
+variants:
+  robocasa_sft:
+    checkpoint_dir: robocasa_sft
+    benchmark: robocasa
+    state_dimension: 8
+    action_dimension: 7
+    camera_keys: [robot0_agentview_left, robot0_agentview_right, robot0_eye_in_hand]
+    deployable: true
+  robotwin_sft:
+    checkpoint_dir: robotwin_sft
+    benchmark: robotwin
+    state_dimension: 16
+    action_dimension: 14
+    camera_keys: [head_camera, left_camera, right_camera]
+    deployable: true
+  pretrained:
+    checkpoint_dir: pretrained
+    benchmark: cross_embodiment_pretraining
+    state_dimension: 16
+    action_dimension: 14
+    camera_keys: [view_0, view_1, view_2]
+    deployable: false

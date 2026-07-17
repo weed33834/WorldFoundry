@@ -4,9 +4,7 @@ defaults:
     model_name: ltx2_i2v
     generation_type: i2v
     version_hint: '2.0'
-    unsupported_reason: the LTX-2 runtime package is absent from WorldFoundry and external LTX-2 checkouts are intentionally
-      disabled.
-    pipeline_variant: unsupported
+    pipeline_variant: diffusers
     height: 512
     width: 768
     num_frames: 121

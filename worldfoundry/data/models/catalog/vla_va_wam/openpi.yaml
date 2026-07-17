@@ -6,7 +6,7 @@ availability: open_source
 id: openpi
 integration:
   notes:
-  - OpenPI/OpenPI-client runtime is vendored in-tree under worldfoundry/synthesis/action_generation/openpi/openpi_runtime.
+  - The inference runtime is flattened in-tree under worldfoundry/synthesis/action_generation/openpi.
   - py_compile, import/from_pretrained, plan-only predict, and checkpoint-backed
     pi05_libero policy inference passed.
   - The local pi05_libero route uses backend worldfoundry.openpi.in_tree_runtime.create_trained_policy_infer
@@ -33,8 +33,7 @@ variants:
   id: pi0-base
   integration_status: runtime_ported
   notes:
-  - WorldFoundry vendors OpenPI/OpenPI-client runtime source under worldfoundry/synthesis/action_generation/openpi/openpi_runtime;
-    full policy import/inference remains pending.
+  - The pi0 model graph, transforms, local checkpoint loader, and action sampler are in-tree; numerical parity remains gated only by staged checkpoint assets.
   provider: official_gcs
   task: vla.policy_rollout
 - checkpoint_refs:
@@ -44,8 +43,7 @@ variants:
   id: pi05-libero
   integration_status: integrated
   notes:
-  - WorldFoundry vendors OpenPI/OpenPI-client runtime source under worldfoundry/synthesis/action_generation/openpi/openpi_runtime;
-    checkpoint-backed policy inference is wired through the in-tree runtime.
+  - Checkpoint-backed policy inference is wired through the flattened in-tree runtime and rejects remote checkpoint URIs.
   provider: official_gcs
   task: vla.policy_rollout
 - checkpoint_refs:

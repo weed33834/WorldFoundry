@@ -1,0 +1,39 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+availability: open_source_noncommercial
+checkpoint_refs:
+- repo_id: InternRobotics/InternVLA-A1-3B
+- repo_id: InternRobotics/InternVLA-A1-3B-RoboTwin
+- repo_id: Qwen/Qwen3-VL-2B-Instruct
+- repo_id: nvidia/Cosmos-Tokenizer-CI8x8
+id: internvla-a1
+name: InternVLA-A1-3B
+provider: official_repo
+license: cc-by-nc-sa-4.0
+runtime_profile: runtime-profile:internvla-a1
+pipeline_binding: internvla-a1
+tasks:
+- vla
+- robot_policy
+- policy_rollout
+- embodied_benchmark
+output_artifacts:
+- action_trace
+official_sources:
+  github:
+    url: https://github.com/InternRobotics/InternVLA-A-series
+    head_sha: a3707592607575aac35355ecf010264f666a700b
+    tag: internvla-a1-paper
+  huggingface:
+  - repo_id: InternRobotics/InternVLA-A1-3B
+    status: confirmed
+    type: model
+  - repo_id: InternRobotics/InternVLA-A1-3B-RoboTwin
+    status: confirmed
+    type: model
+integration:
+  status: in_tree_checkpoint_runtime_static_verified
+  notes:
+  - The A1-3B Qwen3-VL/expert graph, Cosmos wrapper, preprocessing, flow sampler, and normalization route are in tree.
+  - Runtime is local-only and does not use remote checkpoint code or an adjacent source checkout.
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata, and runtime integration records.

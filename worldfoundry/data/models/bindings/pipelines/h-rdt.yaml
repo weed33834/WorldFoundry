@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: h-rdt
+model_id: h-rdt
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.synthesis.action_generation.h_rdt.h_rdt_synthesis:HRDTSynthesis
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

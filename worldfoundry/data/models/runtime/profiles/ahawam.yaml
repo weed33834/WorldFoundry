@@ -1,0 +1,51 @@
+schema_version: 2
+model_id: ahawam
+display_name: AHA-WAM
+task_family: vla_policy
+groups:
+- vla
+- world_action_model
+- history_aware_robot_policy
+checkpoints:
+- repo_id: SereneC/AHA-WAM-RoboTwin2.0
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/SereneC--AHA-WAM-RoboTwin2.0
+  role: policy_checkpoints_and_dataset_statistics
+- repo_id: DiffSynth-Studio/Wan-Series-Converted-Safetensors
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/DiffSynth-Studio--Wan-Series-Converted-Safetensors
+  role: wan_vae_and_umt5_encoder
+- repo_id: Wan-AI/Wan2.1-T2V-1.3B
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Wan-AI--Wan2.1-T2V-1.3B/google/umt5-xxl
+  role: umt5_tokenizer_only
+input_schema:
+  model_id: ahawam
+  image: true
+  prompt: true
+  state: required_14d
+  preferred_cameras:
+  - head
+  - left_wrist
+  - right_wrist
+  image_size: [384, 320]
+  configured_action_horizon: 64
+  action_chunk_size: 16
+  default_chunks_per_video_prefill: 2
+artifact_kind: action_trace
+artifact_filename: ahawam_action_trace.json
+execution:
+  backend_stage: in_tree_checkpoint_runtime
+  runtime_status: native_checkpoint_runtime_a100_workspace_validated
+  integration_status: in_tree_checkpoint_runtime_numerically_validated
+  pipeline_binding: ahawam
+integration:
+  status: in_tree_checkpoint_runtime_numerically_validated
+gpu_targets:
+- NVIDIA Turing in float16 with component offload
+- NVIDIA Ampere in bfloat16 with configurable component placement
+- NVIDIA Ada in bfloat16 with configurable component placement
+- NVIDIA Hopper in bfloat16
+- NVIDIA Blackwell in bfloat16
+notes:
+- PyTorch SDPA dispatch is selected centrally for the installed GPU generation.
+- VAE and UMT5 can be placed on the policy GPU, CPU, or another explicit GPU; auto placement uses data-configured memory thresholds rather than a GPU-name allowlist.
+- The default deployment refreshes video KV state after two 16-step chunks while preserving up to six earlier video prefill entries.
+- The released RoboTwin2.0 checkpoint completed real A100 Workspace inference from three ALOHA camera views and a 14-D state, returning a finite 16x14 open-loop action chunk; this is numerical checkpoint validation rather than a closed-loop simulator score.

@@ -1,0 +1,36 @@
+schema_version: 2
+model_id: lingbot-world-act
+display_name: LingBot-World Base Act
+task_family: world_model
+groups: [world, action_conditioning]
+source_repos:
+- url: https://github.com/robbyant/lingbot-world
+  revision: a43bec7f8091c83e9b30b16b912f6fc906236fa6
+  in_tree_path: worldfoundry/synthesis/visual_generation/lingbot_world/lingbot_world_runtime
+checkpoints:
+- repo_id: robbyant/lingbot-world-base-act-preview
+  revision: d098089683285a22f2fdf8448ad07c0066e75d18
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/lingbot-world-base-act-preview
+  role: lingbot_world_base_act_checkpoint
+  status: checkpoint_manifest_validated
+  required_paths:
+  - high_noise_model/config.json
+  - high_noise_model/diffusion_pytorch_model.safetensors.index.json
+  - low_noise_model/config.json
+  - low_noise_model/diffusion_pytorch_model.safetensors.index.json
+  - Wan2.1_VAE.pth
+  - models_t5_umt5-xxl-enc-bf16.pth
+  - google/umt5-xxl/tokenizer_config.json
+input_schema: {prompt: true, image: true, pose: true, action_matrix: true}
+artifact_kind: generated_video
+artifact_filename: lingbot-world-act.mp4
+execution:
+  environment: lingbot-world
+  backend_stage: independent_in_tree_runtime
+  runtime_status: checkpoint_manifest_validated_runtime_pending
+  integration_status: integrated_checkpoint_manifest_validated
+  pipeline_binding: lingbot-world-act
+integration: {status: integrated_checkpoint_manifest_validated}
+notes:
+- Uses the official Base-Act preview checkpoint; Base-Cam is not substituted.
+- The dedicated LingBot environment is retained because unified-env act2cam parity produced near-black output.

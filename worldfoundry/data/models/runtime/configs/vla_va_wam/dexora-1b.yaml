@@ -1,0 +1,12 @@
+backend: callable_entrypoint
+checkpoint_path: ${WORLDFOUNDRY_CKPT_DIR}/embodied_action/dexora-1b/checkpoint
+config_path: ${WORLDFOUNDRY_DATA_ROOT}/models/runtime/configs/vla_va_wam/dexora-1b-architecture.yaml
+vision_encoder_path: ${WORLDFOUNDRY_HFD_ROOT}/google--siglip-so400m-patch14-384
+text_encoder_path: ${WORLDFOUNDRY_HFD_ROOT}/google--t5-v1_1-xxl
+statistics_path: null
+policy_target: worldfoundry.synthesis.action_generation.dexora.runtime:predict_action
+torch_dtype: auto
+local_files_only: true
+control_frequency: 25
+action_contract: dexora_36d_action_chunk
+runtime_backend: dexora_in_tree_policy

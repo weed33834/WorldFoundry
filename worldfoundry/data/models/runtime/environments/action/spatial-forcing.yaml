@@ -1,0 +1,38 @@
+conda_packages:
+- python
+- pip
+cuda_profile: cu121
+driver_status: compatible
+env_name: worldfoundry-vla-spatial-forcing-cu121
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: spatial-forcing
+notes:
+- Python 3.10 and PyTorch 2.2 match the official LIBERO release environment.
+- The runtime is inference-only and does not install TensorFlow, RLDS/dlimp, LIBERO, VGGT, W&B, or server packages.
+- FlashAttention 2 is optional; WorldFoundry resolves a compatible attention backend and falls back to SDPA/eager.
+- Auto precision selects fp16 on Turing and bf16 on Ampere, Ada, Hopper, Blackwell, and newer NVIDIA GPUs; CPU fallback uses fp32.
+pip_extra_index_url: https://download.pytorch.org/whl/cu121
+pip_packages:
+- torch==2.2.0
+- torchvision==0.17.0
+- transformers==4.40.1
+- accelerate==0.30.1
+- timm==0.9.10
+- tokenizers==0.19.1
+- sentencepiece==0.1.99
+- Pillow==10.4.0
+- numpy==1.26.4
+- einops==0.8.0
+- safetensors==0.4.5
+- huggingface-hub==0.23.5
+- filelock
+- loguru
+python: '3.10'
+validation_imports:
+- numpy
+- PIL
+- torch
+- torchvision
+- transformers
+- timm
+- safetensors

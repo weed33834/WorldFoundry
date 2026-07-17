@@ -1,0 +1,95 @@
+upstream_github_revision: fa170bc295a22e0f4e582ff9e5bb104b3c6900d6
+default_variant: libero
+device: cuda
+torch_dtype: auto
+attn_implementation: auto
+local_files_only: true
+num_steps: 5
+seed: 42
+required_checkpoint_files:
+- config.json
+- model.safetensors.index.json
+- preprocessor_config.json
+- processor_config.json
+- tokenizer.json
+- video_preprocessor_config.json
+action_horizons_by_robot_type:
+  libero_all: 10
+  calvin_abcd_orig: 10
+  calvin_abc_orig: 10
+  fractal_delta: 4
+  bridge_delta: 4
+  agibot_pt_v3: 30
+  droid_pt: 15
+  midata_mix_ann_pt_v1: 30
+  molmoact_pt: 15
+pretrain_robot_types:
+- agibot_pt_v3
+- droid_pt
+- midata_mix_ann_pt_v1
+- molmoact_pt
+camera_aliases:
+  base:
+  - base
+  - base_view
+  - ego
+  - ego_view
+  - agentview
+  - agentview_image
+  - rgb_static
+  - image
+  wrist_left:
+  - wrist_left
+  - left_wrist
+  - left_wrist_view
+  - wrist
+  - wrist_image
+  - robot0_eye_in_hand_image
+  - rgb_gripper
+variants:
+  libero:
+    repo_id: XiaomiRobotics/Xiaomi-Robotics-0-LIBERO
+    revision: fc04bbdcc53e498695cfad95d1199091396ef55b
+    robot_type: libero_all
+    camera_keys: [base, wrist_left]
+    view_labels: [Base View, Left-Wrist View]
+    aliases: [libero-all, libero_all]
+  calvin-abcd:
+    repo_id: XiaomiRobotics/Xiaomi-Robotics-0-Calvin-ABCD_D
+    revision: 1161227fbcde104c7333ccf684695d3612df2d26
+    robot_type: calvin_abcd_orig
+    camera_keys: [base, wrist_left]
+    view_labels: [Base View, Left-Wrist View]
+    aliases: [calvin-abcd-d, calvin_abcd, calvin_abcd_orig]
+  calvin-abc:
+    repo_id: XiaomiRobotics/Xiaomi-Robotics-0-Calvin-ABC_D
+    revision: 3e64bfa35ab26c00cb5572e3f174a2421a85577d
+    robot_type: calvin_abc_orig
+    camera_keys: [base, wrist_left]
+    view_labels: [Base View, Left-Wrist View]
+    aliases: [calvin-abc-d, calvin_abc, calvin_abc_orig]
+  simplerenv-google:
+    repo_id: XiaomiRobotics/Xiaomi-Robotics-0-SimplerEnv-Google-Robot
+    revision: 3b6b1bf65cf9ffbf0865a9abc0b66ee338e0bee6
+    robot_type: fractal_delta
+    camera_keys: [base]
+    view_labels: [Ego View]
+    image_size: [320, 256]
+    center_crop_ratio: 0.95
+    aliases: [fractal, fractal-delta, google-robot, simplerenv-fractal]
+  simplerenv-widowx:
+    repo_id: XiaomiRobotics/Xiaomi-Robotics-0-SimplerEnv-WidowX
+    revision: 3f25b13ea6007d44466e6ea9d2ffe460876142c5
+    robot_type: bridge_delta
+    camera_keys: [base]
+    view_labels: [Base View]
+    image_size: [256, 256]
+    center_crop_ratio: 0.95
+    aliases: [bridge, bridge-delta, widowx, simplerenv-bridge]
+  pretrain:
+    repo_id: XiaomiRobotics/Xiaomi-Robotics-0-Pretrain
+    revision: 50276c277f7d5c9b1a52fcecdea79045568c6916
+    robot_type: null
+    camera_keys: []
+    view_labels: []
+    aliases: [base, pretrained]

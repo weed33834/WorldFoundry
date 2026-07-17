@@ -3,7 +3,7 @@ binding_id: sana-wm
 model_id: sana-wm
 runner: worldfoundry.pipeline
 pipeline:
-  target: worldfoundry.pipelines.world_model.pipeline_runtime_manifest:SanaWMPipeline
+  target: worldfoundry.pipelines.sana_wm.pipeline_sana_wm:SanaWMPipeline
   loading:
     method: from_pretrained
     signature: unified

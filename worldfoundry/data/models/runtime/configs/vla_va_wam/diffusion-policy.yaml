@@ -1,0 +1,22 @@
+backend: in_tree_checkpoint_runtime
+checkpoint_path: ${WORLDFOUNDRY_CKPT_DIR}/embodied_action/diffusion-policy/low_dim_pusht_diffusion_policy_cnn/epoch=0550-test_mean_score=0.969.weights-only.ckpt
+checkpoint_format: resolved_primitive_cfg_and_tensor_state_dicts
+device: cuda
+torch_dtype: float32
+local_files_only: true
+require_checkpoint: true
+policy_target: worldfoundry.synthesis.action_generation.diffusion_policy.runtime:DiffusionPolicyRuntime
+observation_contract:
+  layout: batch_time_feature
+  accepted_ranks: [2, 3]
+  feature_dim: 20
+  observation_history: 2
+  dtype: float32
+action_contract:
+  method: predict_action
+  artifact_kind: action_trace
+conversion_contract:
+  required_keys: [cfg, state_dicts]
+  config_must_be_fully_resolved: true
+  state_values_must_be_tensors: true
+  runtime_rejects_official_dill_workspace_checkpoint: true

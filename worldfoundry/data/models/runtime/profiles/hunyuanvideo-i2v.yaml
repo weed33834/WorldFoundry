@@ -6,6 +6,7 @@ groups:
 - video
 source_repos:
 - url: https://github.com/Tencent-Hunyuan/HunyuanVideo
+  revision: e260ed40c88d104801a8b1de05d2ab81e965a9ef
 checkpoints:
 - repo_id: tencent/HunyuanVideo-I2V
   revision: 3914f209367854b5e470f062c33159d5ab139e1e
@@ -19,10 +20,12 @@ input_schema:
 artifact_kind: generated_video
 artifact_filename: hunyuanvideo-i2v.mp4
 execution:
-  backend_stage: profile_only
-  runtime_status: profile_resolves_catalog_variant_runner_parity_pending
-  integration_status: integrated
+  backend_stage: in_tree_official_cli
+  runtime_status: checkpoint_verified
+  integration_status: verified
+  pipeline_binding: hunyuanvideo-i2v
 integration:
-  status: integrated
+  status: verified
 notes:
-- Catalog variant profile; no runner is registered from this data alone.
+- The official 8-rank I2V path is vendored in-tree and exposed through HunyuanVideoI2VPipeline.
+- Checkpoint-backed official firework demo evidence is recorded in the validation reference.

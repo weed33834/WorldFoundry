@@ -1,0 +1,29 @@
+common:
+  img_history_size: 1
+  action_chunk_size: 32
+  num_cameras: 4
+  state_dim: 36
+  tokenizer_max_length: 1024
+  cameras:
+  - cam_head
+  - cam_left_wrist
+  - cam_third_view
+  - cam_right_wrist
+
+model:
+  lang_adaptor: mlp2x_gelu
+  img_adaptor: mlp2x_gelu
+  state_adaptor: mlp3x_gelu
+  lang_token_dim: 4096
+  img_token_dim: 1152
+  state_token_dim: 36
+  rdt:
+    hidden_size: 2048
+    depth: 28
+    num_heads: 32
+    cond_pos_embed_type: multimodal
+  noise_scheduler:
+    num_train_timesteps: 1000
+    num_inference_timesteps: 5
+    beta_schedule: squaredcos_cap_v2
+    prediction_type: epsilon

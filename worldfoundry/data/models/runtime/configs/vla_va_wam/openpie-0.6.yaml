@@ -5,6 +5,6 @@ source_subdir: src
 policy_target: fla.policies.policy_config:create_trained_policy
 predict_method: infer
 torch_dtype: bfloat16
-trust_remote_code: true
+trust_remote_code: false
 action_contract: openpie06_pi_policy_action
 runtime_backend: fla_openpie_policy_factory

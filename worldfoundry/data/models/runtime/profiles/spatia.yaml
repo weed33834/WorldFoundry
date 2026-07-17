@@ -1,0 +1,45 @@
+schema_version: 2
+model_id: spatia
+display_name: Spatia
+task_family: video_generation
+groups: [world, camera_control, video_to_video]
+source_repos:
+- url: https://github.com/ZhaoJingjing713/Spatia
+  revision: f75b10c9bb5f6b0cd779ec8c41ab33dd8382dba3
+  in_tree_path: worldfoundry/synthesis/visual_generation/spatia/spatia_runtime
+- url: https://github.com/facebookresearch/map-anything
+  revision: c845b8f4f6cde0c20aecd87573656c3f69f5b2b0
+  in_tree_path: worldfoundry/base_models/three_dimensions/general_3d/mapanything
+- url: https://github.com/castacks/UniCeption
+  revision: v0.1.7
+  in_tree_path: worldfoundry/base_models/perception_core/general_perception/uniception
+- url: https://github.com/facebookresearch/dinov2
+  in_tree_path: worldfoundry/base_models/perception_core/general_perception/dinov2
+checkpoints:
+- repo_id: Jinjing713/Spatia
+  revision: 7e2ff8dfc51897f4458b3217460bb1dbe35f8cab
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Jinjing713--Spatia
+  role: camera_control
+- repo_id: Wan-AI/Wan2.2-TI2V-5B
+  revision: 921dbaf3f1674a56f47e83fb80a34bac8a8f203e
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Wan2.2-TI2V-5B
+  role: base_model
+- repo_id: facebook/map-anything
+  revision: a1d87e9086706fb9974f3be5a3e3a0ca5401c5aa
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/facebook--map-anything
+  mirror:
+    provider: modelscope
+    repo_id: facebook/map-anything
+    revision: 15ac0b2ce1370fa95b8a0e3720ea0cddb17e2103
+  role: reconstruction
+input_schema: {prompt: true, image_or_video: true, w2c_trajectory_file: true, intrinsics: true}
+artifact_kind: generated_video
+artifact_filename: spatia.mp4
+execution:
+  environment: _unified
+  backend_stage: independent_in_tree_runtime
+  runtime_status: checkpoint_assets_pending_not_runnable_until_staged
+  integration_status: runtime_ported
+  pipeline_binding: spatia
+integration: {status: runtime_ported}
+notes: [Bundled source is mandatory; external source checkouts are rejected., The default MapAnything checkpoint is research-only under CC-BY-NC-4.0.]

@@ -1,39 +1,29 @@
-conda_packages:
-- python
-- pip
-- ffmpeg
-cuda_profile: prepare_only
-driver_status: compatible
-env_name: lingbot-va
+schema_version: 2
+env_name: worldfoundry-lingbot-va-cu12
 env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
 model_id: lingbot-va
-notes:
-- Prepare-only LingBot-VA video-action profile based on the official requirements. Upstream still targets Python 3.10, torch
-  2.9, CUDA 12.6, and flash-attn for parity runs; use this profile for dependency staging with repo-integrated code.
-- The robbyant/lingbot-va-base, robbyant/lingbot-va-posttrain-robotwin, and robbyant/lingbot-va-posttrain-libero-long checkpoints
-  should be staged under the configured checkpoint root before running client rollout/action decoding.
-pip_extra_index_url: https://download.pytorch.org/whl/cu126
+python: "3.10"
+cuda_profile: cu126_or_newer
+driver_status: compatible
+conda_packages: [python, pip, ffmpeg]
+pip_extra_index_url: https://download.pytorch.org/whl/cu128
 pip_packages:
-- numpy
-- Pillow
-- torch
-- torchvision
-- torchaudio
-- diffusers
-- transformers
-- accelerate
-- einops
-- easydict
-- safetensors
-- flash-attn
-- tqdm
-- imageio[ffmpeg]
-- websockets
-- msgpack
-- opencv-python
-- matplotlib
-- ftfy
-python: '3.10'
+- numpy==1.26.4
+- Pillow>=10
+- torch==2.9.0
+- torchvision==0.24.0
+- diffusers==0.36.0
+- transformers==4.55.2
+- accelerate>=1.9
+- einops>=0.8
+- safetensors>=0.5
+- tqdm>=4.66
+- imageio[ffmpeg]>=2.36
+- websockets>=14
+- msgpack>=1.1
+- opencv-python>=4.10
+- ftfy>=6.2
+- PyYAML>=6
 validation_imports:
 - numpy
 - PIL
@@ -44,4 +34,8 @@ validation_imports:
 - transformers
 - websockets
 - msgpack
-- easydict
+- yaml
+notes:
+- Inference-only environment based on the official dependency band; model, distributed server, and client code are all in-tree.
+- The base or post-trained checkpoint must be staged under the configured local checkpoint root before inference.
+- Hardware-aware dtype selection uses FP16 on Turing and BF16 on Ampere, Ada, Hopper, and Blackwell; the exact SDPA path does not require flash-attn.

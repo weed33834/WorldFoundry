@@ -1,11 +1,14 @@
 backend: callable_entrypoint
+image_size: 224
 checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/moojink--openvla-7b-oft-finetuned-libero-spatial
 checkpoint_ref: moojink/openvla-7b-oft-finetuned-libero-spatial
 require_checkpoint: true
 policy_target: worldfoundry.synthesis.action_generation.openvla_oft.runtime:predict_action
 predict_method: predict_action
-torch_dtype: bfloat16
+torch_dtype: auto
+attn_implementation: auto
 trust_remote_code: false
+local_files_only: true
 runtime_backend: openvla_oft_in_tree_checkpoint_runtime
 action_contract: continuous_action_chunk
 control_mode: libero_delta_eef_action_chunk
@@ -38,23 +41,38 @@ variants:
     checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/moojink--openvla-7b-oft-finetuned-libero-spatial
     unnorm_key: libero_spatial_no_noops
     task_suite_name: libero_spatial
+    component_files:
+      action_head: action_head--150000_checkpoint.pt
+      proprio_projector: proprio_projector--150000_checkpoint.pt
   libero_object:
     repo_id: moojink/openvla-7b-oft-finetuned-libero-object
     checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/moojink--openvla-7b-oft-finetuned-libero-object
     unnorm_key: libero_object_no_noops
     task_suite_name: libero_object
+    component_files:
+      action_head: action_head--150000_checkpoint.pt
+      proprio_projector: proprio_projector--150000_checkpoint.pt
   libero_goal:
     repo_id: moojink/openvla-7b-oft-finetuned-libero-goal
     checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/moojink--openvla-7b-oft-finetuned-libero-goal
     unnorm_key: libero_goal_no_noops
     task_suite_name: libero_goal
+    component_files:
+      action_head: action_head--50000_checkpoint.pt
+      proprio_projector: proprio_projector--50000_checkpoint.pt
   libero_10:
     repo_id: moojink/openvla-7b-oft-finetuned-libero-10
     checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/moojink--openvla-7b-oft-finetuned-libero-10
     unnorm_key: libero_10_no_noops
     task_suite_name: libero_10
+    component_files:
+      action_head: action_head--150000_checkpoint.pt
+      proprio_projector: proprio_projector--150000_checkpoint.pt
   libero_spatial_object_goal_10:
     repo_id: moojink/openvla-7b-oft-finetuned-libero-spatial-object-goal-10
     checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/moojink--openvla-7b-oft-finetuned-libero-spatial-object-goal-10
     unnorm_key: libero_spatial_no_noops
     task_suite_name: libero_spatial
+    component_files:
+      action_head: action_head--300000_checkpoint.pt
+      proprio_projector: proprio_projector--300000_checkpoint.pt

@@ -1,0 +1,57 @@
+schema_version: 2
+model_id: gamma-world
+display_name: Gamma-World
+task_family: world_model
+groups:
+- world_model
+- image_to_video
+- action_conditioned_video
+- multi_agent
+source_repos:
+- url: https://github.com/nv-tlabs/Gamma-World
+  revision: 6a95de85c439d8ea73eae34c88fbfd4e89ea02e2
+checkpoints:
+- repo_id: chijw/Gamma-World
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Gamma-World
+  role: networks_and_tokenizer
+  status: local_checkpoint_structurally_validated_revision_pending
+  required_paths:
+  - causal-few-step/model.safetensors
+  - tokenizer.pth
+- repo_id: nvidia/Cosmos-Reason1-7B
+  revision: 375e24000b24baed78f4618d3dd779e47cd96323
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Cosmos-Reason1-7B
+  role: text_encoder
+  status: checkpoint_manifest_validated
+  required_paths:
+  - config.json
+  - model.safetensors.index.json
+  - tokenizer.json
+input_schema:
+  prompt: true
+  image: required_multi_view_or_concatenated
+  video: false
+  actions:
+  - actions
+  - eval_dir
+  - mode
+  - n_players
+  - num_frames
+  - num_conditional_frames
+  - guidance
+  - num_steps
+  - seed
+  - nproc_per_node
+  - context_parallel_size
+artifact_kind: generated_video
+artifact_filename: gamma-world.mp4
+execution:
+  backend_stage: official_in_tree_inference
+  runtime_status: checkpoint_environment_required
+  integration_status: integrated
+  pipeline_binding: gamma-world
+integration:
+  status: integrated
+notes:
+- causal_few_step is the default four-step streaming model.
+- Pass a sequence of per-player images plus one action JSON/mapping per player, or pass a compatible eval_dir.

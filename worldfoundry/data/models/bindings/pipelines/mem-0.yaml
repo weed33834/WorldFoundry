@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: mem-0
+model_id: mem-0
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.synthesis.action_generation.mem0.pipeline:Mem0Pipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

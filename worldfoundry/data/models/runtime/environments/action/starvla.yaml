@@ -7,8 +7,11 @@ env_name: worldfoundry-unified-cu128
 env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
 model_id: starvla
 notes:
-- StarVLA official-source runtime bridge targets the Qwen3-VL-OFT-LIBERO-4in1 policy checkpoint on the shared CUDA runtime.
+- The flat in-tree StarVLA runtime targets the Qwen3-VL-OFT-LIBERO-4in1 policy checkpoint; no StarVLA source checkout is imported at runtime.
 - WM4A and full LIBERO simulator scoring require separate validation.
+- Installed TorchAO CUDA-13 optional extensions are incompatible with this cu128 environment; StarVLA does not use them and falls back cleanly, but the environment package should be rebuilt or installed without those extensions.
+- Attention uses the shared device dispatcher; SDPA covers Turing through Blackwell, while compatible optional fused kernels may be selected on supported devices.
+- Auto precision selects fp16 on Turing and bf16 on Ampere, Ada, Hopper, Blackwell, and newer NVIDIA GPUs; CPU fallback uses fp32.
 pip_packages:
 - numpy
 - Pillow

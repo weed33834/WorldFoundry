@@ -1,0 +1,30 @@
+backend: callable_entrypoint
+checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/embodiedfoundation--H-RDT
+checkpoint_ref: embodiedfoundation/H-RDT
+revision: d3b0e6ffddf36c7734804c649be13f3af05125e7
+model_relative_dir: checkpoints/pretrain-0618/checkpoint-500000
+model_files:
+- config.json
+- pytorch_model.bin
+vision_relative_dir: bak/dino-siglip
+vision_required_files:
+- vit_large_patch14_reg4_dinov2.lvd142m/pytorch_model.bin
+- vit_so400m_patch14_siglip_384/open_clip_pytorch_model.bin
+vision_image_size: 384
+vision_tokens_per_view: 729
+policy_target: worldfoundry.synthesis.action_generation.h_rdt.runtime:predict_action
+torch_dtype: auto
+trust_remote_code: false
+local_files_only: true
+text_encoder_device: cpu
+attention_backend: auto
+seed: 0
+num_inference_timesteps: 5
+text_encoder_path: ${WORLDFOUNDRY_HFD_ROOT}/google--t5-v1_1-xxl
+text_encoder_ref: google/t5-v1_1-xxl
+max_language_length: 120
+image_resize_strategy: letterbox
+normalize_state: false
+denormalize_action: false
+action_contract: h_rdt_checkpoint_defined_action_chunk
+runtime_backend: h_rdt_in_tree_model

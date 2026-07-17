@@ -7,7 +7,7 @@ import shutil
 import time
 from html import escape
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 from PIL import Image
 
 from .gradio_runtime import gr, gradio_progress, mask_socks_proxy_env_for_gradio
@@ -76,6 +76,7 @@ from .ui.tray import (
     _on_demo_image_select,
     _on_tray_image_select,
     _tray_gallery_items,
+    _use_demo_image_as_input,  # noqa: F401 - public compatibility export
     _use_tray_image_as_input,
     _world_tray_html,
 )
@@ -858,6 +859,25 @@ def _category_frontend_profile(entry: CatalogEntry) -> dict[str, Any]:
                 "runtime_advanced_open": True,
             }
         )
+    elif entry.model_id == "longvie-2":
+        profile.update(
+            {
+                "mode_title": "Queued Long-Video Segments",
+                "mode_copy": (
+                    "Generate one full-quality 81-frame segment per request. This is queued "
+                    "diffusion generation, not WASD realtime; EXTEND preserves the previous "
+                    "final frame, eight-frame history, and noise. Upload a dense depth segment "
+                    "and its matching sparse pointmap/track segment in the two video fields."
+                ),
+                "advanced_run_open": True,
+                "image_label": "Initial Image (first segment)",
+                "video_label": "Dense Depth Control Segment",
+                "video_visible": True,
+                "runtime_advanced_visible": True,
+                "runtime_advanced_open": True,
+                "json_visible": True,
+            }
+        )
     elif is_gen3c:
         profile.update(
             {
@@ -1523,11 +1543,19 @@ def _run_overview_html(
         if interactive.get("streaming_model") is True:
             ready = interactive.get("memory_ready_after_step")
             if ready is True:
-                lines.append("Streaming memory is live; use STREAM for the next navigation chunk.")
+                if record.model_id == "longvie-2":
+                    lines.append(
+                        "Segment continuation is resident; upload the next dense/sparse controls and use EXTEND."
+                    )
+                else:
+                    lines.append("Streaming memory is live; use STREAM for the next navigation chunk.")
             elif ready is False and record.mode == "stream":
-                lines.append(
-                    "Streaming memory is not seeded; run INIT or provide a seed frame before STREAM continues."
-                )
+                if record.model_id == "longvie-2":
+                    lines.append("No resident LongVie segment state is available; run the first segment before EXTEND.")
+                else:
+                    lines.append(
+                        "Streaming memory is not seeded; run INIT or provide a seed frame before STREAM continues."
+                    )
 
     routing_hint = summarize_routing_hints(record)
     if routing_hint:
@@ -1652,6 +1680,24 @@ def _apply_camera_path_json(model_id: str, camera_path_text: str, call_kwargs_te
         json.dumps(call_kwargs, indent=2, ensure_ascii=False),
         _status_block(f"camera path applied · {entry.display_name}"),
     )
+
+
+def _apply_longvie_sparse_control(sparse_video: Any, call_kwargs_text: str) -> str:
+    """Bind LongVie 2's second control-video upload into call kwargs."""
+
+    call_kwargs = _json_object_or_default(call_kwargs_text)
+    path = ""
+    if isinstance(sparse_video, str):
+        path = sparse_video
+    elif isinstance(sparse_video, Mapping):
+        path = str(sparse_video.get("path") or sparse_video.get("video") or "")
+    elif sparse_video is not None:
+        path = str(getattr(sparse_video, "path", "") or getattr(sparse_video, "name", ""))
+    if path:
+        call_kwargs["sparse_video"] = path
+    else:
+        call_kwargs.pop("sparse_video", None)
+    return json.dumps(call_kwargs, indent=2, ensure_ascii=False)
 
 
 def _apply_preset(model_id: str, preset: str):
@@ -2329,6 +2375,10 @@ def build_demo(launch_config: StudioLaunchConfig | None = None) -> gr.Blocks:
                             label=frontend_profile["video_label"],
                             visible=bool(frontend_profile["video_visible"]),
                         )
+                        sparse_control_video = gr.Video(
+                            label="Sparse Pointmap / Track Control Segment",
+                            visible=default_entry.model_id == "longvie-2",
+                        )
                         input_path = gr.Textbox(
                             label=frontend_profile["path_label"],
                             placeholder=frontend_profile["path_placeholder"],
@@ -2558,6 +2608,12 @@ def build_demo(launch_config: StudioLaunchConfig | None = None) -> gr.Blocks:
             outputs=[camera_path_text],
             queue=False,
         )
+        sparse_control_video.change(
+            _apply_longvie_sparse_control,
+            inputs=[sparse_control_video, call_kwargs_text],
+            outputs=[call_kwargs_text],
+            queue=False,
+        )
 
         shared_inputs = [
             model_state,
@@ -2731,12 +2787,13 @@ def main(argv: Sequence[str] | None = None) -> None:
     _ensure_localhost_no_proxy()
     launch_config = parse_launch_config(argv)
     entry = find_entry(launch_config.model_id)
-    frontend_mode = resolve_frontend_mode(entry, launch_config.frontend)
+    frontend_mode = resolve_frontend_mode(entry, launch_config.frontend, launch_config.asset_path or None)
     if frontend_mode in NATIVE_FRONTENDS:
         serve_native_frontend(entry, launch_config, frontend_mode)
         return
 
-    if launch_uses_lingbot_torchrun_rollout(launch_config):
+    use_torchrun_bridge = launch_uses_lingbot_torchrun_rollout(launch_config)
+    if use_torchrun_bridge:
         os.environ[TORCHRUN_LINGBOT_FAST_ENV] = "1"
         ensure_torchrun_lingbot_fast_runtime()
         if _torchrun_rank() != 0:
@@ -2776,6 +2833,11 @@ def main(argv: Sequence[str] | None = None) -> None:
         demo.launch(**launch_kwargs)
     finally:
         os.environ.update(launch_proxy_env)
+        if use_torchrun_bridge and _torchrun_rank() == 0:
+            try:
+                MANAGER.shutdown_torchrun_workers()
+            except Exception:
+                pass
         shutdown_torchrun_lingbot_fast_runtime()
 
 

@@ -1,0 +1,30 @@
+conda_packages:
+- python
+- pip
+cuda_profile: cu128
+driver_status: compatible
+env_name: worldfoundry-hy-embodied-vla-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: hy-embodied-vla
+notes:
+- Inference-only environment derived from the official release; training, dataset, evaluation, and server dependencies are omitted.
+- FlashAttention is optional. Compatible SM80-SM90 installations use the official FA2 path; CPU, Turing/SM75, Blackwell/SM100+, missing wheels, and ABI failures use in-tree PyTorch SDPA.
+- Checkpoint-backed GPU validation remains pending because the approximately 9 GB policy weights were intentionally not staged.
+pip_extra_index_url: https://download.pytorch.org/whl/cu128
+pip_packages:
+- torch>=2.7,<2.8
+- numpy>=1.24,<2.0
+- transformers>=4.57
+- safetensors>=0.4
+- huggingface-hub>=0.23
+- timm==1.0.21
+- Pillow>=10.0
+python: '3.12'
+validation_imports:
+- torch
+- numpy
+- transformers
+- safetensors
+- huggingface_hub
+- timm
+- PIL

@@ -1,0 +1,66 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+availability:
+  status: source_available
+  open_source: false
+  code: public
+  weights: public_huggingface
+  license: rollingforcing-academic-only
+checkpoint_refs:
+- role: rolling_forcing_dmd
+  repo_id: TencentARC/RollingForcing
+  filename: checkpoints/rolling_forcing_dmd.pt
+  license: rollingforcing-academic-only
+base_model_refs:
+- role: wan2_1_t2v_1_3b
+  repo_id: Wan-AI/Wan2.1-T2V-1.3B
+family: Autoregressive Video Diffusion
+id: rolling-forcing
+provider: Tencent ARC
+aliases:
+- RollingForcing
+- rolling_forcing
+- rollingforcing
+tasks:
+- text-to-video
+- long-video-generation
+- autoregressive-video-generation
+integration:
+  notes:
+  - WorldFoundry contains an inference-only RollingForcing runner and reuses the existing in-tree forcing pipeline,
+    causal Wan variant, attention sink/KV cache, core scheduler, attention dispatch, distributed helpers, and video I/O.
+  - Runtime execution never imports or loads source code from an external RollingForcing repository.
+  - The released route is registered as text-to-video only; unverified I2V behavior is not advertised.
+  - Upstream terms allow academic use only and prohibit all commercial and production use.
+  status: integrated
+license: rollingforcing-academic-only
+modalities:
+- text-to-video
+- long-video-generation
+output_artifacts:
+- generated_video
+name: RollingForcing
+official_sources:
+  project_page: https://kunhao-liu.github.io/Rolling_Forcing_Webpage/
+  paper: https://arxiv.org/abs/2509.25161
+  github:
+    url: https://github.com/TencentARC/RollingForcing
+    revision: a1477d09e85dc759a6a6728f55f77f59342ce388
+  huggingface:
+  - repo_id: TencentARC/RollingForcing
+    type: model
+pipeline_binding: rolling-forcing
+release_type: code_and_weights_restricted
+runtime_profile: runtime-profile:rolling-forcing
+starred: true
+runner_parity:
+  notes:
+  - Static in-tree integration follows the official five-step, three-latent-frame block configuration.
+  - >-
+    A full Workspace inference using the exact released checkpoint completed on A100: 126 latent
+    frames decoded to 501 H.264 frames at 832x480, 16 FPS, and 31.31 seconds.
+  - This records end-to-end functional demo validation; numerical pixel parity with a separately
+    published upstream reference artifact is not claimed.
+  status: full_demo_verified
+catalog_category: world_models
+catalog_scope: world-model/interactive starred models
+schema_version: 2

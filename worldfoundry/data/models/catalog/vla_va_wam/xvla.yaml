@@ -6,16 +6,24 @@ aliases:
 - 2toinf/x-vla
 availability: open_source
 provider: official_repo
+license: apache-2.0
 official_sources:
   github:
     head_sha: 6bc2513f5f1cbec715cc668b414392a6cae5c671
     url: https://github.com/2toinf/X-VLA
+  huggingface:
+  - repo_id: 2toINF/X-VLA-WidowX
+    revision: 8d7ea1aaa948665d44129a3ff488629b955fc0f9
+    type: model
+  paper: https://arxiv.org/abs/2510.10274
+  project_page: https://thu-air-dream.github.io/X-VLA/
 integration:
-  status: runtime_ported
+  status: all_released_checkpoints_gpu_validated
   notes:
-  - Concrete X-VLA algorithm entry sourced from the official 2toINF repository.
-  - WorldFoundry routes X-VLA through the in-tree official-policy runtime using the official XVLA processor/model entry.
-  - Checkpoint absence is reported by runtime missing_assets and is not a catalog blocker.
+  - The Florence-2 backbone, X-VLA processor, soft-prompted transformer, and action transforms are source-complete in-tree.
+  - Runtime execution never imports a source checkout or checkpoint-provided Python and forces trust_remote_code=false.
+  - Training, datasets, FastAPI/uvicorn serving, simulator clients, and robot drivers are excluded.
+  - All nine released checkpoints were restored strictly and produced finite 30-by-20 actions through real A100 Workspace inference with explicit domain IDs.
 tasks:
 - vla
 - cross_embodiment_vla
@@ -25,6 +33,12 @@ output_artifacts:
 - action_trace
 pipeline_binding: xvla
 runtime_profile: runtime-profile:xvla
+runner_parity:
+  status: all_released_checkpoints_gpu_validated
+  notes:
+  - The in-tree action head has exactly the same 300 state keys, tensor shapes, and parameter count as upstream.
+  - A deterministic reduced-shape comparison against upstream measured max absolute difference below 5e-7.
+  - All released embodiment checkpoints have zero missing, unexpected, or mismatched tensors and passed real GPU action inference.
 catalog_category: vla_va_wam
 catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint
   metadata, and runtime-profile planning records. Runner or pipeline targets are present

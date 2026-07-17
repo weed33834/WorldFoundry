@@ -1,18 +1,23 @@
 from __future__ import annotations
 
 import ast
+import json
 import os
 import re
 import sys
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Sequence
+from typing import Any, Dict, Iterable, List, Mapping, Sequence
 
-from worldfoundry.core.io.paths import checkpoint_root_path, hfd_root_path, official_runtime_repo_path
+from worldfoundry.core.io.paths import (
+    checkpoint_root_path,
+    hfd_root_path,
+    local_data_root_path,
+    official_runtime_repo_path,
+)
 
 from .runtime_paths import studio_hfd_cache_roots
-
 
 PIPELINES_ROOT = Path(__file__).resolve().parents[1] / "pipelines"
 ACTION_SYNTHESIS_ROOT = Path(__file__).resolve().parents[1] / "synthesis" / "action_generation"
@@ -41,8 +46,10 @@ STUDIO_HIDDEN_CATALOG_MODEL_IDS: frozenset[str] = frozenset(
         # Internal shared operator/contract surface. Concrete priors such as metric3d-prior,
         # unidepth-v2-prior, dap, and video-depth-anything-prior are the user-facing entries.
         "geometry-prior",
-        # Lyra-2 alias; keep lyra-1 / lyra-2 as the canonical Create Job entries.
+        # The complete Wan2.2 camera/base/LoRA/MoGe assets pass CPU schema validation,
+        # but the official dual-A14B GPU memory strategy still needs a real artifact run.
         "fantasyworld-wan22",
+        # Lyra-2 alias; keep lyra-1 / lyra-2 as the canonical Create Job entries.
         "lyra",
         # Hidden official weights; keep provenance in the model catalog but do not
         # expose a Studio infer row that cannot return a real artifact.
@@ -179,7 +186,6 @@ def _category_from_family(family: str, class_name: str, call_params: Sequence[st
         "giga_brain_0",
         "dreamzero",
         "gr00t",
-        "giga_world_policy",
         "starvla",
         "lingbot_va",
         "octo",
@@ -331,6 +337,32 @@ def _hf_checkpoint_model_ref(repo_dir_name: str, repo_id: str) -> str:
     return repo_id
 
 
+def _hf_checkpoint_model_ref_at_revision(repo_dir_name: str, repo_id: str, revision: str) -> str:
+    """Return a local checkpoint only when its immutable revision is verifiable."""
+
+    candidates = [
+        str(checkpoint_root_path(f"{repo_dir_name}-{revision[:8]}")),
+        str(checkpoint_root_path(*Path(repo_dir_name).parts)),
+        *_cache_candidates(repo_dir_name, repo_id.replace("/", "--")),
+    ]
+    for raw_candidate in candidates:
+        candidate = Path(raw_candidate).expanduser()
+        if not candidate.exists():
+            continue
+        if candidate.parent.name == "snapshots" and candidate.name == revision:
+            return str(candidate)
+        metadata_path = candidate / ".hfd" / "repo_metadata.json"
+        if not metadata_path.is_file():
+            continue
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if str(metadata.get("sha") or "").strip() == revision:
+            return str(candidate)
+    return repo_id
+
+
 def _official_repo_ref(*repo_names: str, fallback: str = "") -> str:
     candidates: list[str] = []
     for repo_name in repo_names:
@@ -422,7 +454,6 @@ def _first_existing_path(*candidates: str | Path) -> str:
 def _matrix_game_2_default_config_path() -> str:
     return _first_existing_path(
         _data_path("models", "runtime", "configs", "matrix_game_2", "inference_yaml", "inference_universal.yaml"),
-        _data_path("test_cases", "matrix-game-2", "configs", "inference_universal.yaml"),
     )
 
 
@@ -436,7 +467,7 @@ def _matrix_game_2_default_call_kwargs() -> Dict[str, Any]:
         "size": [352, 640],
         "fps": 12,
         "seed": 42,
-        "official_bench_actions": True,
+        "official_bench_actions": False,
         "visualize_ops": False,
         "visualize_warning": False,
         "config_path": _matrix_game_2_default_config_path(),
@@ -546,26 +577,6 @@ def _giga_brain_0_default_call_kwargs() -> Dict[str, Any]:
     }
 
 
-def _giga_world_policy_default_call_kwargs() -> Dict[str, Any]:
-    return {
-        "plan_only": True,
-        "model_id_path": _checkpoint_model_ref(
-            "Wan2.2-TI2V-5B",
-            "Wan-AI--Wan2.2-TI2V-5B",
-            fallback="Wan-AI/Wan2.2-TI2V-5B",
-        ),
-        "num_frames": 5,
-        "num_inference_steps": 10,
-        "guidance_scale": 0.0,
-        "action_chunk": 48,
-        "image_keys": [
-            "observation.images.cam_high",
-            "observation.images.cam_left_wrist",
-            "observation.images.cam_right_wrist",
-        ],
-    }
-
-
 def _openvla_default_ref() -> str:
     return _checkpoint_model_ref(
         "openvla-7b",
@@ -599,6 +610,18 @@ def _openvla_oft_default_call_kwargs() -> Dict[str, Any]:
         "torch_dtype": "bfloat16",
         "attn_implementation": "eager",
     }
+
+
+def _openvla_oft_variant_call_kwargs(
+    *,
+    unnorm_key: str,
+    task_suite_name: str,
+) -> Dict[str, Any]:
+    """Return the executable Studio input contract shared by OFT variants."""
+
+    values = _openvla_oft_default_call_kwargs()
+    values.update(unnorm_key=unnorm_key, task_suite_name=task_suite_name)
+    return values
 
 
 def _checkpoint_file_if_present(*relative_paths: str) -> str | None:
@@ -673,7 +696,6 @@ def _db_cogact_default_call_kwargs() -> Dict[str, Any]:
             "prompt": prompt,
             "image/1": str(libero_root / "main_view.png"),
             "image/2": str(libero_root / "wrist_view.png"),
-            "state": [0.0] * 8,
         },
         "camera_order": ["front", "left_wrist"],
         "num_steps": 10,
@@ -830,7 +852,7 @@ def _dualcamctrl_base_default_ref() -> str:
 
 
 def _dualcamctrl_default_load_kwargs() -> Dict[str, Any]:
-    return {
+    load_kwargs: Dict[str, Any] = {
         "base_model_repo": "alibaba-pai/Wan2.1-Fun-V1.1-1.3B-Control-Camera",
         "tokenizer_repo": "Wan-AI/Wan2.1-T2V-1.3B",
         "dualcamctrl_repo": "FayeHongfeiZhang/DualCamCtrl",
@@ -842,6 +864,25 @@ def _dualcamctrl_default_load_kwargs() -> Dict[str, Any]:
         "copy_control_weights": True,
         "redirect_common_files": True,
     }
+    base_model_path = Path(_dualcamctrl_base_default_ref()).expanduser()
+    checkpoint_root = checkpoint_root_path()
+    local_files = (
+        next(iter(base_model_path.glob("diffusion_pytorch_model*.safetensors")), None)
+        if base_model_path.is_dir()
+        else None,
+        checkpoint_root / "Wan-AI" / "Wan2.1-T2V-1.3B" / "models_t5_umt5-xxl-enc-bf16.pth",
+        checkpoint_root / "Wan-AI" / "Wan2.1-T2V-1.3B" / "Wan2.1_VAE.pth",
+        checkpoint_root / "Wan-AI" / "Wan2.1-T2V-1.3B" / "google" / "umt5-xxl",
+        checkpoint_root / "Wan-AI" / "Wan2.1-I2V-14B-480P" / "models_clip_open-clip-xlm-roberta-large-vit-huge-14.pth",
+        checkpoint_root / "FayeHongfeiZhang" / "DualCamCtrl" / "checkpoints" / "dualcamctrl_diffusion_transformer.pt",
+    )
+    if all(path is not None and path.exists() for path in local_files):
+        load_kwargs.update(
+            base_model_path=str(base_model_path),
+            local_model_path=str(checkpoint_root),
+            allow_download=False,
+        )
+    return load_kwargs
 
 
 def _dualcamctrl_default_call_kwargs() -> Dict[str, Any]:
@@ -917,6 +958,7 @@ def _official_video_call_params() -> tuple[str, ...]:
         "causal_block_size",
         "addnoise_condition",
         "fps",
+        "target_fps",
         "height",
         "width",
         "resolution",
@@ -1057,6 +1099,74 @@ def _cosmos_predict2p5_default_call_kwargs() -> Dict[str, Any]:
 
 def _longcat_video_default_ref() -> str:
     return _checkpoint_model_ref("LongCat-Video", fallback="meituan-longcat/LongCat-Video")
+
+
+def _lingbot_video_default_ref() -> str:
+    return _checkpoint_model_ref(
+        "lingbot-video-dense-1.3b",
+        "robbyant--lingbot-video-dense-1.3b",
+    )
+
+
+def _lingbot_world_v2_default_ref() -> str:
+    return _checkpoint_model_ref(
+        "lingbot-world-v2-14b-causal-fast",
+        "robbyant--lingbot-world-v2-14b-causal-fast",
+        fallback="robbyant/lingbot-world-v2-14b-causal-fast",
+    )
+
+
+def _sana_wm_default_ref() -> str:
+    return _checkpoint_model_ref(
+        "SANA-WM_bidirectional",
+        "Efficient-Large-Model--SANA-WM_bidirectional",
+        fallback="Efficient-Large-Model/SANA-WM_bidirectional",
+    )
+
+
+def _dreamx_world_default_ref() -> str:
+    return _checkpoint_model_ref(
+        "DreamX-World-5B-Cam",
+        "GD-ML--DreamX-World-5B-Cam",
+        fallback="GD-ML/DreamX-World-5B-Cam",
+    )
+
+
+def _dreamx_world_ar_default_ref() -> str:
+    return _checkpoint_model_ref(
+        "DreamX-World-5B",
+        "GD-ML--DreamX-World-5B",
+        fallback="GD-ML/DreamX-World-5B",
+    )
+
+
+def _dreamx_world_ar_default_load_kwargs() -> Dict[str, Any]:
+    return {
+        "wan_model_path": _checkpoint_model_ref(
+            "Wan2.2-TI2V-5B",
+            fallback="Wan-AI/Wan2.2-TI2V-5B",
+        ),
+    }
+
+
+def _dreamx_world_default_load_kwargs() -> Dict[str, Any]:
+    return {
+        "wan_model_path": _checkpoint_model_ref(
+            "Wan2.2-TI2V-5B",
+            fallback="Wan-AI/Wan2.2-TI2V-5B",
+        ),
+    }
+
+
+def _lingbot_world_v2_default_load_kwargs() -> Dict[str, Any]:
+    # Conda dispatch already selects the dedicated in-tree LingBot-V2
+    # environment.  Leaving python_executable unset makes any fallback runner
+    # use that child interpreter instead of escaping back to the unified env.
+    return {
+        "t5_fsdp": True,
+        "dit_fsdp": True,
+        "t5_cpu": False,
+    }
 
 
 def _longcat_video_default_load_kwargs() -> Dict[str, Any]:
@@ -1283,7 +1393,7 @@ def _solaris_default_load_kwargs() -> Dict[str, Any]:
         "required_components": {
             "runtime_root": runtime_root,
             "pretrained_model_dir": checkpoint_root,
-            "eval_data_dir": "",
+            "eval_data_dir": str(checkpoint_root_path("solaris", "datasets")),
             "output_dir": str(_project_root() / "tmp" / "solaris_output"),
             "checkpoint_dir": checkpoint_root,
             "jax_cache_dir": str(_project_root() / "tmp" / "solaris_jax_cache"),
@@ -1660,11 +1770,13 @@ def _lingbot_world_fast_load_kwargs() -> Dict[str, Any]:
 
 
 def _lingbot_world_default_load_kwargs() -> Dict[str, Any]:
-    return {}
-
-
-def _lingbot_world_official_example_dir() -> str:
-    return str(_data_path("test_cases", "lingbot_world", "00"))
+    # FSDP is the trigger for adaptive 8/4-rank Workspace launch.  The
+    # dispatcher injects ulysses_size=WORLD_SIZE after selecting visible GPUs.
+    return {
+        "t5_fsdp": True,
+        "dit_fsdp": True,
+        "t5_cpu": False,
+    }
 
 
 def lingbot_world_fast_load_kwargs() -> Dict[str, Any]:
@@ -2432,7 +2544,713 @@ OFFICIAL_ACTION_LOAD_PARAMS: tuple[str, ...] = (
 )
 
 
+def _action_checkpoint_variant(
+    *,
+    variant_id: str,
+    label: str,
+    repo_id: str,
+    call_kwargs: Mapping[str, Any],
+    aliases: Sequence[str] = (),
+    notes: Sequence[str] = (),
+) -> Dict[str, Any]:
+    """Build one local-first Workspace variant for an in-tree action policy."""
+
+    return {
+        "variant_id": variant_id,
+        "label": label,
+        "status": "checkpoint-configured",
+        "checkpoints": (
+            {
+                "role": "primary",
+                "uri": _hf_checkpoint_model_ref(f"hfd/{repo_id.replace('/', '--')}", repo_id),
+                "status": "checkpoint-configured",
+            },
+        ),
+        "call_kwargs": dict(call_kwargs),
+        "aliases": tuple(aliases),
+        "notes": tuple(notes),
+    }
+
+
+def _xvla_workspace_variants() -> tuple[Dict[str, Any], ...]:
+    common = {
+        "state": [0.0] * 20,
+        "denoising_steps": 10,
+        "seed": 0,
+        "torch_dtype": "float32",
+        "attention_backend": "auto",
+        "plan_only": False,
+    }
+    specs = (
+        ("google-robot", "Google Robot", "2toINF/X-VLA-Google-Robot", 1),
+        ("libero", "LIBERO", "2toINF/X-VLA-Libero", 3),
+        ("calvin-abc-d", "CALVIN ABC→D", "2toINF/X-VLA-Calvin-ABC_D", 2),
+        ("robotwin2", "RoboTwin 2", "2toINF/X-VLA-RoboTwin2", 6),
+        ("vlabench", "VLABench", "2toINF/X-VLA-VLABench", 8),
+        ("agiworld", "AgiWorld Challenge", "2toINF/X-VLA-AgiWorld-Challenge", 9),
+        ("softfold", "SoftFold", "2toINF/X-VLA-SoftFold", 5),
+        ("foundation-domain-0", "Foundation (domain 0)", "2toINF/X-VLA-Pt", 0),
+    )
+    return tuple(
+        _action_checkpoint_variant(
+            variant_id=variant_id,
+            label=label,
+            repo_id=repo_id,
+            call_kwargs={**common, "domain_id": domain_id},
+            aliases=(repo_id.rsplit("/", 1)[-1],),
+            notes=(
+                "The foundation checkpoint needs an embodiment domain ID; this Workspace preset uses domain 0."
+                if variant_id == "foundation-domain-0"
+                else f"Uses the released domain ID {domain_id} for this embodiment."
+            ,),
+        )
+        for variant_id, label, repo_id, domain_id in specs
+    )
+
+
+def _xiaomi_robotics_0_workspace_variants() -> tuple[Dict[str, Any], ...]:
+    common = {
+        "num_steps": 5,
+        "seed": 42,
+        "torch_dtype": "auto",
+        "attn_implementation": "auto",
+        "plan_only": False,
+    }
+    specs: tuple[tuple[str, str, str, Dict[str, Any]], ...] = (
+        (
+            "libero",
+            "LIBERO",
+            "XiaomiRobotics/Xiaomi-Robotics-0-LIBERO",
+            {"variant": "libero", "state": [0.0] * 32, "wrist_image": str(_data_path("test_cases", "studio_demo", "00", "image.jpg"))},
+        ),
+        (
+            "calvin-abcd",
+            "CALVIN ABCD→D",
+            "XiaomiRobotics/Xiaomi-Robotics-0-Calvin-ABCD_D",
+            {"variant": "calvin-abcd", "state": [0.0] * 32, "wrist_image": str(_data_path("test_cases", "studio_demo", "00", "image.jpg"))},
+        ),
+        (
+            "calvin-abc",
+            "CALVIN ABC→D",
+            "XiaomiRobotics/Xiaomi-Robotics-0-Calvin-ABC_D",
+            {"variant": "calvin-abc", "state": [0.0] * 32, "wrist_image": str(_data_path("test_cases", "studio_demo", "00", "image.jpg"))},
+        ),
+        (
+            "simplerenv-google",
+            "SimplerEnv Google Robot",
+            "XiaomiRobotics/Xiaomi-Robotics-0-SimplerEnv-Google-Robot",
+            {"variant": "simplerenv-google", "state": [0.0] * 7},
+        ),
+        (
+            "simplerenv-widowx",
+            "SimplerEnv WidowX",
+            "XiaomiRobotics/Xiaomi-Robotics-0-SimplerEnv-WidowX",
+            {"variant": "simplerenv-widowx", "state": [0.0] * 7},
+        ),
+        (
+            "pretrain-droid",
+            "Pretrain (DROID)",
+            "XiaomiRobotics/Xiaomi-Robotics-0-Pretrain",
+            {
+                "variant": "pretrain",
+                "robot_type": "droid_pt",
+                "camera_keys": ["base"],
+                "view_labels": ["External Camera View"],
+                "state": [0.0] * 32,
+            },
+        ),
+    )
+    return tuple(
+        _action_checkpoint_variant(
+            variant_id=variant_id,
+            label=label,
+            repo_id=repo_id,
+            call_kwargs={**common, **variant_kwargs},
+            aliases=(repo_id.rsplit("/", 1)[-1],),
+        )
+        for variant_id, label, repo_id, variant_kwargs in specs
+    )
+
+
+def _spatial_forcing_workspace_variants() -> tuple[Dict[str, Any], ...]:
+    image = str(_data_path("test_cases", "studio_demo", "00", "image.jpg"))
+    specs = (
+        ("libero-spatial", "LIBERO Spatial", "haofuly/spatial-forcing-7b-finetuned-libero-spatial", "libero_spatial", "libero_spatial_no_noops"),
+        ("libero-object", "LIBERO Object", "haofuly/spatial-forcing-7b-finetuned-libero-object", "libero_object", "libero_object_no_noops"),
+        ("libero-goal", "LIBERO Goal", "haofuly/spatial-forcing-7b-finetuned-libero-goal", "libero_goal", "libero_goal_no_noops"),
+        ("libero-10", "LIBERO 10", "haofuly/spatial-forcing-7b-finetuned-libero-10", "libero_10", "libero_10_no_noops"),
+    )
+    return tuple(
+        _action_checkpoint_variant(
+            variant_id=variant_id,
+            label=label,
+            repo_id=repo_id,
+            call_kwargs={
+                "variant": variant_id.removeprefix("libero-"),
+                "checkpoint_variant": variant_id.removeprefix("libero-"),
+                "state": [0.0] * 8,
+                "wrist_image": image,
+                "task_suite_name": suite,
+                "unnorm_key": unnorm_key,
+                "torch_dtype": "auto",
+                "attn_implementation": "auto",
+                "plan_only": False,
+            },
+            aliases=(repo_id.rsplit("/", 1)[-1],),
+        )
+        for variant_id, label, repo_id, suite, unnorm_key in specs
+    )
+
+
+def _fastwam_workspace_variants() -> tuple[Dict[str, Any], ...]:
+    aloha = _data_path("test_cases", "test_vla_case1", "aloha")
+    libero = _data_path("test_cases", "test_vla_case1", "libero")
+    common = {
+        "torch_dtype": "auto",
+        "num_inference_steps": 10,
+        "seed": 42,
+        "plan_only": False,
+    }
+    return (
+        _action_checkpoint_variant(
+            variant_id="robotwin",
+            label="RoboTwin",
+            repo_id="yuanty/fastwam",
+            call_kwargs={
+                **common,
+                "variant": "robotwin",
+                "state": [0.0] * 14,
+                "head_camera": str(aloha / "observation_images_cam_high.png"),
+                "left_camera": str(aloha / "observation_images_cam_left_wrist.png"),
+                "right_camera": str(aloha / "observation_images_cam_right_wrist.png"),
+            },
+        ),
+        _action_checkpoint_variant(
+            variant_id="libero",
+            label="LIBERO",
+            repo_id="yuanty/fastwam",
+            call_kwargs={
+                **common,
+                "variant": "libero",
+                "state": [0.0] * 8,
+                "wrist_image": str(libero / "wrist_view.png"),
+            },
+        ),
+    )
+
+
+def _x_wam_workspace_variants() -> tuple[Dict[str, Any], ...]:
+    image = str(_data_path("test_cases", "studio_demo", "00", "image.jpg"))
+    common = {
+        "rgb_views": [image] * 3,
+        "torch_dtype": "auto",
+        "denoise_steps": 50,
+        "action_denoise_steps": 10,
+        "cfg_scale": 0.0,
+        "compile_model": False,
+        "generate_world": False,
+        "run_depth": False,
+        "plan_only": False,
+    }
+    return (
+        _action_checkpoint_variant(
+            variant_id="robocasa-sft",
+            label="RoboCasa SFT",
+            repo_id="sharinka0715/X-WAM-checkpoints",
+            call_kwargs={**common, "variant": "robocasa_sft", "state": [0.0] * 8},
+        ),
+        _action_checkpoint_variant(
+            variant_id="robotwin-sft",
+            label="RoboTwin SFT",
+            repo_id="sharinka0715/X-WAM-checkpoints",
+            call_kwargs={**common, "variant": "robotwin_sft", "state": [0.0] * 16},
+        ),
+    )
+
+
 CURATED_OVERRIDES: Dict[str, Dict[str, Any]] = {
+    "abot-world-0-5b-lf": {
+        "display_name": "ABot-World-0-5B-LF",
+        "category": "Video Generation",
+        "summary": "In-tree causal action-conditioned world-video generation with resident KV cache.",
+        "default_model_ref": lambda: str(checkpoint_root_path("ABot-World-0-5B-LF")),
+        "default_prompt": "Move forward through the scene while preserving geometry and appearance.",
+        "default_input_path": str(_data_path("test_cases", "studio_demo", "00", "image.jpg")),
+        "default_call_kwargs": {
+            "num_frames": 9,
+            "num_blocks": 1,
+            "seed": 42,
+            "fps": 16,
+        },
+        "call_params": (
+            "images",
+            "prompt",
+            "interactions",
+            "reference_images",
+            "num_frames",
+            "num_blocks",
+            "seed",
+            "fps",
+            "output_path",
+            "return_dict",
+        ),
+        "supports_stream": True,
+        "supports_from_pretrained": True,
+        "default_backend": "from_pretrained",
+        "aliases": ("abot-world", "abot"),
+        "tags": ("world-model", "action-control", "causal-video", "in-tree-runtime"),
+        "notes": "The Workspace smoke preset emits one complete nine-frame causal block.",
+    },
+    "wan21-fun-1p3b-cam": {
+        "display_name": "Wan2.1-Fun V1.1 1.3B Control Camera",
+        "category": "Video Generation",
+        "summary": "In-tree VideoX-Fun image-to-video generation with CameraCtrl pose conditioning.",
+        "default_model_ref": lambda: _hf_checkpoint_model_ref(
+            "hfd/alibaba-pai--Wan2.1-Fun-V1.1-1.3B-Control-Camera",
+            "alibaba-pai/Wan2.1-Fun-V1.1-1.3B-Control-Camera",
+        ),
+        "default_prompt": "Colorful fireworks bloom above a city skyline as the camera moves forward.",
+        "default_input_path": str(_data_path("test_cases", "video_x_fun", "firework.png")),
+        "default_call_kwargs": {
+            "pose_txt": str(_data_path("test_cases", "video_x_fun", "camera_pose.txt")),
+            "width": 672,
+            "height": 384,
+            "num_frames": 9,
+            "fps": 16,
+            "num_inference_steps": 4,
+            "seed": 43,
+        },
+        "call_params": (
+            "prompt",
+            "images",
+            "image_path",
+            "pose_txt",
+            "width",
+            "height",
+            "num_frames",
+            "fps",
+            "num_inference_steps",
+            "seed",
+            "output_path",
+            "return_dict",
+        ),
+        "supports_stream": False,
+        "supports_from_pretrained": True,
+        "default_backend": "from_pretrained",
+        "aliases": ("wan2.1-fun-1.3b-camera",),
+        "tags": ("camera-control", "i2v", "wan2.1", "in-tree-runtime"),
+        "notes": "Split official transformer/base assets are composed with symlinks inside each run directory; the strict 989-tensor camera schema and nine-frame A100 Workspace output are validated.",
+    },
+    "xiaomi-robotics-0": {
+        "display_name": "Xiaomi-Robotics-0",
+        "category": "Embodied Action",
+        "summary": "In-tree MiBoT VLA inference for Xiaomi-Robotics-0 robot-action checkpoints.",
+        "default_model_ref": "XiaomiRobotics/Xiaomi-Robotics-0-SimplerEnv-Google-Robot",
+        "default_prompt": "pick up the object and place it on the target",
+        "default_input_path": str(_data_path("test_cases", "studio_demo", "00", "image.jpg")),
+        "default_call_kwargs": {
+            "variant": "simplerenv-google",
+            "state": [0.0] * 7,
+            "num_steps": 5,
+            "seed": 42,
+            "torch_dtype": "auto",
+            "attn_implementation": "auto",
+            "plan_only": False,
+        },
+        "extra_variants": _xiaomi_robotics_0_workspace_variants,
+        "call_params": (
+            "prompt",
+            "images",
+            "state",
+            "wrist_image",
+            "variant",
+            "robot_type",
+            "camera_keys",
+            "view_labels",
+            "num_steps",
+            "seed",
+            "torch_dtype",
+            "attn_implementation",
+            "plan_only",
+            "output_path",
+            "return_dict",
+        ),
+        "load_params": OFFICIAL_ACTION_LOAD_PARAMS,
+        "supports_stream": False,
+        "supports_from_pretrained": True,
+        "default_backend": "from_pretrained",
+        "aliases": ("xiaomi-robotics-zero", "xr0"),
+        "tags": ("vla", "policy", "robot-action", "in-tree-runtime"),
+        "notes": "SimplerEnv Google Robot checkpoint-backed A100 BF16/SDPA inference is validated.",
+    },
+    "hy-embodied-vla": {
+        "display_name": "Hy-Embodied-0.5-VLA",
+        "category": "Embodied Action",
+        "summary": "Tencent Hy-Embodied-0.5 multi-view flow-matching VLA policy.",
+        "default_model_ref": lambda: _hf_checkpoint_model_ref(
+            "hfd/tencent--Hy-Embodied-0.5-VLA-RoboTwin",
+            "tencent/Hy-Embodied-0.5-VLA-RoboTwin",
+        ),
+        "default_prompt": "pick up the object and place it on the target",
+        "default_input_path": str(_data_path("test_cases", "studio_demo", "00", "image.jpg")),
+        "default_call_kwargs": {
+            "variant": "robotwin",
+            "state": [0.0] * 20,
+            "state_format": "normalized",
+            "blend_mode": "auto",
+            "history_size": 6,
+            "replicate_single_image": True,
+            "torch_dtype": "auto",
+            "plan_only": False,
+        },
+        "extra_variants": (
+            {
+                "variant_id": "umi",
+                "label": "UMI",
+                "status": "checkpoint_gpu_validated",
+                "checkpoints": (
+                    {
+                        "role": "primary",
+                        "uri": lambda: _hf_checkpoint_model_ref(
+                            "hfd/tencent--Hy-Embodied-0.5-VLA-UMI",
+                            "tencent/Hy-Embodied-0.5-VLA-UMI",
+                        ),
+                        "status": "checkpoint_gpu_validated",
+                    },
+                ),
+                "call_kwargs": {
+                    "variant": "umi",
+                    "state": [0.0] * 20,
+                    "state_format": "normalized",
+                    "blend_mode": "auto",
+                    "history_size": 1,
+                    "replicate_single_image": True,
+                    "torch_dtype": "auto",
+                    "plan_only": False,
+                },
+                "aliases": ("hy-embodied-vla-umi", "hy-vla-umi"),
+                "notes": ("Released UMI 50-step relative-action policy.",),
+            },
+        ),
+        "call_params": (
+            "prompt",
+            "images",
+            "state",
+            "variant",
+            "state_format",
+            "blend_mode",
+            "history_size",
+            "replicate_single_image",
+            "torch_dtype",
+            "plan_only",
+            "output_path",
+            "return_dict",
+        ),
+        "load_params": OFFICIAL_ACTION_LOAD_PARAMS,
+        "supports_stream": False,
+        "supports_from_pretrained": True,
+        "default_backend": "from_pretrained",
+        "aliases": ("hy-vla", "hy-embodied-0.5-vla"),
+        "tags": ("vla", "policy", "multi-view", "robot-action", "in-tree-runtime"),
+        "notes": "RoboTwin checkpoint-backed A100 BF16 inference is validated.",
+    },
+    "lda-1b": {
+        "display_name": "LDA-1B",
+        "category": "Embodied Action",
+        "summary": "In-tree LDA-1B Qwen3-VL/DINOv3 flow-matching action policy.",
+        "default_model_ref": lambda: _hf_checkpoint_model_ref(
+            "hfd/Wayer2--LDA-robocasa",
+            "Wayer2/LDA-robocasa",
+        ),
+        "default_prompt": "move the object to the target area",
+        "default_input_path": str(
+            _data_path("test_cases", "test_vla_case1", "libero", "main_view.png")
+        ),
+        "default_call_kwargs": lambda: {
+            "official_policy_observation": {
+                "ego_view": [
+                    str(_data_path("test_cases", "test_vla_case1", "libero", "main_view.png")),
+                    str(_data_path("test_cases", "test_vla_case1", "libero", "main_view.png")),
+                ],
+                "state": [0.0] * 29,
+            },
+            "torch_dtype": "auto",
+            "attention_backend": "auto",
+        },
+        "default_interactions": ("robot_action", "action_chunk"),
+        "call_params": OFFICIAL_ACTION_CALL_PARAMS,
+        "load_params": OFFICIAL_ACTION_LOAD_PARAMS,
+        "supports_from_pretrained": True,
+        "default_backend": "from_pretrained",
+        "aliases": ("lda1b", "lda-robocasa"),
+        "tags": ("vla", "policy", "robot-action", "flow-matching", "in-tree-runtime"),
+        "notes": "The default Workspace contract uses the released RoboCasa GR1 29-D state/action layout.",
+    },
+    "internvla-a1": {
+        "display_name": "InternVLA-A1-3B",
+        "category": "Embodied Action",
+        "summary": "In-tree InternVLA-A1 understanding, foresight, and flow-action policy.",
+        "default_model_ref": lambda: _hf_checkpoint_model_ref(
+            "hfd/InternRobotics--InternVLA-A1-3B",
+            "InternRobotics/InternVLA-A1-3B",
+        ),
+        "default_prompt": "pick up the object and place it on the target",
+        "default_input_path": str(
+            _data_path("test_cases", "test_vla_case1", "aloha", "observation_images_cam_high.png")
+        ),
+        "default_call_kwargs": lambda: {
+            "official_policy_observation": {
+                "cam_high": str(
+                    _data_path("test_cases", "test_vla_case1", "aloha", "observation_images_cam_high.png")
+                ),
+                "cam_left_wrist": str(
+                    _data_path(
+                        "test_cases", "test_vla_case1", "aloha", "observation_images_cam_left_wrist.png"
+                    )
+                ),
+                "cam_right_wrist": str(
+                    _data_path(
+                        "test_cases", "test_vla_case1", "aloha", "observation_images_cam_right_wrist.png"
+                    )
+                ),
+                "state": [0.0] * 14,
+                "reset": True,
+            },
+            "torch_dtype": "auto",
+        },
+        "default_interactions": ("robot_action", "action_chunk"),
+        "call_params": OFFICIAL_ACTION_CALL_PARAMS,
+        "load_params": OFFICIAL_ACTION_LOAD_PARAMS,
+        "supports_from_pretrained": True,
+        "default_backend": "from_pretrained",
+        "aliases": ("internvla-a1-3b", "internvla-a-series"),
+        "tags": ("vla", "policy", "robot-action", "world-model", "in-tree-runtime"),
+        "notes": "The default Workspace contract uses the released ALOHA three-camera 14-D statistics block.",
+    },
+    "fastwam": {
+        "display_name": "FastWAM",
+        "category": "Embodied Action",
+        "summary": "In-tree FastWAM first-frame-cached world-action policy for RoboTwin and LIBERO.",
+        "default_model_ref": lambda: _hf_checkpoint_model_ref(
+            "hfd/yuanty--fastwam",
+            "yuanty/fastwam",
+        ),
+        "default_prompt": "pick up the object and place it on the target",
+        "default_input_path": str(
+            _data_path(
+                "test_cases",
+                "test_vla_case1",
+                "aloha",
+                "observation_images_cam_high.png",
+            )
+        ),
+        "default_call_kwargs": {
+            "variant": "robotwin",
+            "state": [0.0] * 14,
+            "head_camera": str(
+                _data_path(
+                    "test_cases",
+                    "test_vla_case1",
+                    "aloha",
+                    "observation_images_cam_high.png",
+                )
+            ),
+            "left_camera": str(
+                _data_path(
+                    "test_cases",
+                    "test_vla_case1",
+                    "aloha",
+                    "observation_images_cam_left_wrist.png",
+                )
+            ),
+            "right_camera": str(
+                _data_path(
+                    "test_cases",
+                    "test_vla_case1",
+                    "aloha",
+                    "observation_images_cam_right_wrist.png",
+                )
+            ),
+            "torch_dtype": "auto",
+            "num_inference_steps": 10,
+            "seed": 42,
+            "plan_only": False,
+        },
+        "extra_variants": _fastwam_workspace_variants,
+        "call_params": (
+            "prompt",
+            "images",
+            "state",
+            "variant",
+            "head_camera",
+            "left_camera",
+            "right_camera",
+            "wrist_image",
+            "combined_image",
+            "model_image",
+            "context",
+            "context_mask",
+            "torch_dtype",
+            "num_inference_steps",
+            "denoising_steps",
+            "sigma_shift",
+            "seed",
+            "rand_device",
+            "tiled",
+            "binarize_libero_gripper",
+            "plan_only",
+            "output_path",
+            "return_dict",
+        ),
+        "load_params": OFFICIAL_ACTION_LOAD_PARAMS,
+        "supports_stream": False,
+        "supports_from_pretrained": True,
+        "default_backend": "from_pretrained",
+        "aliases": ("fast-wam",),
+        "tags": ("wam", "robot-action", "libero", "robotwin", "in-tree-runtime"),
+        "notes": "Both released checkpoints are staged for full Workspace GPU validation.",
+    },
+    "spatial-forcing": {
+        "display_name": "Spatial-Forcing",
+        "category": "Embodied Action",
+        "summary": "Inference-only Spatial-Forcing OpenVLA-OFT policy for LIBERO action chunks.",
+        "default_model_ref": "haofuly/spatial-forcing-7b-finetuned-libero-spatial",
+        "default_prompt": "pick up the object and place it on the target",
+        "default_input_path": str(_data_path("test_cases", "studio_demo", "00", "image.jpg")),
+        "default_call_kwargs": {
+            "state": [0.0] * 8,
+            "wrist_image": str(_data_path("test_cases", "studio_demo", "00", "image.jpg")),
+            "task_suite_name": "libero_spatial",
+            "unnorm_key": "libero_spatial_no_noops",
+            "torch_dtype": "auto",
+            "attn_implementation": "auto",
+            "plan_only": False,
+        },
+        "extra_variants": _spatial_forcing_workspace_variants,
+        "call_params": (
+            "prompt",
+            "images",
+            "wrist_image",
+            "state",
+            "variant",
+            "checkpoint_variant",
+            "task_suite_name",
+            "unnorm_key",
+            "torch_dtype",
+            "attn_implementation",
+            "plan_only",
+            "output_path",
+            "return_dict",
+        ),
+        "load_params": OFFICIAL_ACTION_LOAD_PARAMS,
+        "supports_stream": False,
+        "supports_from_pretrained": True,
+        "default_backend": "from_pretrained",
+        "aliases": ("spatial_forcing",),
+        "tags": ("vla", "openvla", "libero", "robot-action", "in-tree-runtime"),
+        "notes": "LIBERO-Spatial checkpoint-backed A100 inference is validated; training-only VGGT alignment is excluded.",
+    },
+    "x-wam": {
+        "display_name": "X-WAM",
+        "category": "Embodied Action",
+        "summary": "Joint multi-view world-action inference with action, proprioception, and optional future video.",
+        "default_model_ref": "sharinka0715/X-WAM-checkpoints",
+        "default_prompt": "pick up the object and place it on the target",
+        "default_input_path": str(_data_path("test_cases", "studio_demo", "00", "image.jpg")),
+        "default_call_kwargs": {
+            "variant": "robocasa_sft",
+            "rgb_views": [str(_data_path("test_cases", "studio_demo", "00", "image.jpg"))] * 3,
+            "state": [0.0] * 8,
+            "torch_dtype": "auto",
+            "denoise_steps": 50,
+            "action_denoise_steps": 10,
+            "cfg_scale": 0.0,
+            "compile_model": False,
+            "generate_world": False,
+            "run_depth": False,
+            "plan_only": False,
+        },
+        "extra_variants": _x_wam_workspace_variants,
+        "call_params": (
+            "prompt",
+            "images",
+            "rgb_views",
+            "state",
+            "variant",
+            "torch_dtype",
+            "denoise_steps",
+            "action_denoise_steps",
+            "cfg_scale",
+            "generate_world",
+            "run_depth",
+            "world_video_path",
+            "compile_model",
+            "plan_only",
+            "output_path",
+            "return_dict",
+        ),
+        "load_params": OFFICIAL_ACTION_LOAD_PARAMS,
+        "supports_stream": False,
+        "supports_from_pretrained": True,
+        "default_backend": "from_pretrained",
+        "aliases": ("x_wam",),
+        "tags": ("wam", "robot-action", "video-prediction", "multi-view", "in-tree-runtime"),
+        "notes": "RoboCasa checkpoint-backed A100 action inference and the optional 50-step world-video decode are validated; world decode remains opt-in.",
+    },
+    "xvla": {
+        "display_name": "X-VLA",
+        "category": "Embodied Action",
+        "summary": "Cross-embodiment Florence-2 VLA policy with a domain-aware flow action head.",
+        "default_model_ref": "2toINF/X-VLA-WidowX",
+        "default_prompt": "pick up the object and place it on the target",
+        "default_input_path": str(_data_path("test_cases", "studio_demo", "00", "image.jpg")),
+        "default_call_kwargs": {
+            "state": [0.0] * 20,
+            "domain_id": 0,
+            "denoising_steps": 10,
+            "seed": 0,
+            "torch_dtype": "float32",
+            "attention_backend": "auto",
+            "plan_only": False,
+        },
+        "extra_variants": _xvla_workspace_variants,
+        "call_params": (
+            "prompt",
+            "images",
+            "state",
+            "domain_id",
+            "denoising_steps",
+            "seed",
+            "torch_dtype",
+            "attention_backend",
+            "adapter_path",
+            "plan_only",
+            "output_path",
+            "return_dict",
+        ),
+        "load_params": OFFICIAL_ACTION_LOAD_PARAMS,
+        "supports_stream": False,
+        "supports_from_pretrained": True,
+        "default_backend": "from_pretrained",
+        "aliases": ("x-vla", "2toinf/x-vla"),
+        "tags": ("vla", "cross-embodiment", "robot-action", "in-tree-runtime"),
+        "notes": "WidowX checkpoint-backed A100 FP32/SDPA action inference is validated.",
+    },
+    "stable-video-infinity": {
+        "display_name": "Stable Video Infinity 2.0",
+        "category": "Video Generation",
+        "summary": "Generate coherent long video from one image and a segment-level prompt stream.",
+        "default_prompt": "A cinematic forward camera journey through a detailed, coherent world.",
+        "default_input_path": str(_data_path("test_cases", "studio_demo", "00", "image.jpg")),
+        "default_task_type": "i2v",
+        "supports_from_pretrained": True,
+        "default_backend": "from_pretrained",
+        "aliases": ("svi", "svi-2.0", "stable_video_infinity", "stable-video-infinity-2.0"),
+        "tags": ("video", "i2v", "long-video", "prompt-stream", "in-tree-runtime"),
+        "notes": (
+            "Uses the in-tree SVI 2.0 continuation runtime; Wan2.1 and SVI weights remain in local HFD staging."
+        ),
+    },
     "openvla-oft": {
         "display_name": "OpenVLA-OFT",
         "category": "Embodied Action",
@@ -2443,6 +3261,88 @@ CURATED_OVERRIDES: Dict[str, Dict[str, Any]] = {
         "default_prompt": "put the object on the target area",
         "default_input_path": str(_data_path("test_cases", "test_vla_case1", "libero", "main_view.png")),
         "default_call_kwargs": _openvla_oft_default_call_kwargs,
+        "extra_variants": (
+            {
+                "variant_id": "libero-object",
+                "label": "LIBERO Object",
+                "status": "checkpoint_gpu_validated",
+                "checkpoints": (
+                    {
+                        "role": "primary",
+                        "uri": lambda: _hf_checkpoint_model_ref(
+                            "hfd/moojink--openvla-7b-oft-finetuned-libero-object",
+                            "moojink/openvla-7b-oft-finetuned-libero-object",
+                        ),
+                        "status": "checkpoint_gpu_validated",
+                    },
+                ),
+                "call_kwargs": lambda: _openvla_oft_variant_call_kwargs(
+                    unnorm_key="libero_object_no_noops",
+                    task_suite_name="libero_object",
+                ),
+                "aliases": ("openvla-oft-libero-object",),
+            },
+            {
+                "variant_id": "libero-goal",
+                "label": "LIBERO Goal",
+                "status": "checkpoint_gpu_validated",
+                "checkpoints": (
+                    {
+                        "role": "primary",
+                        "uri": lambda: _hf_checkpoint_model_ref(
+                            "hfd/moojink--openvla-7b-oft-finetuned-libero-goal",
+                            "moojink/openvla-7b-oft-finetuned-libero-goal",
+                        ),
+                        "status": "checkpoint_gpu_validated",
+                    },
+                ),
+                "call_kwargs": lambda: _openvla_oft_variant_call_kwargs(
+                    unnorm_key="libero_goal_no_noops",
+                    task_suite_name="libero_goal",
+                ),
+                "aliases": ("openvla-oft-libero-goal",),
+            },
+            {
+                "variant_id": "libero-10",
+                "label": "LIBERO 10",
+                "status": "checkpoint_gpu_validated",
+                "checkpoints": (
+                    {
+                        "role": "primary",
+                        "uri": lambda: _hf_checkpoint_model_ref(
+                            "hfd/moojink--openvla-7b-oft-finetuned-libero-10",
+                            "moojink/openvla-7b-oft-finetuned-libero-10",
+                        ),
+                        "status": "checkpoint_gpu_validated",
+                    },
+                ),
+                "call_kwargs": lambda: _openvla_oft_variant_call_kwargs(
+                    unnorm_key="libero_10_no_noops",
+                    task_suite_name="libero_10",
+                ),
+                "aliases": ("openvla-oft-libero-10",),
+            },
+            {
+                "variant_id": "libero-spatial-object-goal-10",
+                "label": "LIBERO Combined",
+                "status": "checkpoint_gpu_validated",
+                "checkpoints": (
+                    {
+                        "role": "primary",
+                        "uri": lambda: _hf_checkpoint_model_ref(
+                            "hfd/moojink--openvla-7b-oft-finetuned-libero-spatial-object-goal-10",
+                            "moojink/openvla-7b-oft-finetuned-libero-spatial-object-goal-10",
+                        ),
+                        "status": "checkpoint_gpu_validated",
+                    },
+                ),
+                "call_kwargs": lambda: _openvla_oft_variant_call_kwargs(
+                    unnorm_key="libero_spatial_no_noops",
+                    task_suite_name="libero_spatial",
+                ),
+                "aliases": ("openvla-oft-libero-spatial-object-goal-10",),
+            },
+        ),
         "default_interactions": ("robot_action", "action_chunk"),
         "call_params": OFFICIAL_ACTION_CALL_PARAMS,
         "load_params": OFFICIAL_ACTION_LOAD_PARAMS,
@@ -2450,7 +3350,39 @@ CURATED_OVERRIDES: Dict[str, Dict[str, Any]] = {
         "default_backend": "from_pretrained",
         "aliases": ("openvla_oft", "openvla-oft-libero"),
         "tags": ("vla", "policy", "robot-action", "libero"),
-        "notes": "Independent OpenVLA-OFT action entry with an in-tree vendored runtime. Release demo status depends on checkpoint-backed action validation.",
+        "notes": "All five declared LIBERO checkpoints completed real A100 Workspace inference with finite 8x7 action chunks.",
+    },
+    "smolvla": {
+        "display_name": "SmolVLA LIBERO",
+        "category": "Embodied Action",
+        "summary": "In-tree SmolVLA flow-matching policy with the released LIBERO task checkpoint.",
+        "default_model_ref": lambda: _hf_checkpoint_model_ref(
+            "hfd/HuggingFaceVLA--smolvla_libero",
+            "HuggingFaceVLA/smolvla_libero",
+        ),
+        "default_prompt": "put the object on the target area",
+        "default_input_path": str(
+            _data_path("test_cases", "test_vla_case1", "libero", "main_view.png")
+        ),
+        "default_call_kwargs": lambda: {
+            "official_policy_observation": {
+                "image": str(
+                    _data_path("test_cases", "test_vla_case1", "libero", "main_view.png")
+                ),
+                "image2": str(
+                    _data_path("test_cases", "test_vla_case1", "libero", "wrist_view.png")
+                ),
+                "state": [0.0] * 8,
+            },
+        },
+        "default_interactions": ("robot_action", "action_chunk"),
+        "call_params": OFFICIAL_ACTION_CALL_PARAMS,
+        "load_params": OFFICIAL_ACTION_LOAD_PARAMS,
+        "supports_from_pretrained": True,
+        "default_backend": "from_pretrained",
+        "aliases": ("smolvla-libero", "huggingfacevla/smolvla_libero"),
+        "tags": ("vla", "policy", "robot-action", "flow-matching", "in-tree-runtime"),
+        "notes": "The Workspace default uses the task-trained LIBERO checkpoint, two RGB views, and an 8-D state vector.",
     },
     "cogact": {
         "display_name": "CogACT",
@@ -2514,7 +3446,7 @@ CURATED_OVERRIDES: Dict[str, Dict[str, Any]] = {
         "default_backend": "from_pretrained",
         "aliases": ("molmob0t", "molmobot-droid", "molmobot-pi0"),
         "tags": ("vla", "policy", "robot-action", "molmo"),
-        "notes": "Independent MolmoBot action entry with an in-tree vendored MolmoBot policy runtime. Pi0 remains dependency-gated; release demo status depends on checkpoint-backed action validation.",
+        "notes": "Independent MolmoBot action entry with a flattened in-tree inference-only policy runtime. Pi0 remains dependency-gated; release demo status depends on checkpoint-backed action validation.",
     },
     "mme-vla": {
         "display_name": "MME-VLA",
@@ -2597,14 +3529,14 @@ CURATED_OVERRIDES: Dict[str, Dict[str, Any]] = {
         "notes": "GigaBrain-0 is a world-model-powered VLA policy for multi-view RGB/RGBD action traces. Official execution requires staged norm stats, a LeRobot dataset, and the upstream giga-models stack.",
     },
     "gr00t": {
-        "display_name": "GR00T",
+        "display_name": "GR00T N1.7",
         "category": "Embodied Action",
         "default_model_ref": _gr00t_default_ref,
         "default_prompt": "execute the humanoid manipulation skill",
         "default_interactions": ("robot_action",),
-        "aliases": ("groot", "gr00t-n1"),
-        "tags": ("vla", "policy", "humanoid"),
-        "notes": "Structured GR00T policy pipeline. NVIDIA license/access review is required before real runtime validation.",
+        "aliases": ("groot", "gr00t-n1", "gr00t-n1.7"),
+        "tags": ("vla", "policy", "humanoid", "in-tree-runtime"),
+        "notes": "In-tree GR00T N1.7 runtime with explicit local Qwen3-VL classes; checkpoint Python is never executed.",
     },
     "molmoact2": {
         "display_name": "MolmoAct2",
@@ -2701,35 +3633,6 @@ CURATED_OVERRIDES: Dict[str, Dict[str, Any]] = {
         "aliases": ("molmo-act2", "molmoact", "molmoact2-droid", "molmoact2-yam"),
         "tags": ("vla", "policy", "robot-action", "action-reasoning"),
         "notes": "MolmoAct2 DROID/YAM action-reasoning VLA. The default Studio demo mirrors the official DROID server schema: external_cam, wrist_cam, 8-D Franka state, franka_droid normalization.",
-    },
-    "giga-world-policy": {
-        "display_name": "GigaWorld-Policy",
-        "category": "Embodied Action",
-        "default_prompt": "predict the next robot action chunk from the offline episode",
-        "default_interactions": ("world_action", "action_chunk"),
-        "default_call_kwargs": _giga_world_policy_default_call_kwargs,
-        "call_params": (
-            "prompt",
-            "images",
-            "interactions",
-            "output_path",
-            "fps",
-            "model_id_path",
-            "transformer_path",
-            "stats_path",
-            "t5_embedding_pkl",
-            "state",
-            "giga_world_policy_observation",
-            "plan_only",
-            "num_frames",
-            "num_inference_steps",
-            "guidance_scale",
-            "action_chunk",
-            "image_keys",
-        ),
-        "aliases": ("gigaworld-policy", "giga_world_policy"),
-        "tags": ("wam", "world-action", "robot-action", "open-loop"),
-        "notes": "GigaWorld-Policy WAM pipeline. Official execution is routed through its local server/client and requires staged Wan, transformer, norm-stat, T5, and dataset assets.",
     },
     "dreamzero": {
         "display_name": "DreamZero",
@@ -2956,6 +3859,51 @@ CURATED_OVERRIDES: Dict[str, Dict[str, Any]] = {
         "tags": ("interactive-world", "navigation", "game-video", "wmfactory"),
         "notes": "WMFactory-compatible Diamond id. Uses the in-tree runtime-manifest route when launched from WorldFoundry.",
     },
+    "mira": {
+        "display_name": "MIRA",
+        "category": "Video Generation",
+        "default_model_ref": lambda: str(checkpoint_root_path("mira")),
+        "default_load_kwargs": {
+            "dataset_path": str(local_data_root_path() / "rocket-science" / "test"),
+        },
+        "default_prompt": "",
+        "supports_stream": False,
+        "supports_from_pretrained": True,
+        "default_backend": "from_pretrained",
+        "default_task_type": "rocket-science-rollout",
+        "call_params": (
+            "prompt",
+            "interactions",
+            "output_path",
+            "fps",
+            "plan_only",
+            "timeout_seconds",
+            "return_dict",
+        ),
+        "load_params": (
+            "model_path",
+            "required_components",
+            "device",
+            "model_id",
+            "checkpoint_path",
+            "dataset_path",
+            "actions",
+            "actions_file",
+            "seed",
+            "clip_index",
+            "n_context_frames",
+            "num_unrolled_frames",
+            "n_diffusion_steps",
+            "schedule_type",
+            "noise_level",
+            "compile",
+            "overlay_actions",
+            "generated_only",
+        ),
+        "aliases": ("mira-wm", "multiplayer-interactive-world-model"),
+        "tags": ("world-model", "rocket-league", "multiplayer", "action-conditioned"),
+        "notes": "Inference-only MIRA Workspace entry backed by the vendored upstream checkpoint and Rocket Science loaders.",
+    },
     "oasis-500m": {
         "display_name": "Oasis 500M",
         "default_interactions": ("forward",),
@@ -3003,8 +3951,6 @@ CURATED_OVERRIDES: Dict[str, Dict[str, Any]] = {
             "width": 640,
             "fps": 8,
             "seed": 0,
-            "dense_video": str(_project_root() / "worldfoundry/data/test_cases/longvie/dense_control.mp4"),
-            "sparse_video": str(_project_root() / "worldfoundry/data/test_cases/longvie/sparse_control.mp4"),
         },
         "call_params": (
             "prompt",
@@ -3061,21 +4007,27 @@ CURATED_OVERRIDES: Dict[str, Dict[str, Any]] = {
         "supports_from_pretrained": True,
         "supports_stream": True,
         "default_task_type": "image-to-video",
-        "default_prompt": (
-            "First-person cinematic motion through a lush jungle path toward a distant stone castle, "
-            "preserving the reference scene."
-        ),
+        "default_prompt": "",
         "default_call_kwargs": {
             "execute": True,
-            "num_frames": 5,
+            "num_frames": 81,
             "height": 352,
             "width": 640,
-            "fps": 8,
+            "fps": 16,
             "seed": 0,
-            "dense_video": str(_project_root() / "worldfoundry/data/test_cases/longvie/dense_control.mp4"),
-            "sparse_video": str(_project_root() / "worldfoundry/data/test_cases/longvie/sparse_control.mp4"),
+            # Native 352x640 segments fit comfortably on the supported A100
+            # profile. Full-frame VAE encode/decode is both faster and avoids
+            # tile-boundary artifacts; callers on smaller GPUs can opt in.
+            "tiled": False,
+            "num_inference_steps": 50,
         },
-        "default_load_kwargs": {"model_id": "longvie-2"},
+        "default_load_kwargs": {
+            "model_id": "longvie-2",
+            "use_usp": True,
+            "ring_degree": 1,
+            "ulysses_degree": 4,
+            "torchrun_nproc_per_node": 4,
+        },
         "call_params": (
             "prompt",
             "images",
@@ -3095,6 +4047,21 @@ CURATED_OVERRIDES: Dict[str, Dict[str, Any]] = {
             "sparse_video",
             "tiled",
             "negative_prompt",
+            "num_inference_steps",
+            "allow_control_padding",
+        ),
+        "stream_params": (
+            "prompt",
+            "dense_video",
+            "sparse_video",
+            "execute",
+            "num_frames",
+            "fps",
+            "seed",
+            "tiled",
+            "negative_prompt",
+            "num_inference_steps",
+            "allow_control_padding",
         ),
         "load_params": (
             "model_path",
@@ -3113,10 +4080,27 @@ CURATED_OVERRIDES: Dict[str, Dict[str, Any]] = {
             "ulysses_degree",
             "enable_vram_management",
             "control_layers",
+            "torchrun_nproc_per_node",
+            "torchrun_nproc",
+            "nproc_per_node",
             *DISPATCH_LOAD_PARAMS,
         ),
         "aliases": ("longvie2", "longvie-v2"),
-        "tags": ("image-to-video", "long-video", "depth-controlled-video", "official-runtime", "in-tree-runtime"),
+        "tags": (
+            "image-to-video",
+            "long-video",
+            "depth-controlled-video",
+            "queued-segment-generation",
+            "not-realtime",
+            "official-runtime",
+            "in-tree-runtime",
+        ),
+        "notes": (
+            "Queued full-quality 81-frame segments at 16 FPS. This is not WASD realtime: "
+            "the user supplies a prompt, initial image, dense depth control video, and sparse "
+            "pointmap/track control video. Continue reuses the previous final frame, eight-frame "
+            "history, noise, and resident weights."
+        ),
     },
     "show-o": {
         "display_name": "Show-O",
@@ -3173,7 +4157,6 @@ CURATED_OVERRIDES: Dict[str, Dict[str, Any]] = {
         "display_name": "Matrix-Game-1",
         "default_model_ref": _matrix_game_1_default_ref,
         "default_load_kwargs": _matrix_game_1_default_load_kwargs,
-        "default_input_path": str(_data_path("test_cases", "matrix-game-1", "official_initial_image", "forest_00.jpg")),
         "default_interactions": ("forward", "left", "right", "camera_l", "camera_r"),
         "default_call_kwargs": {
             "fps": 16,
@@ -3214,8 +4197,8 @@ CURATED_OVERRIDES: Dict[str, Dict[str, Any]] = {
         "default_interactions": (),
         "default_call_kwargs": _matrix_game_2_default_call_kwargs,
         "aliases": ("matrixgame", "matrixgame2", "matrix-game2"),
-        "tags": ("navigation", "stream", "interaction-heavy", "wmfactory", "state-init", "official-demo"),
-        "notes": "Defaults mirror the official Matrix-Game-2 inference_universal demo: demo_images/universal/0000.png, seed 42, 150 output latent frames, 352x640 synthesis size, and official Bench_actions_* trajectories.",
+        "tags": ("navigation", "stream", "interaction-heavy", "wmfactory", "state-init"),
+        "notes": "Resident interactive runtime. The initial image and all navigation/camera actions come from the user; no private benchmark fixture or action trajectory is selected by default.",
     },
     "matrix-game-3": {
         "display_name": "Matrix-Game-3",
@@ -3511,16 +4494,28 @@ CURATED_OVERRIDES: Dict[str, Dict[str, Any]] = {
         "display_name": "LingBot-World",
         "default_model_ref": _lingbot_world_default_ref,
         "default_load_kwargs": _lingbot_world_default_load_kwargs,
-        "default_input_path": str(_data_path("test_cases", "lingbot_world", "00", "image.jpg")),
         "default_interactions": ("forward", "left", "right", "camera_l", "camera_r"),
         "default_call_kwargs": {
-            "action_path": _lingbot_world_official_example_dir(),
             "max_area": 480 * 832,
             "num_frames": 161,
             "offload_model": False,
             "sampling_steps": 70,
             "seed": 42,
         },
+        "load_params": (
+            "task",
+            "runtime_variant",
+            "fast_model_path",
+            "t5_fsdp",
+            "dit_fsdp",
+            "t5_cpu",
+            "ulysses_size",
+            "nproc_per_node",
+            "torchrun_nproc_per_node",
+            "torchrun_nproc",
+            "convert_model_dtype",
+            *DISPATCH_LOAD_PARAMS,
+        ),
         "call_params": (
             "images",
             "prompt",
@@ -3543,11 +4538,226 @@ CURATED_OVERRIDES: Dict[str, Dict[str, Any]] = {
         ),
         "aliases": ("lingbot-fast", "lingbot-world-fast", "lingbotworldfast", "lingbotworld-fast"),
         "tags": ("navigation", "stream", "camera-control", "interaction-heavy", "wmfactory", "state-init"),
-        "notes": "Start from an image-conditioned first turn, then keep exploring with one navigation token per key press. The act2cam preview follows the official repo and uses the base camera checkpoint with action controls.",
+        "notes": (
+            "Base-cam uses native DiT/T5 FSDP plus Ulysses sequence parallelism. Workspace selects the official "
+            "8-GPU topology when available and supports 4 GPUs as the compact topology; only rank 0 decodes "
+            "and materializes the output."
+        ),
+    },
+    "sana-wm": {
+        "display_name": "SANA-WM",
+        "category": "Video Generation",
+        "supports_from_pretrained": True,
+        "supports_stream": True,
+        "default_backend": "from_pretrained",
+        "default_model_ref": _sana_wm_default_ref,
+        "default_prompt": "",
+        "default_task_type": "image-camera-video",
+        "default_interactions": ("forward", "left", "right", "camera_up", "camera_l", "camera_r"),
+        "default_call_kwargs": {
+            "window_frames": 81,
+            "fps": 16,
+            "step": 60,
+            "cfg_scale": 5.0,
+            "seed": 42,
+            "return_dict": True,
+        },
+        "load_params": ("checkpoint_source", *DISPATCH_LOAD_PARAMS),
+        "call_params": (
+            "images",
+            "prompt",
+            "interactions",
+            "window_frames",
+            "fps",
+            "step",
+            "cfg_scale",
+            "seed",
+            "return_dict",
+        ),
+        "stream_params": ("interactions", "realtime_segments", "seed"),
+        "aliases": ("sana-world-model", "sana-wm-2.6b"),
+        "tags": ("world-model", "image-to-video", "camera-control", "stream", "bidirectional", "in-tree-runtime"),
+        "notes": "Resident two-stage SANA-WM runtime with user-provided image/prompt, native 8k+1 temporal windows, and configurable component placement.",
+    },
+    "dreamx-world-5b-cam": {
+        "display_name": "DreamX-World 5B Cam",
+        "category": "Video Generation",
+        "supports_from_pretrained": True,
+        "supports_stream": True,
+        "default_backend": "from_pretrained",
+        "default_model_ref": _dreamx_world_default_ref,
+        "default_load_kwargs": _dreamx_world_default_load_kwargs,
+        "default_prompt": "",
+        "default_input_path": "",
+        "default_task_type": "image-camera-video",
+        "default_interactions": (),
+        "default_call_kwargs": {
+            "num_frames": 33,
+            "fps": 16,
+            "height": 704,
+            "width": 1280,
+            "num_inference_steps": 30,
+            "guidance_scale": 5.0,
+            "seed": 42,
+            "return_dict": True,
+        },
+        "load_params": (
+            "checkpoint_source",
+            "wan_model_path",
+            "nproc_per_node",
+            "torchrun_nproc_per_node",
+            "torchrun_nproc",
+            *DISPATCH_LOAD_PARAMS,
+        ),
+        "call_params": (
+            "images",
+            "prompt",
+            "interactions",
+            "num_frames",
+            "fps",
+            "height",
+            "width",
+            "num_inference_steps",
+            "guidance_scale",
+            "seed",
+            "return_dict",
+        ),
+        "stream_params": ("prompt", "interactions", "realtime_segments", "seed"),
+        "aliases": ("dreamx-5b-cam",),
+        "tags": (
+            "interactive-world",
+            "image-to-video",
+            "camera-control",
+            "stream",
+            "in-tree-runtime",
+            "user-input-only",
+        ),
+        "notes": (
+            "Resident 1+4k camera-conditioned segments with user-provided image and prompt. "
+            "Weights, VAE, T5 embeddings, and Ulysses topology stay resident; each continuation "
+            "starts from the previous final frame without file round trips."
+        ),
+    },
+    "dreamx-world-5b": {
+        "display_name": "DreamX-World 5B AR",
+        "category": "Video Generation",
+        "supports_from_pretrained": True,
+        "supports_stream": True,
+        "default_backend": "from_pretrained",
+        "default_model_ref": _dreamx_world_ar_default_ref,
+        "default_load_kwargs": _dreamx_world_ar_default_load_kwargs,
+        "default_prompt": "",
+        "default_input_path": "",
+        "default_task_type": "image-camera-video",
+        "default_interactions": (),
+        "default_call_kwargs": {
+            "fps": 16,
+            "seed": 42,
+            "return_dict": True,
+        },
+        "load_params": (
+            "checkpoint_source",
+            "wan_model_path",
+            *DISPATCH_LOAD_PARAMS,
+        ),
+        "call_params": (
+            "images",
+            "prompt",
+            "interactions",
+            "fps",
+            "seed",
+            "return_dict",
+        ),
+        "stream_params": ("prompt", "interactions", "realtime_segments", "seed"),
+        "aliases": ("dreamx-world", "dreamx", "dreamx-ar", "dreamx-5b"),
+        "tags": (
+            "interactive-world",
+            "image-to-video",
+            "camera-control",
+            "stream",
+            "causal",
+            "autoregressive",
+            "in-tree-runtime",
+            "user-input-only",
+        ),
+        "notes": (
+            "Resident distilled causal runtime with three-latent blocks, persistent attention/KV "
+            "and VAE caches, continuous camera pose, and no decoded-RGB feedback loop."
+        ),
+    },
+    "lingbot-world-v2": {
+        "display_name": "LingBot-World-V2",
+        "default_model_ref": _lingbot_world_v2_default_ref,
+        "default_load_kwargs": _lingbot_world_v2_default_load_kwargs,
+        "default_prompt": (
+            "The video presents a soaring journey through a fantasy jungle. The wind whips past the rider's "
+            "blue hands gripping the reins, causing the leather straps to vibrate. The ancient gothic castle "
+            "approaches steadily, its stone details becoming clearer against the backdrop of floating islands "
+            "and distant waterfalls."
+        ),
+        "default_task_type": "image-camera-video",
+        "default_call_kwargs": {
+            "size": "480*832",
+            "frame_num": 361,
+            "chunk_size": 4,
+            "seed": 42,
+            "sample_shift": 10.0,
+            "local_attn_size": 18,
+            "sink_size": 6,
+            "nproc_per_node": 8,
+            "t5_fsdp": True,
+            "dit_fsdp": True,
+            "offload_model": False,
+            "return_dict": True,
+            "timeout_seconds": 7200,
+        },
+        "load_params": (
+            "checkpoint_source",
+            "python_executable",
+            "t5_fsdp",
+            "dit_fsdp",
+            "t5_cpu",
+            "convert_model_dtype",
+            *DISPATCH_LOAD_PARAMS,
+        ),
+        "call_params": (
+            "images",
+            "prompt",
+            "interactions",
+            "action_path",
+            "input_dir",
+            "output_path",
+            "return_dict",
+            "frame_num",
+            "num_frames",
+            "size",
+            "chunk_size",
+            "seed",
+            "sample_shift",
+            "local_attn_size",
+            "sink_size",
+            "nproc_per_node",
+            "t5_fsdp",
+            "dit_fsdp",
+            "offload_model",
+            "timeout_seconds",
+        ),
+        "aliases": ("lingbot-world-infinity", "lingbot-v2", "lingbot_world_v2"),
+        "tags": ("world-model", "image-to-video", "camera-control", "causal", "official-runtime"),
+        "notes": (
+            "Fully in-tree causal-fast runtime. action_path must contain poses.npy and intrinsics.npy. The "
+            "official profile uses 8 GPUs; Workspace also supports 4 GPUs, reuses its existing process group "
+            "without nested torchrun, and materializes output only on rank 0."
+        ),
     },
     "infinite-world": {
         "display_name": "Infinite-World",
         "default_model_ref": _infinite_world_default_ref,
+        "default_prompt": (
+            "A young man holds a sparkling firework at night while the camera explores the illuminated "
+            "architecture with smooth, coherent motion."
+        ),
+        "default_input_path": str(_data_path("test_cases", "studio_demo", "00", "image.jpg")),
         "default_interactions": ("forward", "left", "right", "camera_l", "camera_r"),
         "default_call_kwargs": {"num_frames": 81, "seed": 42},
         "aliases": ("infiniteworld", "infinite_world"),
@@ -3739,6 +4949,7 @@ CURATED_OVERRIDES: Dict[str, Dict[str, Any]] = {
         "display_name": "Astra",
         "default_model_ref": _astra_default_ref,
         "default_prompt": ASTRA_OFFICIAL_PROMPT,
+        "default_input_path": str(_data_path("test_cases", "astra", "condition_images", "garden_1.png")),
         "default_load_kwargs": _astra_default_load_kwargs,
         "default_interactions": ("forward_left",),
         "default_call_kwargs": _astra_default_call_kwargs,
@@ -4093,6 +5304,24 @@ CURATED_OVERRIDES: Dict[str, Dict[str, Any]] = {
         ),
         "default_backend": "from_pretrained",
         "supports_from_pretrained": True,
+        "default_prompt": (
+            "A slow forward camera glide through a lush jungle clearing, with leaves moving gently in the wind "
+            "and stable trees, rocks, and background geometry."
+        ),
+        "default_call_kwargs": {
+            "image_path": str(_data_path("test_cases", "neoverse", "videos", "jungle.png")),
+            "height": 704,
+            "width": 1280,
+            "target_fps": 16,
+            "num_frames": 16,
+            "num_inference_steps": 50,
+            "guidance_scale": 9.0,
+            "negative_prompt": (
+                "distorted, discontinuous, blurry, low resolution, static, disfigured, "
+                "disconnected objects, inconsistent geometry"
+            ),
+            "seed": 8888,
+        },
         "call_params": _official_video_call_params(),
         "load_params": _official_video_load_params(),
         "tags": ("image-to-video", "diffusers", "official-runtime"),
@@ -4412,6 +5641,152 @@ CURATED_OVERRIDES: Dict[str, Dict[str, Any]] = {
         "aliases": ("skyreels2", "skyreels-v2-t2v"),
         "tags": ("text-to-video", "official-runtime"),
     },
+    "helios": {
+        "display_name": "Helios",
+        "default_model_ref": lambda: _checkpoint_model_ref(
+            "Helios-Distilled",
+            fallback="BestWishYsh/Helios-Distilled",
+        ),
+        "default_prompt": "",
+        "default_task_type": "t2v",
+        "default_backend": "from_pretrained",
+        "supports_from_pretrained": True,
+        "supports_stream": True,
+        "default_call_kwargs": {
+            "num_frames": 33,
+            "height": 384,
+            "width": 640,
+            "fps": 12,
+            "seed": 42,
+        },
+        "call_params": (
+            *_official_video_call_params(),
+            "interactions",
+            "realtime_segments",
+            "pyramid_num_inference_steps_list",
+        ),
+        "stream_params": ("prompt", "interactions", "realtime_segments"),
+        "load_params": _official_video_load_params(),
+        "aliases": ("bestwishysh/helios",),
+        "tags": (
+            "text-to-video",
+            "prompt-scheduled",
+            "stream",
+            "in-tree-runtime",
+            "local-checkpoint",
+        ),
+        "notes": (
+            "The resident Distilled runtime advances in native 33-frame segments and accepts prompt updates only "
+            "at segment boundaries. Helios does not provide keyboard or camera controls."
+        ),
+    },
+    "sana-streaming-2b-720p": {
+        "display_name": "SANA-Streaming 2B 720p",
+        "category": "Video Generation",
+        "default_task_type": "video-to-video",
+        "default_backend": "from_pretrained",
+        "supports_from_pretrained": True,
+        "default_input_path": str(_data_path("test_cases", "neoverse", "videos", "movie.mp4")),
+        "default_call_kwargs": {
+            "num_frames": 81,
+            "height": 704,
+            "width": 1280,
+            "fps": 16,
+            "num_inference_steps": 4,
+            "guidance_scale": 1.0,
+            "seed": 42,
+            "num_cached_blocks": 2,
+            "sink_token": True,
+        },
+        "call_params": (
+            *_official_video_call_params(),
+            "negative_prompt",
+            "flow_shift",
+            "motion_score",
+            "num_cached_blocks",
+            "sink_token",
+        ),
+        "load_params": _official_video_load_params(),
+        "aliases": ("sana-streaming", "sana-streaming-long", "sana-streaming-720p"),
+        "tags": ("video-to-video", "streaming", "state-cache", "official-runtime", "in-tree-runtime"),
+    },
+    "sana-streaming-bidirectional-2b-720p": {
+        "display_name": "SANA-Streaming Bidirectional 2B 720p",
+        "category": "Video Generation",
+        "default_task_type": "video-to-video",
+        "default_backend": "from_pretrained",
+        "supports_from_pretrained": True,
+        "default_input_path": str(_data_path("test_cases", "neoverse", "videos", "movie.mp4")),
+        "default_call_kwargs": {
+            "num_frames": 81,
+            "height": 704,
+            "width": 1280,
+            "fps": 16,
+            "num_inference_steps": 50,
+            "guidance_scale": 6.0,
+            "seed": 42,
+        },
+        "call_params": (
+            *_official_video_call_params(),
+            "negative_prompt",
+            "flow_shift",
+            "motion_score",
+            "num_cached_blocks",
+            "sink_token",
+        ),
+        "load_params": _official_video_load_params(),
+        "aliases": ("sana-streaming-bidirectional", "sana-streaming-short"),
+        "tags": ("video-to-video", "bidirectional", "official-runtime", "in-tree-runtime"),
+    },
+    "bernini": {
+        "display_name": "Bernini",
+        "category": "Video Generation",
+        "default_model_ref": lambda: _checkpoint_model_ref(
+            "ByteDance--Bernini-Diffusers",
+            fallback="ByteDance/Bernini-Diffusers",
+        ),
+        "default_task_type": "text-to-video",
+        "default_backend": "from_pretrained",
+        "supports_from_pretrained": True,
+        "default_load_kwargs": {"model_id": "bernini"},
+        "default_call_kwargs": {
+            "task_type": "t2v",
+            "num_frames": 81,
+            "height": 480,
+            "width": 848,
+            "num_inference_steps": 50,
+            "fps": 16,
+            "seed": 42,
+            "nproc_per_node": 8,
+            "ulysses_size": 8,
+        },
+        "call_params": (
+            *_official_video_call_params(),
+            "task_type",
+            "neg_prompt",
+            "max_image_size",
+            "guidance_mode",
+            "omega_vid",
+            "omega_img",
+            "omega_txt",
+            "omega_tgt",
+            "omega_scale",
+            "planning_step",
+            "vit_txt_cfg",
+            "vit_img_cfg",
+            "vit_denoising_step",
+            "eta",
+            "norm_threshold",
+            "momentum",
+            "system_prompt",
+            "use_truncate",
+            "max_sequence_length",
+            "ulysses_size",
+        ),
+        "load_params": _official_video_load_params(),
+        "aliases": ("bernini-diffusers", "bernini-7b-14b"),
+        "tags": ("text-to-video", "multi-task", "ulysses", "official-runtime", "in-tree-runtime"),
+    },
     "wan-2p1-t2v": {
         "display_name": "Wan 2.1 T2V",
         "default_model_ref": _wan_2p1_t2v_default_ref,
@@ -4499,24 +5874,146 @@ CURATED_OVERRIDES: Dict[str, Dict[str, Any]] = {
     },
     "cosmos3": {
         "display_name": "Cosmos3",
-        "default_model_ref": lambda: _checkpoint_model_ref(
+        "default_model_ref": lambda: _hf_checkpoint_model_ref_at_revision(
             "Cosmos3-Nano",
-            "nvidia--Cosmos3-Nano",
-            fallback="nvidia/Cosmos3-Nano",
+            "nvidia/Cosmos3-Nano",
+            "411f42a8fdfb8c5b2583cb8786e0938f49796eaa",
         ),
+        "default_load_kwargs": {
+            "revision": "411f42a8fdfb8c5b2583cb8786e0938f49796eaa",
+            "load_sound_tokenizer": True,
+        },
         "default_prompt": "A robot arm is cleaning a plate in the kitchen",
         "default_task_type": "text-to-video",
         "default_call_kwargs": {
             "fps": 24,
+            "guidance_scale": 6.0,
             "height": 720,
+            "num_inference_steps": 35,
             "num_frames": 189,
             "output_type": "video",
             "seed": 0,
             "width": 1280,
         },
-        "aliases": ("cosmos3-nano", "cosmos-3", "cosmos-3-nano"),
-        "tags": ("text-to-video", "world-generation", "video", "cosmos", "official-demo"),
-        "notes": "Defaults mirror the official Cosmos3 Nano diffusers text-to-video demo; leave input_path empty for T2V.",
+        "load_params": (
+            "model_path",
+            "required_components",
+            "device",
+            "model_id",
+            "torch_dtype",
+            "device_map",
+            "enable_safety_checker",
+            "load_sound_tokenizer",
+            "revision",
+        ),
+        "extra_variants": (
+            {
+                "variant_id": "cosmos3-super",
+                "label": "Cosmos 3 Super",
+                "status": "checkpoint-required",
+                "aliases": ("cosmos-3-super",),
+                "checkpoints": (
+                    {
+                        "role": "primary",
+                        "uri": lambda: _hf_checkpoint_model_ref_at_revision(
+                            "Cosmos3-Super",
+                            "nvidia/Cosmos3-Super",
+                            "e0262be9d8f7586bc24c069a2aed2b665bdff266",
+                        ),
+                        "required": True,
+                        "status": "official",
+                    },
+                ),
+                "load_kwargs": {
+                    "variant_id": "cosmos3-super",
+                    "profile_id": "cosmos3-super",
+                    "revision": "e0262be9d8f7586bc24c069a2aed2b665bdff266",
+                    "runtime_profile": "cosmos3-super",
+                    "device_map": "balanced",
+                    "load_sound_tokenizer": True,
+                },
+                "notes": (
+                    "Requires a high-memory multi-GPU configuration; the default safe map shards decoder layers only.",
+                ),
+            },
+        ),
+        "aliases": ("cosmos3-nano", "cosmos3-super", "cosmos-3", "cosmos-3-nano", "cosmos-3-super"),
+        "tags": (
+            "text-to-image",
+            "text-to-video",
+            "image-to-video",
+            "video-to-video",
+            "action-policy",
+            "forward-dynamics",
+            "inverse-dynamics",
+            "world-generation",
+            "video",
+            "cosmos",
+        ),
+        "notes": "Uses the in-tree official Diffusers generator. Nano is the default; Super is selectable as a separate variant. Exact-revision Nano task-matrix and safety-enabled smokes plus a four-A100 Super T2I smoke passed; official-quality/full-resolution parity remains pending.",
+    },
+    "lingbot-video": {
+        "display_name": "LingBot-Video",
+        "default_model_ref": _lingbot_video_default_ref,
+        "default_load_kwargs": {"variant": "dense"},
+        "default_prompt": (
+            '{"comprehensive_description":"A humanoid robot carefully places a red block into a matching tray on a '
+            'clean workbench while the camera remains stable.","camera_info":{"frame_size":"Medium Shot",'
+            '"shot_type_angle":"Eye Level","lighting_type":"Daylight"},"world_knowledge":[]}'
+        ),
+        "default_task_type": "t2v",
+        "default_call_kwargs": {
+            "mode": "t2v",
+            "backend": "diffusers",
+            "height": 480,
+            "width": 832,
+            "num_frames": 121,
+            "num_inference_steps": 40,
+            "guidance_scale": 3.0,
+            "shift": 3.0,
+            "seed": 42,
+            "fps": 24,
+            "execute": True,
+            "timeout_seconds": 7200,
+        },
+        "load_params": ("variant", "python_executable", *DISPATCH_LOAD_PARAMS),
+        "call_params": (
+            "prompt",
+            "prompt_json",
+            "images",
+            "negative_prompt",
+            "negative_prompt_json",
+            "mode",
+            "backend",
+            "height",
+            "width",
+            "num_frames",
+            "num_inference_steps",
+            "guidance_scale",
+            "shift",
+            "seed",
+            "fps",
+            "batch_cfg",
+            "run_refiner",
+            "reuse_condition_features",
+            "refiner_height",
+            "refiner_width",
+            "refiner_steps",
+            "refiner_guidance_scale",
+            "refiner_shift",
+            "cfg_parallel_degree",
+            "context_parallel_degree",
+            "nproc_per_node",
+            "enable_fsdp_inference",
+            "execute",
+            "timeout_seconds",
+            "return_dict",
+            "output_dir",
+            "output_path",
+        ),
+        "aliases": ("lingbot-video-dense", "lingbot-video-moe"),
+        "tags": ("text-to-video", "image-to-video", "text-to-image", "official-runtime"),
+        "notes": "Inference-only in-tree runtime. Structured JSON captions are required for release-quality generation.",
     },
     "longcat-video": {
         "display_name": "LongCat-Video",
@@ -4766,7 +6263,7 @@ CURATED_OVERRIDES: Dict[str, Dict[str, Any]] = {
             "checkpoint_path": _open_magvit2_default_ref(),
             "config_path": "imagenet_conditional_llama_L.yaml",
         },
-        "default_call_kwargs": {"class_id": 207, "batch_size": 1, "steps": 16},
+        "default_call_kwargs": {"class_id": 207, "batch_size": 1, "steps": 256},
         "call_params": (
             "prompt",
             "images",
@@ -4908,6 +6405,133 @@ CURATED_OVERRIDES: Dict[str, Dict[str, Any]] = {
             "run_manage_libs",
         ),
         "tags": ("robot-video", "official-runtime"),
+    },
+    "hydra": {
+        "display_name": "HyDRA",
+        "default_model_ref": lambda: str(hfd_root_path() / "H-EmbodVis--HyDRA" / "hydra.ckpt"),
+        "default_input_path": str(_data_path("test_cases", "hydra", "condition.mp4")),
+        "default_prompt": (
+            "The video begins with a close-up of an individual clad in black armor with red and yellow lights, "
+            "walking toward the camera on a city street."
+        ),
+        "default_load_kwargs": lambda: {
+            "base_model_path": str(checkpoint_root_path() / "Wan2.1-T2V-1.3B"),
+        },
+        "default_call_kwargs": lambda: {
+            "video_path": str(_data_path("test_cases", "hydra", "condition.mp4")),
+            "camera_json": str(_data_path("test_cases", "hydra", "camera.json")),
+            "num_frames": 77,
+            "fps": 15,
+            "width": 832,
+            "height": 480,
+            "num_inference_steps": 50,
+            "seed": 42,
+        },
+        "call_params": (
+            "prompt", "video", "video_path", "camera_json", "output_path", "num_frames",
+            "fps", "width", "height", "num_inference_steps", "seed", "return_dict",
+        ),
+        "load_params": (
+            "model_path", "checkpoint_path", "base_model_path", "python_executable", "device",
+            *DISPATCH_LOAD_PARAMS,
+        ),
+        "tags": ("video-to-video", "camera-control", "official-runtime"),
+    },
+    "minwm-hy-action2v": {
+        "display_name": "minWM HY Action2V",
+        "default_model_ref": lambda: str(hfd_root_path() / "MIN-Lab--minWM"),
+        "default_input_path": str(_data_path("test_cases", "minwm", "first_frame.png")),
+        "default_prompt": "A serene garden path winds through manicured greenery under a soft overcast sky.",
+        "default_load_kwargs": lambda: {
+            "base_model_path": str(checkpoint_root_path() / "HunyuanVideo-1.5"),
+        },
+        "default_call_kwargs": {
+            "trajectory": "a*4,w*8,s*7",
+            "num_frames": 77,
+            "num_inference_steps": 4,
+            "fps": 16,
+            "width": 832,
+            "height": 480,
+            "seed": 0,
+        },
+        "call_params": (
+            "prompt", "images", "image_path", "trajectory", "output_path", "num_frames",
+            "num_inference_steps", "fps", "width", "height", "seed", "return_dict",
+        ),
+        "load_params": (
+            "model_path", "checkpoint_path", "base_model_path", "python_executable", "device",
+            *DISPATCH_LOAD_PARAMS,
+        ),
+        "tags": ("world-model", "action-conditioned-video", "camera-control"),
+    },
+    "minwm-wan-action2v": {
+        "display_name": "minWM Wan Action2V",
+        "default_model_ref": lambda: str(hfd_root_path() / "MIN-Lab--minWM"),
+        "default_prompt": "A serene garden path winds through manicured greenery under a soft overcast sky.",
+        "default_load_kwargs": lambda: {
+            "base_model_path": str(checkpoint_root_path() / "Wan2.1-T2V-1.3B"),
+        },
+        "default_call_kwargs": {
+            "trajectory": "a*4,w*8,s*7",
+            "num_output_frames": 20,
+            "seed": 0,
+        },
+        "call_params": (
+            "prompt", "trajectory", "output_path", "num_output_frames", "seed", "sp_size",
+            "master_port", "return_dict",
+        ),
+        "load_params": (
+            "model_path", "checkpoint_path", "base_model_path", "python_executable", "device",
+            *DISPATCH_LOAD_PARAMS,
+        ),
+        "tags": ("world-model", "action-conditioned-video", "camera-control"),
+    },
+    "magicworld": {
+        "display_name": "MagicWorld",
+        "default_model_ref": lambda: str(hfd_root_path() / "LuckyLiGY--MagicWorld"),
+        "default_input_path": str(_data_path("test_cases", "minwm", "first_frame.png")),
+        "default_prompt": "A serene garden path with a smooth forward camera move.",
+        "default_load_kwargs": lambda: {
+            "base_model_path": str(hfd_root_path() / "alibaba-pai--Wan2.1-Fun-V1.1-1.3B-InP"),
+        },
+        "default_call_kwargs": lambda: {
+            "native_rows": str(
+                _data_path(
+                    "benchmarks", "assets", "iworld-bench", "camera_trajectories",
+                    "inference_txt", "camera_1_2_0.txt",
+                )
+            ),
+            "num_frames": 81,
+            "seed": 42,
+        },
+        "call_params": (
+            "prompt", "images", "image_path", "native_rows", "output_path", "num_frames", "seed",
+            "return_dict",
+        ),
+        "load_params": (
+            "model_path", "checkpoint_path", "base_model_path", "python_executable", "device",
+            *DISPATCH_LOAD_PARAMS,
+        ),
+        "tags": ("world-model", "image-to-video", "camera-control"),
+    },
+    "gamma-world": {
+        "display_name": "Gamma-World",
+        "default_input_path": str(
+            _data_path("test_cases", "gamma_world", "buildTower_normal")
+        ),
+        "default_prompt": "Two Minecraft players buildTower in normal world",
+        "default_call_kwargs": {
+            "mode": "causal_few_step",
+            "n_players": 2,
+            "num_frames": 189,
+            "num_conditional_frames": 1,
+            "height": 320,
+            "width": 480,
+            "guidance": 5.0,
+            "seed": 1,
+            "fps": 16,
+        },
+        "tags": ("multi-agent-world-model", "action-conditioned-video", "official-runtime"),
     },
     "solaris": {
         "display_name": "Solaris",
@@ -5102,7 +6726,7 @@ CURATED_OVERRIDES: Dict[str, Dict[str, Any]] = {
             "and vibrant flower gardens under a bright blue sky."
         ),
         "default_interactions": ("forward", "backward", "right", "left"),
-        "default_load_kwargs": {"seed": 250160, "torchrun_nproc_per_node": 8},
+        "default_load_kwargs": {"seed": 250160},
         "load_params": ("cpu_offload", *DISPATCH_LOAD_PARAMS),
         "default_call_kwargs": {
             "interactions": ("forward", "backward", "right", "left"),
@@ -5991,7 +7615,6 @@ CURATED_OVERRIDES: Dict[str, Dict[str, Any]] = {
         "display_name": "HY-WorldPlay",
         "category": "Video Generation",
         "default_model_ref": _hunyuan_worldplay_default_ref,
-        "default_input_path": str(_data_path("test_cases", "hunyuan_worldplay", "test.png")),
         "default_prompt": (
             "A paved pathway leads towards a stone arch bridge spanning a calm body of water.  "
             "Lush green trees and foliage line the path and the far bank of the water. "
@@ -6307,6 +7930,7 @@ CURATED_OVERRIDES.update(
                 input_path=_geometry_prior_image_fixture(),
                 type="l",
                 focal_length=720.0,
+                max_points=50_000,
             ),
             "call_params": _geometry_prior_call_params("type", "focal_length"),
             "load_params": _geometry_prior_load_params(),
@@ -6319,12 +7943,14 @@ CURATED_OVERRIDES.update(
             "supports_from_pretrained": True,
             "supports_stream": False,
             "default_backend": "from_pretrained",
-            "default_task_type": "panoramic-depth-estimation",
+            "default_task_type": "metric-3d-estimation",
             "default_call_kwargs": _geometry_prior_default_call_kwargs(
                 input_path=_geometry_prior_image_fixture(),
                 type="l",
+                camera_model="auto",
+                max_points=50_000,
             ),
-            "call_params": _geometry_prior_call_params("type"),
+            "call_params": _geometry_prior_call_params("type", "camera_model"),
             "load_params": _geometry_prior_load_params(),
             "aliases": ("unik3d", "unik3d-vitl"),
             "tags": ("depth", "geometry", "panorama", "prior"),
@@ -6485,7 +8111,12 @@ def _canonical_runtime_entries() -> Iterable[CatalogEntry]:
                 fallback="alibaba-pai/EasyAnimateV5.1-7b-zh-InP",
             ),
         },
-        "gen_3_i2v": {"generation_type": "i2v", "aliases": ("gen-3-i2v", "gen3-i2v", "gen-3")},
+        "gen_3_i2v": {
+            "generation_type": "i2v",
+            "aliases": ("gen-3-i2v", "gen3-i2v", "gen-3"),
+            "default_prompt": "A gentle camera move around the subject with natural motion and stable lighting.",
+            "default_input_path": str(_data_path("test_cases", "studio_demo", "00", "image.jpg")),
+        },
         "ltx_video_i2v": {
             "generation_type": "i2v",
             "aliases": ("ltx-video-i2v", "ltx-video"),
@@ -6507,8 +8138,8 @@ def _canonical_runtime_entries() -> Iterable[CatalogEntry]:
                 "fps": 24,
                 "height": 512,
                 "width": 768,
-                "num_inference_steps": 40,
-                "guidance_scale": 4.0,
+                "num_inference_steps": 8,
+                "guidance_scale": 1.0,
                 "seed": 171198,
             },
             "call_params": (
@@ -6593,7 +8224,12 @@ def _canonical_runtime_entries() -> Iterable[CatalogEntry]:
                 fallback="Lightricks/LTX-2.3",
             ),
         },
-        "minimax_i2v": {"generation_type": "i2v", "aliases": ("minimax-i2v",)},
+        "minimax_i2v": {
+            "generation_type": "i2v",
+            "aliases": ("minimax-i2v",),
+            "default_prompt": "A gentle camera move around the subject with natural motion and stable lighting.",
+            "default_input_path": str(_data_path("test_cases", "studio_demo", "00", "image.jpg")),
+        },
         "t2v_turbo_t2v": {
             "generation_type": "t2v",
             "aliases": ("t2v-turbo-t2v", "t2v-turbo"),
@@ -6885,13 +8521,38 @@ def _runtime_class_name(model_name: str) -> str:
     return "".join(pretty_tokens) + "Pipeline"
 
 
-def _parse_method_args(node: ast.FunctionDef) -> tuple[str, ...]:
-    args = []
-    for arg in node.args.args:
-        if arg.arg == "self":
+def _parse_method_args(node: ast.FunctionDef | ast.AsyncFunctionDef) -> tuple[str, ...]:
+    args: list[str] = []
+    for arg in (*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs):
+        if arg.arg in {"self", "cls"}:
             continue
         args.append(arg.arg)
-    return tuple(args)
+    return tuple(dict.fromkeys(args))
+
+
+def _resolve_class_methods(
+    class_nodes: dict[str, ast.ClassDef],
+    class_name: str,
+    cache: dict[str, dict[str, tuple[str, ...]]],
+    seen: frozenset[str] = frozenset(),
+) -> dict[str, tuple[str, ...]]:
+    """Collect local inherited method signatures for AST-only catalog discovery."""
+
+    if class_name in cache:
+        return dict(cache[class_name])
+    if class_name in seen or class_name not in class_nodes:
+        return {}
+    class_node = class_nodes[class_name]
+    methods: dict[str, tuple[str, ...]] = {}
+    next_seen = seen | {class_name}
+    for base in class_node.bases:
+        base_name = base.id if isinstance(base, ast.Name) else getattr(base, "attr", "")
+        methods.update(_resolve_class_methods(class_nodes, base_name, cache, next_seen))
+    for item in class_node.body:
+        if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            methods[item.name] = _parse_method_args(item)
+    cache[class_name] = methods
+    return dict(methods)
 
 
 def _class_string_constant(node: ast.ClassDef, name: str) -> str | None:
@@ -7004,22 +8665,28 @@ def _discover_action_syntheses() -> tuple[_AstPipelineInfo, ...]:
         family = path.parent.name
         source = path.read_text(encoding="utf-8")
         tree = ast.parse(source, filename=str(path))
+        class_nodes = {node.name: node for node in tree.body if isinstance(node, ast.ClassDef)}
+        method_cache: dict[str, dict[str, tuple[str, ...]]] = {}
+
         for node in tree.body:
             if not isinstance(node, ast.ClassDef):
                 continue
             if not node.name.endswith("Synthesis"):
                 continue
-            if not any(
-                base.id == "ActionModelSynthesis" if isinstance(base, ast.Name) else getattr(base, "attr", "") == "ActionModelSynthesis"
+            base_names = tuple(
+                base.id if isinstance(base, ast.Name) else getattr(base, "attr", "")
                 for base in node.bases
-            ):
+            )
+            model_id = _class_string_constant(node, "MODEL_ID")
+            inherits_action_synthesis = any(
+                base_name == "ActionModelSynthesis" or base_name.endswith("Synthesis")
+                for base_name in base_names
+            )
+            if not model_id or not inherits_action_synthesis:
                 continue
-            methods: Dict[str, tuple[str, ...]] = {}
-            for item in node.body:
-                if isinstance(item, ast.FunctionDef):
-                    methods[item.name] = _parse_method_args(item)
+            methods = _resolve_class_methods(class_nodes, node.name, method_cache)
 
-            slug = _normalize_model_id(_class_string_constant(node, "MODEL_ID") or family.replace("_", "-"))
+            slug = _normalize_model_id(model_id)
             discovered.append(
                 _AstPipelineInfo(
                     model_id=slug,
@@ -7027,13 +8694,16 @@ def _discover_action_syntheses() -> tuple[_AstPipelineInfo, ...]:
                     module_path=module_path,
                     class_name=node.name,
                     family=family,
-                    call_params=methods.get("predict", methods.get("__call__", tuple())),
+                    call_params=methods.get(
+                        "predict",
+                        methods.get("__call__", OFFICIAL_ACTION_CALL_PARAMS),
+                    ),
                     stream_params=methods.get("stream", tuple()),
-                    load_params=methods.get("from_pretrained", tuple()),
+                    load_params=methods.get("from_pretrained", OFFICIAL_ACTION_LOAD_PARAMS),
                     supports_stream="stream" in methods,
-                    supports_from_pretrained="from_pretrained" in methods,
+                    supports_from_pretrained=True,
                     supports_api_init="api_init" in methods,
-                    base_names=("ActionModelSynthesis",),
+                    base_names=base_names,
                 )
             )
     return tuple(discovered)
@@ -7048,6 +8718,8 @@ def _discover_ast_pipelines() -> tuple[_AstPipelineInfo, ...]:
         family = path.parent.name
         source = path.read_text(encoding="utf-8")
         tree = ast.parse(source, filename=str(path))
+        class_nodes = {node.name: node for node in tree.body if isinstance(node, ast.ClassDef)}
+        method_cache: dict[str, dict[str, tuple[str, ...]]] = {}
         for node in tree.body:
             if not isinstance(node, ast.ClassDef):
                 continue
@@ -7055,10 +8727,7 @@ def _discover_ast_pipelines() -> tuple[_AstPipelineInfo, ...]:
                 continue
             if not node.name.endswith("Pipeline"):
                 continue
-            methods: Dict[str, tuple[str, ...]] = {}
-            for item in node.body:
-                if isinstance(item, ast.FunctionDef):
-                    methods[item.name] = _parse_method_args(item)
+            methods = _resolve_class_methods(class_nodes, node.name, method_cache)
 
             slug = _normalize_model_id(_class_string_constant(node, "MODEL_ID") or _slug_from_filename(path))
             display_name = _display_name_from_slug(slug)
@@ -7095,9 +8764,16 @@ def _discover_catalog_infos() -> tuple[_AstPipelineInfo, ...]:
 
 def _build_entry(info: _AstPipelineInfo) -> CatalogEntry:
     override = CURATED_OVERRIDES.get(info.model_id, {})
+    inferred_category = _category_from_family(info.family, info.class_name, info.call_params)
+    if (
+        inferred_category == "Video Generation"
+        and info.module_path.startswith("worldfoundry.synthesis.action_generation.")
+        and info.class_name.endswith("Synthesis")
+    ):
+        inferred_category = "Embodied Action"
     category = override.get(
         "category",
-        _category_from_family(info.family, info.class_name, info.call_params),
+        inferred_category,
     )
     display_name = override.get("display_name", info.display_name)
     runtime_kind = override.get("runtime_kind", _runtime_kind_from_family(info.model_id, info.family))
@@ -7112,12 +8788,13 @@ def _build_entry(info: _AstPipelineInfo) -> CatalogEntry:
         "summary",
         _summary_from_category(category, display_name, supports_stream),
     )
-    default_prompt = override.get(
-        "default_prompt",
-        "A slow exploratory camera move through a believable scene with stable geometry and lighting."
-        if category == "Video Generation"
-        else "Reconstruct the scene and surface geometry with stable camera motion.",
-    )
+    if category == "Video Generation":
+        inferred_prompt = "A slow exploratory camera move through a believable scene with stable geometry and lighting."
+    elif category in {"Embodied Action", "Visual Action"}:
+        inferred_prompt = "Follow the instruction and predict the next executable action chunk."
+    else:
+        inferred_prompt = "Reconstruct the scene and surface geometry with stable camera motion."
+    default_prompt = override.get("default_prompt", inferred_prompt)
     default_model_ref = _resolve_override_value(override.get("default_model_ref", ""))
     default_load_kwargs = _resolve_override_value(override.get("default_load_kwargs", {})) or {}
     default_call_kwargs = _resolve_override_value(override.get("default_call_kwargs", {})) or {}

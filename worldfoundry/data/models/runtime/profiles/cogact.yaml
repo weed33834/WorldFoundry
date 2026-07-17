@@ -36,15 +36,15 @@ input_schema:
 artifact_kind: action_trace
 artifact_filename: cogact_action_trace.json
 execution:
-  backend_stage: in_tree_vendored_in_process_checkpoint_runtime
-  runtime_status: in_tree_vendored_import_verified
-  integration_status: in_tree_vendored_import_verified
+  backend_stage: in_tree_in_process_checkpoint_runtime
+  runtime_status: checkpoint_backed_verified
+  integration_status: integrated
   pipeline_binding: cogact
 integration:
-  status: in_tree_vendored_import_verified
+  status: integrated
 notes:
 - Official minimal inference loads vla.load_vla and calls predict_action with cfg_scale, use_ddim, and num_ddim_steps.
-- CogACT reconstructs the Prismatic base VLM with `meta-llama/Llama-2-7b-hf`; users must accept the Llama 2 license on Hugging Face and provide `HF_TOKEN` or `HUGGING_FACE_HUB_TOKEN`.
-- Local CogACT checkpoints are not sufficient by themselves unless the Llama 2 config/tokenizer is available through Hugging Face access or `${WORLDFOUNDRY_HFD_ROOT}/meta-llama--Llama-2-7b-hf`.
-- WorldFoundry runtime imports the vendored CogACT infer subset in-process; it does not launch the deployment server or require an external checkout by default.
+- CogACT reconstructs the Prismatic Llama-2 7B VLM. All VLM and DiT weights come from the CogACT checkpoint; only compatible local Llama tokenizer assets are reused.
+- Gated Hugging Face access is only required when neither a local Llama-2 mirror nor a compatible staged OpenVLA tokenizer bundle is available.
+- WorldFoundry imports its inference-only CogACT package normally; it does not mutate sys.path, launch a deployment server, execute remote code, or require an external checkout.
 - Minimal runtime excludes FSDP training, TensorFlow/RLDS data loaders, real-world deployment server, and SimplerEnv benchmark adapters.

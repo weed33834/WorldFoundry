@@ -1,0 +1,8 @@
+schema_version: 2
+binding_id: versecrafter
+model_id: versecrafter
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.versecrafter.pipeline_versecrafter:VerseCrafterPipeline
+  loading: {method: from_pretrained, signature: unified}
+  invocation: {mode: native_or_standard_invocation}

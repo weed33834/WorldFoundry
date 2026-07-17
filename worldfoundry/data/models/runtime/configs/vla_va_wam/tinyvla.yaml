@@ -1,0 +1,27 @@
+backend: callable_entrypoint
+checkpoint_path: ${WORLDFOUNDRY_CKPT_DIR}/tinyvla/policy
+base_model_path: ${WORLDFOUNDRY_HFD_ROOT}/lesjie--Llava-Pythia-400M
+config_path: null
+stats_path: ${WORLDFOUNDRY_CKPT_DIR}/tinyvla/policy/dataset_stats.pkl
+require_checkpoint: true
+policy_target: worldfoundry.synthesis.action_generation.tinyvla.runtime:predict_action
+runtime_backend: tinyvla_in_tree_runtime
+action_contract: task_configured_continuous_action_chunk
+architecture_config_path: ${WORLDFOUNDRY_DATA_ROOT}/models/runtime/configs/vla_va_wam/tinyvla-architecture.yaml
+torch_dtype: auto
+attention_backend: sdpa
+compile_action_head: true
+compile_mode: reduce-overhead
+allow_tf32: true
+num_inference_steps: 10
+seed: 42
+image_width: 640
+image_height: 480
+camera_keys:
+- cam_left_wrist
+- cam_right_wrist
+- cam_head
+- left_wrist
+- right_wrist
+- head
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner

@@ -1,0 +1,71 @@
+schema_version: 2
+model_id: abot-world-0-5b-lf
+display_name: ABot-World-0-5B-LF
+task_family: world_model
+groups:
+- world
+- action_control
+- video
+aliases:
+- abot-world
+- abot
+source_repos:
+- url: https://github.com/amap-cvlab/ABot-World
+  revision: e2a406a176195d994bcaf5ebb92b2047edcd3c2b
+checkpoints:
+- local_dir: ${WORLDFOUNDRY_CKPT_DIR}/ABot-World-0-5B-LF
+  repo_id: acvlab/ABot-World-0-5B-LF
+  revision: d05a3ecf68f6144e4bc6ac7e49b7d9a531af723e
+  role: causal_student_checkpoint
+  required_paths:
+  - config.json
+  - diffusion_pytorch_model.safetensors
+  - models_t5_umt5-xxl-enc-bf16.pth
+  - Wan2.2_VAE.pth
+  - taew2_2.pth
+  - google/umt5-xxl/spiece.model
+  - google/umt5-xxl/tokenizer.json
+  - google/umt5-xxl/tokenizer_config.json
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  reference_images: true
+  actions:
+  - W
+  - A
+  - S
+  - D
+  - I
+  - J
+  - K
+  - L
+artifact_kind: generated_world
+artifact_filename: abot-world.mp4
+execution:
+  backend_stage: in_tree_runtime
+  runtime_status: checkpoint_gpu_validated
+  integration_status: checkpoint_gpu_validated
+  pipeline_binding: abot-world-0-5b-lf
+  defaults:
+    height: 704
+    width: 1280
+    fps: 16
+    num_frames: 57
+    num_frame_per_block: 3
+    local_attn_size: 21
+    ref_num_slots: 5
+    ref_resolution: 512
+    denoising_steps: [1000, 750, 500, 250]
+    timestep_shift: 5.0
+    context_noise: 0
+    use_relative_rope: true
+    use_fp8: true
+    offload_conditioners: true
+integration:
+  status: checkpoint_gpu_validated
+notes:
+- Runtime execution is offline-first and requires a local checkpoint directory.
+- The resident API keeps causal KV state between action blocks.
+- The first block returns 9 RGB frames; subsequent blocks return 12.
+- The public 0.5B-LF checkpoint passed real A100 Workspace inference at the official 1280x704 resolution; the one-block H.264 artifact fully decoded to nine frames at 16 FPS.

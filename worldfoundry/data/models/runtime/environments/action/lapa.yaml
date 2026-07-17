@@ -4,39 +4,48 @@ conda_packages:
 - ffmpeg
 cuda_profile: cu118
 driver_status: compatible_jax_cuda11_cu118_lapa_action_tokens
-env_name: worldfoundry-unified-cu128
+env_name: worldfoundry-lapa-jax-cu118
 env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
 model_id: lapa
 notes:
 - VA/VAM latent-action profile. It is not categorized as video generation. The prepare env keeps the full LAQ training stack
-  out of scope, but the official vendored LAPA inference path uses JAX CUDA 11.8 wheels for action-token inference.
+  out of scope, while the flattened in-tree LAPA inference modules use JAX CUDA 11.8 wheels for action-token inference.
 - LAPA-7B-openx requires runtime JAX compatibility shims for Flax/Tux and frame inputs shaped like the WorldBench route.
+- LAPA stays isolated because Transformers 5 removes the Flax generation modules required by the official runtime.
 pip_packages:
-- numpy
+- numpy<2
 - Pillow
-- opencv-python
+- opencv-python-headless==4.9.0.80
 - imageio[ffmpeg]
-- transformers
-- datasets
+- transformers==4.40.1
+- datasets==2.19.2
 - jax==0.4.25
-- jaxlib==0.4.25+cuda11.cudnn86
-- flax
-- orbax-checkpoint
-- optax
-- chex
+- https://storage.googleapis.com/jax-releases/cuda11/jaxlib-0.4.25+cuda11.cudnn86-cp310-cp310-manylinux2014_x86_64.whl
+- nvidia-cuda-runtime-cu11==11.8.89
+- nvidia-cuda-nvrtc-cu11==11.8.89
+- nvidia-cuda-nvcc-cu11==11.8.89
+- nvidia-cuda-cupti-cu11==11.8.87
+- nvidia-cublas-cu11==11.11.3.6
+- nvidia-cudnn-cu11==8.9.6.50
+- nvidia-cusolver-cu11==11.4.1.48
+- nvidia-cusparse-cu11==11.7.5.86
+- nvidia-cufft-cu11==10.9.0.58
+- nvidia-curand-cu11==10.3.0.86
+- nvidia-nccl-cu11==2.19.3
+- flax==0.8.2
+- orbax-checkpoint==0.5.9
+- optax==0.2.2
+- chex==0.1.86
 - tux==0.0.2
 - sentencepiece
 - einops
-- albumentations
-- gcsfs
+- albumentations==1.4.3
+- gcsfs==2024.3.1
 - decord
 - fastapi
 - uvicorn
-pip_find_links:
-- https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 python: '3.10'
-pythonpath_dirs:
-- worldfoundry/synthesis/action_generation/lapa/lapa_runtime
+pythonpath_dirs: []
 validation_imports:
 - numpy
 - PIL

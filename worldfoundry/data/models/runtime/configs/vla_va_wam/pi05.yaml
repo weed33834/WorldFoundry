@@ -1,2 +1,7 @@
 config_name: pi05_libero
+data_family: libero
 seed: 0
+torch_dtype: auto
+local_files_only: true
+paligemma_tokenizer_path: ${WORLDFOUNDRY_HFD_ROOT}/google--paligemma-3b-pt-224/tokenizer.model
+fast_tokenizer_path: ${WORLDFOUNDRY_HFD_ROOT}/physical-intelligence--fast

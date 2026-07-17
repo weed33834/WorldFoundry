@@ -27,10 +27,9 @@ integration:
 base_model_target: worldfoundry.base_models.three_dimensions.depth.priorda
 runtime_profile: runtime-profile:prior-depth-anything
 runner_parity:
-  status: implemented_checkpoint_pending
+  status: verified
   notes:
-  - resolve_model_zoo_config and pipeline/operator import are expected to pass; real
-    prior inference remains gated by checkpoints/assets.
+  - Workspace loaded the official checkpoint and refined a real Depth Anything 3 metric-depth condition on 2026-07-11.
 catalog_category: three_d_four_d
 catalog_scope: Independent geometric prior integrations used by 3D and world-model
   runtimes.

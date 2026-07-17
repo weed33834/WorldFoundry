@@ -2,7 +2,7 @@ artifact_filename: act_action_trace.json
 artifact_kind: action_trace
 backend_stage: in_tree_runtime
 checkpoints:
-- local_dir: ${WORLDFOUNDRY_CKPT_DIR}/embodied_action/act/sim_transfer_cube_scripted/policy_best.ckpt
+- local_path: ${WORLDFOUNDRY_CKPT_DIR}/embodied_action/act/sim_transfer_cube_scripted/policy_best.ckpt
   role: local_sim_transfer_cube_policy_checkpoint
 id: act
 input_schema:
@@ -14,7 +14,7 @@ input_schema:
   instruction: true
   prompt: false
   video: false
-integration_status: runtime_ported
+integration_status: integrated
 notes:
 - Action Chunking Transformer is represented as an action-chunking robot policy.
 - The upstream ACT repo documents training/evaluation commands but does not publish
@@ -22,11 +22,12 @@ notes:
   requires a caller-staged policy_best.ckpt and matching dataset_stats.pkl.
 - The output contract is action_trace so downstream embodied benchmarks can replay
   action chunks.
-- WorldFoundry vendors the RoboTwin ACT policy, DETR-VAE, transformer, backbone, and
-  position encoding runtime under worldfoundry/synthesis/action_generation/act/act_runtime.
-  py_compile, runtime import, from_pretrained, and plan-only predict are supported;
-  checkpoint-backed predict_action remains gated on a local trained ACT checkpoint
-  and dataset statistics.
-runtime_status: in_tree_act_runtime_ported_checkpoint_missing_plan_only_default
+- WorldFoundry keeps the inference-only ACT policy, DETR-VAE, transformer, backbone, and
+  position encoding directly under worldfoundry/synthesis/action_generation/act.
+  The checkpoint-backed predict_action route is implemented in-tree and remains gated
+  only on a local trained ACT checkpoint and matching dataset statistics.
+- PyTorch checkpoints are loaded with weights_only=true and strict key matching. The
+  legacy dataset_stats.pkl reader permits only the NumPy globals needed for numeric arrays.
+runtime_status: in_tree_checkpoint_runtime_local_assets_required
 task_family: action_chunking_policy
-verification_status: plan_only_ready_checkpoint_required
+verification_status: static_and_cpu_contract_verified_checkpoint_required

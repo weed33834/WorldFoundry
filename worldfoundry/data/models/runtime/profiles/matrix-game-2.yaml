@@ -1,0 +1,39 @@
+schema_version: 2
+model_id: matrix-game-2
+display_name: Matrix-Game 2.0
+task_family: world_model
+groups: [world, interactive, camera_control]
+source_repos:
+- url: https://github.com/SkyworkAI/Matrix-Game
+  in_tree_path: worldfoundry/synthesis/visual_generation/matrix_game/matrix_game_2_runtime
+checkpoints:
+- repo_id: Skywork/Matrix-Game-2.0
+  revision: f1729d99a80e0f07993a77d7dad4a3190e23c2c8
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Matrix-Game-2.0
+  role: matrix_game_2_checkpoint
+  status: checkpoint_manifest_validated
+  required_paths:
+  - model_index.json
+  - base_distilled_model/base_distill.safetensors
+  - base_model/diffusion_pytorch_model.safetensors
+  - gta_distilled_model/gta_keyboard2dim.safetensors
+  - templerun_distilled_model/templerun_7dim_onlykey.safetensors
+  - models_clip_open-clip-xlm-roberta-large-vit-huge-14.pth
+  - Wan2.1_VAE.pth
+input_schema:
+  prompt: false
+  image: true
+  video: false
+  actions: [keyboard, mouse]
+artifact_kind: generated_world
+artifact_filename: matrix-game-2.mp4
+execution:
+  environment: _unified
+  backend_stage: independent_in_tree_runtime
+  runtime_status: official_universal_contract
+  integration_status: integrated
+  pipeline_binding: matrix-game-2
+integration: {status: integrated}
+notes:
+- The independent infer-only Matrix-Game 2 runtime includes native Bench_actions trajectory generation.
+- Source checkout resolution is disabled; only local checkpoint assets are external.

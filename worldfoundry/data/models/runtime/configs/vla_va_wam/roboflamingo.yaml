@@ -1,0 +1,23 @@
+architecture:
+  llm_name: mpt_dolly_3b
+  cross_attn_every_n_layers: 1
+  vision_encoder_path: ViT-L-14
+  vision_encoder_pretrained: ${WORLDFOUNDRY_CKPT_DIR}/open_clip/ViT-L-14.pt
+  window_size: 12
+  fusion_mode: post
+  use_gripper: true
+  use_state: false
+  decoder_type: lstm
+  head_type: lstm
+  n_obs_steps: 2
+  precision: fp32
+source:
+  repo_url: https://github.com/RoboFlamingo/RoboFlamingo
+  source_files:
+  - modeling/factory.py
+  - modeling/flamingo_bc.py
+  - modeling/flamingo_mpt.py
+  - modeling/action_head.py
+  - robot_flamingo/eval/eval_utils.py
+  shared_base_models:
+  - worldfoundry.base_models.llm_mllm_core.mllm.open_flamingo

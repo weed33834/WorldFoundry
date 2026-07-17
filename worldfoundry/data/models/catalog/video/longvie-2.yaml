@@ -42,14 +42,17 @@ integration:
   - The LongVie 2 adapter loads control.safetensors and dit.safetensors, preserves
     the official history/noise continuation loop, and supports the official USP ring/ulysses
     distributed inference controls when execute=True.
+  - LongVie 2 is exposed as queued 81-frame control-video segments, not keyboard realtime.
+    Continuations reuse the prior final frame, official eight-frame history, and noise state.
 runner_parity:
   status: pending
   notes:
   - The runner preserves the official LongVie direct DiffSynth pipeline, target 640x352
     segment size, negative prompt, history/noise continuation state, VRAM management,
     and optional USP ring/ulysses controls.
-  - Official release-parity evidence remains pending; per-run artifact checks are
-    tracked outside the model catalog.
+  - Full quality defaults are 81 frames at 16 FPS and 50 denoising steps. Studio's
+    default four-GPU route is torchrun USP with rank-zero-only artifact output; a
+    checkpoint-backed quality run is still required before marking parity verified.
 runtime_profile: runtime-profile:longvie-2
 runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
 pipeline_binding: longvie-2

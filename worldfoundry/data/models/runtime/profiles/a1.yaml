@@ -1,0 +1,35 @@
+schema_version: 2
+model_id: a1
+display_name: A1
+task_family: vla_policy
+groups:
+- vla
+- robot_policy
+checkpoints:
+- repo_id: spatialtemporal-ai/a1-libero
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/spatialtemporal-ai--a1-libero
+  role: task_checkpoint
+- repo_id: Qwen/Qwen2-7B
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Qwen--Qwen2-7B
+  role: tokenizer
+input_schema:
+  model_id: a1
+  image: true
+  prompt: true
+  state: true
+  camera_views: one_or_more_named_views
+  policy_family: affordvla_policy
+  action_representation: continuous_action_chunk
+artifact_kind: action_trace
+artifact_filename: a1_action_trace.json
+execution:
+  backend_stage: official_in_tree_runtime
+  runtime_status: native_checkpoint_runtime_a100_workspace_validated
+  integration_status: runtime_ported_and_numerically_validated
+  pipeline_binding: a1
+integration:
+  status: runtime_ported_and_numerically_validated
+verification_status: checkpoint_assets_manifest_verified_a100_workspace_finite_10x7_action_chunk
+notes:
+- The released LIBERO-Spatial checkpoint completed real Workspace inference on an A100 with a finite 10x7 action chunk.
+- Runtime dtype selection remains capability-driven; the validation result does not hard-code an A100-only execution path.

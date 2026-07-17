@@ -234,6 +234,7 @@ def build_studio_viewports_payload(
     previews: Mapping[str, str | None],
     artifact_paths: Sequence[str],
     gaussian_ply_predicate: Callable[[Path], bool],
+    result_metadata: Mapping[str, Any] | None = None,
 ) -> dict[str, object]:
     """Return a manifest-ready ``studio_viewports`` dict."""
 
@@ -277,10 +278,13 @@ def build_studio_viewports_payload(
     )
     mesh_rel = _relative_to_run(str(preview_model) if preview_model else None, output_dir)
 
+    coordinate_frame = _str_or_none(
+        result_metadata.get("coordinate_frame") if result_metadata is not None else None
+    ) or "world"
     points_assets = PointsViewportAssets(
         point_cloud_path=point_rel,
         mesh_path=mesh_rel,
-        coordinate_frame="world",
+        coordinate_frame=coordinate_frame,
     )
     action_trace_rel = first_embodied_trace_candidate(list(artifact_paths), output_dir)
     simulator_replay_rel = first_simulator_replay_candidate(list(artifact_paths), output_dir)

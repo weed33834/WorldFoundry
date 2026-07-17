@@ -1,0 +1,49 @@
+schema_version: 2
+model_id: rdt-1b
+display_name: RDT-1B
+task_family: vla_policy
+groups:
+- vla
+- robot_policy
+checkpoints:
+- repo_id: robotics-diffusion-transformer/rdt-1b
+  revision: eb09036cc64ca4945051acbd1bd581d30a1d7711
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/robotics-diffusion-transformer--rdt-1b
+  role: pretrained_policy
+  status: checkpoint_manifest_validated
+- repo_id: google/siglip-so400m-patch14-384
+  revision: 9fdffc58afc957d1a03a25b10dba0329ab15c2a3
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/google--siglip-so400m-patch14-384
+  role: vision_encoder
+  status: runtime_files_manifest_validated
+- repo_id: google/t5-v1_1-xxl
+  revision: 3db67ab1af984cf10548a73467f0e5bca2aaaeb2
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/google--t5-v1_1-xxl
+  role: language_encoder
+  status: runtime_files_manifest_validated
+input_schema:
+  model_id: rdt-1b
+  image: true
+  prompt: true
+  state: true
+  image_history: optional_two_frames_three_views
+  source_image_size: [640, 480]
+  missing_initial_history: mean_color_frame
+  jpeg_standardization: true
+  text_embeddings: optional_precomputed_t5
+  policy_family: diffusion_transformer_policy
+  action_representation: unified_continuous_action_chunk
+  deployed_action_layout: dual_arm_14d_unscaled
+artifact_kind: action_trace
+artifact_filename: rdt-1b_action_trace.json
+execution:
+  backend_stage: official_in_tree_runtime
+  runtime_status: native_checkpoint_runtime_ready_assets_staged
+  integration_status: runtime_ported_checkpoint_manifest_validated
+  pipeline_binding: rdt-1b
+integration:
+  status: runtime_ported_checkpoint_manifest_validated
+notes:
+- The RDT policy is an exact pinned snapshot; the SigLIP and T5 directories contain the complete runtime-required subsets.
+- RDT and T5 PyTorch files pass weights-only tensor-mapping validation, and SigLIP passes safetensors-header validation; no partial markers remain.
+- Numerical GPU inference is not claimed by the manifest validation.

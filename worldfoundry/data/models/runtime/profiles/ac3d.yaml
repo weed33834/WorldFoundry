@@ -7,6 +7,8 @@ groups:
 - camera_control
 source_repos:
 - url: https://github.com/snap-research/ac3d
+  revision: fe40a8d2dee163b951e6405d8cf1a2c14ecc68eb
+  in_tree_path: worldfoundry/synthesis/visual_generation/ac3d/ac3d_runtime
 checkpoints:
 - role: ac3d_cogvideox_2b_controlnet
   local_dir: ${WORLDFOUNDRY_CKPT_DIR}/ac3d/2B/checkpoint-10000.pt
@@ -19,20 +21,22 @@ checkpoints:
 input_schema:
   prompt: true
   image: false
-  video: false
+  video: true
   actions:
   - camera_index
   - camera_index_range
+  - camera_pose_rows
 artifact_kind: generated_video
 artifact_filename: ac3d.mp4
 execution:
+  environment: ac3d
   backend_stage: official_in_tree_runtime
   runtime_status: official_in_tree_runtime_ready
   integration_status: integrated
-  pipeline_binding: ac3d
   pipeline_binding: ac3d
 integration:
   status: integrated
 notes:
 - WorldFoundry vendors the official AC3D CogVideoX-ControlNet inference runtime under worldfoundry/synthesis/visual_generation/ac3d/ac3d_runtime.
-- Runtime execution requires a RealEstate10K-style video_root_dir plus local CogVideoX and AC3D ControlNet weights.
+- Runtime execution accepts either an existing RealEstate10K-style root or a direct source video plus 19-column camera pose rows.
+- AC3D stays in its dedicated environment because the official torch 2.4/CUDA 12.4 stack is not ABI-compatible with the unified environment.

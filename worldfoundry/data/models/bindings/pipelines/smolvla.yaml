@@ -3,7 +3,7 @@ binding_id: smolvla
 model_id: smolvla
 runner: worldfoundry.pipeline
 pipeline:
-  target: worldfoundry.pipelines.component_pipelines:SmolVLAPipeline
+  target: worldfoundry.synthesis.action_generation.smolvla.pipeline:SmolVLAPipeline
   loading:
     method: from_pretrained
     signature: unified

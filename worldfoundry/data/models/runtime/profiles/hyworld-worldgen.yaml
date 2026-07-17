@@ -1,0 +1,26 @@
+schema_version: 2
+model_id: hyworld-worldgen
+display_name: HY-World 2.0 Trajectory Renderer
+task_family: world_model
+groups: [world, camera_control, point_cloud_rendering]
+source_repos:
+- url: https://github.com/Tencent-Hunyuan/HY-World-2.0
+  revision: 7f668e67c74338d50684e57be46a438459b6bbe1
+  in_tree_path: worldfoundry/synthesis/visual_generation/hunyuan_world/hy_world_2p0_worldgen_runtime
+input_schema: {image: true, camera_json: true, scene_path: true}
+artifact_kind: generated_video
+artifact_filename: hyworld-worldgen.mp4
+checkpoints: []
+execution:
+  environment: _unified
+  backend_stage: independent_in_tree_trajectory_render
+  runtime_status: requires_materialized_scene
+  integration_status: integrated
+  pipeline_binding: hyworld-worldgen
+integration: {status: integrated}
+notes:
+- This trajectory-render route intentionally loads no model checkpoint.
+- The unified runtime includes an in-tree torch point-splat fallback and does not require PyTorch3D.
+- The only missing model/scene asset for Workspace rendering is a pre-materialized local HY-World
+  scene containing render_results/global_pcd.ply; image and camera JSON are normal invocation inputs.
+- Scene materialization belongs to the separate full HY-World generation pipeline.

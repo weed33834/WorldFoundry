@@ -35,7 +35,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     os.environ.setdefault("WORLDFOUNDRY_STUDIO_SKIP_RUNTIME_PROFILES", "1")
     launch_config = parse_launch_config(argv)
     entry = find_entry(launch_config.model_id)
-    frontend_mode = resolve_frontend_mode(entry, launch_config.frontend)
+    frontend_mode = resolve_frontend_mode(entry, launch_config.frontend, launch_config.asset_path or None)
     if frontend_mode == UNIFIED_FRONTEND:
         raise SystemExit("The `unified` frontend requires Gradio. Install `worldfoundry[ui]` or use --frontend world.")
     if frontend_mode not in NATIVE_FRONTENDS:

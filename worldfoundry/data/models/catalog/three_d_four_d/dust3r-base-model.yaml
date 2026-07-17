@@ -17,7 +17,7 @@ official_sources:
   project_page: https://dust3r.europe.naverlabs.com/
 integration:
   kind: pipeline_runner
-  status: runtime_ported
+  status: verified
   notes:
   - Base-model profile for the DUSt3R catalog entry; exposed through the shared geometry-prior pipeline/operator contract.
   - Aligns with the dust3r catalog entry, which vendors the same in-tree source under worldfoundry.base_models.three_dimensions.general_3d.dust3r.
@@ -25,8 +25,8 @@ runtime_profile: runtime-profile:dust3r-base-model
 runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
 pipeline_binding: dust3r-base-model
 runner_parity:
-  status: pending
+  status: verified
   notes:
-  - Real prior inference remains gated by external source, checkpoints, and assets.
+  - Workspace loaded the official DUSt3R base checkpoint and exported a finite 10,000-point reconstruction from two views on 2026-07-11.
 catalog_category: three_d_four_d
 catalog_scope: Independent geometric prior integrations used by 3D and world-model runtimes.

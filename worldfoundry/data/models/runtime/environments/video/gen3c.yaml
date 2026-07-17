@@ -65,11 +65,10 @@ validation_imports:
 - transformers
 - megatron.core
 - transformer_engine
-- apex
 - warp
 notes:
-- "GEN3C follows the upstream Cosmos Predict1 inference stack: Python 3.10, CUDA 12.4, torch 2.6.0, transformer-engine 1.12.0, Apex, and MoGe."
+- "GEN3C follows the inference-only Cosmos Predict1 stack: Python 3.10, CUDA 12.4, torch 2.6.0, transformer-engine 1.12.0, and MoGe."
 - "Conda packages mirror the upstream cosmos-predict1.yaml inference environment: pip 25.0, cmake, ninja, GCC/GXX 12.4, CUDA 12.4, cuda-nvcc 12.4, and cuda-toolkit 12.4 from conda-forge."
-- "The setup script installs the upstream requirements, applies the Transformer Engine include-link patch, installs transformer-engine[pytorch]==1.12.0, and builds NVIDIA Apex from source with CUDA_HOME pointing at the conda prefix."
+- "The setup script installs pinned packages, applies the Transformer Engine include-link patch, and installs transformer-engine[pytorch]==1.12.0; no source repository is cloned."
 - "The exact torch and torchvision pins intentionally keep this model out of the unified Python 3.11 runtime."
-- "Apex must be built from source against this environment's CUDA toolchain; MoGe is provided by the workspace vendored runtime plus local checkpoint weights."
+- "MoGe and the Cosmos Predict1 inference source are provided by the in-tree runtime; only local checkpoint weights remain external."

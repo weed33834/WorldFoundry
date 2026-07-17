@@ -1,10 +1,174 @@
-backend: custom_from_pretrained
-checkpoint_path: ${WORLDFOUNDRY_CKPT_DIR}/yuanty--fastwam
-source_repo: ${WORLDFOUNDRY_MODEL_SOURCE_DIR}/FastWAM
-source_subdir: src
-policy_target: fastwam.models.wan22.fastwam:FastWAM
-predict_method: infer_action
-torch_dtype: bfloat16
-trust_remote_code: true
-action_contract: fastwam_world_action_trace
-runtime_backend: fastwam_official_action_infer
+backend: callable_entrypoint
+checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/yuanty--fastwam
+checkpoint_ref: yuanty/fastwam
+revision: 139eebb6d90cdd9bdbbe465f72c6edc9ad5a518a
+policy_target: worldfoundry.synthesis.action_generation.fastwam.runtime:predict_action
+torch_dtype: auto
+trust_remote_code: false
+local_files_only: true
+variant: robotwin
+variants:
+  robotwin:
+    checkpoint_file: robotwin_uncond_3cam_384.pt
+    statistics_file: robotwin_uncond_3cam_384_dataset_stats.json
+    action_dim: 14
+    proprio_dim: 14
+    image_height: 384
+    image_width: 320
+    normalization: z-score
+  libero:
+    checkpoint_file: libero_uncond_2cam224.pt
+    statistics_file: libero_uncond_2cam224_dataset_stats.json
+    action_dim: 7
+    proprio_dim: 8
+    image_height: 224
+    image_width: 448
+    normalization: min/max
+video_config:
+  has_image_input: false
+  patch_size: [1, 2, 2]
+  in_dim: 48
+  hidden_dim: 3072
+  ffn_dim: 14336
+  freq_dim: 256
+  text_dim: 4096
+  out_dim: 48
+  num_heads: 24
+  attn_head_dim: 128
+  num_layers: 30
+  eps: 1.0e-6
+  seperated_timestep: true
+  require_clip_embedding: false
+  require_vae_embedding: false
+  fuse_vae_embedding_in_latents: true
+  use_gradient_checkpointing: false
+  video_attention_mask_mode: first_frame_causal
+  action_conditioned: false
+  action_group_causal_mask_mode: group_diagonal
+action_config:
+  hidden_dim: 1024
+  ffn_dim: 4096
+  num_heads: 24
+  attn_head_dim: 128
+  num_layers: 30
+  text_dim: 4096
+  freq_dim: 256
+  eps: 1.0e-6
+  use_gradient_checkpointing: false
+vae_mean:
+- -0.2289
+- -0.0052
+- -0.1323
+- -0.2339
+- -0.2799
+- 0.0174
+- 0.1838
+- 0.1557
+- -0.1382
+- 0.0542
+- 0.2813
+- 0.0891
+- 0.1570
+- -0.0098
+- 0.0375
+- -0.1825
+- -0.2246
+- -0.1207
+- -0.0698
+- 0.5109
+- 0.2665
+- -0.2108
+- -0.2158
+- 0.2502
+- -0.2055
+- -0.0322
+- 0.1109
+- 0.1567
+- -0.0729
+- 0.0899
+- -0.2799
+- -0.1230
+- -0.0313
+- -0.1649
+- 0.0117
+- 0.0723
+- -0.2839
+- -0.2083
+- -0.0520
+- 0.3748
+- 0.0152
+- 0.1957
+- 0.1433
+- -0.2944
+- 0.3573
+- -0.0548
+- -0.1681
+- -0.0667
+vae_std:
+- 0.4765
+- 1.0364
+- 0.4514
+- 1.1677
+- 0.5313
+- 0.4990
+- 0.4818
+- 0.5013
+- 0.8158
+- 1.0344
+- 0.5894
+- 1.0901
+- 0.6885
+- 0.6165
+- 0.8454
+- 0.4978
+- 0.5759
+- 0.3523
+- 0.7135
+- 0.6804
+- 0.5833
+- 1.4146
+- 0.8986
+- 0.5659
+- 0.7069
+- 0.5338
+- 0.4889
+- 0.4917
+- 0.4069
+- 0.4999
+- 0.6866
+- 0.4093
+- 0.5709
+- 0.6065
+- 0.6415
+- 0.4944
+- 0.5726
+- 1.2042
+- 0.5458
+- 1.6887
+- 0.3971
+- 1.0600
+- 0.3943
+- 0.5537
+- 0.5444
+- 0.4089
+- 0.7468
+- 0.7744
+wan_assets_path: ${WORLDFOUNDRY_HFD_ROOT}/DiffSynth-Studio--Wan-Series-Converted-Safetensors
+wan_assets_ref: DiffSynth-Studio/Wan-Series-Converted-Safetensors
+tokenizer_path: ${WORLDFOUNDRY_HFD_ROOT}/Wan-AI--Wan2.1-T2V-1.3B
+tokenizer_ref: Wan-AI/Wan2.1-T2V-1.3B
+text_encoder_device: cpu
+prompt_template: "A video recorded from a robot's point of view executing the following instruction: {task}"
+action_infer_shift: 5.0
+action_num_train_timesteps: 1000
+vae_tile_size: [30, 52]
+vae_tile_stride: [15, 26]
+action_horizon: 32
+num_inference_steps: 10
+sigma_shift: 5.0
+seed: 42
+rand_device: cpu
+tiled: false
+binarize_libero_gripper: false
+action_contract: fastwam_action_chunk
+runtime_backend: fastwam_in_tree_model

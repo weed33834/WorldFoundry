@@ -1,0 +1,65 @@
+schema_version: 2
+model_id: go1
+display_name: GO-1
+task_family: vla_policy
+groups:
+- vla
+- robot_foundation_policy
+- diffusion_action_policy
+source_repos:
+- url: https://github.com/OpenDriveLab/AgiBot-World
+  revision: 98f136ea6b345db1a08451a2f543d67c1789a809
+checkpoints:
+- repo_id: agibot-world/GO-1
+  revision: 0bc37be9caa20b5b3d4a569ec462409072d3e244
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/agibot-world--GO-1
+  role: pretrained_foundation_checkpoint
+variants:
+  agibot_pretrain:
+    camera_count: 3
+    control_frequency: 30
+    action_chunk_size: 30
+    robot_state_and_action_dims: checkpoint_defined
+  agilex_example:
+    camera_count: 3
+    state_dim: 14
+    action_dim: 14
+    control_frequency: 30
+    action_chunk_size: 30
+  libero_example:
+    camera_count: 2
+    state_dim: 8
+    action_dim: 7
+    control_frequency: 10
+    action_chunk_size: 10
+input_schema:
+  model_id: go1
+  image: true
+  prompt: true
+  state: true
+  camera_keys: [cam_high, cam_right_wrist, cam_left_wrist]
+  control_frequency: true
+  policy_family: latent_planner_conditioned_diffusion
+  action_representation: checkpoint_defined_action_chunk
+artifact_kind: action_trace
+artifact_filename: go1_action_trace.json
+execution:
+  backend_stage: in_tree_checkpoint_runtime
+  runtime_status: static_verified_foundation_checkpoint_staged
+  integration_status: in_tree_checkpoint_runtime_static_verified
+  pipeline_binding: go1
+integration:
+  status: in_tree_checkpoint_runtime_static_verified
+license: cc-by-nc-sa-4.0
+gpu_targets:
+- NVIDIA Turing (T4/RTX 20) in float16 with shared SDPA
+- NVIDIA Ampere (A10/A30/A40/A100/A800/RTX 30)
+- NVIDIA Ada (L4/L40/L40S/RTX 40)
+- NVIDIA Hopper (H100/H200/H800)
+- NVIDIA Blackwell (B100/B200/GB200/RTX 50) through shared SDPA
+notes:
+- The released artifact is a pretrained foundation checkpoint; upstream recommends downstream full fine-tuning.
+- A normalized fine-tune must be paired with the exact dataset_stats.json emitted during its training.
+- Flash Attention 2 is selected only for compatible Ampere, Ada, or Hopper hardware when installed locally.
+- Turing and Blackwell use the portable shared SDPA path; no kernel or checkpoint is downloaded at runtime.
+- The pinned pretrained foundation checkpoint and its released dataset statistics are staged locally and manifest-size verified.

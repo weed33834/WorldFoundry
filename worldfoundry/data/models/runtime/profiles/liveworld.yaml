@@ -1,0 +1,79 @@
+schema_version: 2
+model_id: liveworld
+display_name: LiveWorld
+task_family: world_model
+groups: [world, camera_control, video_to_video]
+source_repos:
+- url: https://github.com/ZichengDuan/LiveWorld
+  revision: a31145ffffb61be92f93c1e0d2ac5d826f29a256
+  in_tree_path: worldfoundry/synthesis/visual_generation/liveworld/liveworld_runtime
+checkpoints:
+- repo_id: ZichengD/LiveWorld
+  revision: af0a2585e7b3e8ae4caac65afcdfdd71aa845100
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/ZichengD--LiveWorld
+  role: state_adapter_and_lora
+  status: checkpoint_download_in_progress
+  required_paths:
+  - ckpts/lora/model.pt
+  - ckpts/state_adapter/model.pt
+- repo_id: Wan-AI/Wan2.1-T2V-14B
+  revision: a064a6c71f5be440641209c07bf2a5ce7a2ff5e4
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Wan2.1-T2V-14B
+  role: base_model
+  status: checkpoint_manifest_validated
+  required_paths:
+  - config.json
+  - diffusion_pytorch_model.safetensors.index.json
+  - Wan2.1_VAE.pth
+  - models_t5_umt5-xxl-enc-bf16.pth
+  - google/umt5-xxl/tokenizer_config.json
+- repo_id: Qwen/Qwen3-VL-8B-Instruct
+  provider: modelscope
+  revision: 5d854aab08710c16b980ec6d603d863b3821b915
+  size_bytes: 17545916886
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/modelscope/Qwen--Qwen3-VL-8B-Instruct
+  role: entity_detection
+  status: checkpoint_missing_download_queued
+  required_paths:
+  - config.json
+  - model.safetensors.index.json
+  - tokenizer.json
+- repo_id: facebook/sam3
+  revision: 3c879f39826c281e95690f02c7821c4de09afae7
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/sam3
+  role: segmentation
+  status: checkpoint_manifest_validated
+  required_paths:
+  - sam3.pt
+- repo_id: yslan/STream3R
+  revision: 0af188b4c6cc7b393cc0066a23593e1f62789319
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/yslan--STream3R
+  role: reconstruction
+  status: checkpoint_missing_download_queued
+  required_paths:
+  - config.json
+  - model.safetensors
+- repo_id: facebook/dinov3-vith16plus-pretrain-lvd1689m
+  provider: modelscope
+  revision: 98b7096b2938406ade58801a0bf75eca3198b5bd
+  size_bytes: 3362458309
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/modelscope/facebook--dinov3-vith16plus-pretrain-lvd1689m
+  role: matching
+  status: checkpoint_missing_download_queued
+  required_paths:
+  - config.json
+  - model.safetensors
+  - preprocessor_config.json
+input_schema: {prompt: true, video: true, geometry_npz: true}
+artifact_kind: generated_video
+artifact_filename: liveworld.mp4
+execution:
+  environment: _unified
+  backend_stage: independent_in_tree_runtime
+  runtime_status: checkpoint_assets_pending
+  integration_status: integrated_checkpoint_assets_pending
+  pipeline_binding: liveworld
+integration: {status: integrated_checkpoint_assets_pending}
+notes:
+- Runtime resolution is local-only; prediction remains gated until the four missing checkpoint snapshots are staged.
+- Wan2.1-T2V-14B and SAM3 are pinned and structurally validated locally.

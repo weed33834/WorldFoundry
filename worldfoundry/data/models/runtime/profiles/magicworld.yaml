@@ -1,0 +1,56 @@
+schema_version: 2
+model_id: magicworld
+display_name: MagicWorld
+task_family: world_model
+groups: [world, camera_control, image_to_video]
+source_repos:
+- url: https://github.com/vivoCameraResearch/Magic-World
+  revision: a378d67d1b803db4268340fcc130c98a243ad9a8
+  in_tree_path: worldfoundry/synthesis/visual_generation/magic_world/magic_world_runtime
+- url: https://github.com/alibaba-damo-academy/Uni3C
+  revision: 75ed6e2180316b7f07398e4e88ea8bdba3e6970c
+  in_tree_path: worldfoundry/base_models/three_dimensions/general_3d/uni3c
+- url: https://github.com/apple/ml-depth-pro
+  in_tree_path: worldfoundry/base_models/three_dimensions/depth/depth_pro
+checkpoints:
+- repo_id: LuckyLiGY/MagicWorld
+  provider: modelscope
+  revision: 9c1227be1fc4ba8990c261fe65609b7e4f4db96e
+  size_bytes: 16164324826
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/modelscope/LuckyLiGY--MagicWorld
+  role: magicworld_fast_and_base
+  status: checkpoint_missing_download_queued
+  required_paths:
+  - MagicWorld-Fast/model.pt
+  - MagicWorld-Base/config.json
+  - MagicWorld-Base/diffusion_pytorch_model.safetensors
+- repo_id: alibaba-pai/Wan2.1-Fun-V1.1-1.3B-InP
+  revision: fc913c34361f4ec879e2f9c78b4f11ae50a937d1
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/alibaba-pai--Wan2.1-Fun-V1.1-1.3B-InP
+  role: wan_base
+  status: checkpoint_missing_download_queued
+  required_paths:
+  - config.json
+  - diffusion_pytorch_model.safetensors
+  - Wan2.1_VAE.pth
+  - models_t5_umt5-xxl-enc-bf16.pth
+- repo_id: apple/DepthPro
+  provider: modelscope
+  revision: 2d3f64e2c5ae65a425d7633b7491c028b593f18b
+  size_bytes: 1904458416
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/modelscope/apple--DepthPro
+  role: metric_depth
+  status: checkpoint_download_in_progress
+  required_paths:
+  - depth_pro.pt
+input_schema: {prompt: true, image: true, native_rows: true}
+artifact_kind: generated_video
+artifact_filename: magicworld.mp4
+execution:
+  environment: _unified
+  backend_stage: independent_in_tree_runtime
+  runtime_status: checkpoint_assets_pending
+  integration_status: integrated_checkpoint_assets_pending
+  pipeline_binding: magicworld
+integration: {status: integrated_checkpoint_assets_pending}
+notes: [Model materials retain upstream non-commercial share-alike terms.]

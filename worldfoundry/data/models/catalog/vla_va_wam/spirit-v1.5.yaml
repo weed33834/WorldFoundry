@@ -10,23 +10,26 @@ tasks:
 - vla.policy_rollout
 output_artifacts:
 - action_trace
-provider: worldfoundry_native
-source:
-  status: unknown
-  official_repo_url: https://huggingface.co/Spirit-AI/Spirit-VLA
-  notes:
-  - Originally exposed by WorldFoundry-native-3D.
+provider: official_repo
+official_sources:
+  github:
+    url: https://github.com/Spirit-AI-Team/spirit-v1.5
+    revision: 6d67377f16f67d6575447a1f29fdd83a2e0099d9
+  huggingface:
+  - repo_id: Spirit-AI-robotics/Spirit-v1.5
+    role: base_checkpoint
+    status: confirmed
 integration:
   status: runtime_ported
   notes:
-  - WorldFoundry routes Spirit-VLA through an in-tree HF action runtime adapter.
-  - Checkpoint absence is reported by runtime missing_assets and is not a catalog blocker.
+  - Native inference architecture and preprocessing are included in tree.
+  - Runtime loads the official checkpoint and Qwen3-VL backbone with remote Python disabled.
 runtime_profile: runtime-profile:spirit-v1.5
 pipeline_binding: spirit-v1.5
 runner_parity:
-  status: runtime_ported
+  status: checkpoint_required
   notes:
-  - Runtime route resolves and imports; checkpoint-backed parity remains asset-gated.
+  - Import and checkpoint gating are validated; numerical parity requires the 21.6 GB checkpoint.
 catalog_category: vla_va_wam
 catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata,
   and runtime-profile planning records. Runner or pipeline targets are present only after a complete in-tree

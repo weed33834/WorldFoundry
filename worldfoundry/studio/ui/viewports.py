@@ -122,7 +122,11 @@ def _points_viewport_for_record(record: RunRecord | None) -> str:
     path = (Path(record.output_dir) / geometry_path).resolve()
     if not path.exists():
         return _points_viewport_idle_html()
-    presentation = STUDIO_VISER.present_geometry(run_id=record.run_id, geometry_path=path)
+    presentation = STUDIO_VISER.present_geometry(
+        run_id=record.run_id,
+        geometry_path=path,
+        model_id=record.model_id,
+    )
     return presentation.html
 
 

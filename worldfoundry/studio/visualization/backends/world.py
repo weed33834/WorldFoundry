@@ -18,7 +18,7 @@ import time
 import traceback
 import uuid
 from dataclasses import dataclass, field
-from functools import lru_cache, partial
+from functools import lru_cache
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler
 from io import BytesIO
@@ -34,14 +34,14 @@ from worldfoundry.studio.execution import (
     IMAGE_EXTS,
     LINGBOT_VARIANT_FAST,
     LINGBOT_WORLD_MODEL_ID,
-    RunRecord,
-    StudioManager,
     TORCHRUN_LINGBOT_FAST_ENV,
     VIDEO_EXTS,
-    ensure_torchrun_lingbot_fast_control_group,
+    RunRecord,
+    StudioManager,
     _missing_runtime_validation_imports,
     _runtime_dependency_error,
     _torchrun_rank,
+    ensure_torchrun_lingbot_fast_control_group,
     shutdown_torchrun_lingbot_fast_runtime,
 )
 from worldfoundry.studio.interfaces import interface_spec_for_entry
@@ -49,19 +49,21 @@ from worldfoundry.studio.launch_config import (
     StudioLaunchConfig,
     env_first,
     launch_uses_lingbot_torchrun_rollout,
-    lingbot_fast_sequence_parallel_enabled,
 )
 from worldfoundry.studio.serving import (
     StudioServiceTelemetry,
-    StudioThreadingHTTPServer,
-    path_allowed,
     parse_byte_range,
+    path_allowed,
     send_file_response,
     send_json_response,
     send_text_response,
 )
 
-WORLD_DEMO_IMAGE_ROOT = Path(__file__).resolve().parents[3] / "data" / "test_cases" / "studio_demo"
+WORLD_REFERENCE_IMAGE_ROOT = (
+    Path(__file__).resolve().parents[2] / "assets" / "reference_images" / "world"
+)
+# Kept as a compatibility alias for callers that imported the previous name.
+WORLD_DEMO_IMAGE_ROOT = WORLD_REFERENCE_IMAGE_ROOT
 WORLD_UPLOAD_DIR_NAME = "world_frontend_inputs"
 DEFAULT_FPS = 16
 WORLD_ACTION_DEADZONE = 0.08
@@ -125,26 +127,22 @@ def serve_world_frontend(
                 shutdown_torchrun_lingbot_fast_runtime()
             return
 
-    upload_root = Path(manager.workspace_root).expanduser().resolve() / WORLD_UPLOAD_DIR_NAME
-    upload_root.mkdir(parents=True, exist_ok=True)
     demo_images = _demo_image_files()
-    state = WorldFrontendState(
-        entry=entry,
-        launch_config=launch_config,
-        manager=manager,
-        demo_images=demo_images,
-        allowed_roots=_world_allowed_roots(manager, launch_config),
-        telemetry=StudioServiceTelemetry(f"world:{entry.model_id}"),
-        max_sessions=_world_max_sessions(),
-    )
-    handler = partial(WorldFrontendHandler, state=state)
-    httpd = StudioThreadingHTTPServer((host, port), handler)
     access_printer("world", host, port)
-    print(f"Interactive world UI: {entry.display_name}", flush=True)
+    from worldfoundry.studio.visualization.backends.world_realtime import (
+        serve_realtime_world_frontend,
+    )
+
     try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        pass
+        serve_realtime_world_frontend(
+            entry=entry,
+            launch_config=launch_config,
+            manager=manager,
+            host=host,
+            port=port,
+            demo_images=demo_images,
+            allowed_roots=_world_allowed_roots(manager, launch_config),
+        )
     finally:
         if use_torchrun_lingbot:
             try:
@@ -152,7 +150,6 @@ def serve_world_frontend(
             except Exception:
                 pass
             shutdown_torchrun_lingbot_fast_runtime()
-        httpd.server_close()
 
 
 def world_frontend_html(entry: CatalogEntry, launch_config: StudioLaunchConfig) -> str:
@@ -162,6 +159,36 @@ def world_frontend_html(entry: CatalogEntry, launch_config: StudioLaunchConfig) 
     model_label = _html_escape(entry.model_id)
     variant = _html_escape(launch_config.variant_id or "default")
     prompt = _html_escape(entry.default_prompt or "")
+    prompt_scheduled = "prompt-scheduled" in entry.tags
+    queued_segments = "queued-segment-generation" in entry.tags
+    non_keyboard_mode = prompt_scheduled or queued_segments
+    if queued_segments:
+        interaction_hint = "UPLOAD NEW DENSE + SPARSE CONTROLS FOR EACH EXTEND"
+    elif prompt_scheduled:
+        interaction_hint = "OPTIONAL IMAGE · EDIT PROMPT + PRESS ENTER BETWEEN SEGMENTS"
+    else:
+        interaction_hint = "HOLD WASD / DRAG STICKS"
+    stick_class = "stick-well is-hidden" if non_keyboard_mode else "stick-well"
+    look_stick_class = (
+        "stick-well stick-right is-hidden" if non_keyboard_mode else "stick-well stick-right"
+    )
+    video_control_class = "video-only is-hidden" if non_keyboard_mode else "video-only"
+    standard_control_class = "is-hidden" if queued_segments else ""
+    queued_control_class = "" if queued_segments else "is-hidden"
+    body_class = "queued-segment-mode" if queued_segments else ""
+    controls_class = "controls-deck controls-centered" if non_keyboard_mode else "controls-deck"
+    thumb_tray_class = "thumb-tray is-hidden" if queued_segments else "thumb-tray"
+    start_label = "RUN" if queued_segments else "START"
+    console_title = "QUEUED SEGMENTS" if queued_segments else "REALTIME STREAM"
+    stats_label = "WS READY" if non_keyboard_mode else "RTC OFF"
+    image_label = (
+        "INITIAL IMAGE" if queued_segments else "OPTIONAL IMAGE" if prompt_scheduled else "IMAGE"
+    )
+    rollout_title = (
+        "Full-quality segments run sequentially while weights and continuation state remain resident."
+        if queued_segments
+        else "Controls are resampled continuously while a bounded frame queue feeds the persistent video track."
+    )
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -171,7 +198,7 @@ def world_frontend_html(entry: CatalogEntry, launch_config: StudioLaunchConfig) 
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/world.css">
 </head>
-<body>
+<body class="{body_class}">
   <div class="site-chrome">
     <div class="brand-mark">
       <span class="brand-dot"></span>
@@ -189,47 +216,129 @@ def world_frontend_html(entry: CatalogEntry, launch_config: StudioLaunchConfig) 
         <div class="world-viewport" id="viewport">
           <img id="frameImage" alt="" draggable="false">
           <video id="frameVideo" muted playsinline></video>
+          <canvas id="frameCanvas" aria-label="Decoded generated world frames"></canvas>
           <div class="screen-noise"></div>
           <div class="floating-state" id="livePill">FROZEN</div>
           <div class="start-overlay is-hidden" id="startOverlay" aria-hidden="true">
             <div class="overlay-status" id="overlayStatus">LOAD INPUT</div>
           </div>
-        </div>
-      </div>
-
-      <div class="console-strip">
-        <div class="power-light"><span></span> POWER</div>
-        <div class="console-title" title="The viewer continuously samples controls and prefetches generated world chunks. Smoothness depends on model step latency.">REALTIME TARGET</div>
-        <div class="stream-stats" id="streamStats">WS OFF</div>
-        <div class="timer" id="sessionTimer">00:00</div>
-      </div>
-      <div class="rollout-note" title="Controls are sampled continuously. The next generated chunk is requested while the current chunk is displayed.">
-        <span>BUFFERED INFERENCE</span>
-        <span>HOLD WASD / DRAG STICKS</span>
-      </div>
-
-      <div class="controls-deck">
-        <button class="stick-well" id="moveStick" data-stick="move" type="button" aria-label="Movement joystick"><span></span></button>
-        <div class="session-actions">
-          <button class="start-button" id="startButton" type="button">START</button>
-          <button class="reset-button is-hidden" id="resetButton" type="button">RESET</button>
-        </div>
-        <button class="stick-well stick-right" id="lookStick" data-stick="look" type="button" aria-label="Camera joystick"><span></span></button>
-      </div>
-
-      <div class="source-dock">
-        <div class="source-toolbar">
-          <div class="segmented" role="tablist" aria-label="World input mode">
-            <button class="mode-tab is-active" data-mode="image" type="button">IMAGE WORLD</button>
-            <button class="mode-tab" data-mode="video" type="button">VIDEO WORLD</button>
+          <div class="viewport-tools" aria-label="Viewport tools">
+            <button class="viewport-tool" id="fullscreenButton" type="button" aria-pressed="false" title="Toggle immersive fullscreen (F)">
+              <span class="viewport-tool-icon" aria-hidden="true"></span>
+              <span id="fullscreenLabel">FULLSCREEN</span>
+            </button>
+            <button class="viewport-tool" id="logToggleButton" type="button" aria-pressed="false" aria-controls="runtimeLog" title="Toggle live runtime log (Shift+L)">
+              <span class="live-log-dot" aria-hidden="true"></span>
+              <span>LIVE LOG</span>
+              <span class="log-count" id="logCount">0</span>
+            </button>
           </div>
-          <button class="load-button" id="loadModelButton" type="button">LOAD</button>
-          <label class="file-chip image-only">IMAGE<input id="imageInput" type="file" accept="image/*"></label>
-          <label class="file-chip video-only">VIDEO<input id="videoInput" type="file" accept="video/*"></label>
-          <input class="prompt-input" id="promptInput" type="text" value="{prompt}" aria-label="Prompt">
+          <aside class="runtime-log studio-panel" id="runtimeLog" data-panel-id="logs" aria-label="Live runtime log" aria-hidden="true">
+            <div class="runtime-log-header panel-handle">
+              <div>
+                <span class="live-log-dot" aria-hidden="true"></span>
+                <strong>RUNTIME</strong>
+                <span>LIVE</span>
+              </div>
+              <div class="panel-header-actions">
+                <button id="clearLogButton" type="button">CLEAR</button>
+                <button class="panel-collapse" data-collapse-panel type="button" aria-label="Collapse logs" aria-expanded="true">−</button>
+              </div>
+            </div>
+            <div class="runtime-log-body studio-panel-body" data-panel-body>
+              <ol class="runtime-log-list" id="runtimeLogList" role="log" aria-live="off"></ol>
+            </div>
+          </aside>
+          <div class="immersive-hint" id="immersiveHint">F FULLSCREEN&nbsp;&nbsp; SHIFT+L LOG&nbsp;&nbsp; ESC EXIT</div>
         </div>
-        <div class="thumb-tray" id="thumbTray" aria-label="Example worlds"></div>
       </div>
+
+      <section class="studio-panel status-panel" id="statusPanel" data-panel-id="status" aria-label="Session status">
+        <div class="studio-panel-header panel-handle">
+          <span>STATUS</span>
+          <button class="panel-collapse" data-collapse-panel type="button" aria-label="Collapse status" aria-expanded="true">−</button>
+        </div>
+        <div class="studio-panel-body" data-panel-body>
+          <div class="console-strip">
+            <div class="power-light"><span></span> POWER</div>
+            <div class="console-title" title="Input edges and generated frames travel independently over one persistent resident session.">{console_title}</div>
+            <div class="stream-stats" id="streamStats">{stats_label}</div>
+            <div class="timer" id="sessionTimer">00:00</div>
+          </div>
+          <div class="rollout-note" title="{rollout_title}">
+            <span>RESIDENT RUNTIME</span>
+            <span>{interaction_hint}</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="studio-panel controls-panel" id="controlsPanel" data-panel-id="controls" aria-label="World controls">
+        <div class="studio-panel-header panel-handle">
+          <span>CONTROLS</span>
+          <button class="panel-collapse" data-collapse-panel type="button" aria-label="Collapse controls" aria-expanded="true">−</button>
+        </div>
+        <div class="studio-panel-body" data-panel-body>
+          <div class="{controls_class}">
+            <button class="{stick_class}" id="moveStick" data-stick="move" type="button" aria-label="Movement joystick"><span></span></button>
+            <div class="session-actions">
+              <button class="start-button" id="startButton" type="button">{start_label}</button>
+              <button class="reset-button is-hidden" id="resetButton" type="button">RESET</button>
+            </div>
+            <button class="{look_stick_class}" id="lookStick" data-stick="look" type="button" aria-label="Camera joystick"><span></span></button>
+          </div>
+          <div class="realtime-control-bar">
+            <button class="step-button" id="stepButton" type="button" disabled>STEP</button>
+            <label class="resolution-control" for="resolutionSelect">
+              <span>OUTPUT</span>
+              <select id="resolutionSelect" aria-label="WebRTC output resolution">
+                <option value="native">NATIVE</option>
+              </select>
+            </label>
+            <span class="control-ack" id="controlAck" role="status" aria-live="polite">LOCAL</span>
+          </div>
+          <div class="event-trigger-bar" id="eventTriggerBar" aria-label="Text event controls">
+            <span class="event-empty">NO TEXT EVENTS</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="source-dock studio-panel scene-panel" id="scenePanel" data-panel-id="scene" aria-label="Initial scene and text events">
+        <div class="studio-panel-header panel-handle">
+          <span>INITIAL SCENE</span>
+          <button class="panel-collapse" data-collapse-panel type="button" aria-label="Collapse initial scene" aria-expanded="true">−</button>
+        </div>
+        <div class="studio-panel-body" data-panel-body>
+          <div class="source-toolbar">
+            <div class="segmented {standard_control_class}" role="tablist" aria-label="World input mode">
+              <button class="mode-tab is-active" data-mode="image" type="button">IMAGE WORLD</button>
+              <button class="mode-tab {video_control_class}" data-mode="video" type="button">VIDEO WORLD</button>
+            </div>
+            <button class="load-button" id="loadModelButton" type="button">LOAD</button>
+            <label class="file-chip image-only"><span id="imageInputLabel">{image_label}</span><input id="imageInput" type="file" accept="image/*"></label>
+            <label class="file-chip {video_control_class} {standard_control_class}"><span>VIDEO</span><input id="videoInput" type="file" accept="video/*"></label>
+            <label class="file-chip {queued_control_class}"><span id="denseInputLabel">DENSE DEPTH</span><input id="denseVideoInput" type="file" accept="video/*"></label>
+            <label class="file-chip {queued_control_class}"><span id="sparseInputLabel">SPARSE TRACK</span><input id="sparseVideoInput" type="file" accept="video/*"></label>
+            <input class="prompt-input" id="promptInput" type="text" value="{prompt}" aria-label="Prompt" placeholder="Describe the next segment">
+          </div>
+          <div class="segment-input-status {queued_control_class}" id="segmentInputStatus" aria-live="polite">
+            <span id="imageFileState">INITIAL IMAGE REQUIRED</span>
+            <span id="denseFileState">DENSE CONTROL REQUIRED</span>
+            <span id="sparseFileState">SPARSE CONTROL REQUIRED</span>
+          </div>
+          <div class="{thumb_tray_class}" id="thumbTray" aria-label="Example worlds"></div>
+          <div class="text-event-editor" id="textEventEditor">
+            <div class="text-event-toolbar">
+              <div><strong>TEXT EVENTS</strong><span>Editable during a live session</span></div>
+              <div>
+                <button id="addEventButton" type="button">ADD</button>
+                <button id="applyEventsButton" type="button">APPLY</button>
+              </div>
+            </div>
+            <div class="event-editor-rows" id="eventEditorRows"></div>
+            <div class="event-catalog-status" id="eventCatalogStatus" role="status" aria-live="polite">EMPTY CATALOG</div>
+          </div>
+        </div>
+      </section>
     </section>
   </main>
 
@@ -287,6 +396,16 @@ body {
 button,
 input {
   font: inherit;
+}
+
+.is-hidden {
+  display: none !important;
+}
+
+button:disabled,
+.file-chip.is-disabled {
+  cursor: wait;
+  opacity: 0.52;
 }
 
 .site-chrome {
@@ -368,9 +487,6 @@ input {
 .world-viewport {
   position: relative;
   aspect-ratio: 16 / 9;
-  --preview-offset-x: 0px;
-  --preview-offset-y: 0px;
-  --preview-scale: 1;
   overflow: hidden;
   border-radius: 0.95rem;
   background: #050608;
@@ -381,20 +497,20 @@ input {
 }
 
 #frameImage,
-#frameVideo {
+#frameVideo,
+#frameCanvas {
   width: 100%;
   height: 100%;
   object-fit: contain;
   background: #050608;
   display: none;
-  transform: translate3d(var(--preview-offset-x), var(--preview-offset-y), 0) scale(var(--preview-scale));
-  transform-origin: center;
   backface-visibility: hidden;
-  will-change: transform, opacity;
+  will-change: opacity;
 }
 
 #frameImage.is-visible,
-#frameVideo.is-visible {
+#frameVideo.is-visible,
+#frameCanvas.is-visible {
   display: block;
 }
 
@@ -439,6 +555,195 @@ input {
 }
 
 .overlay-status {
+  display: none;
+}
+
+.viewport-tools {
+  position: absolute;
+  top: 0.85rem;
+  left: 0.85rem;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+}
+
+.viewport-tool,
+.runtime-log-header button {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(5, 8, 13, 0.82);
+  color: #e9eef7;
+  min-height: 2rem;
+  padding: 0 0.68rem;
+  font-size: 0.64rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.viewport-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+}
+
+.viewport-tool:hover,
+.viewport-tool:focus-visible,
+.runtime-log-header button:hover,
+.runtime-log-header button:focus-visible {
+  border-color: rgba(102, 189, 255, 0.62);
+  background: rgba(13, 21, 32, 0.94);
+  outline: none;
+}
+
+.viewport-tool[aria-pressed="true"] {
+  border-color: rgba(72, 167, 255, 0.56);
+  background: rgba(17, 54, 82, 0.9);
+}
+
+.viewport-tool-icon {
+  display: inline-block;
+  width: 0.68rem;
+  height: 0.58rem;
+  border: 1px solid currentColor;
+  border-radius: 0.06rem;
+  line-height: 1;
+}
+
+.live-log-dot {
+  flex: 0 0 auto;
+  width: 0.44rem;
+  height: 0.44rem;
+  border-radius: 50%;
+  background: #42dc82;
+  box-shadow: 0 0 0.72rem rgba(66, 220, 130, 0.9);
+}
+
+.log-count {
+  min-width: 1.15rem;
+  border-radius: 999px;
+  padding: 0.08rem 0.3rem;
+  background: rgba(255, 255, 255, 0.1);
+  color: #cdd5e1;
+  font-variant-numeric: tabular-nums;
+}
+
+.runtime-log {
+  position: absolute;
+  top: 3.55rem;
+  right: 0.85rem;
+  bottom: 0.85rem;
+  z-index: 7;
+  display: flex;
+  flex-direction: column;
+  width: min(25rem, 44%);
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 0.8rem;
+  background: linear-gradient(180deg, rgba(10, 15, 22, 0.96), rgba(4, 7, 11, 0.94));
+  box-shadow: 0 1.2rem 3rem rgba(0, 0, 0, 0.42);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate3d(0.65rem, 0, 0);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.log-open .runtime-log {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate3d(0, 0, 0);
+}
+
+.runtime-log-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 2.6rem;
+  padding: 0.45rem 0.55rem 0.45rem 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  color: #eef4fb;
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+}
+
+.runtime-log-header > div {
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+}
+
+.runtime-log-header > div > span:last-child {
+  color: #7e8a99;
+}
+
+.runtime-log-header button {
+  min-height: 1.65rem;
+  padding: 0 0.5rem;
+  color: #aab4c2;
+  font-size: 0.58rem;
+}
+
+.runtime-log-list {
+  min-height: 0;
+  flex: 1 1 auto;
+  margin: 0;
+  padding: 0.42rem 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.2) transparent;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.66rem;
+  line-height: 1.4;
+}
+
+.runtime-log-entry {
+  display: grid;
+  grid-template-columns: 4.6rem minmax(0, 1fr);
+  gap: 0.55rem;
+  padding: 0.3rem 0.72rem;
+  color: #cbd4e0;
+}
+
+.runtime-log-entry:hover {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.runtime-log-time {
+  color: #667282;
+  font-variant-numeric: tabular-nums;
+}
+
+.runtime-log-message {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.runtime-log-detail {
+  display: block;
+  margin-top: 0.08rem;
+  color: #748193;
+}
+
+.runtime-log-entry[data-level="live"] .runtime-log-message,
+.runtime-log-entry[data-level="metric"] .runtime-log-message {
+  color: #8ee8b2;
+}
+
+.runtime-log-entry[data-level="warn"] .runtime-log-message {
+  color: #ffd479;
+}
+
+.runtime-log-entry[data-level="error"] .runtime-log-message {
+  color: #ff8d8d;
+}
+
+.immersive-hint {
   display: none;
 }
 
@@ -510,6 +815,15 @@ input {
   align-items: center;
   gap: 1rem;
   padding: 0.22rem 3.5rem 0.55rem;
+}
+
+.controls-deck.controls-centered {
+  grid-template-columns: 1fr;
+  min-height: 4.1rem;
+}
+
+.controls-centered .session-actions {
+  justify-self: center;
 }
 
 .session-actions {
@@ -649,6 +963,14 @@ input {
   pointer-events: none;
 }
 
+.file-chip span {
+  display: block;
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .prompt-input {
   width: 100%;
   min-width: 0;
@@ -670,6 +992,31 @@ input {
   display: grid;
   grid-template-columns: repeat(9, minmax(3.95rem, 1fr));
   gap: 0.5rem;
+}
+
+.segment-input-status {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  color: #aeb7c5;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.segment-input-status span {
+  min-width: 0;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 0.58rem;
+  padding: 0.58rem 0.7rem;
+  background: rgba(255,255,255,0.045);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.segment-input-status span.is-ready {
+  border-color: rgba(51,209,122,0.36);
+  color: #dfffe9;
 }
 
 .thumb-card {
@@ -706,6 +1053,493 @@ input {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.studio-panel {
+  position: relative;
+  min-width: 0;
+}
+
+.status-panel,
+.controls-panel {
+  margin-top: 0.18rem;
+  border: 1px solid rgba(28, 33, 41, 0.12);
+  border-radius: 0.82rem;
+  background: rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+}
+
+.studio-panel-header,
+.panel-handle {
+  user-select: none;
+}
+
+.studio-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 1.72rem;
+  padding: 0.22rem 0.42rem 0.18rem 0.62rem;
+  color: #5d6670;
+  font-size: 0.58rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  cursor: grab;
+  touch-action: none;
+}
+
+.source-dock > .studio-panel-header {
+  color: #9aa5b5;
+  padding: 0.1rem 0.1rem 0.42rem 0.2rem;
+}
+
+.panel-handle:active {
+  cursor: grabbing;
+}
+
+.panel-collapse {
+  display: inline-grid;
+  place-items: center;
+  width: 1.55rem;
+  min-height: 1.35rem;
+  padding: 0;
+  border: 1px solid rgba(128, 140, 154, 0.24);
+  border-radius: 0.42rem;
+  background: rgba(255, 255, 255, 0.07);
+  color: inherit;
+  font: 800 0.8rem/1 system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.studio-panel.is-collapsed > [data-panel-body] {
+  display: none !important;
+}
+
+.studio-panel.is-collapsed > .studio-panel-header,
+.studio-panel.is-collapsed > .runtime-log-header {
+  border-bottom: 0;
+}
+
+.studio-panel.is-floating {
+  position: fixed !important;
+  right: auto !important;
+  bottom: auto !important;
+  z-index: 70;
+  width: min(42rem, calc(100vw - 1rem));
+  max-height: calc(100vh - 1rem);
+  margin: 0 !important;
+  overflow: hidden;
+  box-shadow: 0 1.25rem 3.8rem rgba(0, 0, 0, 0.42) !important;
+  will-change: left, top, transform;
+}
+
+.runtime-log.is-collapsed {
+  bottom: auto !important;
+  min-height: 0;
+  height: auto;
+  max-height: 2.7rem;
+}
+
+.studio-panel.is-floating > [data-panel-body] {
+  max-height: calc(100vh - 3.2rem);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.runtime-log-body {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.realtime-control-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  padding: 0 0.65rem 0.55rem;
+}
+
+.step-button,
+.resolution-control,
+.event-trigger,
+.event-clear,
+.text-event-toolbar button,
+.event-remove {
+  min-height: 2rem;
+  border: 1px solid rgba(31, 37, 45, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.32);
+  color: #272d35;
+  font-size: 0.66rem;
+  font-weight: 900;
+}
+
+.step-button,
+.event-trigger,
+.event-clear,
+.text-event-toolbar button,
+.event-remove {
+  padding: 0 0.8rem;
+}
+
+.step-button:disabled,
+.event-trigger:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.resolution-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  padding: 0 0.38rem 0 0.7rem;
+}
+
+.resolution-control span {
+  color: #5c6570;
+  font-size: 0.58rem;
+  letter-spacing: 0.05em;
+}
+
+.resolution-control select {
+  min-height: 1.55rem;
+  border: 0;
+  border-radius: 999px;
+  background: #20262e;
+  color: #eef4fb;
+  padding: 0 1.6rem 0 0.6rem;
+  font: 800 0.62rem/1 system-ui, sans-serif;
+}
+
+.control-ack {
+  min-width: 5.5rem;
+  color: #737d88;
+  font-size: 0.58rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.control-ack.is-ok {
+  color: #178249;
+}
+
+.control-ack.is-error {
+  color: #be3434;
+}
+
+.event-trigger-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.38rem;
+  min-height: 2.35rem;
+  padding: 0 0.65rem 0.58rem;
+}
+
+.event-trigger.is-active {
+  border-color: rgba(20, 139, 76, 0.46);
+  background: #dff8e9;
+  color: #0a6935;
+}
+
+.event-trigger.is-pending {
+  box-shadow: 0 0 0 0.16rem rgba(52, 145, 255, 0.24);
+}
+
+.event-clear {
+  color: #66717d;
+}
+
+.event-empty {
+  color: #737d88;
+  font-size: 0.62rem;
+  font-weight: 850;
+}
+
+.text-event-editor {
+  margin-top: 0.55rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.78rem;
+  background: rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+
+.text-event-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.48rem 0.55rem;
+}
+
+.text-event-toolbar > div {
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+}
+
+.text-event-toolbar strong {
+  color: #e7edf6;
+  font-size: 0.64rem;
+  letter-spacing: 0.05em;
+}
+
+.text-event-toolbar span,
+.event-catalog-status {
+  color: #778392;
+  font-size: 0.6rem;
+}
+
+.text-event-toolbar button,
+.event-remove {
+  min-height: 1.72rem;
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.07);
+  color: #dbe3ed;
+}
+
+.event-editor-rows {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0 0.55rem;
+}
+
+.event-editor-row {
+  display: grid;
+  grid-template-columns: minmax(5rem, 0.65fr) minmax(6rem, 0.8fr) minmax(12rem, 2.4fr) auto;
+  gap: 0.38rem;
+  align-items: center;
+}
+
+.event-editor-row input {
+  min-width: 0;
+  min-height: 1.95rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.48rem;
+  background: rgba(255, 255, 255, 0.055);
+  color: #edf3fa;
+  padding: 0 0.58rem;
+  outline: none;
+  font-size: 0.68rem;
+}
+
+.event-editor-row input:focus {
+  border-color: rgba(86, 172, 255, 0.62);
+}
+
+.event-catalog-status {
+  padding: 0.45rem 0.62rem 0.5rem;
+  text-align: right;
+}
+
+.event-catalog-status.is-ok {
+  color: #71d99a;
+}
+
+.event-catalog-status.is-error {
+  color: #ff9292;
+}
+
+body.is-immersive {
+  overflow: hidden;
+  background: #000;
+}
+
+.is-immersive .site-chrome,
+.is-immersive .device-topline,
+.is-immersive .status-panel,
+.is-immersive .console-strip,
+.is-immersive .rollout-note {
+  display: none;
+}
+
+.is-immersive .world-shell,
+.is-immersive .spatial-device,
+.is-immersive .screen-bezel,
+.is-immersive .world-viewport {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: #000;
+  box-shadow: none;
+}
+
+.is-immersive .world-shell {
+  z-index: 100;
+  display: block;
+}
+
+.is-immersive .spatial-device {
+  isolation: isolate;
+}
+
+.is-immersive .world-viewport {
+  aspect-ratio: auto;
+}
+
+.is-immersive .screen-noise {
+  opacity: 0.1;
+}
+
+.is-immersive .viewport-tools {
+  top: max(0.8rem, env(safe-area-inset-top));
+  left: max(0.8rem, env(safe-area-inset-left));
+}
+
+.is-immersive .floating-state {
+  top: max(0.8rem, env(safe-area-inset-top));
+  right: max(0.8rem, env(safe-area-inset-right));
+}
+
+.is-immersive .runtime-log {
+  position: fixed;
+  top: max(3.55rem, calc(env(safe-area-inset-top) + 3rem));
+  right: max(0.8rem, env(safe-area-inset-right));
+  bottom: max(5.1rem, calc(env(safe-area-inset-bottom) + 4.5rem));
+  width: min(26rem, 34vw);
+  max-height: 42rem;
+}
+
+.is-immersive .controls-deck {
+  position: fixed;
+  inset: 0;
+  z-index: 22;
+  display: block;
+  min-height: 0;
+  padding: 0;
+  pointer-events: none;
+}
+
+.is-immersive .controls-panel {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 22;
+  width: 100vw !important;
+  max-height: none !important;
+  transform: none !important;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.is-immersive .controls-panel > .studio-panel-header {
+  display: none;
+}
+
+.is-immersive .controls-panel > .studio-panel-body {
+  display: block !important;
+  pointer-events: none;
+}
+
+.is-immersive .realtime-control-bar,
+.is-immersive .event-trigger-bar {
+  position: fixed;
+  z-index: 24;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(8, 12, 18, 0.78);
+  backdrop-filter: blur(12px);
+  pointer-events: auto;
+}
+
+.is-immersive .realtime-control-bar {
+  top: max(0.75rem, env(safe-area-inset-top));
+}
+
+.is-immersive .event-trigger-bar {
+  bottom: max(5rem, calc(env(safe-area-inset-bottom) + 4.5rem));
+}
+
+.is-immersive .stick-well {
+  position: fixed;
+  left: max(1rem, env(safe-area-inset-left));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  pointer-events: auto;
+  opacity: 0.82;
+}
+
+.is-immersive .stick-right {
+  right: max(1rem, env(safe-area-inset-right));
+  left: auto;
+}
+
+.is-immersive .session-actions {
+  position: fixed;
+  top: max(0.8rem, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: auto;
+}
+
+.is-immersive .source-dock {
+  position: fixed;
+  z-index: 21;
+  left: 50%;
+  bottom: max(0.8rem, env(safe-area-inset-bottom));
+  width: min(58rem, calc(100vw - 15rem));
+  padding: 0.45rem;
+  transform: translateX(-50%);
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(8, 12, 18, 0.92);
+  box-shadow: 0 1rem 3rem rgba(0,0,0,0.42);
+}
+
+.is-immersive .source-dock > .studio-panel-header,
+.is-immersive .text-event-editor {
+  display: none;
+}
+
+.is-immersive .source-dock.is-floating {
+  right: auto !important;
+  bottom: auto !important;
+  transform: none;
+}
+
+.is-immersive .controls-centered + .source-dock {
+  width: min(62rem, calc(100vw - 2rem));
+}
+
+.is-immersive .source-toolbar {
+  margin-bottom: 0;
+}
+
+.is-immersive .thumb-tray,
+.is-immersive .segment-input-status {
+  display: none;
+}
+
+.is-immersive .immersive-hint {
+  position: fixed;
+  right: max(0.9rem, env(safe-area-inset-right));
+  bottom: max(0.65rem, env(safe-area-inset-bottom));
+  z-index: 23;
+  display: block;
+  color: rgba(225, 232, 241, 0.52);
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  pointer-events: none;
 }
 
 @media (max-width: 820px) {
@@ -760,13 +1594,108 @@ input {
   .thumb-tray {
     grid-template-columns: repeat(5, minmax(3.7rem, 1fr));
   }
+
+  .segment-input-status {
+    grid-template-columns: 1fr;
+  }
+
+  .event-editor-row {
+    grid-template-columns: 1fr 1fr auto;
+  }
+
+  .event-editor-row .event-prompt {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .studio-panel-header,
+  .panel-handle {
+    cursor: default;
+    touch-action: pan-y;
+  }
+
+  .studio-panel.is-floating:not(.runtime-log) {
+    position: relative !important;
+    inset: auto !important;
+    z-index: auto !important;
+    width: auto !important;
+    max-height: none;
+    transform: none !important;
+  }
+
+  .runtime-log.studio-panel.is-floating {
+    position: absolute !important;
+    top: 3.35rem !important;
+    right: 0.55rem !important;
+    bottom: 0.55rem !important;
+    left: auto !important;
+    width: calc(100% - 1.1rem) !important;
+    transform: translate3d(0, 0.45rem, 0) !important;
+  }
+
+  .log-open .runtime-log.studio-panel.is-floating {
+    transform: translate3d(0, 0, 0) !important;
+  }
+
+  .viewport-tool > span:not(.viewport-tool-icon):not(.live-log-dot):not(.log-count) {
+    display: none;
+  }
+
+  .runtime-log,
+  .is-immersive .runtime-log {
+    top: 3.35rem;
+    right: 0.55rem;
+    bottom: 0.55rem;
+    width: calc(100% - 1.1rem);
+    max-height: 48vh;
+  }
+
+  .is-immersive .source-dock,
+  .is-immersive .controls-centered + .source-dock {
+    bottom: max(0.6rem, env(safe-area-inset-bottom));
+    width: calc(100vw - 1.2rem);
+  }
+
+  .is-immersive .source-toolbar {
+    grid-template-columns: auto auto 1fr;
+  }
+
+  .is-immersive .segmented,
+  .is-immersive .file-chip,
+  .is-immersive .load-button {
+    display: none;
+  }
+
+  .is-immersive .prompt-input {
+    grid-column: 1 / -1;
+  }
+
+  .is-immersive .runtime-log {
+    bottom: 5.2rem;
+  }
+
+  .is-immersive .stick-well {
+    bottom: max(5.1rem, calc(env(safe-area-inset-bottom) + 4.6rem));
+    width: 4.25rem;
+    height: 4.25rem;
+  }
+
+  .is-immersive .immersive-hint {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .runtime-log {
+    transition: none;
+  }
 }
 """
 
 
 @lru_cache(maxsize=1)
-def world_frontend_js() -> str:
-    """Return the standalone world frontend JavaScript."""
+def _legacy_world_frontend_js() -> str:
+    """Return the pre-WebRTC RPC client for downstream compatibility tests."""
 
     return r"""
 const state = {
@@ -805,12 +1734,6 @@ const state = {
   imageDecodeSeq: 0,
   lastStatsText: "",
   lastStatsRenderAt: 0,
-  motion: {
-    raf: 0,
-    x: 0,
-    y: 0,
-    scale: 1,
-  },
 };
 
 const emptyFrame =
@@ -818,7 +1741,6 @@ const emptyFrame =
 
 const STEP_INTERVAL_MS = 160;
 const STATS_INTERVAL_MS = 120;
-const PREVIEW_SETTLE_EPSILON = 0.15;
 
 const el = {
   root: document.body,
@@ -1164,7 +2086,6 @@ async function resetSession() {
   clearScheduledStep();
   updateStartOverlay();
   setStatus("FROZEN");
-  startPreviewMotion();
 }
 
 function controlsSnapshot() {
@@ -1214,44 +2135,7 @@ function clearScheduledStep() {
   }
 }
 
-function previewMotionTarget() {
-  const moveX = (state.controls.d ? 1 : 0) - (state.controls.a ? 1 : 0);
-  const moveY = (state.controls.s ? 1 : 0) - (state.controls.w ? 1 : 0);
-  return {
-    x: state.controls.camera_dx * -18 + moveX * -10,
-    y: state.controls.camera_dy * -14 + moveY * -8,
-    scale: hasControls() ? 1.018 : 1,
-  };
-}
-
-function tickPreviewMotion() {
-  state.motion.raf = 0;
-  const target = previewMotionTarget();
-  state.motion.x += (target.x - state.motion.x) * 0.24;
-  state.motion.y += (target.y - state.motion.y) * 0.24;
-  state.motion.scale += (target.scale - state.motion.scale) * 0.2;
-  const active = hasControls();
-  const settled =
-    Math.abs(state.motion.x) < PREVIEW_SETTLE_EPSILON &&
-    Math.abs(state.motion.y) < PREVIEW_SETTLE_EPSILON &&
-    Math.abs(state.motion.scale - 1) < 0.002;
-  el.viewport.style.setProperty("--preview-offset-x", `${state.motion.x.toFixed(2)}px`);
-  el.viewport.style.setProperty("--preview-offset-y", `${state.motion.y.toFixed(2)}px`);
-  el.viewport.style.setProperty("--preview-scale", state.motion.scale.toFixed(4));
-  el.viewport.classList.toggle("is-steering", active || !settled);
-  if (active || !settled) {
-    state.motion.raf = requestAnimationFrame(tickPreviewMotion);
-  }
-}
-
-function startPreviewMotion() {
-  if (!state.motion.raf) {
-    state.motion.raf = requestAnimationFrame(tickPreviewMotion);
-  }
-}
-
 function noteControlsChanged() {
-  startPreviewMotion();
   if (state.sessionId && hasControls()) {
     scheduleStep(0, controlsSnapshot());
   }
@@ -1404,7 +2288,6 @@ function bindJoystick(stick, applyVector, releaseVector) {
     mouseActive = false;
     releaseVector();
     updateStickVisual(stick, 0, 0);
-    startPreviewMotion();
     if (hasControls(action)) {
       scheduleStep(0, action);
     }
@@ -1509,7 +2392,6 @@ function bindControls() {
     syncMoveStickFromKeys();
     updateCameraFromHeld();
     updateControlVisuals();
-    startPreviewMotion();
     if (hasControls(action)) {
       scheduleStep(0, action);
     }
@@ -1522,7 +2404,6 @@ function bindControls() {
     updateStickVisual(el.lookStick, 0, 0);
     updateControlVisuals();
     clearScheduledStep();
-    startPreviewMotion();
   });
   updateControlVisuals();
 }
@@ -1618,11 +2499,20 @@ async function boot() {
   setInterval(updateTimer, 500);
 }
 
-boot().catch((err) => {
+    boot().catch((err) => {
   setStatus("BOOT ERROR", false, true);
   console.error(err);
 });
 """
+
+
+@lru_cache(maxsize=1)
+def world_frontend_js() -> str:
+    """Return the persistent WebRTC realtime frontend client."""
+
+    from .world_realtime_client import WORLD_REALTIME_CLIENT_JS
+
+    return WORLD_REALTIME_CLIENT_JS
 
 
 class WorldFrontendHandler(BaseHTTPRequestHandler):
@@ -1977,7 +2867,7 @@ class WorldFrontendHandler(BaseHTTPRequestHandler):
             examples.append(
                 {
                     "id": f"demo-{index:02d}",
-                    "label": path.parent.name or f"Scene {index}",
+                    "label": _reference_image_label(path, index),
                     "path": str(path),
                     "url": _file_url(path),
                 }
@@ -2339,16 +3229,7 @@ def _launch_runtime_overrides(
         if variant_id == LINGBOT_VARIANT_FAST:
             load_kwargs = lingbot_world_fast_load_kwargs()
             load_kwargs.setdefault("runtime_variant", "fast")
-            if launch_uses_lingbot_torchrun_rollout(launch_config):
-                load_kwargs["dit_fsdp"] = True
-                load_kwargs["t5_fsdp"] = True
-                load_kwargs["ulysses_size"] = (
-                    int(os.getenv("WORLD_SIZE", "1") or "1")
-                    if lingbot_fast_sequence_parallel_enabled()
-                    else 1
-                )
-                load_kwargs["t5_cpu"] = False
-            else:
+            if not launch_uses_lingbot_torchrun_rollout(launch_config):
                 # Single-process launches still use the stable one-GPU path.
                 # Multi-GPU execution is enabled by launching this frontend with
                 # torchrun; those ranks share work through the StudioManager
@@ -2357,6 +3238,9 @@ def _launch_runtime_overrides(
                 load_kwargs["t5_fsdp"] = False
                 load_kwargs["ulysses_size"] = 1
                 load_kwargs["t5_cpu"] = True
+            # For torchrun, StudioManager chooses replication versus FSDP from
+            # per-rank VRAM and applies the Ulysses degree. Leaving these unset
+            # is essential for 24/40/48GB open-source deployments.
             fast_model_path = str(load_kwargs.get("fast_model_path", "") or "")
             # The fast variant still needs the base bundle (T5 encoder, VAE, tokenizer,
             # and the cam/act control type inferred from the base checkpoint name), so the
@@ -2481,7 +3365,7 @@ def _path_from_file_url(url: str) -> Path | None:
 
 @lru_cache(maxsize=8)
 def _demo_image_files(root: Path | None = None) -> tuple[Path, ...]:
-    source_root = (root or WORLD_DEMO_IMAGE_ROOT).expanduser()
+    source_root = (root or WORLD_REFERENCE_IMAGE_ROOT).expanduser()
     if not source_root.exists():
         return ()
     return tuple(
@@ -2499,10 +3383,15 @@ def _repeat_to_slots(paths: tuple[Path, ...], slots: int) -> tuple[Path, ...]:
     return tuple(paths[index % len(paths)] for index in range(slots))
 
 
+def _reference_image_label(path: Path, index: int) -> str:
+    label = path.stem.replace("_", " ").replace("-", " ").strip()
+    return label.title() if label else f"Scene {index}"
+
+
 def _world_allowed_roots(manager: StudioManager, launch_config: StudioLaunchConfig) -> tuple[Path, ...]:
     roots = [
         Path(manager.workspace_root).expanduser().resolve(),
-        WORLD_DEMO_IMAGE_ROOT.expanduser().resolve(),
+        WORLD_REFERENCE_IMAGE_ROOT.expanduser().resolve(),
     ]
     if launch_config.asset_path:
         asset = Path(launch_config.asset_path).expanduser().resolve()

@@ -1,0 +1,27 @@
+conda_packages:
+- python
+- pip
+cuda_profile: cu128
+driver_status: compatible
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: dm0
+notes:
+- Runtime dependencies are restricted to local checkpoint inference and image preprocessing.
+pip_packages:
+- torch>=2.6.0
+- torchvision>=0.21.0
+- transformers>=4.51.0,<5
+- accelerate>=1.10.0
+- safetensors>=0.5.0
+- einops>=0.8.0
+- numpy>=1.26,<3
+- Pillow>=10
+python: '3.10'
+validation_imports:
+- numpy
+- PIL
+- torch
+- torchvision
+- transformers
+- einops

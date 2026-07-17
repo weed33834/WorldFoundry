@@ -1,0 +1,169 @@
+backend: callable_entrypoint
+checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/OpenGalaxea--G0-VLA
+checkpoint_ref: OpenGalaxea/G0-VLA
+checkpoint_subdir: G0Plus_3B_base
+revision: d24d4d154e43e3c1f87a0633438729005b2bcc31
+tokenizer_checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/google--paligemma-3b-pt-224
+tokenizer_checkpoint_ref: google/paligemma-3b-pt-224
+tokenizer_revision: null
+policy_target: worldfoundry.synthesis.action_generation.galaxea_vla.runtime:predict_action
+torch_dtype: auto
+trust_remote_code: false
+local_files_only: true
+variant: r1lite_mobile
+prompt_template: "{bos_token}Task: {instruction}, "
+instruction_template: "[Low]: {instruction}"
+normalization_epsilon: 1.0e-8
+image_mean: [0.5, 0.5, 0.5]
+image_std: [0.5, 0.5, 0.5]
+statistics_path: null
+statistics_file: dataset_stats.json
+statistics_key: null
+action_horizon: null
+seed: 0
+compile_vision: false
+compile_mode: reduce-overhead
+architecture:
+  image_token_index: 257152
+  pad_token_id: 0
+  vocab_size: 257216
+  fill_padded_with_token: false
+  embed_token_key_prefix: language_model.model.embed_tokens
+  max_text_tokens: 55
+  final_action_clip_value: null
+  action_decoder_layers: 2
+  action_expert_adaptive_mode: null
+  time_hidden_size: 256
+  num_inference_steps: 10
+  pretrained_model_path: null
+  vision:
+    key_prefix: vision_tower
+    hidden_size: 1152
+    intermediate_size: 4304
+    num_hidden_layers: 27
+    num_attention_heads: 16
+    num_channels: 3
+    image_size: 224
+    patch_size: 14
+    layer_norm_eps: 1.0e-6
+    attention_dropout: 0.0
+    num_image_tokens: 256
+  vision_projector:
+    key_prefix: multi_modal_projector
+    vision_config:
+      hidden_size: 1152
+      projection_dim: 2048
+  joint:
+    key_prefix: language_model.model
+    mixture:
+      vlm:
+        hidden_size: 2048
+        intermediate_size: 16384
+        use_final_norm: false
+        cache: true
+      proprio:
+        hidden_size: 1024
+        intermediate_size: 4096
+        use_final_norm: true
+        cache: true
+        adaptive_mode: null
+      action:
+        hidden_size: 1024
+        intermediate_size: 4096
+        use_final_norm: true
+        cache: false
+        adaptive_mode: null
+    num_hidden_layers: 18
+    num_attention_heads: 8
+    num_key_value_heads: 1
+    head_dim: 256
+    max_position_embeddings: 8192
+    rms_norm_eps: 1.0e-6
+    rope_theta: 10000.0
+    attention_bias: false
+    attention_dropout: 0.0
+variants:
+  r1lite_mobile:
+    state_dim: 21
+    action_dim: 26
+    observation_steps: 1
+    action_horizon: 32
+    num_input_images: 3
+    camera_keys: [head_rgb, left_wrist_rgb, right_wrist_rgb]
+    camera_aliases:
+      head_rgb: [cam_high, cam_head, head_camera, head, top_camera, image]
+      left_wrist_rgb: [cam_left_wrist, left_camera, left_wrist, wrist_left, wrist_image]
+      right_wrist_rgb: [cam_right_wrist, right_camera, right_wrist, wrist_right]
+    state_parts:
+    - {key: left_arm, dim: 6}
+    - {key: left_gripper, dim: 1}
+    - {key: right_arm, dim: 6}
+    - {key: right_gripper, dim: 1}
+    - {key: torso, dim: 4}
+    - {key: chassis, dim: 3}
+    action_parts:
+    - {key: left_arm, dim: 6}
+    - {key: left_gripper, dim: 1}
+    - {key: right_arm, dim: 6}
+    - {key: right_gripper, dim: 1}
+    - {key: torso.velocities, dim: 6}
+    - {key: chassis.velocities, dim: 6}
+    relative_action_keys: [left_arm, right_arm]
+    wrap_state_angle_keys: [chassis]
+    use_stepwise_action_norm: true
+    normalization_mode: z-score
+    normalization_exceptions:
+      action:
+        left_gripper: 0/100
+        right_gripper: 0/100
+  r1lite_arm:
+    state_dim: 14
+    action_dim: 14
+    observation_steps: 1
+    action_horizon: 32
+    num_input_images: 3
+    camera_keys: [head_rgb, left_wrist_rgb, right_wrist_rgb]
+    camera_aliases:
+      head_rgb: [cam_high, cam_head, head_camera, head, top_camera, image]
+      left_wrist_rgb: [cam_left_wrist, left_camera, left_wrist, wrist_left, wrist_image]
+      right_wrist_rgb: [cam_right_wrist, right_camera, right_wrist, wrist_right]
+    state_parts:
+    - {key: left_arm, dim: 6}
+    - {key: left_gripper, dim: 1}
+    - {key: right_arm, dim: 6}
+    - {key: right_gripper, dim: 1}
+    action_parts:
+    - {key: left_arm, dim: 6}
+    - {key: left_gripper, dim: 1}
+    - {key: right_arm, dim: 6}
+    - {key: right_gripper, dim: 1}
+    relative_action_keys: [left_arm, right_arm]
+    wrap_state_angle_keys: []
+    use_stepwise_action_norm: true
+    normalization_mode: z-score
+    normalization_exceptions:
+      action:
+        left_gripper: 0/100
+        right_gripper: 0/100
+  libero:
+    state_dim: 8
+    action_dim: 7
+    observation_steps: 1
+    action_horizon: 32
+    num_input_images: 2
+    camera_keys: [image, wrist_image]
+    camera_aliases:
+      image: [cam_high, cam_head, head_camera]
+      wrist_image: [cam_left_wrist, left_camera, left_wrist]
+    state_parts:
+    - {key: default, dim: 8}
+    action_parts:
+    - {key: default, dim: 7}
+    relative_action_keys: []
+    wrap_state_angle_keys: []
+    use_stepwise_action_norm: false
+    normalization_mode: z-score
+    normalization_exceptions: {}
+action_contract: g0plus_flow_matching_action_chunk
+runtime_backend: galaxea_vla_in_tree_model
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner

@@ -29,10 +29,10 @@ integration:
 base_model_target: worldfoundry.base_models.three_dimensions.depth.unidepth
 runtime_profile: runtime-profile:unidepth-v2-prior
 runner_parity:
-  status: implemented_checkpoint_pending
+  status: checkpoint_verified
   notes:
-  - Real prior inference is wired through the shared geometry-prior pipeline/operator
-    contract and requires checkpoint access at runtime.
+  - Real checkpoint inference and official point export are verified through the shared
+    geometry-prior pipeline/operator contract and Workspace route.
 catalog_category: three_d_four_d
 catalog_scope: Independent geometric prior integrations used by 3D and world-model
   runtimes.

@@ -1,0 +1,39 @@
+model_id: mira
+env_name: mira
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+python: '3.12'
+cuda_profile: cu128
+driver_status: compatible
+channels:
+- conda-forge
+conda_packages:
+- python=3.12
+- pip
+- ffmpeg>=7,<8
+pip_extra_index_url: https://download.pytorch.org/whl/cu128
+pip_packages:
+- torch==2.8.0+cu128
+- numpy>=1.24
+- pydantic>=2.11
+- einops>=0.8
+- omegaconf>=2.3
+- pillow
+- tqdm
+- torchmetrics
+- termcolor
+source_requirement_files:
+- worldfoundry/synthesis/visual_generation/world_model/mira_wm/requirements-torchcodec.txt
+pythonpath_dirs:
+- worldfoundry/synthesis/visual_generation/world_model/mira_wm/src
+validation_imports:
+- torch>=2.8,<2.9
+- torchcodec==0.7.0
+- numpy
+- pydantic
+- einops
+- omegaconf
+- PIL
+- tqdm
+notes:
+- Mirrors upstream's validated Python 3.12, torch 2.8, CPU TorchCodec 0.7, CUDA 12.8, and FFmpeg 7 runtime.
+- The exact torch ABI pin intentionally keeps MIRA isolated from the shared WorldFoundry environment.

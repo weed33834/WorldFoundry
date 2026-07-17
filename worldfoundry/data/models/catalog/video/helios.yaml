@@ -1,0 +1,83 @@
+id: helios
+name: Helios
+aliases:
+- helios-distilled
+- helios-base
+- helios-mid
+tasks:
+- text-to-video
+- image-to-video
+- video-to-video
+- long-video-generation
+output_artifacts:
+- generated_video
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/PKU-YuanGroup/Helios
+  revision: 8f2a2faab3298c8a7630a2c73aea37c01b5bab01
+  license: apache-2.0
+official_sources:
+  project_page: https://pku-yuangroup.github.io/Helios-Page/
+  github:
+    url: https://github.com/PKU-YuanGroup/Helios
+    revision: 8f2a2faab3298c8a7630a2c73aea37c01b5bab01
+  huggingface:
+  - repo_id: BestWishYsh/Helios-Base
+    revision: 21cf91da9cae0270a9405000c2e798f83770b1dd
+    status: confirmed
+  - repo_id: BestWishYsh/Helios-Mid
+    revision: 23d110fa638959ac2a9aaa024d372519d54d1d2b
+    status: confirmed
+  - repo_id: BestWishYsh/Helios-Distilled
+    revision: 1999182614cb08d3bdcc46b9827504af2914b87b
+    status: confirmed
+checkpoints:
+- repo_id: BestWishYsh/Helios-Distilled
+  revision: 1999182614cb08d3bdcc46b9827504af2914b87b
+  license: apache-2.0
+  role: default_efficient_checkpoint
+- repo_id: BestWishYsh/Helios-Base
+  revision: 21cf91da9cae0270a9405000c2e798f83770b1dd
+  license: apache-2.0
+  role: best_quality_checkpoint
+- repo_id: BestWishYsh/Helios-Mid
+  revision: 23d110fa638959ac2a9aaa024d372519d54d1d2b
+  license: apache-2.0
+  role: intermediate_checkpoint
+variants:
+- id: helios-distilled
+  task: text-to-video
+  checkpoint_refs:
+  - repo_id: BestWishYsh/Helios-Distilled
+  runtime_profile: helios
+  pipeline_binding: helios
+- id: helios-base
+  task: text-to-video
+  checkpoint_refs:
+  - repo_id: BestWishYsh/Helios-Base
+  runtime_profile: helios
+  pipeline_binding: helios
+- id: helios-mid
+  task: text-to-video
+  checkpoint_refs:
+  - repo_id: BestWishYsh/Helios-Mid
+  runtime_profile: helios
+  pipeline_binding: helios
+integration:
+  status: integrated
+  notes:
+  - The inference implementation is vendored in-tree at the pinned source revision.
+  - The default route uses Helios-Distilled and supports T2V, I2V, and V2V.
+  - Group offloading and multi-GPU context parallelism are exposed as runtime options.
+  - Resident Distilled sessions keep native 9-latent/33-frame history and allow prompt changes only between segments; no keyboard-control claim is made.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+runtime_profile: runtime-profile:helios
+pipeline_binding: helios
+runner_parity:
+  status: pending_visual_qa
+  notes:
+  - Import-light command and asset preflight are covered by unit tests.
+  - Full 240-request-frame visual parity requires the dedicated Helios environment and GPU execution.
+catalog_category: video
+catalog_scope: Official open-source video-generation integrations exposed through WorldFoundry pipelines.

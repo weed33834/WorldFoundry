@@ -1,0 +1,64 @@
+model_id: cosmos3
+env_name: worldfoundry-cosmos3-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+python: '3.11'
+cuda_profile: cu128
+driver_status: compatible
+pip_extra_index_url: https://download.pytorch.org/whl/cu128
+conda_packages:
+- python=3.11
+- pip
+- conda-forge::ffmpeg
+pip_packages:
+- torch==2.10.0
+- torchvision==0.25.0
+- diffusers==0.39.0
+- transformers>=4.57,<6
+- accelerate>=0.31
+- peft>=0.17
+- huggingface-hub>=0.34,<2
+- cosmos-guardrail==0.3.1
+- fastapi>=0.116
+- pydantic>=2,<3
+- PyYAML>=6
+- msgpack
+- websockets
+- av
+- imageio
+- imageio-ffmpeg
+- safetensors
+- pillow
+- numpy
+validation_imports:
+- torch
+- torchvision
+- diffusers
+- transformers
+- accelerate
+- cosmos_guardrail
+- fastapi
+- pydantic
+- yaml
+- msgpack
+- websockets
+- imageio_ffmpeg
+- worldfoundry.base_models.diffusion_model.video.cosmos3.diffusers_cosmos3
+- worldfoundry.studio.workspace_job
+notes:
+- Uses released Diffusers only as the base framework. The Cosmos3 pipeline, transformer, and AVAE
+  inference delta from the exact revision recorded by Cosmos3 UPSTREAM.txt is vendored in tree;
+  environment setup never clones the Diffusers repository.
+- Includes NVIDIA Cosmos Guardrail because the official Diffusers pipeline enables its safety checker
+  by default. Synchronized sound uses the checkpoint's Diffusers sound-tokenizer component and does
+  not require a separate Cosmos audio package.
+- Guardrail construction uses gated nvidia/Cosmos-1.0-Guardrail plus
+  Qwen/Qwen3Guard-Gen-0.6B. Exact revisions cf03c0395fac8c4de386c0bdab12cc4fc8d66362 and
+  fada3b2f655b89601929198343c94cd2f64d93cc passed offline GPU and Workspace safety smokes.
+  Fresh machines still need NVIDIA repository authorization; the runtime fails before generator
+  loading when access is missing and explains how to opt into an explicitly unscreened run.
+- Cosmos3 Reasoner, training, and vLLM/vLLM-Omni serving dependencies are intentionally omitted.
+- Includes the minimal FastAPI/Pydantic/YAML surface imported by workspace_job so the dedicated model
+  environment can execute the real Workspace inference entrypoint, not only the base runtime. Msgpack
+  and WebSockets complete the declared WorldFoundry job/transport dependency surface.
+- Pins ffmpeg to conda-forge to keep its OpenH264 ABI consistent; core audio muxing also falls back to
+  the imageio-ffmpeg bundled executable if a host ffmpeg binary cannot start.

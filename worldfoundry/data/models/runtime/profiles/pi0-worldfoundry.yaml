@@ -22,7 +22,7 @@ input_schema:
   video: false
 integration_status: runtime_ported
 notes:
-- WorldFoundry-native PI0 is backed by the vendored OpenPI runtime under worldfoundry/synthesis/action_generation/openpi/openpi_runtime.
+- WorldFoundry-native PI0 is backed by the flattened in-tree runtime under worldfoundry/synthesis/action_generation/openpi.
 - Default runtime config uses pi0_droid; real checkpoint-backed execution requires
   local checkpoint, tokenizer, and normalization assets.
 runtime_status: in_tree_openpi_pi0_worldfoundry_runtime_ported_checkpoint_asset_gated

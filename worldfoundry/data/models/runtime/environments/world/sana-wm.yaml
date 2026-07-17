@@ -1,0 +1,50 @@
+model_id: sana-wm
+env_name: sana
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+python: '3.11'
+cuda_profile: cu128
+driver_status: compatible
+conda_packages:
+- python=3.11
+- pip
+- ffmpeg
+pip_packages:
+- torch
+- torchvision
+- diffusers
+- transformers
+- accelerate
+- safetensors
+- triton
+- xformers
+- numpy
+- scipy
+- imageio
+- imageio-ffmpeg
+- einops
+- pyrallis
+- loguru
+- mmcv-lite
+- huggingface-hub
+- pillow
+- aiohttp
+- aiortc
+validation_imports:
+- torch
+- torchvision
+- diffusers
+- transformers
+- accelerate
+- triton
+- numpy
+- imageio
+- einops
+- pyrallis
+- loguru
+- aiohttp
+- aiortc
+- worldfoundry.pipelines.sana_wm
+- worldfoundry.synthesis.visual_generation.sana_wm
+notes:
+- SANA-WM uses the dedicated CUDA 12.8 runtime because its LTX-2 refiner requires current diffusers and Gemma 3 support.
+- The interactive runtime keeps stage 1, refiner, refiner text encoder, and VAE resident on configurable CUDA devices.

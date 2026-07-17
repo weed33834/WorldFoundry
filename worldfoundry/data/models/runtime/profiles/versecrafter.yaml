@@ -1,0 +1,51 @@
+schema_version: 2
+model_id: versecrafter
+display_name: VerseCrafter
+task_family: world_model
+groups: [world, camera_control, image_to_video]
+source_repos:
+- url: https://github.com/TencentARC/VerseCrafter
+  revision: 008693b52aa74367afb34d183046fecf88100bdc
+  in_tree_path: worldfoundry/synthesis/visual_generation/versecrafter/versecrafter_runtime
+checkpoints:
+- repo_id: TencentARC/VerseCrafter
+  revision: 457bc7982933d064b085c2263290fde44b953d2c
+  size_bytes: 34677842418
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/TencentARC--VerseCrafter
+  role: geoadapter
+  status: checkpoint_missing_download_queued
+  required_paths:
+  - config.json
+  - diffusion_pytorch_model.safetensors.index.json
+  - diffusion_pytorch_model-00001-of-00004.safetensors
+  - diffusion_pytorch_model-00002-of-00004.safetensors
+  - diffusion_pytorch_model-00003-of-00004.safetensors
+  - diffusion_pytorch_model-00004-of-00004.safetensors
+- repo_id: Wan-AI/Wan2.1-T2V-14B
+  revision: a064a6c71f5be440641209c07bf2a5ce7a2ff5e4
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Wan2.1-T2V-14B
+  role: base_model
+  status: checkpoint_manifest_validated
+  required_paths:
+  - config.json
+  - diffusion_pytorch_model.safetensors.index.json
+  - Wan2.1_VAE.pth
+  - models_t5_umt5-xxl-enc-bf16.pth
+- repo_id: Ruicheng/moge-2-vitl-normal
+  revision: b135031bae30b5ac2ae141a0e68717795ce38340
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Ruicheng--moge-2-vitl-normal
+  role: depth_model
+  status: checkpoint_manifest_validated
+  required_paths:
+  - model.pt
+input_schema: {prompt: true, image: true, trajectory_npz: true}
+artifact_kind: generated_video
+artifact_filename: versecrafter.mp4
+execution:
+  environment: _unified
+  backend_stage: independent_in_tree_runtime
+  runtime_status: checkpoint_assets_pending_with_license_restrictions
+  integration_status: integrated_checkpoint_assets_pending
+  pipeline_binding: versecrafter
+integration: {status: integrated_checkpoint_assets_pending}
+notes: [Research-only; no commercial use; not intended for use in the EU.]

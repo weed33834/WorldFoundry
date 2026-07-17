@@ -1,7 +1,15 @@
-server_host: 0.0.0.0
+variant: droid
+server_host: 127.0.0.1
 server_port: 8000
 nproc_per_node: 2
 enable_dit_cache: true
+local_files_only: true
+require_checkpoint: true
+action_horizon: 24
+video_history: 4
+ctrl_freq: 30
+inference_method: lazy_joint_forward_causal
+skip_img_transform: false
 client_demo:
   prompt: Move the pan forward and use the brush in the middle of the plates to brush the inside of the pan
   camera_files:

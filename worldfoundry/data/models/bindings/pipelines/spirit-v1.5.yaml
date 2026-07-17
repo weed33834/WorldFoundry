@@ -3,7 +3,7 @@ binding_id: spirit-v1.5
 model_id: spirit-v1.5
 runner: worldfoundry.pipeline
 pipeline:
-  target: worldfoundry.pipelines.component_pipelines:SpiritV15Pipeline
+  target: worldfoundry.synthesis.action_generation.spirit_v15.pipeline:SpiritV15Pipeline
   loading:
     method: from_pretrained
     signature: unified

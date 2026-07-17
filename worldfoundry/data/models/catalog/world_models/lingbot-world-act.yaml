@@ -1,0 +1,27 @@
+id: lingbot-world-act
+name: LingBot-World Base Act
+tasks: [interactive-world-model, action-conditioned-video]
+provider: Robbyant
+availability: open_source
+checkpoints: [robbyant/lingbot-world-base-act-preview]
+source:
+  status: open_source
+  official_repo_url: https://github.com/robbyant/lingbot-world
+  license: apache-2.0
+official_sources:
+  github:
+    url: https://github.com/robbyant/lingbot-world
+    revision: a43bec7f8091c83e9b30b16b912f6fc906236fa6
+  huggingface:
+  - repo_id: robbyant/lingbot-world-base-act-preview
+    type: model
+integration:
+  status: integrated
+  notes:
+  - Base-Act is independently cataloged and resolves the official action checkpoint rather than Base-Cam.
+  - The inference path reuses the in-tree LingBot runtime and central Wan base modules.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: lingbot-world-act
+runtime_profile: runtime-profile:lingbot-world-act
+runner_parity: {status: pending, notes: [In-tree action payload routing is wired; full GPU artifact parity requires locally staged weights.]}
+catalog_category: world_models

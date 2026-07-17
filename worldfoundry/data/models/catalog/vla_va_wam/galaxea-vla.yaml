@@ -1,0 +1,35 @@
+id: galaxea-vla
+name: Galaxea G0Plus
+aliases: [galaxea-vla, g0plus, open-galaxea/g0-vla]
+availability: open_source_noncommercial
+provider: official_repo
+license: g0-plus-community-license-non-commercial
+official_sources:
+  github:
+    url: https://github.com/OpenGalaxea/GalaxeaVLA
+    head_sha: 13a16a9049aee8f1d799b56fccc0c5832a75fc2f
+  huggingface:
+  - repo_id: OpenGalaxea/G0-VLA
+    revision: d24d4d154e43e3c1f87a0633438729005b2bcc31
+    status: confirmed
+    type: model
+  - repo_id: google/paligemma-3b-pt-224
+    status: confirmed
+    type: model
+integration:
+  status: in_tree_checkpoint_runtime_static_verified
+  notes:
+  - G0Plus model architecture, KV cache, flow sampler, strict checkpoint loader, tokenizer adapter, preprocessing, and normalization are in-tree.
+  - Runtime accepts only staged local assets and never executes checkpoint-provided Python.
+  - Dataset, training, evaluation harness, deployment server, and robot-control code are excluded.
+tasks: [vla, robot_policy, policy_rollout, embodied_benchmark]
+output_artifacts: [action_trace]
+pipeline_binding: galaxea-vla
+runtime_profile: runtime-profile:galaxea-vla
+runner_parity:
+  status: static_runtime_verified
+  notes:
+  - Parameter names and the official model.pt wrapper-prefix contract are preserved.
+  - Numerical and GPU rollout validation remain pending until the checkpoint, PaliGemma tokenizer, and matching statistics are staged.
+catalog_category: vla_va_wam
+catalog_scope: In-tree inference runtime and checkpoint metadata for embodied policies.

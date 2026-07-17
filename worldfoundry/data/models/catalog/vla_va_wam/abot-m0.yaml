@@ -1,0 +1,46 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+id: abot-m0
+name: ABot-M0
+aliases:
+- abot_m0
+availability: open_source
+provider: official_repo
+license: apache-2.0
+official_sources:
+  github:
+    url: https://github.com/amap-cvlab/ABot-Manipulation
+    head_sha: 16088c08ad5762e19d76a36ef7dab9f7eda8e974
+  huggingface:
+  - repo_id: acvlab/ABot-M0-LIBERO
+    revision: bc204e79a139d79c13d004bea6ceaca31c778986
+    status: confirmed
+    type: model
+  - repo_id: acvlab/ABot-M0-Robocasa
+    status: confirmed
+    type: model
+  - repo_id: acvlab/ABot-M0-RoboTwin2
+    status: confirmed
+    type: model
+  modelscope:
+  - model_id: amap_cvlab/ABot-M0-Pretrain
+    status: confirmed
+integration:
+  status: in_tree_checkpoint_runtime_static_verified
+  notes:
+  - Qwen3-VL, the AML flow action expert, optional VGGT fusion, released preprocessing, and action de-normalization are integrated in tree.
+  - Runtime accepts the released config.yaml, dataset_statistics.json, and steps_*_pytorch_model.pt layout directly.
+  - Only inference components are included; datasets, training, deployment services, and robot SDK code are excluded.
+tasks:
+- vla
+- robot_policy
+- policy_rollout
+- bimanual_manipulation
+output_artifacts:
+- action_trace
+pipeline_binding: abot-m0
+runtime_profile: runtime-profile:abot-m0
+runner_parity:
+  status: static_runtime_verified_checkpoint_assets_staged
+  notes:
+  - All three released task weights are staged and manifest-size verified; the strict state-dict architecture is preserved.
+  - Numerical and GPU checkpoint parity remain pending.

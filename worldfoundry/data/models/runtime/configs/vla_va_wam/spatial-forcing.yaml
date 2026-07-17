@@ -1,0 +1,56 @@
+default_checkpoint: libero_spatial
+required_snapshot_files:
+- config.json
+- dataset_statistics.json
+- model.safetensors.index.json
+- preprocessor_config.json
+- action_head--latest_checkpoint.pt
+- proprio_projector--latest_checkpoint.pt
+inference_allow_patterns:
+- config.json
+- dataset_statistics.json
+- generation_config.json
+- preprocessor_config.json
+- processor_config.json
+- added_tokens.json
+- special_tokens_map.json
+- tokenizer.json
+- tokenizer.model
+- tokenizer_config.json
+- model.safetensors.index.json
+- model-*.safetensors
+- action_head--latest_checkpoint.pt
+- proprio_projector--latest_checkpoint.pt
+checkpoints:
+  libero_spatial:
+    repo_id: haofuly/spatial-forcing-7b-finetuned-libero-spatial
+    revision: 58718e3948c78ae14a10514e162be775dee1bb6f
+    task_suite_name: libero_spatial
+    unnorm_key: libero_spatial_no_noops
+    license: apache-2.0
+    action_head_file: action_head--latest_checkpoint.pt
+    proprio_projector_file: proprio_projector--latest_checkpoint.pt
+  libero_object:
+    repo_id: haofuly/spatial-forcing-7b-finetuned-libero-object
+    revision: 7dae9150e87b05ee02d867d4e0f36343a46a8d77
+    task_suite_name: libero_object
+    unnorm_key: libero_object_no_noops
+    license: apache-2.0
+    action_head_file: action_head--latest_checkpoint.pt
+    proprio_projector_file: proprio_projector--latest_checkpoint.pt
+  libero_goal:
+    repo_id: haofuly/spatial-forcing-7b-finetuned-libero-goal
+    revision: c0093e70524ad781ae6fe644618f501af32a184d
+    task_suite_name: libero_goal
+    unnorm_key: libero_goal_no_noops
+    license: apache-2.0
+    action_head_file: action_head--latest_checkpoint.pt
+    proprio_projector_file: proprio_projector--latest_checkpoint.pt
+  libero_10:
+    repo_id: haofuly/spatial-forcing-7b-finetuned-libero-10
+    revision: 737f7e02dec79d8a3a26ab44738926183aed059e
+    task_suite_name: libero_10
+    unnorm_key: libero_10_no_noops
+    license: apache-2.0
+    action_head_file: action_head--latest_checkpoint.pt
+    proprio_projector_file: proprio_projector--latest_checkpoint.pt

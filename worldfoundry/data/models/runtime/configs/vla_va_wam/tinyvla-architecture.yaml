@@ -1,0 +1,34 @@
+schema_version: 1
+architecture:
+  family: llava-pythia-vla
+  language_backbone: gpt-neox
+  vision_towers:
+  - clip
+  - siglip
+  visual_fusion: token_cat
+  multimodal_projectors:
+  - linear
+  - mlpNx_gelu
+  action_heads:
+    act:
+      family: detr-cvae
+      normalization: mean_std
+    droid_diffusion:
+      family: conditional-unet-1d
+      scheduler: ddim
+      train_diffusion_steps: 100
+      default_inference_steps: 10
+      normalization: min_max_to_minus_one_plus_one
+inference:
+  local_checkpoint_layouts:
+  - merged_safetensors
+  - lora_adapter_plus_non_lora_trainables
+  camera_order:
+  - left_wrist
+  - right_wrist
+  - optional_head
+  image_resize: [640, 480]
+  image_aspect_ratio: square_pad
+  action_dim: task_configured
+  state_dim: task_configured
+  action_horizon: task_configured

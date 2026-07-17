@@ -1,0 +1,50 @@
+schema_version: 2
+model_id: galaxea-vla
+display_name: Galaxea G0Plus
+task_family: vla_policy
+groups: [vla, robot_foundation_policy, flow_matching_policy]
+source_repos:
+- url: https://github.com/OpenGalaxea/GalaxeaVLA
+  revision: 13a16a9049aee8f1d799b56fccc0c5832a75fc2f
+checkpoints:
+- repo_id: OpenGalaxea/G0-VLA
+  revision: d24d4d154e43e3c1f87a0633438729005b2bcc31
+  subdir: G0Plus_3B_base
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/OpenGalaxea--G0-VLA
+  role: pretrained_foundation_checkpoint
+  status: checkpoint_checksum_validated
+- repo_id: google/paligemma-3b-pt-224
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/google--paligemma-3b-pt-224
+  role: tokenizer_assets
+  status: checkpoint_manifest_validated
+variants:
+  r1lite_mobile: {camera_count: 3, state_dim: 21, action_dim: 26, action_chunk_size: 32}
+  r1lite_arm: {camera_count: 3, state_dim: 14, action_dim: 14, action_chunk_size: 32}
+  libero: {camera_count: 2, state_dim: 8, action_dim: 7, action_chunk_size: 32}
+input_schema:
+  model_id: galaxea-vla
+  image: true
+  prompt: true
+  state: true
+  policy_family: paligemma_joint_flow_matching
+artifact_kind: action_trace
+artifact_filename: galaxea_vla_action_trace.json
+execution:
+  backend_stage: in_tree_checkpoint_runtime
+  runtime_status: static_verified_checkpoint_required
+  integration_status: in_tree_checkpoint_runtime_static_verified
+  pipeline_binding: galaxea-vla
+integration:
+  status: in_tree_checkpoint_runtime_static_verified
+license: g0-plus-community-license-non-commercial
+gpu_targets:
+- NVIDIA Turing (T4/RTX 20) in float16 through shared SDPA
+- NVIDIA Ampere (A10/A30/A40/A100/A800/RTX 30) in bfloat16
+- NVIDIA Ada (L4/L40/L40S/RTX 40) in bfloat16
+- NVIDIA Hopper (H100/H200/H800) in bfloat16
+- NVIDIA Blackwell (B100/B200/GB200/RTX 50) through architecture-native shared SDPA
+notes:
+- The exact paired dataset_stats.json is mandatory; normalization never falls back to fabricated values.
+- The released G0Plus base checkpoint is intended for downstream fine-tuning, not claimed as a task-ready policy.
+- SigLIP attention uses the shared exact SDPA dispatcher; the joint expert keeps its required Gemma tanh soft-cap equation.
+- Runtime performs no checkpoint, tokenizer, kernel, or source download.

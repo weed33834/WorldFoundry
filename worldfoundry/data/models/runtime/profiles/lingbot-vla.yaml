@@ -1,0 +1,56 @@
+schema_version: 2
+model_id: lingbot-vla
+display_name: LingBot-VLA
+task_family: vla_policy
+groups: [vla, robot_policy, action_chunk, bimanual]
+source_repos:
+- url: https://github.com/Robbyant/lingbot-vla
+  revision: 4eb34b7693a0
+checkpoints:
+- repo_id: robbyant/lingbot-vla-4b-posttrain-robotwin
+  revision: fb71a2c9749ccfedbb7290c2c3f0e5e7c7305c9e
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/robbyant--lingbot-vla-4b-posttrain-robotwin
+  role: robotwin_posttrained_policy
+  status: checkpoint_checksum_validated
+- repo_id: robbyant/lingbot-vla-4b-depth-posttrain-robotwin
+  revision: aef74261985ee8fe641e5c6ef40d06930b5b4a26
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/robbyant--lingbot-vla-4b-depth-posttrain-robotwin
+  role: robotwin_depth_posttrained_policy
+  status: checkpoint_checksum_validated
+- repo_id: robbyant/lingbot-vla-4b
+  revision: 87712223fb463f0f6a6565f8feba64c35418e393
+  modelscope_revision: 6f8577ab5be31bc6f16523e088873c2b34d11356
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/robbyant--lingbot-vla-4b
+  role: pretrained_base_policy
+  status: checkpoint_sha256_and_tensor_schema_validated_gpu_pending
+- repo_id: Qwen/Qwen2.5-VL-3B-Instruct
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Qwen--Qwen2.5-VL-3B-Instruct
+  role: tokenizer_processor_and_base_config
+  status: checkpoint_manifest_validated
+input_schema:
+  model_id: lingbot-vla
+  prompt: true
+  image: true
+  state: true
+  state_dim: 14
+  camera_keys:
+  - observation.images.cam_high
+  - observation.images.cam_left_wrist
+  - observation.images.cam_right_wrist
+  policy_family: lingbot_vla_qwen25_flow_matching_policy
+  action_representation: 50x14_bimanual_joint_action_chunk
+  observation_layout: robotwin_three_camera_bimanual_state
+artifact_kind: action_trace
+artifact_filename: lingbot_vla_action_trace.json
+execution:
+  backend_stage: in_tree_in_process_checkpoint_runtime
+  runtime_status: official_in_process_runtime_static_checkpoint_validation_complete
+  integration_status: integrated
+  pipeline_binding: lingbot-vla
+integration:
+  status: integrated
+notes:
+- The policy requires three configured camera views and a 14D state for the bundled RoboTwin mapping; single-image replication is opt-in because it changes model semantics.
+- The model is constructed on the meta device and checkpoint tensors stream directly to the selected device/dtype, avoiding a second full FP32 model during startup.
+- Device and dtype selection is provided by worldfoundry.core.device across pre-Ampere, Ampere, Ada, Hopper, and newer CUDA architectures.
+- The selectable base policy was staged from ModelScope and its core blobs match the pinned Hugging Face revision by exact size and SHA-256; it is a pretraining checkpoint, so task-level numerical parity is not claimed.

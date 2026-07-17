@@ -1,0 +1,78 @@
+backend: callable_entrypoint
+checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/qiuly--Mem-0-m1mix-RMBench
+checkpoint_ref: qiuly/Mem-0-m1mix-RMBench
+policy_target: worldfoundry.synthesis.action_generation.mem0.runtime:predict_action
+predict_method: predict_action
+require_checkpoint: true
+backbone_path: ${WORLDFOUNDRY_HFD_ROOT}/Qwen--Qwen3-VL-2B-Instruct
+torch_dtype: auto
+attention_backend: auto
+checkpoint_file: checkpoint/m1_mix_final_step50000.pt
+checkpoint_parts_glob: checkpoint/m1_mix_final_step50000.pt.part??
+stats_file: norm_stats/norm_stats.json
+strict_checkpoint: true
+seed: 42
+tokenizer_max_length: 128
+image_size: [224, 224]
+state_keys: [state, proprio, robot_state, joint_state, joint_action]
+state_value_keys: [vector, values, qpos]
+camera_aliases: [head_camera, cam_head, cam_high, image0]
+image_value_keys: [rgb, color, colors]
+reset_keys: [reset, new_episode]
+state_layout: environment
+model_state_dim: 16
+short_state_mapping: [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 13, 15]
+state_input_indices: [0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 7, 15]
+action_output_indices: [0, 1, 2, 3, 4, 5, 14, 7, 8, 9, 10, 11, 12, 15]
+normalization_mode: minmax
+# Publisher statistics use the model's padded 16-D layout (two constant
+# padding slots plus 14 physical controls).  Output mapping removes those
+# slots only after denormalization.
+normalization_dims: 16
+memory_config:
+  window_size: 30
+  initial_anchor_size: 1
+  num_heads: 8
+  dropout: 0.1
+  memory_accumulation: 8
+action_config:
+  action_model_type: DiT-B
+  input_embedding_dim: 768
+  attention_head_dim: 64
+  num_attention_heads: 12
+  hidden_size: 2048
+  add_pos_embed: true
+  max_seq_len: 1024
+  action_dim: 16
+  state_dim: 16
+  action_horizon: 30
+  repeated_diffusion_steps: 8
+  noise_beta_alpha: 1.5
+  noise_beta_beta: 1.0
+  noise_s: 0.999
+  num_timestep_buckets: 1000
+  num_inference_timesteps: 8
+  diffusion_model_cfg:
+    attention_bias: true
+    activation_fn: gelu-approximate
+    cross_attention_dim: 2048
+    dropout: 0.2
+    final_dropout: true
+    interleave_self_attention: true
+    max_num_positional_embeddings: 512
+    norm_elementwise_affine: false
+    norm_eps: 1.0e-5
+    norm_type: ada_norm
+    num_embeds_ada_norm: 1000
+    num_layers: 16
+    output_dim: 2048
+    positional_embeddings: null
+    upcast_attention: false
+classifier_config:
+  hidden_sizes: [6144, 2048, 512]
+  dropout: 0.1
+  pos_weight: 10.0
+  focal_gamma: 1.0
+  threshold: 0.5
+runtime_backend: mem0_native
+action_contract: continuous_bimanual_joint_action_chunk_14d

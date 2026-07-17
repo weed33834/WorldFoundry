@@ -4,29 +4,52 @@ env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
 python: '3.10'
 cuda_profile: cu124
 driver_status: compatible
+channels:
+- nvidia
+- conda-forge
 conda_packages:
 - python=3.10
 - pip
 - ffmpeg
-- git
 - ninja
+- cuda-toolkit=12.4
 pip_packages:
 - torch==2.5.1
 - torchvision==0.20.0
 - torchaudio==2.5.1
-- diffusers
-- transformers
-- opencv-python
-- imageio
-- loguru
-source_requirement_files:
-- ${WORLDFOUNDRY_MODEL_SOURCE_DIR}/Hunyuan-GameCraft-1.0/requirements.txt
+- accelerate==1.9.0
+- av==15.0.0
+- decord==0.6.0
+- diffusers==0.34.0
+- einops==0.8.1
+- huggingface-hub==0.34.3
+- imageio==2.37.0
+- imageio-ffmpeg==0.6.0
+- loguru==0.7.3
+- numpy==2.1.2
+- nvidia-ml-py==12.575.51
+- nvitop==1.5.2
+- opencv-python-headless==4.12.0.88
+- packaging==25.0
+- pillow==11.0.0
+- protobuf==6.31.1
+- psutil==7.0.0
+- pyyaml==6.0.2
+- safetensors==0.5.3
+- sentencepiece==0.2.0
+- tokenizers==0.21.4
+- tqdm==4.67.1
+- transformers==4.54.1
+- triton==3.1.0
 validation_imports:
 - torch
 - torchvision
 - cv2
 - imageio
 - loguru
+- flash_attn
 notes:
 - Hunyuan GameCraft official inference requires the HYGameCraft environment and torchrun sequence parallelism for practical GPU memory use.
 - Studio dispatch accepts load_kwargs torchrun_nproc_per_node plus cuda_visible_devices to avoid occupying GPUs used by other workspaces.
+- Dependencies are pinned in this in-tree manifest; setup never reads an external GameCraft checkout.
+- flash-attn 2.6.3 is built from the released PyPI sdist with build isolation disabled after torch and the environment-local CUDA 12.4 toolkit are installed.

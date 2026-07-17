@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: dreamx-world-5b
+model_id: dreamx-world-5b
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.dreamx_world.pipeline_dreamx_world:DreamXWorld5BARPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

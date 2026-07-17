@@ -1,0 +1,41 @@
+schema_version: 2
+model_id: tinyvla
+env_name: worldfoundry-unified-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+python: '3.11'
+cuda_profile: cu128
+driver_status: compatible
+conda_packages:
+- python
+- pip
+pip_packages:
+- torch>=2.5
+- torchvision>=0.20
+- transformers>=4.48,<5
+- accelerate>=1.2
+- safetensors>=0.5
+- peft>=0.13
+- diffusers>=0.31
+- numpy>=1.26,<3
+- opencv-python>=4.10
+- Pillow>=10
+- einops>=0.8
+- packaging>=24
+- PyYAML>=6
+validation_imports:
+- torch
+- torchvision
+- transformers
+- accelerate
+- safetensors
+- peft
+- diffusers
+- numpy
+- cv2
+- PIL
+- yaml
+notes:
+- Runtime contains only local inference architecture, checkpoint restoration, preprocessing, and action decoding.
+- Training, data conversion, simulator, server, and source-checkout dependencies are intentionally excluded.
+- Attention is device-dispatched with SDPA as the portable path from Turing through Blackwell.
+- Auto precision selects fp16 on Turing and bf16 on Ampere, Ada, Hopper, Blackwell, and newer NVIDIA GPUs; CPU fallback uses fp32.

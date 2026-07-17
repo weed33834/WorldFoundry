@@ -8,23 +8,76 @@ groups:
 - policy_rollout
 source_repos:
 - url: https://github.com/yuantianyuan01/FastWAM
+  revision: 45d8e1458921d83f8ad6cf9ce993d371208dabd0
 checkpoints:
 - repo_id: yuanty/fastwam
-  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/yuanty--fastwam
-  role: fastwam_checkpoint
+  revision: 139eebb6d90cdd9bdbbe465f72c6edc9ad5a518a
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/yuanty--fastwam
+  role: released_fastwam_policy_checkpoints_and_statistics
+  required_paths:
+  - libero_uncond_2cam224.pt
+  - libero_uncond_2cam224_dataset_stats.json
+  - robotwin_uncond_3cam_384.pt
+  - robotwin_uncond_3cam_384_dataset_stats.json
+- repo_id: DiffSynth-Studio/Wan-Series-Converted-Safetensors
+  provider: modelscope
+  revision: master
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/DiffSynth-Studio--Wan-Series-Converted-Safetensors
+  role: wan_2_2_vae_and_umt5_encoder
+  size_bytes: 12771246584
+  required_paths:
+  - Wan2.2_VAE.safetensors
+  - models_t5_umt5-xxl-enc-bf16.safetensors
+  file_sha256:
+    Wan2.2_VAE.safetensors: 0e913a2ca571c75fcb63385a8edadcca73454af5842596cb1ad11e4142590996
+    models_t5_umt5-xxl-enc-bf16.safetensors: d92de679881d38af9c89eff7bb1b6d6c9d96cb2b69831e4027e9ecabdd38eb23
+- repo_id: Wan-AI/Wan2.1-T2V-1.3B
+  revision: 37ec512624d61f7aa208f7ea8140a131f93afc9a
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Wan-AI--Wan2.1-T2V-1.3B
+  role: umt5_tokenizer
+  required_paths:
+  - google/umt5-xxl/tokenizer_config.json
+  - google/umt5-xxl/spiece.model
+variants:
+  robotwin:
+    checkpoint_file: robotwin_uncond_3cam_384.pt
+    statistics_file: robotwin_uncond_3cam_384_dataset_stats.json
+    camera_layout: 320x256 head over two 160x128 wrist views
+    action_shape: [32, 14]
+    status: checkpoint_gpu_validated
+  libero:
+    checkpoint_file: libero_uncond_2cam224.pt
+    statistics_file: libero_uncond_2cam224_dataset_stats.json
+    camera_layout: two horizontal 224x224 views
+    action_shape: [32, 7]
+    status: checkpoint_gpu_validated
 input_schema:
   model_id: fastwam
   image: true
-  video: true
   prompt: true
+  state: true
+  precomputed_language_tokens: true
   policy_family: fast_world_action_model
-  action_representation: fastwam_action_trace
+  action_representation: denoised_action_chunk
 artifact_kind: action_trace
 artifact_filename: fastwam_action_trace.json
 execution:
-  backend_stage: official_in_tree_runtime
-  runtime_status: official_runtime_route_ready_checkpoint_required
-  integration_status: runtime_ported
+  backend_stage: in_tree_checkpoint_runtime
+  runtime_status: all_released_checkpoints_gpu_validated
+  integration_status: all_released_checkpoints_gpu_validated
   pipeline_binding: fastwam
 integration:
-  status: runtime_ported
+  status: all_released_checkpoints_gpu_validated
+license: mit
+gpu_targets:
+- NVIDIA Turing (T4/RTX 20) in float16 with offloaded text encoding
+- NVIDIA Ampere (A10/A30/A40/A100/A800/RTX 30)
+- NVIDIA Ada (L4/L40/L40S/RTX 40)
+- NVIDIA Hopper (H100/H200/H800)
+- NVIDIA Blackwell (B100/B200/GB200/RTX 50)
+notes:
+- The released MoT policy is approximately 12 GB before the Wan VAE and UMT5 encoder are loaded.
+- UMT5 defaults to CPU and instruction embeddings are cached; callers can supply precomputed 4096-dimensional tokens.
+- Video expert key/value tensors are prefetched once and reused across all action denoising steps.
+- Both released LIBERO and RoboTwin checkpoints and their matching statistics are staged locally and manifest-size verified.
+- Both released variants passed real Workspace inference on A100 with ten denoising steps: RoboTwin emitted finite 32x14 actions and LIBERO emitted finite 32x7 actions.

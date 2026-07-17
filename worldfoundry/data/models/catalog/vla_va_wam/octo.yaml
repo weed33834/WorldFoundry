@@ -10,10 +10,13 @@ checkpoint:
 id: octo
 integration:
   notes:
-  - Octo runtime is vendored in-tree; py_compile, import/from_pretrained, plan-only
-    predict, and alias validation passed.
-  - The in-tree runtime supports sample_actions after resolving upstream
-    octo.data.utils checkpoint references.
+  - Octo is a direct in-tree inference package with a flat runtime plus one-level
+    modeling and preprocessing modules; no source checkout, package alias, or
+    sys.path injection is used.
+  - The official octo-small-1.5 Orbax tree restored on an A100 (136,670,604
+    parameters) and sample_actions produced a finite (1, 4, 7) action chunk.
+  - Legacy class names serialized in checkpoints are translated by the internal
+    ModuleSpec resolver only for inference components.
   status: integrated
 name: Octo
 official_sources:
@@ -42,8 +45,8 @@ variants:
   id: octo-base-1.5
   integration_status: runtime_ported
   notes:
-  - WorldFoundry vendors Octo runtime under worldfoundry/synthesis/action_generation/octo/octo_runtime;
-    base checkpoint sampling remains pending a separate checkpoint-backed Studio/API run.
+  - Uses the same direct in-tree modeling package as the verified small variant;
+    base checkpoint sampling remains pending a separate checkpoint-backed run.
   task: vla.policy_rollout
 - checkpoint_refs:
   - repo_id: rail-berkeley/octo-small-1.5
@@ -51,8 +54,8 @@ variants:
   id: octo-small-1.5
   integration_status: integrated
   notes:
-  - WorldFoundry vendors Octo runtime under worldfoundry/synthesis/action_generation/octo/octo_runtime;
-    sample_actions emits the configured action schema when checkpoints are staged.
+  - Direct in-tree GPU sample_actions verification passed with the staged official
+    checkpoint and local T5 tokenizer assets.
   task: vla.policy_rollout
 catalog_category: vla_va_wam
 catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint

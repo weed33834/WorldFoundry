@@ -13,7 +13,7 @@ integration:
   status: runtime_ported
   notes:
   - Concrete pi0 algorithm entry backed by Physical Intelligence openpi. The generic openpi runtime record remains as shared runtime infrastructure.
-  - WorldFoundry reuses the in-tree OpenPI runtime under worldfoundry/synthesis/action_generation/openpi/openpi_runtime with pi0-specific runtime config.
+  - WorldFoundry reuses the flattened in-tree OpenPI runtime under worldfoundry/synthesis/action_generation/openpi with pi0-specific runtime config.
 tasks:
 - vla
 - vla.policy_rollout

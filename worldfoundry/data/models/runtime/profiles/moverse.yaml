@@ -1,0 +1,77 @@
+schema_version: 2
+model_id: moverse
+display_name: MoVerse
+task_family: world_model
+groups:
+- world
+- video
+- 3d
+- camera_control
+source_repos:
+- url: https://github.com/Orange-3DV-Team/MoVerse
+  revision: ae146303a826dfa7af2fea81fc492c9bc39651e8
+  in_tree_path: worldfoundry/synthesis/visual_generation/moverse/moverse_runtime
+- url: https://github.com/ByteDance-Seed/Depth-Anything-3
+  revision: 3fe327a6abe2e5db95b54444ea95463dbfef5610
+  in_tree_path: worldfoundry/base_models/three_dimensions/depth/depth_anything/depth_anything_v3
+checkpoints:
+- repo_id: Orange-3DV-Team/MoVerse
+  revision: 00cd8e488d3a4f2a414c1fff11780936918ea742
+  size_bytes: 7578837308
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Orange-3DV-Team--MoVerse
+  role: moverse_components
+  status: checkpoint_download_in_progress
+  required_paths:
+  - gimbal360/autolevel.pth
+  - gimbal360/pytorch_lora_weights.safetensors
+  - gaussian_predictor_checkpoint.pth
+  - self_forcing_video.pt
+  - taew2_1.pth
+- repo_id: black-forest-labs/FLUX.1-Fill-dev
+  revision: 358293da0354175698b67ec8299acf928313a78a
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/FLUX.1-Fill-dev
+  role: panorama_base
+  status: checkpoint_manifest_validated
+  required_paths:
+  - model_index.json
+  - transformer/config.json
+  - transformer/diffusion_pytorch_model.safetensors.index.json
+  - vae/config.json
+  - vae/diffusion_pytorch_model.safetensors
+- repo_id: depth-anything/DA3NESTED-GIANT-LARGE-1.1
+  revision: b2359bdf726fb44ef62acca04d629dcf158053e7
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/DA3NESTED-GIANT-LARGE-1.1
+  role: depth_base
+  status: checkpoint_manifest_validated
+  required_paths:
+  - config.json
+  - model.safetensors
+- repo_id: Wan-AI/Wan2.1-T2V-1.3B
+  revision: 37ec512624d61f7aa208f7ea8140a131f93afc9a
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/Wan2.1-T2V-1.3B
+  role: video_base
+  status: checkpoint_manifest_validated
+  required_paths:
+  - config.json
+  - diffusion_pytorch_model.safetensors
+  - Wan2.1_VAE.pth
+  - models_t5_umt5-xxl-enc-bf16.pth
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions:
+  - camera_trajectory
+artifact_kind: generated_world
+artifact_filename: moverse.mp4
+execution:
+  environment: moverse
+  backend_stage: official_in_tree_headless_runtime
+  runtime_status: in_tree_runtime_assets_pending
+  integration_status: runtime_ported
+  pipeline_binding: moverse
+integration:
+  status: runtime_ported
+notes:
+- Execution is offline and requires four pre-staged Hugging Face snapshots plus ffmpeg, gsplat, and compatible CUDA kernels.
+- The MoVerse-specific runtime is in-tree and reuses WorldFoundry's shared GeoCalib AutoLevel, Depth Anything 3, SHARP panorama, Wan, and TAEHV implementations.

@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: vmem
+model_id: vmem
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.vmem.pipeline_vmem:VMemPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: hy-embodied-vla
+model_id: hy-embodied-vla
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.hy_embodied_vla.pipeline_hy_embodied_vla:HyEmbodiedVLAPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

@@ -1,19 +1,38 @@
 backend: callable_entrypoint
 checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/Yinpei--perceptual-framesamp-modul/79999
 checkpoint_ref: Yinpei/perceptual-framesamp-modul
-source_repo: ${WORLDFOUNDRY_REPO_ROOT}/worldfoundry/synthesis/action_generation/mme_vla/mme_vla_runtime
-source_subdir: src
 require_checkpoint: true
 policy_target: worldfoundry.synthesis.action_generation.mme_vla.runtime:predict_action
 predict_method: infer
 torch_dtype: bfloat16
 trust_remote_code: false
-runtime_backend: mme_vla_in_tree_vendored_in_process_runtime
+runtime_backend: mme_vla_in_tree_in_process_runtime
 action_contract: 8d_robomme_joint_action_chunk
 control_mode: robomme_policy_action
 policy_config: mme_vla_suite
 seed: 7
-official_infer_entrypoint: mme_vla_suite.policies.policy_config:create_trained_policy
+default_policy_config: mme_vla_suite
+paligemma_tokenizer_path: ${WORLDFOUNDRY_HFD_ROOT}/google--paligemma-3b-pt-224/tokenizer.model
+policy_configs:
+  pi05_baseline:
+    model:
+      pi05: true
+      action_horizon: 20
+      use_history: false
+      history_config: null
+      discrete_state_input: false
+    data:
+      repo_id: robomme
+  mme_vla_suite:
+    model:
+      pi05: true
+      action_horizon: 20
+      use_history: true
+      history_config: null
+      discrete_state_input: false
+    data:
+      repo_id: robomme
+official_infer_entrypoint: worldfoundry.synthesis.action_generation.mme_vla.policy_loader:create_policy
 default_demo_input:
   image_keys:
   - observation/image

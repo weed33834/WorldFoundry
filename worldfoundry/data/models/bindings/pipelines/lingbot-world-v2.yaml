@@ -1,0 +1,14 @@
+schema_version: 2
+binding_id: lingbot-world-v2
+model_id: lingbot-world-v2
+aliases:
+- lingbot-world-infinity
+- lingbot-v2
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.lingbot_world_v2.pipeline_lingbot_world_v2:LingBotWorldV2Pipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

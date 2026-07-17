@@ -1,0 +1,23 @@
+id: wan21-fun-1p3b-cam
+name: Wan2.1-Fun V1.1 1.3B Control Camera
+tasks: [camera-controlled-video, image-to-video]
+provider: Alibaba PAI / VideoX-Fun
+source:
+  status: open_source
+  official_repo_url: https://github.com/aigc-apps/VideoX-Fun
+  license: apache-2.0
+checkpoint: alibaba-pai/Wan2.1-Fun-V1.1-1.3B-Control-Camera
+runtime_profile: runtime-profile:wan21-fun-1p3b-cam
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: wan21-fun-1p3b-cam
+integration:
+  status: checkpoint_gpu_validated
+  notes:
+  - VideoX-Fun source is vendored at revision 403f1f7b78dcafccc4f6606dda4ec28e16e667dc.
+  - The complete 1.3B camera checkpoint and split Wan components passed real A100 Workspace inference.
+runner_parity:
+  status: checkpoint_gpu_validated
+  notes:
+  - The Control+i2v checkpoint matched all 989 in-tree transformer tensors without fallback or skipped camera weights.
+  - The official pose-conditioned route emitted nine coherent H.264 frames at 672x384 after four denoising steps.
+catalog_category: world_models

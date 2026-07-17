@@ -1,0 +1,66 @@
+schema_version: 2
+model_id: spatial-forcing
+display_name: Spatial-Forcing
+task_family: vla_policy
+groups:
+- vla
+- robot_policy
+- action_chunk
+- libero
+source_repos:
+- url: https://github.com/OpenHelix-Team/Spatial-Forcing
+  revision: 372819b31ba9a2c8fc5989edc7d525cb187cecd5
+checkpoints:
+- repo_id: haofuly/spatial-forcing-7b-finetuned-libero-spatial
+  revision: 58718e3948c78ae14a10514e162be775dee1bb6f
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/haofuly--spatial-forcing-7b-finetuned-libero-spatial
+  role: libero_spatial_checkpoint
+  license: apache-2.0
+  status: checkpoint_gpu_validated
+- repo_id: haofuly/spatial-forcing-7b-finetuned-libero-object
+  revision: 7dae9150e87b05ee02d867d4e0f36343a46a8d77
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/haofuly--spatial-forcing-7b-finetuned-libero-object
+  role: libero_object_checkpoint
+  license: apache-2.0
+  status: checkpoint_gpu_validated
+- repo_id: haofuly/spatial-forcing-7b-finetuned-libero-goal
+  revision: c0093e70524ad781ae6fe644618f501af32a184d
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/haofuly--spatial-forcing-7b-finetuned-libero-goal
+  role: libero_goal_checkpoint
+  license: apache-2.0
+  status: checkpoint_gpu_validated
+- repo_id: haofuly/spatial-forcing-7b-finetuned-libero-10
+  revision: 737f7e02dec79d8a3a26ab44738926183aed059e
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/haofuly--spatial-forcing-7b-finetuned-libero-10
+  role: libero_10_checkpoint
+  license: apache-2.0
+  status: checkpoint_gpu_validated
+input_schema:
+  model_id: spatial-forcing
+  prompt: true
+  image: true
+  state: true
+  camera_keys:
+  - full_image
+  - wrist_image
+  state_dimension: 8
+  policy_family: spatial_forcing_openvla_action_chunk_policy
+  action_representation: continuous_libero_action_chunk
+  action_shape:
+  - 8
+  - 7
+artifact_kind: action_trace
+artifact_filename: spatial-forcing_action_trace.json
+execution:
+  backend_stage: in_tree_checkpoint_runtime
+  runtime_status: all_released_checkpoints_gpu_validated
+  integration_status: all_released_checkpoints_gpu_validated
+  pipeline_binding: spatial-forcing
+integration:
+  status: all_released_checkpoints_gpu_validated
+notes:
+- The released policies use OpenVLA-OFT inference; VGGT and the alignment projector are training-only and are not loaded.
+- Checkpoint snapshots must be staged before inference; the runtime performs no Hub or source-repository downloads.
+- Upstream requires a deterministic 90%-area center crop and emits an 8x7 future action chunk from full/wrist images plus 8-D state.
+- All four released snapshots passed strict restoration and real two-camera Workspace inference on A100 GPUs, each emitting a finite 8x7 action chunk.
+- The Pi0 real-robot branch publishes no official Spatial-Forcing checkpoint/model ID and therefore is not represented as a runnable checkpoint variant.

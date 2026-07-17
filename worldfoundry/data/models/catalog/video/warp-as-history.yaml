@@ -26,14 +26,14 @@ official_sources:
   license: apache-2.0
 checkpoint:
   repos:
-  - id: BestWishYsh/Helios-Distilled
-    path: checkpoints/helios-distilled
-  - id: yyfz233/Pi3X
-    filename: model.safetensors
-    path: checkpoints/pi3x
   - id: yyfz233/warp-as-history
     filename: visible_lora_state_step1000.safetensors
     path: checkpoints/warp-as-history
+  - id: yyfz233/Pi3X
+    filename: model.safetensors
+    path: checkpoints/pi3x
+  - id: BestWishYsh/Helios-Distilled
+    path: checkpoints/helios-distilled
 integration:
   status: verified
   notes:

@@ -7,6 +7,16 @@ groups:
 - game
 source_repos:
 - url: https://github.com/eloialonso/diamond
+  revision: 5bcd1599755b4f2fae8e5e079e02f0728e174965
+checkpoints:
+- repo_id: eloialonso/diamond
+  revision: 5d4abca9af6ab1b3ab1c6fc228cacb7281130f7f
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/diamond
+  role: atari_100k_pretrained_bundle
+  required_paths:
+  - atari_100k/models/Pong.pt
+  - atari_100k/config/agent/default.yaml
+  - atari_100k/config/env/atari.yaml
 input_schema:
   prompt: true
   image: true
@@ -24,6 +34,7 @@ execution:
 integration:
   status: integrated
 notes:
-- DIAMOND official play/inference source is vendored in-tree under synthesis/visual_generation/world_model/diamond/diamond_runtime.
+- DIAMOND official play/inference source is vendored directly under synthesis/visual_generation/world_model/diamond.
 - Runtime configs live under data/models/runtime/configs/diamond/config; execution
-  uses either a local weights file or pretrained=true with a non-interactive pretrained_game.
+  uses either a local weights file or pretrained=true with a non-interactive pretrained_game
+  from the pinned local snapshot. Runtime network downloads are disabled.

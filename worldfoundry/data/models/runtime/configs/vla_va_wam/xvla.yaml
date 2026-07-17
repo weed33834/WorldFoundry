@@ -1,10 +1,31 @@
-backend: custom_from_pretrained
-checkpoint_path: ${WORLDFOUNDRY_CKPT_DIR}/2toINF--X-VLA-WidowX
-source_repo: ${WORLDFOUNDRY_MODEL_SOURCE_DIR}/X-VLA
-policy_target: models.modeling_xvla:XVLA
-processor_target: models.processing_xvla:XVLAProcessor
-predict_method: predict_action
+backend: callable_entrypoint
+checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/2toINF--X-VLA-WidowX
+checkpoint_ref: 2toINF/X-VLA-WidowX
+revision: 8d7ea1aaa948665d44129a3ff488629b955fc0f9
+policy_target: worldfoundry.synthesis.action_generation.xvla.runtime:predict_action
+device: cuda
 torch_dtype: float32
-trust_remote_code: true
+trust_remote_code: false
+local_files_only: true
+attention_backend: auto
+domain_id: 0
+checkpoint_domain_ids:
+  2toINF/X-VLA-WidowX: 0
+  2toINF/X-VLA-Google-Robot: 1
+  2toINF/X-VLA-Calvin-ABC_D: 2
+  2toINF/X-VLA-Libero: 3
+  2toINF/X-VLA-SoftFold: 5
+  2toINF/X-VLA-RoboTwin2: 6
+  2toINF/X-VLA-VLABench: 8
+  2toINF/X-VLA-AgiWorld-Challenge: 9
+  2toINF/X-VLA-Pt: null
+denoising_steps: 10
+seed: 0
+required_checkpoint_files:
+- config.json
+- model.safetensors
+- preprocessor_config.json
+- tokenizer.json
+- tokenizer_config.json
 action_contract: xvla_cross_embodiment_action
-runtime_backend: xvla_official_processor_model
+runtime_backend: xvla_in_tree_processor_model

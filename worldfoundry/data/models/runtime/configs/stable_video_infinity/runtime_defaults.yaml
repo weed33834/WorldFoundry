@@ -1,0 +1,34 @@
+schema_version: worldfoundry.runtime_defaults.v1
+defaults:
+  stable-video-infinity:
+    model_name: stable-video-infinity
+    wan_model_dir: ${WORLDFOUNDRY_CKPT_DIR}/Wan2.1-I2V-14B-480P
+    svi_lora_path: ${WORLDFOUNDRY_HFD_ROOT}/vita-video-gen--svi-model/version-2.0/SVI_Wan2.1-I2V-14B_lora_v2.0.safetensors
+    device: cuda
+    dtype: bfloat16
+    fps: 24
+    num_clips: 999
+    num_frames: 81
+    num_motion_frames: 5
+    num_inference_steps: 50
+    cfg_scale_text: 5.0
+    sigma_shift: 5.0
+    lora_alpha: 1.0
+    ref_pad_cfg: false
+    ref_pad_num: -1
+    prompt_repeat_times: 2
+    use_first_prompt_only: false
+    repeat_first_clip: false
+    base_seed: 0
+    seed_stride: 42
+    max_width: 832
+    tiled: false
+    tile_size:
+    - 30
+    - 52
+    tile_stride:
+    - 15
+    - 26
+    enable_vram_management: true
+    num_persistent_param_in_dit: 6000000000
+    use_usp: false

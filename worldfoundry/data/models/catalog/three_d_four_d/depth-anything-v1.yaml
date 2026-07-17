@@ -23,13 +23,13 @@ official_sources:
     type: model
     status: confirmed
 integration:
-  status: runtime_ported
+  status: verified
   notes:
   - In-tree Depth Anything V1 pipeline is registered for relative depth and geometry artifact export.
 runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
 pipeline_binding: depth-anything-v1
 runner_parity:
-  status: pending
+  status: verified
   notes:
   - Per-run validation evidence is tracked outside the model catalog.
 catalog_category: three_d_four_d

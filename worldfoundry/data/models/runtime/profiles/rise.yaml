@@ -1,0 +1,50 @@
+schema_version: 2
+model_id: rise
+display_name: RISE
+task_family: vla_policy
+groups:
+- vla
+- robot_policy
+- action_chunk
+- pi05
+source_repos:
+- url: https://github.com/OpenDriveLab/RISE
+  revision: 5fac1e6ab9d50d4cc1ba4daeadf14023c8415955
+checkpoints:
+- local_dir: ${WORLDFOUNDRY_CKPT_DIR}/rise/policy
+  role: task_trained_action_policy
+  availability: user_supplied
+  status: no_public_task_checkpoint
+input_schema:
+  model_id: rise
+  prompt: true
+  image: true
+  state: required_14d
+  preferred_cameras:
+  - cam_high
+  - cam_left_wrist
+  - cam_right_wrist
+  source_image_size: [320, 240]
+  model_image_size: [224, 224]
+  action_advantage: 1.0
+  advantage_bin: 10
+  configured_action_horizon: 50
+  action_chunk_size: 50
+artifact_kind: action_trace
+artifact_filename: rise_action_trace.json
+execution:
+  backend_stage: in_tree_checkpoint_runtime
+  runtime_status: trained_action_checkpoint_required
+  integration_status: integrated_checkpoint_gated
+  pipeline_binding: rise
+gpu_targets:
+- NVIDIA Turing in float16
+- NVIDIA Ampere in bfloat16
+- NVIDIA Ada in bfloat16
+- NVIDIA Hopper in bfloat16
+- NVIDIA Blackwell in bfloat16
+notes:
+- Automatic dtype selection uses CUDA compute capability rather than a fixed GPU-name allowlist.
+- PyTorch checkpoints can use torch.compile; JAX checkpoints retain the architecture-native compiled path.
+- Inference reproduces the released quality-conditioned prompt: advantage 1.0 maps to uniform bin 10.
+- The official release publishes policy training code and a separate dynamics-model checkpoint, but no trained action-policy checkpoint; the latter remains user-supplied and is not marked checkpoint-validated.

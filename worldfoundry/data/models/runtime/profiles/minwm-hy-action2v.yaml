@@ -1,0 +1,43 @@
+schema_version: 2
+model_id: minwm-hy-action2v
+display_name: minWM HY Action2V
+task_family: world_model
+groups: [world, action_conditioning, camera_control]
+source_repos:
+- url: https://github.com/shengshu-ai/minWM
+  revision: df522a26cd4409d3e3e8f269cc98eac069b5df47
+  in_tree_path: worldfoundry/synthesis/visual_generation/minwm/minwm_runtime
+checkpoints:
+- repo_id: MIN-Lab/minWM
+  revision: 21bd74da43b5a061c0b8ff277515088ccd2c798b
+  size_bytes: 17116082215
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/MIN-Lab--minWM
+  role: hy_action2v_dmd
+  status: checkpoint_download_in_progress
+  required_paths:
+  - HY15/Action2V/dmd/config.json
+  - HY15/Action2V/dmd/diffusion_pytorch_model.safetensors
+- repo_id: tencent/HunyuanVideo-1.5
+  revision: 9b49404b3f5df2a8f0b31df27a0c7ab872e7b038
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/HunyuanVideo-1.5
+  role: base_model
+  status: checkpoint_manifest_validated
+  required_paths:
+  - config.json
+  - transformer/480p_i2v_distilled/config.json
+  - transformer/480p_i2v_distilled/diffusion_pytorch_model.safetensors
+  - vae/config.json
+  - vae/diffusion_pytorch_model.safetensors
+input_schema: {prompt: true, image: true, trajectory: true}
+artifact_kind: generated_video
+artifact_filename: minwm-hy-action2v.mp4
+execution:
+  environment: _unified
+  backend_stage: independent_in_tree_runtime
+  runtime_status: checkpoint_assets_pending
+  integration_status: integrated_checkpoint_assets_pending
+  pipeline_binding: minwm-hy-action2v
+integration: {status: integrated_checkpoint_assets_pending}
+notes:
+- Uses the dedicated HY15 Action2V entrypoint and native motion tokens.
+- Only the HY15/Action2V/dmd subset of the 384.97 GB upstream minWM repository is required.

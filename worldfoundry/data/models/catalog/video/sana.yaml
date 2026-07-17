@@ -3,9 +3,12 @@ name: Sana
 aliases:
 - sana-video
 - longsana-video
+- sana-streaming
+- sana-streaming-bidirectional
 tasks:
 - text-to-image
 - text-to-video
+- video-to-video
 - image-conditioned-generation
 provider: official_repo
 source:
@@ -20,6 +23,10 @@ official_sources:
   huggingface:
   - repo_id: Efficient-Large-Model/Sana_1600M_1024px
     status: confirmed
+  - repo_id: Efficient-Large-Model/SANA-Streaming
+    status: confirmed
+  - repo_id: Efficient-Large-Model/SANA-Streaming_bidirectional
+    status: confirmed
   license: apache-2.0
   access_notes: Official GitHub repository is public under Apache-2.0; Hugging Face
     checkpoints remain external assets and were not downloaded.
@@ -31,6 +38,11 @@ integration:
   - Checkpoint assets remain external Hugging Face artifacts.
   - The 2B 480p video path is wired through the in-tree runtime; official long
     configuration parity remains pending.
+  - SANA-Streaming long and bidirectional V2V routes use the vendored official
+    BF16 CLI, hybrid DiT blocks, fused GDN kernels, and causal LTX-2 VAE wrapper.
+  - SANA-Streaming sources are synchronized from NVlabs/Sana commit
+    78be97aec4efabd73ddb97d47e9f7c13a60ef90a; the paper's MPQ deployment path
+    is not part of the public BF16 inference recipe.
 runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
 pipeline_binding: sana
 runtime_profile: runtime-profile:sana
@@ -184,6 +196,28 @@ variants:
   runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
   pipeline_binding: longsana-video-2b-480p
   runtime_profile: runtime-profile:sana
+- id: sana-streaming-2b-720p
+  task: video-to-video
+  integration_status: integrated
+  checkpoint_refs:
+  - repo_id: Efficient-Large-Model/SANA-Streaming
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: sana-streaming-2b-720p
+  runtime_profile: runtime-profile:sana
+  notes:
+  - Official long_streaming route; defaults to 969 frames, 4 denoising steps,
+    704x1280 output, and sink-token state caching.
+- id: sana-streaming-bidirectional-2b-720p
+  task: video-to-video
+  integration_status: integrated
+  checkpoint_refs:
+  - repo_id: Efficient-Large-Model/SANA-Streaming_bidirectional
+  runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+  pipeline_binding: sana-streaming-bidirectional-2b-720p
+  runtime_profile: runtime-profile:sana
+  notes:
+  - Official bidirectional_short route; defaults to 81 frames and 50 denoising
+    steps with classifier-free guidance.
 catalog_category: video
 catalog_scope: Video-generation and video-token catalog entries. Integrated entries
   expose WorldFoundry pipeline targets; metadata-only entries retain upstream provenance

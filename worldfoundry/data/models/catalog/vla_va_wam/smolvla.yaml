@@ -4,21 +4,43 @@ name: SmolVLA
 aliases:
 - smolvla-base
 - lerobot/smolvla_base
+- smolvla-libero
+- HuggingFaceVLA/smolvla_libero
 availability: open_source
 provider: official_repo
 official_sources:
   github:
     url: https://github.com/huggingface/lerobot
+    revision: 8fff0fde7c79f23a93d845d1a50e985de01f8b8a
   huggingface:
+  - repo_id: HuggingFaceVLA/smolvla_libero
+    revision: 6721902bc4d61e50a3bfdb11dfb4cb626f05d102
+    role: libero_task_checkpoint
+    status: manifest_and_normalization_schema_validated
   - repo_id: lerobot/smolvla_base
     role: base_checkpoint
-    status: confirmed
+    status: foundation_asset_not_rollout_default
+  - repo_id: HuggingFaceTB/SmolVLM2-500M-Video-Instruct
+    revision: 7b375e1b73b11138ff12fe22c8f2822d8fe03467
+    role: vision_language_backbone
+    status: manifest_validated
 integration:
   status: runtime_ported
   notes:
-  - SmolVLA's stated reference implementation is the concrete smolvla policy in Hugging Face LeRobot.
-  - WorldFoundry routes SmolVLA through an in-tree action runtime adapter against the concrete LeRobot SmolVLA policy.
-  - Checkpoint absence is reported by runtime missing_assets and is not a catalog blocker.
+  - The in-tree runtime preserves the official flow-matching architecture, preprocessing, and strict checkpoint structure.
+  - Runtime loading is local-only and does not import an external source checkout.
+  - The LIBERO task checkpoint is the rollout default; the multi-robot foundation checkpoint lacks canonical state statistics and remains a non-default fine-tuning asset.
+variants:
+- id: smolvla-libero
+  task: vla.policy_rollout
+  integration_status: in_tree_checkpoint_runtime
+  checkpoint_refs:
+  - repo_id: HuggingFaceVLA/smolvla_libero
+- id: smolvla-base
+  task: vla.pretraining
+  integration_status: checkpoint_asset_only
+  checkpoint_refs:
+  - repo_id: lerobot/smolvla_base
 tasks:
 - vla
 - vla.policy_rollout

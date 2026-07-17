@@ -1,0 +1,56 @@
+backend: callable_entrypoint
+checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/robbyant--lingbot-vla-v2-6b
+checkpoint_ref: robbyant/lingbot-vla-v2-6b
+base_model_path: ${WORLDFOUNDRY_HFD_ROOT}/Qwen--Qwen3-VL-4B-Instruct
+require_checkpoint: true
+local_files_only: true
+policy_target: worldfoundry.synthesis.action_generation.lingbot_vla_v2.runtime:predict_action
+predict_method: predict_action
+torch_dtype: auto
+trust_remote_code: false
+runtime_backend: lingbot_vla_v2_in_tree_in_process
+robot_name: robotwin
+attention_implementation: eager
+backbone_attention_implementation: flash_attention_2
+num_denoising_steps: 10
+use_length: -1
+use_compile: false
+compile_sample_actions: true
+replicate_single_image: false
+strict_weights: true
+base_asset_patterns:
+- '*.json'
+- '*.txt'
+- '*.model'
+- '*.tiktoken'
+- '*.jinja'
+- merges.txt
+- vocab.json
+checkpoint_patterns:
+- config.json
+- lingbotvla_cli.yaml
+- model.safetensors
+- model-*.safetensors
+- model.safetensors.index.json
+action_contract: 50x14_bimanual_joint_action_chunk
+control_mode: unified_55d_action_representation_to_robot_action
+official_infer_entrypoint: LingbotVlaV2Policy.model.sample_actions
+default_variant: 6b
+variants:
+  6b:
+    aliases: [lingbot-vla-v2-6b]
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/robbyant--lingbot-vla-v2-6b
+    checkpoint_ref: robbyant/lingbot-vla-v2-6b
+hardware_profiles:
+  pre_ampere:
+    torch_dtype: float16
+    use_compile: false
+  ampere:
+    torch_dtype: bfloat16
+    use_compile: false
+  ada:
+    torch_dtype: bfloat16
+    use_compile: true
+  hopper_or_newer:
+    torch_dtype: bfloat16
+    use_compile: true

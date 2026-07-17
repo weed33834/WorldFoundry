@@ -27,8 +27,10 @@ integration:
     WorldFoundry owns path resolution, command construction, output loading, and pipeline/catalog exposure.
   - The local workspace has staged AC3D ControlNet checkpoints under ${WORLDFOUNDRY_CKPT_DIR}/ac3d and CogVideoX base
     checkpoints under ${WORLDFOUNDRY_CKPT_DIR}/CogVideoX-{2b,5b}.
+  - WRBench direct-video requests are materialized as a temporary one-sample RealEstate10K layout; the official dataset and
+    CogVideoX-ControlNet inference path remain unchanged.
   status: integrated
-license: unknown
+license: Snap non-commercial research license
 modalities:
 - camera-control
 - text-to-video
@@ -39,6 +41,7 @@ official_sources:
   paper: https://arxiv.org/abs/2411.18673
   github:
     url: https://github.com/snap-research/ac3d
+    revision: fe40a8d2dee163b951e6405d8cf1a2c14ecc68eb
 pipeline_binding: ac3d
 release_type: code_and_weights
 runtime_profile: runtime-profile:ac3d

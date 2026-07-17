@@ -1,5 +1,5 @@
 default_variant: droid
-torch_dtype: bfloat16
+torch_dtype: auto
 num_steps: 10
 enable_cuda_graph: false
 enable_depth_reasoning: false

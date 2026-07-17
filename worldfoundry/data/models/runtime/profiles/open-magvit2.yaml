@@ -10,10 +10,10 @@ input_schema:
   class_id: true
   image: false
   prompt: false
-integration_status: planned
+integration_status: integrated
 notes:
 - WorldFoundry vendors the Open-MAGVIT2 architecture, generation helpers, and ImageNet
   class-conditional config under worldfoundry/synthesis/visual_generation/open_magvit2/open_magvit2_runtime.
 - The runtime is class-conditional image generation rather than prompt-to-video.
-runtime_status: official_demo_parity_pending
-verification_status: checkpoint_backed_gpu_readiness_ready_cuda118_open_magvit2_ar256_l_steps16
+runtime_status: checkpoint_backed_verified
+verification_status: checkpoint_backed_gpu_verified_cuda_open_magvit2_ar256_steps256

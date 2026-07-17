@@ -20,8 +20,15 @@ from .visualization.core.registry import (
 )
 
 LINGBOT_WORLD_MODEL_ID = "lingbot-world"
+LINGBOT_WORLD_V2_MODEL_ID = "lingbot-world-v2"
+MATRIX_GAME3_MODEL_ID = "matrix-game-3"
+LONGVIE2_MODEL_ID = "longvie-2"
+HELIOS_MODEL_ID = "helios"
+DREAMX_WORLD_MODEL_ID = "dreamx-world-5b-cam"
 LINGBOT_VARIANT_FAST = "fast"
 LINGBOT_FAST_NUM_PROCS_ENV_KEYS = (
+    "WORLDFOUNDRY_REALTIME_NPROC_PER_NODE",
+    "WORLDFOUNDRY_REALTIME_NPROC",
     "WORLDFOUNDRY_STUDIO_LINGBOT_TORCHRUN_NPROC",
     "WM_LINGBOTWORLDFAST_NUM_PROCS",
 )
@@ -84,7 +91,10 @@ def resolve_lingbot_fast_num_procs(*, visible_count: int | None = None) -> int:
             except Exception:
                 visible_count = 0
     visible_count = max(int(visible_count or 0), 0)
-    default = 4 if visible_count >= 4 else (2 if visible_count >= 2 else 1)
+    # The public LingBot 14B recipe is eight-way FSDP + Ulysses.  Four ranks
+    # are the compact supported topology because 40 attention heads divide
+    # evenly; prefer all eight ranks when the host exposes them.
+    default = 8 if visible_count >= 8 else (4 if visible_count >= 4 else (2 if visible_count >= 2 else 1))
     for key in LINGBOT_FAST_NUM_PROCS_ENV_KEYS:
         raw = os.getenv(key, "").strip()
         if not raw:
@@ -118,11 +128,18 @@ class WMFactoryInteractiveModelSpec:
     env_prefix: str
     preferred_visible_devices: int | None = None
     use_dual_device_hint: bool = False
+    supported_process_counts: tuple[int, ...] = ()
 
 
 WMFACTORY_INTERACTIVE_MODEL_SPECS: tuple[WMFactoryInteractiveModelSpec, ...] = (
     WMFactoryInteractiveModelSpec("matrix-game-2", "matrixgame", "MATRIXGAME"),
-    WMFactoryInteractiveModelSpec("matrix-game-3", "matrixgame3", "MATRIXGAME3", preferred_visible_devices=2),
+    WMFactoryInteractiveModelSpec(
+        MATRIX_GAME3_MODEL_ID,
+        "matrixgame3",
+        "MATRIXGAME3",
+        preferred_visible_devices=4,
+        supported_process_counts=(1, 2, 4, 8),
+    ),
     WMFactoryInteractiveModelSpec("yume", "yume", "YUME"),
     WMFactoryInteractiveModelSpec("yume-1p5", "yume", "YUME"),
     WMFactoryInteractiveModelSpec("diamond", "diamond", "DIAMOND"),
@@ -135,9 +152,28 @@ WMFACTORY_INTERACTIVE_MODEL_SPECS: tuple[WMFactoryInteractiveModelSpec, ...] = (
         preferred_visible_devices=2,
         use_dual_device_hint=True,
     ),
-    WMFactoryInteractiveModelSpec("hunyuan-worldplay", "worldplay", "WORLDPLAY", preferred_visible_devices=8),
+    WMFactoryInteractiveModelSpec(
+        "hunyuan-worldplay",
+        "worldplay",
+        "WORLDPLAY",
+        preferred_visible_devices=8,
+        supported_process_counts=(1, 2, 3, 4, 6, 8),
+    ),
     WMFactoryInteractiveModelSpec("mineworld", "mineworld", "MINEWORLD"),
-    WMFactoryInteractiveModelSpec("lingbot-world", "lingbot-world-fast", "LINGBOTWORLDFAST", preferred_visible_devices=4),
+    WMFactoryInteractiveModelSpec(
+        "lingbot-world",
+        "lingbot-world-fast",
+        "LINGBOTWORLDFAST",
+        preferred_visible_devices=8,
+        supported_process_counts=(1, 4, 8),
+    ),
+    WMFactoryInteractiveModelSpec(
+        "lingbot-world-v2",
+        "lingbot-world-v2",
+        "LINGBOTWORLDV2",
+        preferred_visible_devices=8,
+        supported_process_counts=(1, 4, 8),
+    ),
 )
 
 _WMFACTORY_SPEC_BY_MODEL_ID = {spec.model_id: spec for spec in WMFACTORY_INTERACTIVE_MODEL_SPECS}
@@ -301,11 +337,40 @@ def launch_environment_summary() -> dict[str, str | list[str]]:
 
 
 def launch_uses_lingbot_torchrun_rollout(launch_config: StudioLaunchConfig) -> bool:
-    if _torchrun_world_size() <= 1:
+    world_size = _torchrun_world_size()
+    if launch_config.model_id == LONGVIE2_MODEL_ID:
+        if world_size not in {1, 4}:
+            raise ValueError(
+                "LongVie 2 supports either one GPU or the official four-rank USP topology; "
+                f"got WORLD_SIZE={world_size}."
+            )
+        return world_size == 4
+    if world_size <= 1:
         return False
-    if launch_config.model_id != LINGBOT_WORLD_MODEL_ID:
-        return False
-    return launch_config.variant_id == LINGBOT_VARIANT_FAST
+    if launch_config.model_id == LINGBOT_WORLD_V2_MODEL_ID:
+        if world_size not in {4, 8}:
+            raise ValueError(
+                "LingBot-World-V2 Workspace supports four or eight torchrun ranks; "
+                f"got WORLD_SIZE={world_size}."
+            )
+        return True
+    if (
+        launch_config.model_id == LINGBOT_WORLD_MODEL_ID
+        and launch_config.variant_id == LINGBOT_VARIANT_FAST
+    ):
+        if world_size not in {4, 8}:
+            raise ValueError(
+                "LingBot-World Fast Workspace supports four or eight torchrun ranks; "
+                f"got WORLD_SIZE={world_size}."
+            )
+        return True
+    if launch_config.model_id in {
+        MATRIX_GAME3_MODEL_ID,
+        HELIOS_MODEL_ID,
+        DREAMX_WORLD_MODEL_ID,
+    }:
+        return True
+    return False
 
 
 def parse_launch_config(

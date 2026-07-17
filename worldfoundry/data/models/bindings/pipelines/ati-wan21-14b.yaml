@@ -1,0 +1,9 @@
+schema_version: 2
+binding_id: ati-wan21-14b
+model_id: ati-wan21-14b
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.ati.pipeline_ati:ATIPipeline
+  loading: {method: from_pretrained, signature: unified}
+  invocation: {mode: native_or_standard_invocation}
+aliases: [ati]

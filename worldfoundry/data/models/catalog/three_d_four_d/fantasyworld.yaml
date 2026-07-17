@@ -14,7 +14,7 @@ availability:
   status: source_available
   open_source: false
   code: public
-  weights: not_confirmed
+  weights: confirmed_public
   license: not_found
 integration:
   kind: pipeline_runner
@@ -23,8 +23,7 @@ integration:
   - WorldFoundry exposes the in-tree FantasyWorld Wan2.1 and Wan2.2 camera-control pipelines.
   - The release-facing default is the Wan2.1 pipeline because it has passed Studio artifact and visual validation.
   - Wan2.2 remains integrated but hidden from Studio until its official memory strategy is verified.
-confirmation: Public GitHub repo and project page were reachable; no LICENSE file or official HF weights were confirmed, so
-  not marked open_source.
+confirmation: Public GitHub source and official FantasyWorld, Wan2.2-I2V-A14B, reward-LoRA, and MoGe checkpoints are confirmed; no LICENSE file was found in the FantasyWorld source, so it is not marked open_source.
 output_artifacts:
 - generated_world
 runtime_profile: runtime-profile:fantasyworld
@@ -51,11 +50,12 @@ variants:
   runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
   pipeline_binding: fantasyworld-wan22
   integration:
-    status: integrated
+    status: checkpoint_assets_staged_cpu_schema_validated_gpu_pending
   runner_parity:
     status: pending
     notes:
-    - Import and catalog binding are wired; checkpoint/GPU parity is pending.
+    - Both 2,658-key high/low camera checkpoints have identical BF16 schemas; the 453-key DiT overlays, including all camera adapter weights, match the in-tree model without shape mismatches.
+    - Real dual-A14B GPU artifact and memory-strategy validation is still pending.
 runner_parity:
   status: verified
   notes:

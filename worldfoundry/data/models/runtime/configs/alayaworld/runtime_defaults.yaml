@@ -1,0 +1,57 @@
+schema_version: worldfoundry.runtime_defaults.v1
+defaults:
+  alayaworld:
+    checkpoint_path: ${WORLDFOUNDRY_CKPT_DIR}/AlayaWorld/merged_infer.safetensors
+    gemma_root: ${WORLDFOUNDRY_CKPT_DIR}/gemma-3-12b-it-qat-q4_0-unquantized
+    da3_path: ${WORLDFOUNDRY_CKPT_DIR}/DA3NESTED-GIANT-LARGE-1.1
+    height: 544
+    width: 960
+    fps: 24.0
+    rounds: 5
+    seed: 42
+    dtype: bf16
+    camera_trajectory: w*296
+    camera_translation_step: 0.08
+    camera_rotation_step_degrees: 0.375
+    intrinsic: [0.4482, 0.7966, 0.5, 0.5]
+    action_scale: 0.1337,0.2769,2.021,0.00442,0.01026,0.00448
+    action_freq_scale: 1000.0
+    history_latent_frames: 16
+    condition_latent_frames: 1
+    output_latent_frames: 4
+    sampling_steps: 4
+    action_history_memory: false
+    spatial_enabled: true
+    depth_backend: da3
+    spatial_num_context_frames: 10
+    spatial_retrieval_views: 1
+    spatial_downsample: 4
+    spatial_maximum_coverage: true
+    spatial_retrieval_depth_threshold: 0.1
+    spatial_constant_depth: 1.0
+    spatial_include_sink: false
+    spatial_require_full_context: true
+    da3_process_res: 504
+    da3_process_res_method: upper_bound_resize
+    da3_align_to_input_scale: true
+    history_compress_t: 1
+    history_compress_h: 2
+    history_compress_w: 2
+    history_lr_compress_t: 1
+    history_lr_compress_h: 2
+    history_lr_compress_w: 2
+    history_gate_init: 0.5
+    history_self_attention: true
+    history_lr_branch: true
+    vae_spatial_tile_size: 768
+    vae_spatial_overlap: 64
+    vae_temporal_tile_size: 80
+    vae_temporal_overlap: 24
+    vae_decode_chunk_latents: 8
+    vae_decode_overlap_latents: 6
+    context_parallel: true
+    decode_rank0_only: true
+    compile_mode: reduce-overhead
+    compile_backend: inductor
+    compile_fullgraph: false
+    compile_dynamic: false

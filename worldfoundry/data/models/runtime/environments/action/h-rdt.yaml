@@ -1,0 +1,29 @@
+env_name: worldfoundry-vla-h-rdt
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+model_id: h-rdt
+python: "3.10"
+cuda_profile: cu121_or_newer
+driver_status: compatible
+conda_packages:
+- python
+- pip
+pip_packages:
+- torch>=2.2
+- torchvision>=0.17
+- transformers>=4.45,<6
+- accelerate>=0.30
+- timm>=0.9
+- Pillow>=10
+- numpy>=1.26
+- safetensors>=0.4
+- huggingface-hub>=0.23
+validation_imports:
+- torch
+- torchvision
+- transformers
+- timm
+- PIL
+notes:
+- BF16 is the default on Ampere, Ada, Hopper, and Blackwell; Turing uses FP16.
+- The core SDPA dispatcher selects architecture-appropriate kernels without a FlashAttention package dependency.
+- T5-v1.1-XXL is optional when precomputed 4096-dimensional language tokens are supplied.

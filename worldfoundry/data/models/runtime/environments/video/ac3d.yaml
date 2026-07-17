@@ -2,11 +2,12 @@ conda_packages:
 - python
 - pip
 - ffmpeg
-cuda_profile: cu128
+cuda_profile: cu124
 driver_status: compatible
 env_name: ac3d
 env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
 model_id: ac3d
+pip_extra_index_url: https://download.pytorch.org/whl/cu124
 notes:
 - AC3D upstream reports PyTorch 2.4.0 with CUDA 12.4. WorldFoundry vendors the inference runtime under
   worldfoundry/synthesis/visual_generation/ac3d/ac3d_runtime and launches it through the active Python executable unless
@@ -14,21 +15,27 @@ notes:
 - Route AC3D to its dedicated upstream-compatible environment; the exact torch pin keeps it out of the shared unified
   runtime.
 pip_packages:
-- torch==2.4.0
-- torchvision
-- diffusers>=0.32.2
-- transformers>=4.44.0
+- torch==2.4.0+cu124
+- torchvision==0.19.0+cu124
+- diffusers==0.32.2
+- transformers>=4.44.0,<5
 - accelerate>=0.34.2
 - safetensors>=0.4.5
 - sentencepiece>=0.2.0
-- numpy
+- numpy==1.26.0
 - opencv-python>=4.10.0.84
-- imageio>=2.34.2
+- imageio==2.34.2
 - imageio-ffmpeg>=0.5.1
 - moviepy>=1.0.3
-- pillow
+- pillow==9.5.0
+- decord==0.6.0
+- einops
+- packaging
 python: '3.10'
 validation_imports:
 - torch
+- torchvision
 - diffusers
 - transformers
+- decord
+- einops

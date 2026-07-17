@@ -11,14 +11,11 @@ checkpoint:
 id: gr00t
 integration:
   notes:
-  - NVIDIA license/access and runtime command must be validated before integrated
-    status.
-  - GR00T runtime source is vendored in-tree; py_compile, import/from_pretrained,
-    checkpoint metadata parsing, and plan-only predict passed.
+  - The GR00T model, processor, transforms, and policy runtime execute from the flattened in-tree package with checkpoint-hosted Python disabled.
   - Checkpoint-backed predict is verified with local nvidia--Cosmos-Reason2-2B and
     nvidia--GR00T-N1.7-LIBERO/libero_10 on CUDA 11.8; simulator rollout validation
     remains separate.
-  status: runtime_ported
+  status: integrated
 license: other:nvidia-open-model-license
 name: NVIDIA GR00T
 official_sources:
@@ -52,10 +49,9 @@ variants:
     requires_auth: true
     revision: fc879581ca32f4f6d6e02cf0cc80452f6b0c3873
   id: gr00t-n1-2b
-  integration_status: runtime_ported
+  integration_status: integrated
   notes:
-  - WorldFoundry vendors GR00T official runtime under worldfoundry/synthesis/action_generation/gr00t/gr00t_runtime;
-    real predict requires a GR00T dependency environment.
+  - WorldFoundry keeps the GR00T checkpoint runtime directly under worldfoundry/synthesis/action_generation/gr00t; real prediction requires the gated local assets and GR00T dependency environment.
   task: vla.policy_rollout
 - checkpoint_refs:
   - repo_id: nvidia/GR00T-N1.7-LIBERO
@@ -63,9 +59,9 @@ variants:
     revision: 2ea293aa20ba7cf5bbf3ba17a5fbcb1a01cbfe21
     status: local_checkpoint_staged_real_predict_verified
   id: gr00t-n1.7-libero
-  integration_status: runtime_ported
+  integration_status: integrated
   notes:
-  - WorldFoundry vendors GR00T official runtime under worldfoundry/synthesis/action_generation/gr00t/gr00t_runtime.
+  - WorldFoundry keeps the GR00T checkpoint runtime directly under worldfoundry/synthesis/action_generation/gr00t.
   - Real predict with the staged LIBERO checkpoint loaded local nvidia--Cosmos-Reason2-2B
     on CUDA 11.8 with SDPA and emits the configured action trace schema.
   task: vla.policy_rollout

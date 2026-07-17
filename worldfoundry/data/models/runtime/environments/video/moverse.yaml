@@ -1,0 +1,65 @@
+model_id: moverse
+env_name: moverse
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+python: '3.10'
+cuda_profile: cu124
+driver_status: requires_upstream_compatible_cuda_extensions
+conda_packages:
+- python=3.10
+- pip
+- ffmpeg
+- cmake
+- ninja
+pip_extra_index_url: https://download.pytorch.org/whl/cu124
+pip_packages:
+- torch==2.6.0+cu124
+- torchvision==0.21.0+cu124
+- triton==3.2.0
+- numpy==1.26.4
+- diffusers==0.32.2
+- transformers==4.53.3
+- tokenizers==0.21.4
+- safetensors==0.5.3
+- huggingface-hub<1.0
+- accelerate
+- peft
+- sentencepiece==0.2.0
+- protobuf==6.33.5
+- omegaconf==2.3.0
+- easydict==1.13
+- einops==0.8.1
+- opencv-python>=4.9.0
+- scipy
+- pillow>=10
+- imageio[ffmpeg]==2.37.0
+- av==15.1.0
+- plyfile
+- gsplat
+- xformers
+- timm
+- torchmetrics
+- scikit-learn
+- submitit
+- addict
+- evo
+- e3nn
+- trimesh
+- fastapi>=0.111.0
+- uvicorn>=0.30.0
+- python-multipart
+- termcolor
+pythonpath_dirs:
+- worldfoundry/synthesis/visual_generation/moverse/moverse_runtime
+validation_imports:
+- torch
+- torchvision
+- diffusers
+- transformers
+- worldfoundry.base_models.three_dimensions.general_3d.geocalib.autolevel
+- worldfoundry.base_models.three_dimensions.depth.depth_anything.depth_anything_v3.api
+- worldfoundry.base_models.diffusion_model.video.wan.variants.moverse
+- gsplat
+- cv2
+notes:
+- Mirrors the upstream Python 3.10, torch 2.6, CUDA 12.4 inference stack; flash-attn may be installed separately for the target GPU.
+- MoVerse-specific source and its shared WorldFoundry model dependencies are in-tree; checkpoints remain external local assets.

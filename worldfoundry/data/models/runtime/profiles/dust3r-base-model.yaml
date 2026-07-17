@@ -13,18 +13,18 @@ input_schema:
   actions:
   - multi_view_reconstruction
 artifact_kind: generated_3d_asset
-artifact_filename: dust3r-base-model.glb
+artifact_filename: dust3r_point_cloud.ply
 execution:
   backend_stage: in_tree_geometry_prior_runtime
-  runtime_status: in_tree_runtime_wired
-  integration_status: runtime_ported
+  runtime_status: checkpoint_verified
+  integration_status: verified
   pipeline_binding: dust3r-base-model
 integration:
-  status: runtime_ported
+  status: verified
 notes:
 - Base-model profile for the DUSt3R catalog entry; not a standalone pipeline runner.
 - WorldFoundry exposes this prior through the shared geometry-prior pipeline/operator
   contract.
 backend_stage: in_tree_geometry_prior_runtime
-runtime_status: in_tree_runtime_wired
-integration_status: runtime_ported
+runtime_status: checkpoint_verified
+integration_status: verified

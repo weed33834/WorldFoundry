@@ -1,0 +1,79 @@
+schema_version: 1
+architecture:
+  video_expert:
+    has_image_input: false
+    has_image_pos_emb: false
+    has_ref_conv: false
+    add_control_adapter: false
+    in_dim_control_adapter: 24
+    patch_size: [1, 2, 2]
+    in_dim: 48
+    hidden_dim: 3072
+    ffn_dim: 14336
+    freq_dim: 256
+    text_dim: 4096
+    out_dim: 48
+    num_heads: 24
+    attn_head_dim: 128
+    num_layers: 30
+    rope_max_length: 1024
+    rope_theta: 10000.0
+    eps: 1.0e-6
+    seperated_timestep: true
+    require_clip_embedding: false
+    require_vae_embedding: false
+    fuse_vae_embedding_in_latents: true
+    video_attention_mask_mode: per_frame_causal
+    action_conditioned: false
+    action_dim: 14
+    action_group_causal_mask_mode: group_diagonal
+  action_expert:
+    action_dim: 14
+    hidden_dim: 1024
+    ffn_dim: 4096
+    num_heads: 24
+    attn_head_dim: 128
+    num_layers: 30
+    rope_max_length: 1024
+    rope_theta: 10000.0
+    text_dim: 4096
+    freq_dim: 256
+    eps: 1.0e-6
+    autoregressive_teacher_forcing: true
+    action_chunk_size: 16
+    action_teacher_forcing_mask_mode: stage1_chunkwise
+  vae:
+    z_dim: 48
+    dim: 160
+  text_encoder:
+    vocab: 256384
+    dim: 4096
+    dim_attn: 4096
+    dim_ffn: 10240
+    num_heads: 64
+    num_layers: 24
+    num_buckets: 32
+    shared_pos: false
+    dropout: 0.1
+  policy:
+    proprio_dim: 14
+    action_horizon: 64
+    action_chunk_size: 16
+    max_action_offset: 0
+    action_obs_downsample_factor: 1
+    chunk_kv_editor_num_queries: 32
+    chunk_kv_delta_gate: true
+    chunk_kv_gate_init: -4.0
+    num_history_frames: 6
+    action_video_read_mode: current_only
+    video_rope_frame_stride: 8
+  scheduler:
+    video:
+      shift: 5.0
+      num_timesteps: 1000
+    action:
+      shift: 5.0
+      num_timesteps: 1000
+  text:
+    tokenizer_max_length: 128
+    prompt_template: "A video recorded from a robot's point of view executing the following instruction: {task}"

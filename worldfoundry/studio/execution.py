@@ -14,8 +14,9 @@ import threading
 import time
 import traceback
 from collections import OrderedDict
+from collections.abc import Iterator
 from dataclasses import dataclass, field, replace
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
@@ -25,6 +26,7 @@ from packaging.requirements import InvalidRequirement, Requirement
 from PIL import Image
 
 from worldfoundry.core.io.serialization import write_json as _core_write_json
+from worldfoundry.runtime.compile_cache import configure_persistent_compile_cache
 from worldfoundry.runtime.conda import RuntimeCondaEnvSpec, load_runtime_conda_env_specs_with_overrides
 
 from .catalog import CatalogEntry, find_entry
@@ -66,6 +68,11 @@ SPLAT_EXTS = {".spz", ".splat", ".ksplat", ".sog"}
 MESH_EXTS = {".obj", ".glb", ".gltf", ".stl"}
 MODEL_EXTS = {".ply", *MESH_EXTS}
 LINGBOT_WORLD_MODEL_ID = "lingbot-world"
+LINGBOT_WORLD_V2_MODEL_ID = "lingbot-world-v2"
+MATRIX_GAME3_MODEL_ID = "matrix-game-3"
+LONGVIE2_MODEL_ID = "longvie-2"
+HELIOS_MODEL_ID = "helios"
+DREAMX_WORLD_MODEL_ID = "dreamx-world-5b-cam"
 LINGBOT_VARIANT_FAST = "fast"
 TORCHRUN_LINGBOT_FAST_ENV = "WORLDFOUNDRY_STUDIO_TORCHRUN_LINGBOT_FAST"
 TORCHRUN_DISTRIBUTED_ENV = "WORLDFOUNDRY_STUDIO_TORCHRUN_DISTRIBUTED"
@@ -237,6 +244,40 @@ def _torchrun_local_rank() -> int:
         return _torchrun_rank()
 
 
+def _torchrun_cuda_device_index(torch_module: Any) -> int:
+    """Map LOCAL_RANK without silently collapsing several ranks onto one GPU."""
+
+    device_count = int(torch_module.cuda.device_count())
+    if device_count < 1:
+        raise RuntimeError("torchrun requested CUDA execution but no CUDA device is visible")
+    raw_local_rank = os.getenv("LOCAL_RANK", str(_torchrun_rank()))
+    try:
+        local_rank = int(raw_local_rank or "0")
+    except ValueError as exc:
+        raise ValueError(f"LOCAL_RANK must be an integer, got {raw_local_rank!r}.") from exc
+    if local_rank < 0:
+        raise ValueError(f"LOCAL_RANK must be non-negative, got {local_rank}.")
+    if local_rank < device_count:
+        return local_rank
+
+    # Some schedulers expose one already-remapped GPU to each independently
+    # launched process while retaining a node-local rank greater than zero.
+    # That layout is safe.  A torch.distributed.run/elastic parent, however,
+    # gives every child the same visibility mask and must fail closed instead
+    # of mapping ranks 1..N to cuda:0.
+    try:
+        local_world_size = int(os.getenv("LOCAL_WORLD_SIZE", "1") or "1")
+    except ValueError:
+        local_world_size = 1
+    elastic_launch = bool(os.getenv("TORCHELASTIC_RUN_ID", "").strip())
+    if device_count == 1 and not elastic_launch:
+        return 0
+    raise RuntimeError(
+        f"LOCAL_RANK={local_rank} is invalid for {device_count} visible CUDA device(s) "
+        f"with LOCAL_WORLD_SIZE={local_world_size} (elastic_launch={elastic_launch})."
+    )
+
+
 def _torchrun_lingbot_fast_enabled() -> bool:
     return (
         _env_flag(TORCHRUN_LINGBOT_FAST_ENV)
@@ -386,19 +427,37 @@ def ensure_torchrun_lingbot_fast_runtime() -> bool:
 
     torch = _torch_module()
     if torch is not None and torch.cuda.is_available():
-        local_rank = min(_torchrun_local_rank(), max(torch.cuda.device_count() - 1, 0))
+        local_rank = _torchrun_cuda_device_index(torch)
         try:
             torch.cuda.set_device(local_rank)
-        except Exception:
-            pass
+        except Exception as exc:
+            raise RuntimeError(
+                f"Failed to select cuda:{local_rank} for LOCAL_RANK={os.getenv('LOCAL_RANK', '0')}."
+            ) from exc
 
     if not dist.is_initialized():
+        if torch is None or not torch.cuda.is_available():
+            raise RuntimeError("LingBot torchrun requires CUDA before initializing the NCCL process group.")
         dist.init_process_group(backend="nccl", init_method="env://")
+    actual_world_size = int(dist.get_world_size())
+    actual_rank = int(dist.get_rank())
+    if actual_world_size != _torchrun_world_size() or actual_rank != _torchrun_rank():
+        raise RuntimeError(
+            "LingBot command bridge environment does not match the initialized process group: "
+            f"env RANK/WORLD_SIZE={_torchrun_rank()}/{_torchrun_world_size()}, "
+            f"group rank/world_size={actual_rank}/{actual_world_size}."
+        )
     return dist.is_initialized()
 
 
 def _torchrun_control_group() -> Any:
-    """CPU process group for command messages while model tensors stay on NCCL."""
+    """CPU process group for command messages while model tensors stay on NCCL.
+
+    Nonzero resident ranks intentionally block in a broadcast while the UI is
+    idle. Gloo's 30-minute default timeout treats that healthy idle state as a
+    failed collective, so give the command channel a service-lifetime timeout.
+    Model collectives keep their normal NCCL timeout and failure detection.
+    """
     global _TORCHRUN_CONTROL_GROUP
 
     dist = _torch_dist()
@@ -415,10 +474,22 @@ def _torchrun_control_group() -> Any:
         if _TORCHRUN_CONTROL_GROUP is not None:
             return _TORCHRUN_CONTROL_GROUP
         ranks = list(range(_torchrun_world_size()))
+        timeout = timedelta(days=365)
         try:
-            _TORCHRUN_CONTROL_GROUP = dist.new_group(ranks=ranks, backend="gloo")
+            _TORCHRUN_CONTROL_GROUP = dist.new_group(
+                ranks=ranks,
+                backend="gloo",
+                timeout=timeout,
+            )
         except TypeError:
-            _TORCHRUN_CONTROL_GROUP = dist.new_group(ranks, backend="gloo")
+            try:
+                _TORCHRUN_CONTROL_GROUP = dist.new_group(
+                    ranks,
+                    backend="gloo",
+                    timeout=timeout,
+                )
+            except TypeError:
+                _TORCHRUN_CONTROL_GROUP = dist.new_group(ranks, backend="gloo")
         except Exception:
             _TORCHRUN_CONTROL_GROUP = None
         return _TORCHRUN_CONTROL_GROUP
@@ -430,9 +501,39 @@ def ensure_torchrun_lingbot_fast_control_group() -> bool:
     return _torchrun_control_group() is not None
 
 
+@lru_cache(maxsize=1)
+def _torchrun_min_gpu_vram_gib() -> float | None:
+    """Return the minimum visible GPU memory across all torchrun ranks."""
+
+    torch = _torch_module()
+    if torch is None or not torch.cuda.is_available():
+        return None
+    local_bytes = 0
+    try:
+        device_index = _torchrun_cuda_device_index(torch)
+        local_bytes = int(torch.cuda.get_device_properties(device_index).total_memory)
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        # Preserve collective ordering: a failed rank contributes a zero
+        # sentinel so every rank selects the conservative FSDP policy.
+        local_bytes = 0
+    dist = _torch_dist()
+    control_group = _torchrun_control_group()
+    if (
+        dist is not None
+        and dist.is_initialized()
+        and control_group is not None
+        and _torchrun_world_size() > 1
+    ):
+        memory = torch.tensor(local_bytes, dtype=torch.int64, device="cpu")
+        dist.all_reduce(memory, op=dist.ReduceOp.MIN, group=control_group)
+        local_bytes = int(memory.item())
+    return local_bytes / (1024**3) if local_bytes > 0 else None
+
+
 def shutdown_torchrun_lingbot_fast_runtime() -> None:
     global _TORCHRUN_CONTROL_GROUP
 
+    _torchrun_min_gpu_vram_gib.cache_clear()
     dist = _torch_dist()
     if dist is None or not dist.is_available() or not dist.is_initialized():
         return
@@ -811,6 +912,16 @@ def _supports_memory_stream(pipeline: Any) -> bool:
     )
 
 
+def _pipeline_stream_state_ready(pipeline: Any) -> bool:
+    ready = getattr(pipeline, "stream_state_ready", None)
+    if callable(ready):
+        try:
+            return bool(ready())
+        except Exception:
+            return False
+    return False
+
+
 def export_frames_to_video(frames: Sequence[Any], output_path: str, fps: int = 16) -> str:
     if imageio is None:
         raise RuntimeError("imageio is required to export video previews.")
@@ -1137,7 +1248,11 @@ def _geometry_points_and_colors(geometry: Any) -> tuple[np.ndarray, np.ndarray |
 def _scene_points_and_colors(scene_or_geometry: Any, *, max_points: int = 400_000) -> tuple[np.ndarray, np.ndarray | None] | None:
     geometries = []
     if hasattr(scene_or_geometry, "geometry"):
-        geometries = list(scene_or_geometry.geometry.values())
+        try:
+            dumped = scene_or_geometry.dump(concatenate=False)
+            geometries = list(dumped) if isinstance(dumped, (list, tuple)) else [dumped]
+        except Exception:
+            geometries = list(scene_or_geometry.geometry.values())
     else:
         geometries = [scene_or_geometry]
 
@@ -1421,6 +1536,105 @@ class PipelineContext:
     load_kwargs: Dict[str, Any]
     device: str
     state: Dict[str, Any] = field(default_factory=dict)
+    lifecycle_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    active_leases: int = 0
+    dispose_when_idle: bool = False
+
+
+class _LeasedPipelineIterator:
+    """Pin and serialize a pipeline for the lifetime of a lazy result."""
+
+    def __init__(self, manager: "StudioManager", context: PipelineContext, iterator: Iterator[Any]) -> None:
+        self._manager = manager
+        self._context = context
+        self._iterator: Iterator[Any] = iterator
+        self._state_lock = threading.Lock()
+        self._next_active = False
+        self._close_requested = False
+        self._closed = False
+
+    def __iter__(self) -> "_LeasedPipelineIterator":
+        return self
+
+    def __next__(self) -> Any:
+        with self._state_lock:
+            if self._closed or self._close_requested:
+                raise StopIteration
+            if self._next_active:
+                raise RuntimeError("concurrent next() calls on a pipeline iterator are not supported")
+            self._next_active = True
+        try:
+            # The context lifecycle lock was transferred to this wrapper when
+            # it was created and remains held across the complete iterator.
+            value = next(self._iterator)
+        except BaseException:
+            self._finish_next(terminal=True)
+            raise
+        self._finish_next(terminal=False)
+        return value
+
+    def close(self) -> None:
+        finalize = False
+        with self._state_lock:
+            if self._closed:
+                return
+            self._close_requested = True
+            # generator.close() cannot run while another thread is executing
+            # next(). That thread owns finalization when it leaves next().
+            if not self._next_active:
+                self._closed = True
+                finalize = True
+        if finalize:
+            self._finalize(suppress_errors=False)
+
+    def _finish_next(self, *, terminal: bool) -> None:
+        finalize = False
+        with self._state_lock:
+            self._next_active = False
+            if terminal:
+                self._close_requested = True
+            if self._close_requested and not self._closed:
+                self._closed = True
+                finalize = True
+        if finalize:
+            # If close was requested by another thread, any close error must be
+            # suppressed here so it does not replace the result/exception from
+            # the in-flight next() call.
+            self._finalize(suppress_errors=True)
+
+    def _finalize(self, *, suppress_errors: bool) -> None:
+        context = self._context
+        manager = self._manager
+        iterator = self._iterator
+        # Drop our reference before releasing the eviction pin. A closed
+        # custom iterator may itself own the pipeline or CUDA tensors.
+        self._iterator = iter(())
+        close = getattr(iterator, "close", None)
+        close_error: BaseException | None = None
+        try:
+            if callable(close):
+                close()
+        except BaseException as exc:  # pragma: no cover - defensive custom iterator cleanup
+            close_error = exc
+        finally:
+            # A primitive Lock is deliberately used here: the frontend may
+            # consume/close the iterator on a different thread from creation.
+            del close
+            del iterator
+            context.lifecycle_lock.release()
+            manager._release_pipeline_lease(context)
+            # A caller may keep an exhausted wrapper around indefinitely; it
+            # must not retain an otherwise uncached PipelineContext.
+            self._context = None  # type: ignore[assignment]
+            self._manager = None  # type: ignore[assignment]
+        if close_error is not None and not suppress_errors:
+            raise close_error
+
+    def __del__(self) -> None:  # pragma: no cover - nondeterministic GC safety net
+        try:
+            self.close()
+        except Exception:
+            pass
 
 
 class BaseRuntimeDriver:
@@ -1444,6 +1658,8 @@ class BaseRuntimeDriver:
         cache_key = _hash_payload(payload)
         cached = manager.pipeline_cache.get(cache_key)
         if cached is not None:
+            if cached.dispose_when_idle:
+                raise RuntimeError(f"{entry.display_name} is pending unload")
             if progress_callback is not None:
                 progress_callback(0.46, "Reusing cached pipeline")
             manager.pipeline_cache.move_to_end(cache_key)
@@ -1492,7 +1708,12 @@ class BaseRuntimeDriver:
         env_updates: dict[str, str] = {}
         if entry.model_id in TORCH_COMPILE_ENV_MODELS and call_payload.pop("torch_compile", False):
             env_updates["WORLDFOUNDRY_ENABLE_TORCH_COMPILE"] = "1"
+            configure_persistent_compile_cache(namespace=entry.model_id)
 
+        # Reserve cache capacity before constructing the next pipeline. Loading
+        # first and evicting afterwards transiently requires N+1 model copies,
+        # which is exactly when large CUDA pipelines tend to OOM.
+        manager._reserve_pipeline_cache_slot()
         with _temporary_env(env_updates):
             pipeline = _call_with_supported_kwargs(load_method, call_payload)
         if progress_callback is not None:
@@ -1507,9 +1728,10 @@ class BaseRuntimeDriver:
             load_kwargs=request.load_kwargs,
             device=request.device,
         )
-        manager.pipeline_cache[cache_key] = context
-        manager.pipeline_cache.move_to_end(cache_key)
-        manager._enforce_cache_limit()
+        if manager.max_cached_pipelines > 0:
+            manager.pipeline_cache[cache_key] = context
+            manager.pipeline_cache.move_to_end(cache_key)
+            manager._enforce_cache_limit()
         return context
 
     def run_fresh(self, manager: "StudioManager", ctx: PipelineContext, request: PreparedInputs) -> RunRecord:
@@ -1555,7 +1777,7 @@ class BaseRuntimeDriver:
         self._seed_stream_state(ctx, request, force_reset=False)
         stream_request = self._prepare_stream_request(ctx, request)
         result = self._invoke(ctx, stream_request, mode="stream")
-        if _supports_memory_stream(ctx.pipeline):
+        if _supports_memory_stream(ctx.pipeline) or _pipeline_stream_state_ready(ctx.pipeline):
             ctx.state["studio_stream_initialized"] = True
         return manager.materialize_run(ctx, request, result=result, mode="stream")
 
@@ -1564,6 +1786,10 @@ class BaseRuntimeDriver:
         memory = getattr(pipeline, "memory_module", None)
         if memory is not None and hasattr(memory, "manage"):
             memory.manage(action="reset")
+        else:
+            reset_memory = getattr(pipeline, "reset_memory", None)
+            if callable(reset_memory):
+                reset_memory()
         ctx.state.clear()
         return f"Reset interactive state for {ctx.entry.display_name}."
 
@@ -1615,11 +1841,16 @@ class BaseRuntimeDriver:
             return request
         if not ctx.state.get("studio_stream_initialized"):
             return request
-        return replace(request, image=None, image_path=None)
+        # The resident memory already owns the seed.  Clear every alias that
+        # `_invoke` could bind back to `images`; retaining `input_path` would
+        # silently re-seed/reset pipelines such as LingBot on every chunk.
+        return replace(request, input_path="", image=None, image_path=None)
 
     def _prime_memory_after_fresh(self, ctx: PipelineContext, result: Any) -> None:
         pipeline = ctx.pipeline
         if not _supports_memory_stream(pipeline):
+            if _pipeline_stream_state_ready(pipeline):
+                ctx.state["studio_stream_initialized"] = True
             return
 
         video_chunk = _coerce_video_chunk(result)
@@ -1631,7 +1862,14 @@ class BaseRuntimeDriver:
         memory.record(video_chunk, type="video_chunk")
         ctx.state["studio_stream_initialized"] = True
 
-    def _invoke(self, ctx: PipelineContext, request: PreparedInputs, mode: str) -> Any:
+    def _invoke(
+        self,
+        ctx: PipelineContext,
+        request: PreparedInputs,
+        mode: str,
+        *,
+        materialize_outputs: bool = True,
+    ) -> Any:
         method = getattr(ctx.pipeline, "stream" if mode == "stream" else "__call__")
         base_kwargs = dict(request.call_kwargs)
         names = _signature_names(method)
@@ -1698,21 +1936,35 @@ class BaseRuntimeDriver:
             base_kwargs.setdefault("last_frame", request.last_frame)
         if request.reference_images and ("reference_images" in names or accepts_var_kwargs):
             base_kwargs.setdefault("reference_images", request.reference_images)
-        if request.num_frames and "num_frames" in names:
+        # A few official runtimes expose both ``frame_num`` (their native
+        # option) and ``num_frames`` (the generic Studio alias).  Do not let
+        # Studio's generic fallback silently override an explicit native
+        # value that is already present in ``call_kwargs``.
+        frame_aliases = ("num_frames", "frame_num", "frames", "video_length")
+        if (
+            request.num_frames
+            and "num_frames" in names
+            and not any(alias in base_kwargs for alias in frame_aliases)
+        ):
             base_kwargs.setdefault("num_frames", request.num_frames)
         if request.fps and "fps" in names:
             base_kwargs.setdefault("fps", request.fps)
+        if mode == "run" and "return_dict" in names:
+            base_kwargs.setdefault("return_dict", True)
         if mode == "stream" and "images" in names and "images" not in base_kwargs:
             # Some stream() entry points require the images argument even after
             # Studio has already seeded memory from the previous turn.
             base_kwargs["images"] = None
-        if "output_dir" in names or accepts_var_kwargs:
+        if materialize_outputs and ("output_dir" in names or accepts_var_kwargs):
             base_kwargs.setdefault("output_dir", request.output_dir)
-        if "output_path" in names or accepts_var_kwargs:
+        if materialize_outputs and ("output_path" in names or accepts_var_kwargs):
             base_kwargs.setdefault("output_path", request.output_path)
 
         result = _call_with_supported_kwargs(method, base_kwargs)
-        if hasattr(result, "__iter__") and not isinstance(result, (dict, list, tuple, str, bytes, Image.Image, np.ndarray)):
+        if materialize_outputs and hasattr(result, "__iter__") and not isinstance(
+            result,
+            (dict, list, tuple, str, bytes, Image.Image, np.ndarray),
+        ):
             result = list(result)
         return result
 
@@ -1786,8 +2038,8 @@ class TwoStage3DGSRuntimeDriver(BaseRuntimeDriver):
         camera_range = recon_info["camera_range"]
         base_camera = dict(recon_info["default_camera"])
         base_camera["radius"] = request.call_kwargs.get("camera_radius", base_camera.get("radius", 4.0))
-        base_camera["yaw"] = request.call_kwargs.get("camera_yaw", 0.0)
-        base_camera["pitch"] = request.call_kwargs.get("camera_pitch", 0.0)
+        base_camera["yaw"] = request.call_kwargs.get("camera_yaw", base_camera.get("yaw", 0.0))
+        base_camera["pitch"] = request.call_kwargs.get("camera_pitch", base_camera.get("pitch", 0.0))
         if request.camera_view is not None and ctx.entry.model_id == "vggt":
             base_camera = pipeline._apply_camera_view_to_camera_cfg(  # type: ignore[attr-defined]
                 camera_cfg=base_camera,
@@ -1800,15 +2052,20 @@ class TwoStage3DGSRuntimeDriver(BaseRuntimeDriver):
             interactions = [interactions]
         if interactions:
             repeats = max(int(request.call_kwargs.get("frames_per_interaction", 10)), 1)
-            expanded = [token for token in interactions for _ in range(repeats)]
+            supports_interpolated_actions = ctx.entry.model_id in {"vggt", "vggt-omega"}
+            sequence = list(interactions) if supports_interpolated_actions else [
+                token for token in interactions for _ in range(repeats)
+            ]
+            render_kwargs = {"frames_per_interaction": repeats} if supports_interpolated_actions else {}
             return pipeline.render_interaction_video_with_3dgs(
                 ply_path=recon_info["ply_path"],
                 camera_range=camera_range,
                 base_camera_config=base_camera,
-                interaction_sequence=expanded,
+                interaction_sequence=sequence,
                 image_width=int(request.call_kwargs.get("image_width", 704)),
                 image_height=int(request.call_kwargs.get("image_height", 480)),
                 fps=request.fps,
+                **render_kwargs,
             )
         return pipeline.render_orbit_video_with_3dgs(
             ply_path=recon_info["ply_path"],
@@ -2006,8 +2263,10 @@ class StudioManager:
         self.workspace_root = str(_ensure_dir(resolved_root))
         self.runs_root = str(_ensure_dir(Path(self.workspace_root) / "runs"))
         self.pipeline_cache: "OrderedDict[str, PipelineContext]" = OrderedDict()
-        self.max_cached_pipelines = max_cached_pipelines
-        self.lock = threading.Lock()
+        self.max_cached_pipelines = max(0, int(max_cached_pipelines))
+        # Iterator finalizers may release a pipeline lease while manager code
+        # already owns this lock in the same thread.
+        self.lock = threading.RLock()
         self.torchrun_command_lock = threading.Lock()
 
     def _torchrun_dist(self) -> Any:
@@ -2018,25 +2277,85 @@ class StudioManager:
             return None
         return dist
 
-    def _torchrun_worker_request(self, request: PreparedInputs) -> PreparedInputs:
+    def _torchrun_worker_request(
+        self,
+        entry: CatalogEntry,
+        request: PreparedInputs,
+    ) -> PreparedInputs:
         if not _torchrun_lingbot_fast_enabled():
             return request
         load_kwargs = dict(request.load_kwargs)
         load_kwargs["rank"] = _torchrun_rank()
-        load_kwargs["t5_fsdp"] = True
-        load_kwargs["dit_fsdp"] = True
-        load_kwargs["ulysses_size"] = (
-            _torchrun_world_size() if lingbot_fast_sequence_parallel_enabled() else 1
-        )
-        load_kwargs["t5_cpu"] = False
-
-        call_kwargs = dict(request.call_kwargs)
-        call_kwargs["offload_model"] = False
+        torch = _torch_module()
 
         device = request.device
-        torch = _torch_module()
         if torch is not None and torch.cuda.is_available():
-            device = f"cuda:{_torchrun_local_rank()}"
+            device = f"cuda:{_torchrun_cuda_device_index(torch)}"
+
+        if entry.model_id == MATRIX_GAME3_MODEL_ID:
+            # Matrix-Game 3 owns its Ulysses/FSDP policy. Do not leak LingBot's
+            # replicated-vs-sharded heuristic or offload flags into this model.
+            load_kwargs["ulysses_size"] = _torchrun_world_size()
+            load_kwargs.pop("world_size", None)
+            return replace(request, load_kwargs=load_kwargs, device=device)
+
+        if entry.model_id in {HELIOS_MODEL_ID, LONGVIE2_MODEL_ID, DREAMX_WORLD_MODEL_ID}:
+            # These runtimes own their context/sequence parallel topology. The
+            # Studio command bridge maps each rank to local CUDA without
+            # leaking LingBot FSDP/offload policy into their model loaders.
+            if entry.model_id == LONGVIE2_MODEL_ID:
+                world_size = _torchrun_world_size()
+                if world_size != 4:
+                    raise RuntimeError(
+                        "LongVie 2 distributed Studio requires exactly four torchrun ranks."
+                    )
+                load_kwargs.update(
+                    use_usp=True,
+                    ring_degree=1,
+                    ulysses_degree=4,
+                )
+            return replace(request, load_kwargs=load_kwargs, device=device)
+
+        replicate_model = False
+        total_gib = _torchrun_min_gpu_vram_gib()
+        if total_gib is not None:
+            try:
+                min_gib = float(os.getenv("WORLDFOUNDRY_LINGBOT_REPLICATED_MIN_VRAM_GB", "72") or "72")
+                replicate_model = total_gib >= max(min_gib, 0.0)
+            except ValueError:
+                replicate_model = False
+        # Replication avoids per-block FSDP all-gathers on 80GB-class GPUs.
+        # Lower-memory and unknown devices default to the conservative sharded
+        # path; explicit user choices always win.
+        load_kwargs.setdefault("t5_fsdp", not replicate_model)
+        load_kwargs.setdefault("dit_fsdp", not replicate_model)
+        load_kwargs.setdefault(
+            "ulysses_size",
+            _torchrun_world_size() if lingbot_fast_sequence_parallel_enabled() else 1
+        )
+        load_kwargs.setdefault("t5_cpu", False)
+
+        # LingBot v1 keeps ``offload_model`` in call kwargs, while its runtime
+        # constructor also uses that value as the default prediction policy.
+        # Propagate the effective request policy into the loader so the
+        # catalog's distributed default (DiT FSDP + no offload) is not
+        # accidentally validated against the constructor's legacy
+        # ``offload_model=True`` default.  Call kwargs are authoritative for
+        # the actual prediction, so synchronize that effective policy before
+        # the loader performs its FSDP/offload preflight.
+        load_kwargs["offload_model"] = bool(
+            request.call_kwargs.get("offload_model", load_kwargs.get("offload_model", False))
+        )
+
+        call_kwargs = dict(request.call_kwargs)
+
+        if entry.model_id == LINGBOT_WORLD_V2_MODEL_ID:
+            # The active Workspace process group is authoritative.  Catalog
+            # defaults describe the official eight-rank recipe, but a valid
+            # compact four-rank launch must not carry a stale eight into the
+            # runtime's preflight validation.
+            call_kwargs["nproc_per_node"] = _torchrun_world_size()
+        call_kwargs.setdefault("offload_model", False)
 
         return replace(
             request,
@@ -2046,12 +2365,31 @@ class StudioManager:
         )
 
     def _should_use_torchrun_lingbot_fast(self, entry: CatalogEntry, request: PreparedInputs) -> bool:
-        if entry.model_id != LINGBOT_WORLD_MODEL_ID:
+        if entry.model_id not in {
+            LINGBOT_WORLD_MODEL_ID,
+            LINGBOT_WORLD_V2_MODEL_ID,
+            MATRIX_GAME3_MODEL_ID,
+            LONGVIE2_MODEL_ID,
+            HELIOS_MODEL_ID,
+            DREAMX_WORLD_MODEL_ID,
+        }:
             return False
         if request.backend == "api_init":
             return False
         if not _torchrun_lingbot_fast_enabled():
             return False
+        if entry.model_id == LONGVIE2_MODEL_ID:
+            world_size = _torchrun_world_size()
+            if world_size not in {1, 4}:
+                raise RuntimeError(
+                    "LongVie 2 supports only one GPU or exactly four USP ranks; "
+                    f"got WORLD_SIZE={world_size}."
+                )
+            return world_size == 4
+        if entry.model_id in {MATRIX_GAME3_MODEL_ID, HELIOS_MODEL_ID, DREAMX_WORLD_MODEL_ID}:
+            return _torchrun_world_size() > 1
+        if entry.model_id == LINGBOT_WORLD_V2_MODEL_ID:
+            return True
         runtime_variant = str(request.load_kwargs.get("runtime_variant", "") or "").strip().lower()
         if runtime_variant == "fast":
             return True
@@ -2100,43 +2438,54 @@ class StudioManager:
                 progress_callback(0.24, "Resolving runtime")
             t_load = time.perf_counter()
             ctx = driver.load_pipeline(self, entry, request, progress_callback=progress_callback)
+            self._pin_pipeline_context(ctx)
             if perf_segments is not None:
                 perf_segments["load_pipeline_ms"] = (time.perf_counter() - t_load) * 1000.0
 
-            t_exec = time.perf_counter()
-            if action == "init":
-                if progress_callback is not None:
-                    progress_callback(0.72, "Initializing interactive state")
-                record = driver.run_init(self, ctx, request)
-            elif action == "run":
-                if progress_callback is not None:
-                    progress_callback(0.72, "Running fresh inference")
-                if materialize:
-                    record = driver.run_fresh(self, ctx, request)
+        t_exec = time.perf_counter()
+        try:
+            with ctx.lifecycle_lock:
+                if action == "init":
+                    if progress_callback is not None:
+                        progress_callback(0.72, "Initializing interactive state")
+                    record = driver.run_init(self, ctx, request)
+                elif action == "run":
+                    if progress_callback is not None:
+                        progress_callback(0.72, "Running fresh inference")
+                    if materialize:
+                        record = driver.run_fresh(self, ctx, request)
+                    else:
+                        result = driver._invoke(ctx, request, mode="run")
+                        driver._prime_memory_after_fresh(ctx, result)
+                        record = None
+                elif action == "stream":
+                    if progress_callback is not None:
+                        progress_callback(0.72, "Running stream continuation")
+                    if not materialize:
+                        raise RuntimeError(
+                            "Non-materializing torchrun Studio execution only supports fresh run actions."
+                        )
+                    record = driver.run_continue(self, ctx, request)
+                elif action == "reset":
+                    if progress_callback is not None:
+                        progress_callback(0.9, "Resetting interactive state")
+                    if not materialize:
+                        raise RuntimeError(
+                            "Non-materializing torchrun Studio execution only supports fresh run actions."
+                        )
+                    message = driver.reset(self, ctx)
+                    record = self._make_message_record(entry, request, message)
+                elif not materialize:
+                    raise RuntimeError(
+                        "Non-materializing torchrun Studio execution only supports fresh run actions."
+                    )
                 else:
-                    result = driver._invoke(ctx, request, mode="run")
-                    driver._prime_memory_after_fresh(ctx, result)
-                    record = None
-            elif action == "stream":
-                if progress_callback is not None:
-                    progress_callback(0.72, "Running stream continuation")
-                if not materialize:
-                    raise RuntimeError("Non-materializing torchrun Studio execution only supports fresh run actions.")
-                record = driver.run_continue(self, ctx, request)
-            elif action == "reset":
-                if progress_callback is not None:
-                    progress_callback(0.9, "Resetting interactive state")
-                if not materialize:
-                    raise RuntimeError("Non-materializing torchrun Studio execution only supports fresh run actions.")
-                message = driver.reset(self, ctx)
-                record = self._make_message_record(entry, request, message)
-            elif not materialize:
-                raise RuntimeError("Non-materializing torchrun Studio execution only supports fresh run actions.")
-            else:
-                raise ValueError(f"Unsupported Studio action: {action}")
-            if perf_segments is not None:
-                perf_segments["execute_ms"] = (time.perf_counter() - t_exec) * 1000.0
-            return record
+                    raise ValueError(f"Unsupported Studio action: {action}")
+                if perf_segments is not None:
+                    perf_segments["execute_ms"] = (time.perf_counter() - t_exec) * 1000.0
+                return record
+        finally:
+            self._release_pipeline_lease(ctx)
 
     def _run_local_torchrun_lingbot_fast(
         self,
@@ -2145,58 +2494,161 @@ class StudioManager:
         action: str,
         request: PreparedInputs,
         materialize: bool,
-    ) -> Optional[RunRecord]:
+        realtime: bool = False,
+    ) -> Any:
         driver = self.runtime_driver_for(entry)
-        request = self._torchrun_worker_request(request)
+        request = self._torchrun_worker_request(entry, request)
         with self.lock:
             ctx = driver.load_pipeline(self, entry, request, progress_callback=None)
+            self._pin_pipeline_context(ctx)
 
-            if action == "init":
-                if materialize:
-                    return driver.run_init(self, ctx, request)
-                seed_image = driver._seed_stream_state(ctx, request, force_reset=True)
-                if seed_image is None:
-                    raise ValueError(f"{ctx.entry.display_name} expects an image or tray selection before INIT.")
-                return None
+        try:
+            with ctx.lifecycle_lock:
+                if realtime:
+                    handled, realtime_result = self._run_native_realtime_pipeline_action(
+                        driver=driver,
+                        ctx=ctx,
+                        request=request,
+                        action=action,
+                    )
+                    if handled:
+                        return list(realtime_result) if isinstance(realtime_result, Iterator) else realtime_result
 
-            if action == "run":
-                result = driver._invoke(ctx, request, mode="run")
-                driver._prime_memory_after_fresh(ctx, result)
-                if materialize:
-                    return self.materialize_run(ctx, request, result=result, mode="run")
-                return None
-
-            if action == "stream":
-                if not ctx.entry.supports_stream:
-                    if ctx.entry.category in {"Embodied Action", "Visual Action"}:
-                        result = driver._invoke(ctx, request, mode="run")
-                        if materialize:
-                            return self.materialize_run(ctx, request, result=result, mode="stream")
+                if action in {"configure", "init"}:
+                    if action == "configure" and not driver.can_init(ctx, request):
                         return None
-                    raise RuntimeError(f"{ctx.entry.display_name} does not expose stream().")
-                driver._seed_stream_state(ctx, request, force_reset=False)
-                stream_request = driver._prepare_stream_request(ctx, request)
-                result = driver._invoke(ctx, stream_request, mode="stream")
-                if _supports_memory_stream(ctx.pipeline):
-                    ctx.state["studio_stream_initialized"] = True
-                if materialize:
-                    return self.materialize_run(ctx, request, result=result, mode="stream")
-                return None
+                    if materialize:
+                        return driver.run_init(self, ctx, request)
+                    seed_image = driver._seed_stream_state(ctx, request, force_reset=True)
+                    if seed_image is None:
+                        raise ValueError(f"{ctx.entry.display_name} expects an image or tray selection before INIT.")
+                    return seed_image
 
-            if action == "reset":
-                message = driver.reset(self, ctx)
-                if materialize:
-                    return self._make_message_record(entry, request, message)
-                return None
+                if action == "run":
+                    result = driver._invoke(
+                        ctx,
+                        request,
+                        mode="run",
+                        # All ranks must execute the same model API/kwargs.
+                        # ``materialize`` controls rank-0 artifact I/O only.
+                        materialize_outputs=False,
+                    )
+                    if isinstance(result, Iterator):
+                        result = list(result)
+                    driver._prime_memory_after_fresh(ctx, result)
+                    if materialize:
+                        return self.materialize_run(ctx, request, result=result, mode="run")
+                    return result
 
-            raise ValueError(f"Unsupported Studio action: {action}")
+                if action == "stream":
+                    if not ctx.entry.supports_stream:
+                        if ctx.entry.category in {"Embodied Action", "Visual Action"}:
+                            result = driver._invoke(
+                                ctx,
+                                request,
+                                mode="run",
+                                materialize_outputs=False,
+                            )
+                            if isinstance(result, Iterator):
+                                result = list(result)
+                            if materialize:
+                                return self.materialize_run(ctx, request, result=result, mode="stream")
+                            return result
+                        raise RuntimeError(f"{ctx.entry.display_name} does not expose stream().")
+                    driver._seed_stream_state(ctx, request, force_reset=False)
+                    stream_request = driver._prepare_stream_request(ctx, request)
+                    result = driver._invoke(
+                        ctx,
+                        stream_request,
+                        mode="stream",
+                        materialize_outputs=False,
+                    )
+                    if isinstance(result, Iterator):
+                        result = list(result)
+                    if _supports_memory_stream(ctx.pipeline) or _pipeline_stream_state_ready(ctx.pipeline):
+                        ctx.state["studio_stream_initialized"] = True
+                    if materialize:
+                        return self.materialize_run(ctx, request, result=result, mode="stream")
+                    return result
+
+                if action == "reset":
+                    message = driver.reset(self, ctx)
+                    if materialize:
+                        return self._make_message_record(entry, request, message)
+                    return None
+
+                raise ValueError(f"Unsupported Studio action: {action}")
+        finally:
+            self._release_pipeline_lease(ctx)
+
+    def _run_native_realtime_pipeline_action(
+        self,
+        *,
+        driver: BaseRuntimeDriver,
+        ctx: PipelineContext,
+        request: PreparedInputs,
+        action: str,
+    ) -> tuple[bool, Any]:
+        """Dispatch to a model-owned resident session when one is exposed."""
+
+        pipeline = ctx.pipeline
+        configure = getattr(pipeline, "configure_realtime", None)
+        stream = getattr(pipeline, "stream_realtime", None)
+        if not callable(configure) or not callable(stream):
+            return False, None
+
+        if action in {"configure", "init"}:
+            seed_image = driver._resolve_init_image(request)
+            prompt_only_configure = (
+                "prompt-scheduled" in ctx.entry.tags and bool(str(request.prompt or "").strip())
+            )
+            if seed_image is None and not prompt_only_configure:
+                prepare = getattr(pipeline, "prepare_realtime", None)
+                if callable(prepare):
+                    return True, prepare()
+                return True, None
+            kwargs = dict(request.call_kwargs)
+            for key in ("images", "image", "prompt", "interactions", "fps"):
+                kwargs.pop(key, None)
+            result = configure(
+                images=seed_image,
+                prompt=request.prompt,
+                fps=request.fps,
+                **kwargs,
+            )
+            ctx.state["studio_stream_initialized"] = True
+            return True, result
+
+        if action == "stream":
+            if not ctx.state.get("studio_stream_initialized"):
+                raise RuntimeError(
+                    f"{ctx.entry.display_name} realtime stream has not been configured."
+                )
+            kwargs = dict(request.call_kwargs)
+            for key in ("images", "image", "prompt", "interactions"):
+                kwargs.pop(key, None)
+            result = stream(
+                prompt=request.prompt,
+                interactions=list(request.interactions or []),
+                **kwargs,
+            )
+            return True, result
+
+        if action == "reset":
+            reset = getattr(pipeline, "reset_realtime", None)
+            if callable(reset):
+                reset()
+            ctx.state.clear()
+            return True, f"Reset realtime state for {ctx.entry.display_name}."
+
+        return False, None
 
     def _reset_cached_model_local(self, model_id: str) -> str:
         with self.lock:
             matching_contexts = [
                 context
                 for context in self.pipeline_cache.values()
-                if context.entry.model_id == model_id
+                if context.entry.model_id == model_id and not context.dispose_when_idle
             ]
             if not matching_contexts:
                 try:
@@ -2204,28 +2656,47 @@ class StudioManager:
                     return f"No cached interactive state for {entry.display_name}."
                 except Exception:
                     return f"No cached interactive state for {model_id}."
+            for context in matching_contexts:
+                self._pin_pipeline_context(context)
 
-            messages: list[str] = []
+        messages: list[str] = []
+        try:
             for context in matching_contexts:
                 driver = self.runtime_driver_for(context.entry)
-                messages.append(driver.reset(self, context))
+                with context.lifecycle_lock:
+                    messages.append(driver.reset(self, context))
+        finally:
+            for context in matching_contexts:
+                self._release_pipeline_lease(context)
 
-            deduped_messages = list(dict.fromkeys(messages))
-            if len(deduped_messages) == 1:
-                return deduped_messages[0]
-            return " ".join(deduped_messages)
+        deduped_messages = list(dict.fromkeys(messages))
+        if len(deduped_messages) == 1:
+            return deduped_messages[0]
+        return " ".join(deduped_messages)
 
     def _unload_local(self, model_id: Optional[str] = None) -> str:
         with self.lock:
-            removed = []
+            removed: list[str] = []
+            scheduled: list[str] = []
             for key, context in list(self.pipeline_cache.items()):
                 if model_id and context.entry.model_id != model_id:
                     continue
-                removed.append(context.entry.display_name)
+                if context.active_leases > 0:
+                    context.dispose_when_idle = True
+                    scheduled.append(context.entry.display_name)
+                    continue
                 self.pipeline_cache.pop(key, None)
-                self._dispose_pipeline(context.pipeline)
+                removed.append(context.entry.display_name)
+                self._dispose_pipeline_context(context)
+            if removed and scheduled:
+                return (
+                    f"Unloaded: {', '.join(removed)}. "
+                    f"Scheduled after active stream: {', '.join(scheduled)}."
+                )
             if removed:
                 return f"Unloaded: {', '.join(removed)}."
+            if scheduled:
+                return f"Scheduled after active stream: {', '.join(scheduled)}."
             return "No cached pipelines were unloaded."
 
     def _execute_torchrun_command(self, command: Dict[str, Any]) -> Any:
@@ -2246,6 +2717,17 @@ class StudioManager:
                     action=str(command["action"]),
                     request=request,
                     materialize=rank == 0,
+                    realtime=False,
+                )
+            elif kind == "realtime_action":
+                entry = find_entry(str(command["model_id"]))
+                request = _prepared_inputs_from_payload(dict(command["request"]))
+                local_result = self._run_local_torchrun_lingbot_fast(
+                    entry=entry,
+                    action=str(command["action"]),
+                    request=request,
+                    materialize=False,
+                    realtime=True,
                 )
             elif kind == "reset_model":
                 local_result = self._reset_cached_model_local(str(command["model_id"]))
@@ -2254,6 +2736,11 @@ class StudioManager:
                 local_result = self._unload_local(str(model_id) if model_id else None)
             else:
                 raise ValueError(f"Unsupported torchrun Studio command: {kind}")
+            if isinstance(local_result, Iterator):
+                # Every rank must advance a distributed generator so its
+                # collectives execute. Returning a rank-0-only lazy iterator
+                # would leave the remaining ranks waiting for the next command.
+                local_result = list(local_result)
         except Exception as exc:
             print(
                 f"[studio][torchrun][rank {rank}] {type(exc).__name__}: {exc}\n{traceback.format_exc()}",
@@ -2275,7 +2762,7 @@ class StudioManager:
                     f"rank {status['rank']}: {status['error']}"
                     for status in failures
                 )
-                raise RuntimeError(f"Distributed LingBot fast command failed: {joined}")
+                raise RuntimeError(f"Distributed Studio command failed: {joined}")
             return None
         return local_result if rank == 0 else None
 
@@ -2318,11 +2805,90 @@ class StudioManager:
 
     def _enforce_cache_limit(self) -> None:
         while len(self.pipeline_cache) > self.max_cached_pipelines:
-            _, context = self.pipeline_cache.popitem(last=False)
-            self._dispose_pipeline(context.pipeline)
+            self._evict_oldest_pipeline()
+
+    def _reserve_pipeline_cache_slot(self) -> None:
+        """Evict before loading so a cache miss never requires N+1 pipelines."""
+
+        if self.max_cached_pipelines <= 0:
+            while self.pipeline_cache:
+                self._evict_oldest_pipeline()
+            return
+        while len(self.pipeline_cache) >= self.max_cached_pipelines:
+            self._evict_oldest_pipeline()
+
+    def _evict_oldest_pipeline(self) -> None:
+        if not self.pipeline_cache:
+            return
+        for key, context in list(self.pipeline_cache.items()):
+            if context.active_leases > 0:
+                continue
+            self.pipeline_cache.pop(key, None)
+            self._dispose_pipeline_context(context)
+            return
+        raise RuntimeError(
+            "All cached pipelines are serving active lazy streams; "
+            "cannot evict one safely for a new model load."
+        )
+
+    def _lease_lazy_pipeline_result(
+        self,
+        context: PipelineContext,
+        result: Any,
+        *,
+        lifecycle_lock_held: bool = False,
+        lease_held: bool = False,
+    ) -> Any:
+        """Pin a context when model execution escapes as a lazy iterator."""
+
+        if not isinstance(result, Iterator):
+            return result
+        if context.dispose_when_idle:
+            close = getattr(result, "close", None)
+            if callable(close):
+                close()
+            raise RuntimeError(f"{context.entry.display_name} is pending unload")
+        if not lease_held:
+            self._pin_pipeline_context(context)
+        if not lifecycle_lock_held:
+            context.lifecycle_lock.acquire()
+        return _LeasedPipelineIterator(self, context, result)
+
+    def _pin_pipeline_context(self, context: PipelineContext) -> None:
+        with self.lock:
+            if context.dispose_when_idle:
+                raise RuntimeError(f"{context.entry.display_name} is pending unload")
+            context.active_leases += 1
+
+    def _release_pipeline_lease(self, context: PipelineContext) -> None:
+        with self.lock:
+            if context.active_leases > 0:
+                context.active_leases -= 1
+            if context.active_leases != 0:
+                return
+            cached = self.pipeline_cache.get(context.cache_key) is context
+            if not context.dispose_when_idle and cached:
+                return
+            if cached:
+                self.pipeline_cache.pop(context.cache_key, None)
+            self._dispose_pipeline_context(context)
+
+    def _dispose_pipeline_context(self, context: PipelineContext) -> None:
+        """Drop the last context reference before allocator collection."""
+
+        context.pipeline = None
+        context.state.clear()
+        self._collect_device_memory()
 
     def _dispose_pipeline(self, pipeline: Any) -> None:
+        """Compatibility helper for detached, caller-owned pipeline values."""
+
+        if pipeline is None:
+            return
         del pipeline
+        self._collect_device_memory()
+
+    def _collect_device_memory(self) -> None:
         gc.collect()
         torch = _torch_module()
         if torch is not None and torch.cuda.is_available():
@@ -2609,6 +3175,104 @@ class StudioManager:
         _persist_studio_performance_metadata(record, perf_segments)
         return record
 
+    def run_realtime(
+        self,
+        *,
+        entry: CatalogEntry,
+        request: PreparedInputs,
+        action: str,
+    ) -> Any:
+        """Run one resident interactive action without creating artifacts.
+
+        Realtime frontends keep one prepared request and one cached pipeline for
+        the lifetime of a session.  This path deliberately bypasses
+        :meth:`materialize_run`: no MP4 encoding, artifact scan, preview
+        selection, or manifest write is allowed on the control-to-frame hot
+        path.
+        """
+
+        if self._should_use_torchrun_lingbot_fast(entry, request):
+            return self._run_torchrun_command(
+                {
+                    "kind": "realtime_action",
+                    "model_id": entry.model_id,
+                    "action": action,
+                    "request": _prepared_inputs_payload(request),
+                }
+            )
+
+        driver = self.runtime_driver_for(entry)
+        with self.lock:
+            ctx = driver.load_pipeline(self, entry, request, progress_callback=None)
+            self._pin_pipeline_context(ctx)
+
+        ctx.lifecycle_lock.acquire()
+        lifecycle_transferred = False
+
+        def finish_realtime_result(value: Any) -> Any:
+            nonlocal lifecycle_transferred
+            wrapped = self._lease_lazy_pipeline_result(
+                ctx,
+                value,
+                lifecycle_lock_held=True,
+                lease_held=True,
+            )
+            lifecycle_transferred = isinstance(wrapped, _LeasedPipelineIterator)
+            return wrapped
+
+        try:
+            if ctx.dispose_when_idle:
+                raise RuntimeError(f"{ctx.entry.display_name} is pending unload")
+            handled, realtime_result = self._run_native_realtime_pipeline_action(
+                driver=driver,
+                ctx=ctx,
+                request=request,
+                action=action,
+            )
+            if handled:
+                return finish_realtime_result(realtime_result)
+            if action in {"configure", "init"}:
+                if action == "configure" and not driver.can_init(ctx, request):
+                    return None
+                seed_image = driver._seed_stream_state(ctx, request, force_reset=True)
+                if seed_image is None:
+                    raise ValueError(
+                        f"{ctx.entry.display_name} expects an image before realtime INIT."
+                    )
+                return seed_image
+            if action == "run":
+                result = driver._invoke(
+                    ctx,
+                    request,
+                    mode="run",
+                    materialize_outputs=False,
+                )
+                driver._prime_memory_after_fresh(ctx, result)
+                return finish_realtime_result(result)
+            if action == "stream":
+                if not ctx.entry.supports_stream or not hasattr(ctx.pipeline, "stream"):
+                    raise RuntimeError(
+                        f"{ctx.entry.display_name} does not expose realtime stream controls."
+                    )
+                driver._seed_stream_state(ctx, request, force_reset=False)
+                stream_request = driver._prepare_stream_request(ctx, request)
+                result = driver._invoke(
+                    ctx,
+                    stream_request,
+                    mode="stream",
+                    materialize_outputs=False,
+                )
+                if _supports_memory_stream(ctx.pipeline) or _pipeline_stream_state_ready(ctx.pipeline):
+                    ctx.state["studio_stream_initialized"] = True
+                return finish_realtime_result(result)
+            if action == "reset":
+                return driver.reset(self, ctx)
+            raise ValueError(f"Unsupported realtime action: {action}")
+        finally:
+            if not lifecycle_transferred:
+                ctx.lifecycle_lock.release()
+                self._release_pipeline_lease(ctx)
+
     def _new_message_output_dir(self, model_id: str) -> str:
         run_seed = f"{_timestamp()}-{_slugify(model_id)}"
         return str(_ensure_dir(Path(self.runs_root) / run_seed))
@@ -2659,7 +3323,14 @@ class StudioManager:
         return record
 
     def reset_cached_model(self, model_id: str) -> str:
-        if _torchrun_lingbot_fast_enabled() and model_id == LINGBOT_WORLD_MODEL_ID:
+        if _torchrun_lingbot_fast_enabled() and model_id in {
+            LINGBOT_WORLD_MODEL_ID,
+            LINGBOT_WORLD_V2_MODEL_ID,
+            MATRIX_GAME3_MODEL_ID,
+            LONGVIE2_MODEL_ID,
+            HELIOS_MODEL_ID,
+            DREAMX_WORLD_MODEL_ID,
+        }:
             command = {"kind": "reset_model", "model_id": model_id}
             result = self._run_torchrun_command(command)
             return str(result or "")
@@ -2739,10 +3410,18 @@ class StudioManager:
                 "scene_path",
                 "glb_path",
                 "ply_path",
+                "rrd_path",
+                "visualization_artifact_path",
             ):
                 value = result.get(key)
                 if isinstance(value, str) and Path(value).exists():
                     saved_artifacts.append(value)
+            for key in ("artifact_paths", "artifacts"):
+                values = result.get(key)
+                if isinstance(values, (list, tuple)):
+                    saved_artifacts.extend(
+                        str(path) for path in values if isinstance(path, (str, Path)) and Path(path).exists()
+                    )
             for key in ("preview_image", "first_frame"):
                 value = result.get(key)
                 if isinstance(value, str) and Path(value).exists():
@@ -2898,6 +3577,11 @@ class StudioManager:
             },
             artifact_paths=viewport_artifacts,
             gaussian_ply_predicate=_is_gaussian_splat_ply,
+            result_metadata=(
+                result.get("metadata")
+                if isinstance(result, Mapping) and isinstance(result.get("metadata"), Mapping)
+                else None
+            ),
         )
         record_materialize_timing("materialize_viewports_ms", t_viewports)
         materialize_timings["materialize_total_ms"] = (time.perf_counter() - materialize_t0) * 1000.0
@@ -2938,6 +3622,28 @@ class StudioManager:
                 payload = json.loads(manifest_path.read_text(encoding="utf-8"))
             except Exception:
                 continue
+            # A pipeline may return an artifact from a temporary directory and
+            # Studio subsequently copies it into the persistent run directory.
+            # After the temporary directory is removed, older manifests must
+            # prefer the persistent copy instead of advertising a dead URL.
+            persisted_artifacts = _existing_artifact_paths(
+                [
+                    *list(payload.get("artifacts") or []),
+                    *collect_artifact_paths(str(manifest_path.parent)),
+                ]
+            )
+            recovered_previews = pick_preview_assets(persisted_artifacts, validate_videos=False)
+
+            def persisted_preview(key: str) -> Any:
+                configured = payload.get(key)
+                if configured:
+                    try:
+                        if Path(configured).is_file():
+                            return configured
+                    except (OSError, TypeError, ValueError):
+                        pass
+                return recovered_previews.get(key)
+
             records.append(
                 RunRecord(
                     run_id=payload.get("run_id", manifest_path.parent.name),
@@ -2947,12 +3653,12 @@ class StudioManager:
                     status=payload.get("status", ""),
                     output_dir=payload.get("output_dir", str(manifest_path.parent)),
                     manifest_path=payload.get("manifest_path", str(manifest_path)),
-                    preview_video=payload.get("preview_video"),
-                    preview_image=payload.get("preview_image"),
-                    preview_splat=payload.get("preview_splat"),
-                    preview_model=payload.get("preview_model"),
-                    gallery=list(payload.get("gallery", [])),
-                    rrd_path=payload.get("rrd_path"),
+                    preview_video=persisted_preview("preview_video"),
+                    preview_image=persisted_preview("preview_image"),
+                    preview_splat=persisted_preview("preview_splat"),
+                    preview_model=persisted_preview("preview_model"),
+                    gallery=list(recovered_previews.get("gallery") or payload.get("gallery", [])),
+                    rrd_path=persisted_preview("rrd_path"),
                     artifacts=list(payload.get("artifacts", [])),
                     metadata=dict(payload.get("metadata", {})),
                 )
@@ -2968,7 +3674,15 @@ class StudioManager:
     def unload(self, model_id: Optional[str] = None) -> str:
         from .visualization.backends.viser import STUDIO_VISER
 
-        if _torchrun_lingbot_fast_enabled() and (model_id in {None, LINGBOT_WORLD_MODEL_ID}):
+        if _torchrun_lingbot_fast_enabled() and model_id in {
+            None,
+            LINGBOT_WORLD_MODEL_ID,
+            LINGBOT_WORLD_V2_MODEL_ID,
+            MATRIX_GAME3_MODEL_ID,
+            LONGVIE2_MODEL_ID,
+            HELIOS_MODEL_ID,
+            DREAMX_WORLD_MODEL_ID,
+        }:
             command = {"kind": "unload_model", "model_id": model_id}
             result = self._run_torchrun_command(command)
             STUDIO_VISER.shutdown()

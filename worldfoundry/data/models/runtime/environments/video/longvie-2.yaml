@@ -11,8 +11,9 @@ env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
 model_id: longvie-2
 notes:
 - Mirrors the official LongVie 2 requirements and keeps the vendored DiffSynth runtime in-tree.
+- Studio launches the quality profile with four torchrun ranks (USP ring=1, ulysses=4); rank 0 alone writes output artifacts.
 - execute=True loads control.safetensors and dit.safetensors from WORLDFOUNDRY_HFD_ROOT or the bench-local ckpt/hfd fallback;
-  default WorldFoundry calls fail fast to avoid accidental 14B model loads in CPU tests.
+  every segment requires user-provided image/prompt/dense-depth/sparse-track conditioning.
 - Full checkpoint-backed parity should be run in this isolated env because the base test env may not include video-generation
   optional dependencies.
 pip_packages:
@@ -36,11 +37,12 @@ pip_packages:
 - numpy
 - opencv-python
 - huggingface_hub
+- xfuser
 python: '3.10'
 validation_imports:
 - torch
 - torchvision
-- transformers
+- transformers>=4.57.0,<5
 - accelerate
 - peft
 - imageio
@@ -55,3 +57,4 @@ validation_imports:
 - PIL
 - numpy
 - cv2
+- xfuser

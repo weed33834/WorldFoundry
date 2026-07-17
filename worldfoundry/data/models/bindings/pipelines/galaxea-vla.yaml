@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: galaxea-vla
+model_id: galaxea-vla
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.synthesis.action_generation.galaxea_vla.galaxea_vla_synthesis:GalaxeaVLASynthesis
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

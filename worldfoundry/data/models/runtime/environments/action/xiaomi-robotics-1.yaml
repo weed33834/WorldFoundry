@@ -1,0 +1,30 @@
+model_id: xiaomi-robotics-1
+env_name: worldfoundry-xiaomi-robotics-1-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+python: '3.12'
+cuda_profile: cu128
+driver_status: compatible
+conda_packages:
+- python
+- pip
+pip_packages:
+- torch==2.8.0
+- torchvision==0.23.0
+- torchaudio==2.8.0
+- transformers==4.57.1
+- accelerate==1.11.0
+- safetensors==0.6.2
+- numpy==2.1.3
+- Pillow==11.3.0
+pip_extra_index_url: https://download.pytorch.org/whl/cu128
+validation_imports:
+- torch
+- torchvision
+- transformers
+- accelerate
+- safetensors
+- numpy
+- PIL
+notes:
+- The runtime excludes training, socket-server, dataset, and simulator dependencies.
+- FlashAttention is optional; the core SDPA path covers Turing through Blackwell.

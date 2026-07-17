@@ -1,0 +1,8 @@
+schema_version: 2
+binding_id: hydra
+model_id: hydra
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.hydra.pipeline_hydra:HydraPipeline
+  loading: {method: from_pretrained, signature: unified}
+  invocation: {mode: native_or_standard_invocation}

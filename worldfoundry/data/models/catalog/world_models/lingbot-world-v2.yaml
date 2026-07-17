@@ -1,0 +1,52 @@
+id: lingbot-world-v2
+name: LingBot-World-V2
+aliases:
+- lingbot-world-infinity
+- lingbot-v2
+tasks:
+- image-to-world-video
+- camera-controlled-video
+- interactive-world-model
+provider: official_repo
+source:
+  status: source_available
+  official_repo_url: https://github.com/Robbyant/lingbot-world-v2
+  license: CC-BY-NC-SA-4.0
+  notes:
+  - Source and weights are public but restricted to non-commercial use with share-alike terms.
+official_sources:
+  github:
+    url: https://github.com/Robbyant/lingbot-world-v2
+    revision: 94f43115de8d4a4f9f282126528c300a0b232c5f
+  huggingface:
+  - repo_id: robbyant/lingbot-world-v2-14b-causal-fast
+    status: public_checkpoint
+    license: CC-BY-NC-SA-4.0
+checkpoint_refs:
+- repo_id: robbyant/lingbot-world-v2-14b-causal-fast
+  role: causal_fast_14b_checkpoint
+availability:
+  status: source_available
+  open_source: false
+  code: public
+  weights: public_huggingface
+  license: CC-BY-NC-SA-4.0
+integration:
+  kind: pipeline_runner
+  status: implemented_checkpoint_pending
+  notes:
+  - Only the released causal-fast inference route is integrated in-tree.
+  - Common Wan, T5, VAE, scheduler, FSDP, collective, geometry and media code is reused from WorldFoundry.
+  - Training, example assets and unreleased causal-pretrain/bidirectional routes are excluded.
+runtime_profile: runtime-profile:lingbot-world-v2
+pipeline_binding: lingbot-world-v2
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - Static imports, runtime planning and command construction are covered locally.
+  - Official 8-GPU artifact parity remains pending a staged 14B checkpoint and CUDA run.
+output_artifacts:
+- generated_world_video
+catalog_category: world_models
+catalog_scope: World-model catalog entries with in-tree inference runtimes.

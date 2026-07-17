@@ -1,0 +1,44 @@
+# Inference-only LiveWorld observer configuration.
+# Training loops, optimizers, datasets, logging, validation, and checkpoint
+# schedules intentionally remain outside WorldFoundry's in-tree runtime.
+
+num_train_timestep: 1000
+timestep_shift: 5.0
+guidance_scale: 6
+negative_prompt: >-
+  过曝，静态，细节模糊不清，字幕，静止，最差质量，低质量，JPEG压缩残留，丑陋的，
+  残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，
+  形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走
+
+wan_model_name: ckpts/Wan-AI--Wan2.1-T2V-14B
+load_official_backbone: true
+image_or_video_shape: [1, 3, 16, 60, 104]
+num_frame_per_block: 3
+vae_stride: [4, 8, 8]
+use_fg_proj: true
+
+use_lora: true
+lora_config:
+  r: 64
+  lora_alpha: 64
+  target_modules: [q, k, v, o]
+  lora_dropout: 0.02
+  bias: none
+  task_type: FEATURE_EXTRACTION
+
+sp_model_path: null
+wan_config_dict:
+  _class_name: WanModel
+  _diffusers_version: 0.36.0.dev0
+  dim: 5120
+  eps: 1.0e-6
+  ffn_dim: 13824
+  freq_dim: 256
+  in_dim: 16
+  model_type: t2v
+  num_heads: 40
+  num_layers: 40
+  out_dim: 16
+  text_len: 512
+  sp_layers: [0, 5, 10, 15, 20, 25, 30, 35]
+  sp_in_dim: 32

@@ -1,0 +1,117 @@
+schema_version: worldfoundry.official_video_runtime.v1
+model_id: helios
+runtime:
+  kind: official_cli
+  backend_quality: official_vendored_helios_runtime
+  # Running from the Helios package directory shadows the external Hugging Face
+  # `kernels` package with `helios/kernels`.  The module entrypoint is package-
+  # qualified, so use the repository root as cwd and keep the package on
+  # PYTHONPATH instead.
+  cwd: ${WORLDFOUNDRY_REPO_ROOT}
+  prepend_repo_root_to_pythonpath: false
+  repo_root_candidates:
+  - ${WORLDFOUNDRY_PACKAGE_ROOT}/synthesis/visual_generation/helios
+  checkpoint_candidates:
+  - ${WORLDFOUNDRY_CKPT_DIR}/Helios-Distilled
+  - ${WORLDFOUNDRY_HFD_ROOT}/BestWishYsh--Helios-Distilled
+  required_paths:
+  - id: official_inference_entrypoint
+    base: repo
+    path: infer_helios.py
+  - id: official_pipeline
+    base: repo
+    path: pipeline_helios_diffusers.py
+  - id: model_index
+    path: model_index.json
+  - id: transformer
+    path: transformer
+  - id: vae
+    path: vae
+  - id: scheduler
+    path: scheduler
+  - id: tokenizer
+    path: tokenizer
+  - id: text_encoder
+    path: text_encoder
+  defaults:
+    sample_type: auto
+    variant: distilled
+    height: 384
+    width: 640
+    num_frames: 240
+    fps: 24
+    num_inference_steps: 50
+    pyramid_num_inference_steps_list: [2, 2, 2]
+    guidance_scale: auto
+    seed: 42
+    weight_dtype: bf16
+    enable_compile: 0
+    enable_low_vram_mode: 0
+    group_offloading_type: leaf_level
+    num_blocks_per_group: 4
+    disable_flash_attention: 1
+    nproc_per_node: 1
+    cp_backend: ulysses
+    negative_prompt: Bright tones, overexposed, static, blurred details, subtitles, paintings, still picture, overall gray, worst quality, low quality, JPEG artifacts, deformed, disfigured, misshapen limbs, fused fingers, messy background, walking backwards
+  command:
+  - "{torchrun}"
+  - "--master_port={master_port}"
+  - --nproc_per_node
+  - "{nproc_per_node}"
+  - --module
+  - worldfoundry.synthesis.visual_generation.helios.infer_helios
+  - --base_model_path
+  - "{checkpoint_path}"
+  - --transformer_path
+  - "{checkpoint_path}"
+  - --output_path
+  - "{output_path}"
+  - --prompt
+  - "{prompt}"
+  - --negative_prompt
+  - "{negative_prompt}"
+  - --image_path
+  - "{image_path}"
+  - --video_path
+  - "{video_path}"
+  - --sample_type
+  - "{sample_type}"
+  - --model_variant
+  - "{variant}"
+  - --height
+  - "{height}"
+  - --width
+  - "{width}"
+  - --num_frames
+  - "{num_frames}"
+  - --fps
+  - "{fps}"
+  - --num_inference_steps
+  - "{num_inference_steps}"
+  - --pyramid_num_inference_steps_list
+  - "{pyramid_num_inference_steps_list}"
+  - --guidance_scale
+  - "{guidance_scale}"
+  - --seed
+  - "{seed}"
+  - --weight_dtype
+  - "{weight_dtype}"
+  - --enable_compile
+  - "{enable_compile}"
+  - --enable_low_vram_mode
+  - "{enable_low_vram_mode}"
+  - --group_offloading_type
+  - "{group_offloading_type}"
+  - --num_blocks_per_group
+  - "{num_blocks_per_group}"
+  - --disable_flash_attention
+  - "{disable_flash_attention}"
+  - --cp_backend
+  - "{cp_backend}"
+  preferred_artifact_patterns:
+  - helios.mp4
+notes:
+- Variant-aware defaults match the official Base, Mid, and Distilled inference recipes; Distilled is the default.
+- Image and video inputs are selected automatically when supplied by the WorldFoundry pipeline.
+- Set enable_low_vram_mode=1 for group offloading or nproc_per_node>1 for context-parallel inference.
+- The current official Diffusers Helios PR requests private wrapper symbols that are absent from the public kernels-community/flash-attn2 builds, including historical revisions checked on this environment. PyTorch attention is therefore the verified default; switch disable_flash_attention=0 after the upstream kernel contract is corrected.

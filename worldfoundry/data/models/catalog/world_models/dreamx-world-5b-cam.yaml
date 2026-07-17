@@ -4,9 +4,9 @@ checkpoints:
 family: GD-ML DreamX-World
 id: dreamx-world-5b-cam
 integration:
-  status: runtime_ported
+  status: integrated
   notes:
-  - DreamX-World official source route is registered; checkpoint/assets are runtime-gated.
+  - In-tree resident camera-control runtime with configurable Ulysses GPU count.
 license: apache-2.0
 modalities:
 - interactive-world-model
@@ -29,10 +29,9 @@ release_type: code_and_weights
 runtime_profile: runtime-profile:dreamx-world-5b-cam
 starred: true
 runner_parity:
-  status: implemented_checkpoint_pending
+  status: integrated
   notes:
-  - resolve_model_zoo_config and pipeline import are expected to pass; real generation
-    emits a runtime plan until required checkpoints/assets are staged.
+  - The unified pipeline runs the local 5B Cam and Wan2.2 support checkpoints directly.
 output_artifacts:
 - generated_world
 catalog_category: world_models

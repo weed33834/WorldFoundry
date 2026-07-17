@@ -1,0 +1,46 @@
+model_id: helios
+env_name: worldfoundry-helios-cu128
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+python: 3.11.2
+cuda_profile: cu128
+driver_status: compatible
+pip_extra_index_url: https://download.pytorch.org/whl/cu128
+conda_packages:
+- python=3.11.2
+- pip
+- ffmpeg
+- cuda-nvcc
+pip_packages:
+- pyyaml
+- torch==2.10.0
+- torchvision==0.25.0
+- triton==3.6.0
+- kernels==0.12.1
+- git+https://github.com/huggingface/diffusers.git@b16635e90efd1ac32360efad099d793c10413b35
+- transformers==5.3.0
+- peft==0.18.1
+- accelerate==1.12.0
+- huggingface-hub==1.4.1
+- numpy<2.0.0
+- opencv-python
+- moviepy
+- imageio-ffmpeg
+- video-reader-rs==0.4.1
+- aiohttp>=3.9,<4
+- aiortc>=1.14,<2
+- av>=14,<17
+- ftfy
+- packaging
+validation_imports:
+- yaml
+- torch
+- torchvision
+- triton
+- diffusers
+- transformers
+- accelerate
+- cv2
+notes:
+- Helios follows its official PyTorch 2.10 and source Diffusers environment rather than the shared environment. The former Helios feature repository was removed; this profile pins the public head of the official Diffusers Helios PR (#13208) until it lands on main.
+- Install the PyTorch wheels from the CUDA 12.8 index on CUDA 12.8 hosts.
+- Optional training-only dependencies from the upstream requirements file are intentionally omitted.

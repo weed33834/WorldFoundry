@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-import importlib.util
 import hashlib
+import importlib.util
 import json
+import math
 import os
 import socket
 import threading
@@ -14,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 POINT_CLOUD_NODE = "worldfoundry_studio_point_cloud"
+AUXILIARY_MESH_NODE = "worldfoundry_studio_auxiliary_mesh"
 CAMERA_NODE_ROOT = "worldfoundry_studio_cameras"
 DEFAULT_MAX_POINTS = 400_000
 DEFAULT_POINT_SIZE = 0.02
@@ -143,6 +145,39 @@ def _default_up_direction_for_preset(preset: str) -> str:
     return "+z"
 
 
+def viser_orientation_defaults(model_id: str, geometry_path: str | Path) -> dict[str, str]:
+    """Return verified model/asset orientation defaults for every Viser entrypoint."""
+
+    defaults = {
+        "coordinate_preset": "asset-native",
+        "up_direction": "+z",
+        "alignment": "auto",
+    }
+    if model_id in {"vggt", "vggt-omega", "depth-anything-v3"}:
+        defaults.update(
+            coordinate_preset=(
+                "opencv-to-opengl" if Path(geometry_path).suffix.lower() == ".npz" else "asset-native"
+            ),
+            up_direction="+y",
+            alignment="none",
+        )
+    elif model_id in {"unidepth-v2-prior", "unik3d-prior"}:
+        defaults.update(
+            coordinate_preset=(
+                "opencv-to-opengl" if Path(geometry_path).suffix.lower() == ".npz" else "asset-native"
+            ),
+            up_direction="+y",
+            alignment="none",
+        )
+    elif model_id in {"dust3r", "dust3r-base-model", "loger", "pi3"}:
+        defaults.update(
+            coordinate_preset="asset-native",
+            up_direction="+y",
+            alignment="first-camera-opengl",
+        )
+    return defaults
+
+
 def _parse_up_direction(value: str | None, *, default: str) -> str | tuple[float, float, float]:
     """Parse a Viser up-direction string or comma/space-separated vector."""
 
@@ -224,7 +259,20 @@ def _load_camera_poses(geometry_path: Path) -> list[Any]:
     import numpy as np
 
     for root in (geometry_path.parent, geometry_path.parent.parent):
-        for path in (root / "raw_data" / "camera_poses.npy", root / "camera_poses.npy"):
+        stem = geometry_path.stem
+        for suffix in ("_point_cloud", "_points", "_cloud"):
+            if stem.endswith(suffix):
+                stem = stem[: -len(suffix)]
+                break
+        candidates = [
+            root / "raw_data" / "camera_poses.npy",
+            root / "camera_poses.npy",
+            root / f"{stem}_camera_poses.npy",
+        ]
+        named_sidecars = sorted(root.glob("*_camera_poses.npy"))
+        if len(named_sidecars) == 1:
+            candidates.extend(named_sidecars)
+        for path in dict.fromkeys(candidates):
             if not path.exists():
                 continue
             try:
@@ -433,6 +481,13 @@ def npz_has_supported_geometry(path: Path) -> bool:
 def _points_from_npz_arrays(data: Any) -> Any | None:
     """Load explicit XYZ-like arrays from known NPZ keys."""
 
+    extracted = _points_and_finite_mask_from_npz_arrays(data)
+    return extracted[0] if extracted is not None else None
+
+
+def _points_and_finite_mask_from_npz_arrays(data: Any) -> tuple[Any, Any] | None:
+    """Load XYZ rows and retain the source-row mask for aligned color filtering."""
+
     import numpy as np
 
     for key in _NPZ_POINT_KEYS:
@@ -445,12 +500,17 @@ def _points_from_npz_arrays(data: Any) -> Any | None:
         finite = np.isfinite(points).all(axis=1)
         points = points[finite]
         if points.shape[0] > 0:
-            return points
+            return points, finite
     return None
 
 
 def _depth_points_from_npz(data: Any) -> Any | None:
-    """Project depth plus intrinsics/extrinsics NPZ records into XYZ rows."""
+    """Project depth plus camera calibration NPZ records into world-space XYZ rows.
+
+    The conventional ``extrinsic(s)`` keys are world-to-camera matrices.  NPZ
+    producers that already expose camera-to-world poses can opt out of that
+    inversion with an explicit ``camera_to_world`` or ``c2w`` key.
+    """
 
     import numpy as np
 
@@ -474,10 +534,15 @@ def _depth_points_from_npz(data: Any) -> Any | None:
     if intrinsics.ndim != 3 or intrinsics.shape[-2:] != (3, 3):
         return None
 
-    extrinsic_key = "extrinsics" if "extrinsics" in data else "extrinsic" if "extrinsic" in data else ""
-    extrinsics = np.asarray(data[extrinsic_key], dtype=np.float64) if extrinsic_key else None
-    if extrinsics is not None and extrinsics.ndim == 2:
-        extrinsics = extrinsics[None, ...]
+    c2w_key = next(
+        (key for key in ("camera_to_world", "c2w", "camera_to_worlds", "c2ws") if key in data),
+        "",
+    )
+    w2c_key = "extrinsics" if "extrinsics" in data else "extrinsic" if "extrinsic" in data else ""
+    pose_key = c2w_key or w2c_key
+    camera_to_world = np.asarray(data[pose_key], dtype=np.float64) if pose_key else None
+    if camera_to_world is not None and camera_to_world.ndim == 2:
+        camera_to_world = camera_to_world[None, ...]
 
     segments = []
     for frame_idx in range(depth.shape[0]):
@@ -500,14 +565,16 @@ def _depth_points_from_npz(data: Any) -> Any | None:
             ],
             axis=1,
         )
-        if extrinsics is not None and extrinsics.ndim == 3:
-            ext = extrinsics[min(frame_idx, extrinsics.shape[0] - 1)]
-            if ext.shape == (3, 4):
-                rotation, translation = ext[:, :3], ext[:, 3]
-                camera_points = camera_points @ rotation.T + translation
-            elif ext.shape == (4, 4):
-                hom = np.concatenate([camera_points, np.ones((camera_points.shape[0], 1))], axis=1)
-                camera_points = (hom @ ext.T)[:, :3]
+        if camera_to_world is not None and camera_to_world.ndim == 3:
+            pose = _as_4x4_pose(camera_to_world[min(frame_idx, camera_to_world.shape[0] - 1)])
+            if pose is not None:
+                if w2c_key and not c2w_key:
+                    try:
+                        pose = np.linalg.inv(pose)
+                    except np.linalg.LinAlgError:
+                        pose = None
+                if pose is not None:
+                    camera_points = camera_points @ pose[:3, :3].T + pose[:3, 3]
         segments.append(camera_points)
 
     if not segments:
@@ -526,10 +593,10 @@ def _colors_from_npz(data: Any, row_count: int) -> Any | None:
         arr = np.asarray(data[key])
         if arr.ndim == 2 and arr.shape[-1] >= 3:
             colors = arr[:, :3]
-        elif arr.ndim >= 3 and arr.shape[-1] >= 3:
-            colors = arr.reshape(-1, arr.shape[-1])[:, :3]
         elif arr.ndim >= 4 and arr.shape[-3] == 3:
             colors = np.moveaxis(arr, -3, -1).reshape(-1, 3)
+        elif arr.ndim >= 3 and arr.shape[-1] >= 3:
+            colors = arr.reshape(-1, arr.shape[-1])[:, :3]
         else:
             continue
         if colors.shape[0] == row_count:
@@ -546,12 +613,17 @@ def _load_xyz_rgb(path: Path) -> tuple[Any, Any]:
     suffix = path.suffix.lower()
     if suffix == ".npz":
         with np.load(str(path), allow_pickle=False) as data:
-            points = _points_from_npz_arrays(data)
-            if points is None:
+            explicit = _points_and_finite_mask_from_npz_arrays(data)
+            if explicit is None:
                 points = _depth_points_from_npz(data)
+                colors = _colors_from_npz(data, points.shape[0]) if points is not None else None
+            else:
+                points, finite = explicit
+                colors = _colors_from_npz(data, finite.shape[0])
+                if colors is not None:
+                    colors = colors[finite]
             if points is None:
                 raise ValueError(f"{path.name} does not contain supported geometry NPZ keys.")
-            colors = _colors_from_npz(data, points.shape[0])
     else:
         loaded: Any = trimesh.load(str(path), process=False, validate=False)
         geometries = _scene_geometries(loaded) if isinstance(loaded, trimesh.Scene) else [loaded]
@@ -593,8 +665,6 @@ def _load_mesh(path: Path) -> Any | None:
     loaded: Any = trimesh.load(str(path), process=False, validate=False)
     if isinstance(loaded, trimesh.Scene):
         geometries = _scene_geometries(loaded)
-        if any(isinstance(geom, trimesh.points.PointCloud) for geom in geometries):
-            return None
         geometries = [geom for geom in geometries if isinstance(geom, trimesh.Trimesh)]
         if not geometries:
             return None
@@ -608,6 +678,18 @@ def _load_mesh(path: Path) -> Any | None:
     return loaded
 
 
+def _has_explicit_point_cloud(path: Path) -> bool:
+    """Return whether a geometry asset contains a dedicated point-cloud layer."""
+
+    import trimesh
+
+    if path.suffix.lower() in {".pcd", ".xyz", ".npz"}:
+        return True
+    loaded: Any = trimesh.load(str(path), process=False, validate=False)
+    geometries = _scene_geometries(loaded) if isinstance(loaded, trimesh.Scene) else [loaded]
+    return any(isinstance(geometry, trimesh.points.PointCloud) for geometry in geometries)
+
+
 def _subsample(points: Any, colors: Any, limit: int) -> tuple[Any, Any]:
     """Uniformly subsample gigantic clouds for realtime Viser meshes."""
 
@@ -618,6 +700,61 @@ def _subsample(points: Any, colors: Any, limit: int) -> tuple[Any, Any]:
     rng = np.random.default_rng(seed=1337)
     idx = rng.choice(points.shape[0], size=limit, replace=False)
     return points[idx], colors[idx]
+
+
+def _adaptive_point_size(points: Any) -> float:
+    """Choose a scale-aware world-space radius for dense reconstruction points."""
+
+    import numpy as np
+
+    vertices = np.asarray(points, dtype=np.float64)
+    vertices = vertices[np.isfinite(vertices).all(axis=1)]
+    if vertices.shape[0] == 0:
+        return DEFAULT_POINT_SIZE
+    if vertices.shape[0] >= 100:
+        low, high = np.percentile(vertices, (5.0, 95.0), axis=0)
+    else:
+        low, high = vertices.min(axis=0), vertices.max(axis=0)
+    return max(float(np.linalg.norm(high - low)) / 400.0, 0.00001)
+
+
+def _initial_camera_pose(points: Any | None, mesh: Any | None, up_direction: Any) -> tuple[Any, Any, Any]:
+    """Fit a readable initial camera to the primary finite geometry."""
+
+    import numpy as np
+
+    vertices = points if points is not None else getattr(mesh, "vertices", None)
+    if vertices is None:
+        return np.array([3.0, 3.0, 3.0]), np.zeros(3), np.array([0.0, 0.0, 1.0])
+    vertices = np.asarray(vertices, dtype=np.float64)
+    if vertices.ndim != 2 or vertices.shape[1] < 3:
+        return np.array([3.0, 3.0, 3.0]), np.zeros(3), np.array([0.0, 0.0, 1.0])
+    vertices = vertices[np.isfinite(vertices).all(axis=1)]
+    if vertices.shape[0] == 0:
+        return np.array([3.0, 3.0, 3.0]), np.zeros(3), np.array([0.0, 0.0, 1.0])
+    if vertices.shape[0] >= 100:
+        low, high = np.percentile(vertices, (5.0, 95.0), axis=0)
+    else:
+        low, high = vertices.min(axis=0), vertices.max(axis=0)
+    center = (low + high) * 0.5
+    radius = max(float(np.linalg.norm(high - low) * 0.5), 1e-3)
+
+    if isinstance(up_direction, str):
+        sign = -1.0 if up_direction.startswith("-") else 1.0
+        axis = {"x": 0, "y": 1, "z": 2}.get(up_direction[-1:], 2)
+        up = np.zeros(3)
+        up[axis] = sign
+    else:
+        up = np.asarray(up_direction, dtype=np.float64)
+        up /= max(float(np.linalg.norm(up)), 1e-8)
+    reference = np.array([0.0, 0.0, 1.0]) if abs(float(up[2])) < 0.9 else np.array([0.0, 1.0, 0.0])
+    right = np.cross(reference, up)
+    right /= max(float(np.linalg.norm(right)), 1e-8)
+    forward = np.cross(up, right)
+    direction = forward + right + 0.65 * up
+    direction /= max(float(np.linalg.norm(direction)), 1e-8)
+    distance = radius * 2.15
+    return center + direction * distance, center, up
 
 
 def _add_camera_frustums(server: Any, poses: list[Any], *, scale: float) -> int:
@@ -666,16 +803,23 @@ class StudioViserService:
         self._lock = threading.Lock()
         self._server = None
 
-    def present_point_cloud(self, *, run_id: str, cloud_path: Path) -> ViserPresentation:
+    def present_point_cloud(
+        self,
+        *,
+        run_id: str,
+        cloud_path: Path,
+        model_id: str = "",
+    ) -> ViserPresentation:
         """Boot or refresh Viser with ``cloud_path`` and return iframe markup."""
 
-        return self.present_geometry(run_id=run_id, geometry_path=cloud_path)
+        return self.present_geometry(run_id=run_id, geometry_path=cloud_path, model_id=model_id)
 
     def present_geometry(
         self,
         *,
         run_id: str,
         geometry_path: Path,
+        model_id: str = "",
         host: str | None = None,
         port: int | None = None,
         embed: bool = True,
@@ -720,10 +864,22 @@ class StudioViserService:
                 or str(DEFAULT_MAX_POINTS)
             )
             limit = max(limit, 1024)
-            point_size = _env_float("WORLDFOUNDRY_STUDIO_VISER_POINT_SIZE", DEFAULT_POINT_SIZE, minimum=0.000001)
+            point_size_override = os.getenv("WORLDFOUNDRY_STUDIO_VISER_POINT_SIZE")
+            point_size = (
+                _env_float("WORLDFOUNDRY_STUDIO_VISER_POINT_SIZE", DEFAULT_POINT_SIZE, minimum=0.000001)
+                if point_size_override is not None
+                else None
+            )
             point_shape = _env_choice("WORLDFOUNDRY_STUDIO_VISER_POINT_SHAPE", DEFAULT_POINT_SHAPE, VISER_POINT_SHAPES)
-            coordinate_preset = _normalize_coordinate_preset(os.getenv("WORLDFOUNDRY_STUDIO_VISER_COORDINATE_PRESET"))
-            alignment_preset = _normalize_alignment_preset(os.getenv("WORLDFOUNDRY_STUDIO_VISER_ALIGNMENT"))
+            orientation_defaults = viser_orientation_defaults(model_id, geometry_path)
+            coordinate_preset = _normalize_coordinate_preset(
+                os.getenv("WORLDFOUNDRY_STUDIO_VISER_COORDINATE_PRESET")
+                or orientation_defaults["coordinate_preset"]
+            )
+            alignment_preset = _normalize_alignment_preset(
+                os.getenv("WORLDFOUNDRY_STUDIO_VISER_ALIGNMENT")
+                or orientation_defaults["alignment"]
+            )
             camera_size = _env_float("WORLDFOUNDRY_STUDIO_VISER_CAMERA_SIZE", DEFAULT_CAMERA_SIZE, minimum=0.000001)
             camera_poses = _load_camera_poses(geometry_path)
             effective_alignment = (
@@ -737,8 +893,11 @@ class StudioViserService:
             transformed_camera_poses = _transform_camera_poses(camera_poses, full_transform)
             up_direction = _parse_up_direction(
                 os.getenv("WORLDFOUNDRY_STUDIO_VISER_UP_DIRECTION"),
-                default=_default_up_direction_for_preset(coordinate_preset),
+                default=orientation_defaults.get(
+                    "up_direction", _default_up_direction_for_preset(coordinate_preset)
+                ),
             )
+            has_point_cloud = _has_explicit_point_cloud(geometry_path)
             if geometry_path.suffix.lower() not in {".pcd", ".xyz", ".npz"}:
                 try:
                     mesh = _load_mesh(geometry_path)
@@ -746,10 +905,12 @@ class StudioViserService:
                     mesh = None
                 if mesh is not None:
                     _apply_mesh_transform(mesh, full_transform)
-            if mesh is None:
+            if mesh is None or has_point_cloud:
                 points, colors = _load_xyz_rgb(geometry_path)
                 points = _transform_points(points, full_transform)
                 points, colors = _subsample(points, colors, limit)
+                if point_size is None:
+                    point_size = _adaptive_point_size(points)
         except Exception as exc:
             return ViserPresentation(
                 html=_fallback_card("Geometry load failed", escape(str(exc))),
@@ -764,14 +925,20 @@ class StudioViserService:
                 self._server = None
             port = _resolve_viser_port(run_id, host=host, requested_port=port)
             server = viser.ViserServer(host=host, port=port, verbose=False)
+            port = int(server.get_port())
             server.scene.set_up_direction(up_direction)
+            camera_position, camera_target, camera_up = _initial_camera_pose(points, mesh, up_direction)
+            server.initial_camera.position = camera_position
+            server.initial_camera.look_at = camera_target
+            server.initial_camera.up = camera_up
+            server.initial_camera.fov = math.radians(60.0)
             server.scene.remove_by_name(POINT_CLOUD_NODE)
+            server.scene.remove_by_name(AUXILIARY_MESH_NODE)
             server.scene.remove_by_name(f"/{CAMERA_NODE_ROOT}")
-            if mesh is not None:
-                server.scene.add_mesh_trimesh(POINT_CLOUD_NODE, mesh=mesh)
-                geometry_caption = f"{len(mesh.vertices):,} verts · {len(mesh.faces):,} faces"
-            else:
+            geometry_parts = []
+            if points is not None and colors is not None:
                 assert points is not None and colors is not None
+                assert point_size is not None
                 server.scene.add_point_cloud(
                     POINT_CLOUD_NODE,
                     points,
@@ -779,7 +946,12 @@ class StudioViserService:
                     point_size=point_size,
                     point_shape=point_shape,
                 )
-                geometry_caption = f"{points.shape[0]:,} points · point_size={point_size:g} · {point_shape}"
+                geometry_parts.append(f"{points.shape[0]:,} points · point_size={point_size:g} · {point_shape}")
+            if mesh is not None:
+                mesh_node = AUXILIARY_MESH_NODE if geometry_parts else POINT_CLOUD_NODE
+                server.scene.add_mesh_trimesh(mesh_node, mesh=mesh)
+                geometry_parts.append(f"{len(mesh.vertices):,} mesh verts · {len(mesh.faces):,} faces")
+            geometry_caption = " · ".join(geometry_parts)
             camera_caption = "cameras=off"
             if show_cameras:
                 camera_count = _add_camera_frustums(server, transformed_camera_poses, scale=camera_size)

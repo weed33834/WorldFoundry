@@ -1,0 +1,76 @@
+id: gamma-world
+name: Gamma-World
+aliases:
+- gammaworld
+- gamma-world-causal
+- gamma-world-causal-few-step
+tasks:
+- multi-agent-world-model
+- action-conditioned-video
+- image-to-video
+output_artifacts:
+- generated_video
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/nv-tlabs/Gamma-World
+  revision: 6a95de85c439d8ea73eae34c88fbfd4e89ea02e2
+  license: apache-2.0
+official_sources:
+  project_page: https://research.nvidia.com/labs/sil/projects/gamma-world/
+  github:
+    url: https://github.com/nv-tlabs/Gamma-World
+    revision: 6a95de85c439d8ea73eae34c88fbfd4e89ea02e2
+  huggingface:
+  - repo_id: chijw/Gamma-World
+    role: world_model_and_tokenizer
+  - repo_id: nvidia/Cosmos-Reason1-7B
+    role: text_encoder
+checkpoints:
+- repo_id: chijw/Gamma-World
+  license: apache-2.0
+  role: bidirectional_causal_and_distilled_networks
+- repo_id: nvidia/Cosmos-Reason1-7B
+  role: text_encoder
+variants:
+- id: gamma-world-causal-few-step
+  task: action-conditioned-video
+  provider: official_repo
+  runtime_profile: gamma-world
+  pipeline_binding: gamma-world
+  integration:
+    status: integrated
+  runner_parity:
+    status: checkpoint_environment_required
+- id: gamma-world-causal
+  task: action-conditioned-video
+  provider: official_repo
+  runtime_profile: gamma-world
+  pipeline_binding: gamma-world
+  integration:
+    status: integrated
+  runner_parity:
+    status: checkpoint_environment_required
+- id: gamma-world-bidirectional
+  task: action-conditioned-video
+  provider: official_repo
+  runtime_profile: gamma-world
+  pipeline_binding: gamma-world
+  integration:
+    status: integrated
+  runner_parity:
+    status: checkpoint_environment_required
+integration:
+  status: integrated
+  notes:
+  - The inference implementation is vendored in-tree and does not require an external source checkout.
+  - Generic action, multi-view image, Hydra override, and video I/O functions are reused from worldfoundry.core.
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+runtime_profile: runtime-profile:gamma-world
+pipeline_binding: gamma-world
+runner_parity:
+  status: checkpoint_environment_required
+  notes:
+  - The runner supports bidirectional, causal, and four-step causal inference.
+catalog_category: world_models
+catalog_scope: World-model catalog entries. Integrated entries expose in-tree WorldFoundry runtimes.

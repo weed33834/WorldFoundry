@@ -1,7 +1,24 @@
-backend: hf_auto_action_model
-checkpoint_path: ${WORLDFOUNDRY_CKPT_DIR}/Spirit-AI--Spirit-VLA
-torch_dtype: bfloat16
-trust_remote_code: true
+backend: callable_entrypoint
+checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/Spirit-AI-robotics--Spirit-v1.5
+checkpoint_ref: Spirit-AI-robotics/Spirit-v1.5
+policy_target: worldfoundry.synthesis.action_generation.spirit_v15.runtime:predict_action
 predict_method: predict_action
-action_contract: spirit_vla_action_trace
-runtime_backend: spirit_vla_hf_action_model
+require_checkpoint: true
+backbone_path: ${WORLDFOUNDRY_HFD_ROOT}/Qwen--Qwen3-VL-4B-Instruct
+torch_dtype: auto
+attention_backend: auto
+robot_type: aloha
+state_keys: [state, proprio, robot_state, eef_state]
+camera_keys:
+- observation.images.cam_high
+- observation.images.cam_left_wrist
+- observation.images.cam_right_wrist
+camera_aliases:
+- [cam_high, cam_head, image0]
+- [cam_left_wrist, left_wrist, image1]
+- [cam_right_wrist, right_wrist, image2]
+state_mask_indices: [2, 9]
+user_prompt_template: "{image_placeholders}\nThe current robot type is {robot_type}. What is the current task?"
+seed: 0
+runtime_backend: spirit_v15_native
+action_contract: continuous_flow_action_chunk

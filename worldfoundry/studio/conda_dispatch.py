@@ -15,31 +15,39 @@ calls do not re-dispatch indefinitely.
 
 from __future__ import annotations
 
-import json
+import atexit
+import codecs
 import hashlib
+import json
 import os
 import re
 import select
 import signal
 import subprocess
 import sys
-import time
-import codecs
 import tempfile
-import atexit
 import threading
+import time
 from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from worldfoundry.core.io.paths import project_root, resolve_worldfoundry_path, worldfoundry_path_tokens
-from worldfoundry.runtime import resolve_ckpt_dir, resolve_hfd_root, resolve_hf_cache_dir
-from worldfoundry.runtime.conda import RuntimeCondaEnvSpec, apply_unified_env_override, load_runtime_conda_env_spec
+from worldfoundry.runtime.conda import (
+    RuntimeCondaEnvSpec,
+    apply_unified_env_override,
+    load_runtime_conda_env_spec,
+    runtime_env_is_usable,
+)
+from worldfoundry.runtime.env import resolve_ckpt_dir, resolve_hf_cache_dir, resolve_hfd_root
 
-from .execution import RunRecord, TORCHRUN_DISTRIBUTED_ENV
-from .launch_config import resolve_lingbot_fast_num_procs, wmfactory_interactive_model_spec
-
+from .execution import TORCHRUN_DISTRIBUTED_ENV, RunRecord
+from .launch_config import (
+    MATRIX_GAME3_MODEL_ID,
+    resolve_lingbot_fast_num_procs,
+    wmfactory_interactive_model_spec,
+)
 
 # Environment variable set in child processes to prevent recursive dispatch.
 STUDIO_CONDA_CHILD_ENV = "WORLDFOUNDRY_STUDIO_CONDA_CHILD"
@@ -47,6 +55,8 @@ STUDIO_CONDA_CHILD_ENV = "WORLDFOUNDRY_STUDIO_CONDA_CHILD"
 FORCE_SUBPROCESS_MODELS_ENV = "WORLDFOUNDRY_STUDIO_FORCE_SUBPROCESS_MODELS"
 RESIDENT_WORKERS_ENV = "WORLDFOUNDRY_STUDIO_RESIDENT_WORKERS"
 RESIDENT_WORKER_MODELS_ENV = "WORLDFOUNDRY_STUDIO_RESIDENT_WORKER_MODELS"
+RESIDENT_WORKER_MAX_WORKERS_ENV = "WORLDFOUNDRY_STUDIO_RESIDENT_WORKER_MAX_WORKERS"
+RESIDENT_WORKER_IDLE_TTL_ENV = "WORLDFOUNDRY_STUDIO_RESIDENT_WORKER_IDLE_TTL"
 RESIDENT_WORKER_REQUEST_TIMEOUT_ENV = "WORLDFOUNDRY_STUDIO_RESIDENT_WORKER_REQUEST_TIMEOUT"
 DISPATCH_API_KEY_ENV = "WORLDFOUNDRY_STUDIO_DISPATCH_API_KEY"
 CHILD_PYTHONPATH_PREPEND_ENV = "WORLDFOUNDRY_STUDIO_CHILD_PYTHONPATH_PREPEND"
@@ -59,15 +69,31 @@ DEFAULT_FORCE_SUBPROCESS_MODELS = frozenset(
         "hunyuan-gamecraft",
         "hunyuan-world-voyager",
         "lingbot-world",
+        "lingbot-world-v2",
+        "longvie-2",
         "hunyuan-worldplay",
         "wan-2p2",
         "matrix-game-2",
         "matrix-game-3",
+        "helios",
+        "dreamx-world-5b-cam",
     }
 )
 LINGBOT_WORLD_MODEL_ID = "lingbot-world"
+LINGBOT_WORLD_V2_MODEL_ID = "lingbot-world-v2"
 TORCHRUN_LINGBOT_ENV = "WORLDFOUNDRY_STUDIO_TORCHRUN_LINGBOT_FAST"
 TORCHRUN_MODEL_NPROC_KEYS: Mapping[str, tuple[str, ...]] = {
+    "dreamx-world-5b-cam": ("torchrun_nproc_per_node", "torchrun_nproc", "nproc_per_node"),
+    "helios": ("torchrun_nproc_per_node", "torchrun_nproc", "nproc_per_node"),
+    "longvie-2": ("torchrun_nproc_per_node", "torchrun_nproc", "nproc_per_node"),
+    "lingbot-world-v2": ("torchrun_nproc_per_node", "torchrun_nproc", "nproc_per_node"),
+    MATRIX_GAME3_MODEL_ID: (
+        "torchrun_nproc_per_node",
+        "torchrun_nproc",
+        "nproc_per_node",
+        "ulysses_size",
+        "world_size",
+    ),
     "hunyuan-game-craft": ("torchrun_nproc_per_node", "torchrun_nproc", "nproc_per_node"),
     "hunyuan-gamecraft": ("torchrun_nproc_per_node", "torchrun_nproc", "nproc_per_node"),
     "hunyuan-world-voyager": (
@@ -87,6 +113,7 @@ DISPATCH_ONLY_LOAD_KWARGS = frozenset(
         "torchrun_nproc_per_node",
         "torchrun_nproc",
         "nproc_per_node",
+        "world_size",
     }
 )
 DISPATCH_ONLY_CALL_KWARGS = frozenset(
@@ -111,6 +138,7 @@ class _ResidentWorker:
     command: list[str]
     created_at: float
     last_used_at: float
+    in_use: int = 0
 
 
 class _ResidentWorkerUnavailable(RuntimeError):
@@ -127,6 +155,10 @@ class _ResidentRunContext:
 
 _RESIDENT_WORKERS: dict[tuple[str, ...], _ResidentWorker] = {}
 _RESIDENT_WORKERS_LOCK = threading.RLock()
+_RESIDENT_WORKERS_LIFECYCLE_LOCK = threading.Lock()
+_RESIDENT_WORKERS_REAPER_LOCK = threading.Lock()
+_RESIDENT_WORKERS_REAPER_STOP = threading.Event()
+_RESIDENT_WORKERS_REAPER_THREAD: threading.Thread | None = None
 
 
 def _env_flag(name: str) -> bool:
@@ -165,9 +197,32 @@ def _resident_workers_enabled_for_model(model_id: str) -> bool:
 
 def _resident_worker_request_timeout() -> float:
     try:
-        return max(float(os.getenv(RESIDENT_WORKER_REQUEST_TIMEOUT_ENV, "0") or "0"), 0.0)
+        return max(float(os.getenv(RESIDENT_WORKER_REQUEST_TIMEOUT_ENV, "3600") or "3600"), 0.0)
     except ValueError:
-        return 0.0
+        return 3600.0
+
+
+def _resident_worker_max_workers() -> int:
+    # Keep the resident pool aligned with the Workspace scheduler unless an
+    # operator explicitly chooses a different cap.  A hard-coded default of 2
+    # made jobs 3..N fall back to one-shot processes even when Workspace was
+    # launched with (for example) ``--max-jobs 8``.  Large checkpoints then
+    # paid their multi-minute cold-load cost again and could never reuse the
+    # pipeline that had just been loaded.
+    raw_value = os.getenv(RESIDENT_WORKER_MAX_WORKERS_ENV)
+    if raw_value is None:
+        raw_value = os.getenv("WORLDFOUNDRY_WORKSPACE_MAX_JOBS", "2")
+    try:
+        return max(int(raw_value or "2"), 0)
+    except ValueError:
+        return 2
+
+
+def _resident_worker_idle_ttl() -> float:
+    try:
+        return max(float(os.getenv(RESIDENT_WORKER_IDLE_TTL_ENV, "900") or "900"), 0.0)
+    except ValueError:
+        return 900.0
 
 
 def _same_executable(left: str | Path, right: str | Path) -> bool:
@@ -207,6 +262,7 @@ def _candidate_env_roots(configured: Path) -> tuple[Path, ...]:
         conda_envs_root,
         conda_root / "envs",
         conda_root,
+        Path(tokens["WORLDFOUNDRY_HOME"]).expanduser() / "conda_envs",
         repo.parent / "conda" / "envs",
         repo.parent / "conda",
     ]
@@ -233,7 +289,7 @@ def _discover_existing_env_spec(spec: RuntimeCondaEnvSpec) -> RuntimeCondaEnvSpe
     for root in _candidate_env_roots(spec.env_root):
         for name in _candidate_env_names(spec.model_id, spec.env_name):
             candidate = root / name
-            if (candidate / "bin" / "python").is_file():
+            if runtime_env_is_usable(candidate):
                 return replace(
                     spec,
                     env_name=name,
@@ -370,6 +426,168 @@ def _run_kwargs_for_child(
     return child_kwargs
 
 
+def _with_matrix_game3_parallelism(
+    model_id: str,
+    run_kwargs: Mapping[str, Any],
+    *,
+    world_size: int,
+) -> dict[str, Any]:
+    """Keep Matrix-Game 3 Ulysses configuration aligned with torchrun WORLD_SIZE."""
+
+    updated = dict(run_kwargs)
+    if model_id != MATRIX_GAME3_MODEL_ID:
+        return updated
+    normalized_world_size = _validate_model_torchrun_nproc(
+        model_id,
+        max(int(world_size or 1), 1),
+    )
+    load_kwargs = _json_object_from_text(updated.get("load_kwargs_text"))
+    load_kwargs["ulysses_size"] = normalized_world_size
+    # WORLD_SIZE is owned by torchrun. Do not forward a second, potentially
+    # conflicting loader argument when a user supplied `world_size` as input.
+    load_kwargs.pop("world_size", None)
+    updated["load_kwargs_text"] = json.dumps(load_kwargs)
+    call_kwargs = _json_object_from_text(updated.get("call_kwargs_text"))
+    if call_kwargs:
+        if "ulysses_size" in call_kwargs:
+            call_kwargs["ulysses_size"] = normalized_world_size
+        for key in (
+            "torchrun_nproc_per_node",
+            "torchrun_nproc",
+            "nproc_per_node",
+            "world_size",
+        ):
+            call_kwargs.pop(key, None)
+        updated["call_kwargs_text"] = json.dumps(call_kwargs)
+    return updated
+
+
+def _with_lingbot_world_parallelism(
+    model_id: str,
+    run_kwargs: Mapping[str, Any],
+    *,
+    world_size: int,
+) -> dict[str, Any]:
+    """Keep LingBot runtime options identical to the outer torchrun group.
+
+    V1 consumes the selected topology while loading the model via
+    ``ulysses_size``.  V2 consumes it at prediction time via
+    ``nproc_per_node``.  In particular, leaving V2's catalog default of eight
+    in the child request makes an otherwise valid four-rank launch fail before
+    checkpoint loading.
+    """
+
+    updated = dict(run_kwargs)
+    if model_id not in {LINGBOT_WORLD_MODEL_ID, LINGBOT_WORLD_V2_MODEL_ID}:
+        return updated
+    normalized_world_size = _validate_model_torchrun_nproc(
+        model_id,
+        max(int(world_size or 1), 1),
+    )
+    if model_id == LINGBOT_WORLD_V2_MODEL_ID:
+        call_kwargs = _json_object_from_text(updated.get("call_kwargs_text"))
+        call_kwargs["nproc_per_node"] = normalized_world_size
+        for key in ("torchrun_nproc_per_node", "torchrun_nproc", "world_size"):
+            call_kwargs.pop(key, None)
+        updated["call_kwargs_text"] = json.dumps(call_kwargs)
+        return updated
+
+    load_kwargs = _json_object_from_text(updated.get("load_kwargs_text"))
+    load_kwargs["ulysses_size"] = normalized_world_size
+    for key in (
+        "torchrun_nproc_per_node",
+        "torchrun_nproc",
+        "nproc_per_node",
+        "world_size",
+    ):
+        load_kwargs.pop(key, None)
+    updated["load_kwargs_text"] = json.dumps(load_kwargs)
+    return updated
+
+
+def _with_longvie2_parallelism(
+    model_id: str,
+    run_kwargs: Mapping[str, Any],
+    *,
+    world_size: int,
+) -> dict[str, Any]:
+    """Keep LongVie 2 USP settings aligned with its supported process count."""
+
+    updated = dict(run_kwargs)
+    if model_id != "longvie-2":
+        return updated
+    normalized_world_size = _validate_model_torchrun_nproc(
+        model_id,
+        max(int(world_size or 1), 1),
+    )
+    load_kwargs = _json_object_from_text(updated.get("load_kwargs_text"))
+    load_kwargs.update(
+        use_usp=normalized_world_size == 4,
+        ring_degree=1,
+        ulysses_degree=normalized_world_size,
+    )
+    for key in (
+        "torchrun_nproc_per_node",
+        "torchrun_nproc",
+        "nproc_per_node",
+        "world_size",
+    ):
+        load_kwargs.pop(key, None)
+    updated["load_kwargs_text"] = json.dumps(load_kwargs)
+    return updated
+
+
+def _with_wan_vace_parallelism(
+    model_id: str,
+    run_kwargs: Mapping[str, Any],
+    *,
+    world_size: int,
+) -> dict[str, Any]:
+    """Keep the in-tree VACE USP topology aligned with its internal torchrun job.
+
+    The official VACE command always enables DiT/T5 FSDP, so a one-process
+    launch is not a supported fallback.  Ulysses and ring degrees must multiply
+    to WORLD_SIZE, and the 14B checkpoint has 40 attention heads.
+    """
+
+    updated = dict(run_kwargs)
+    if model_id != "wan2.1-vace":
+        return updated
+    normalized_world_size = int(world_size or 0)
+    if normalized_world_size <= 1:
+        raise ValueError(
+            "wan2.1-vace requires nproc_per_node > 1 because its in-tree official "
+            "command enables DiT/T5 FSDP."
+        )
+    call_kwargs = _json_object_from_text(updated.get("call_kwargs_text"))
+    load_kwargs = _json_object_from_text(updated.get("load_kwargs_text"))
+    raw_ring_size = call_kwargs.get("ring_size", load_kwargs.get("ring_size", 1))
+    try:
+        ring_size = int(raw_ring_size or 1)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"wan2.1-vace ring_size must be an integer, got {raw_ring_size!r}."
+        ) from exc
+    if ring_size <= 0 or normalized_world_size % ring_size:
+        raise ValueError(
+            "wan2.1-vace requires ring_size to be a positive divisor of "
+            f"nproc_per_node={normalized_world_size}; got ring_size={ring_size}."
+        )
+    ulysses_size = normalized_world_size // ring_size
+    if 40 % ulysses_size:
+        raise ValueError(
+            "wan2.1-vace uses 40 attention heads, which must be divisible by "
+            f"ulysses_size={ulysses_size} (nproc={normalized_world_size}, ring={ring_size})."
+        )
+    call_kwargs.update(
+        nproc_per_node=normalized_world_size,
+        ulysses_size=ulysses_size,
+        ring_size=ring_size,
+    )
+    updated["call_kwargs_text"] = json.dumps(call_kwargs)
+    return updated
+
+
 def _json_object_from_text(value: Any) -> dict[str, Any]:
     if isinstance(value, Mapping):
         return dict(value)
@@ -426,16 +644,31 @@ def _lingbot_torchrun_nproc(model_id: str, run_kwargs: Mapping[str, Any]) -> int
     if model_id != LINGBOT_WORLD_MODEL_ID:
         return 0
     load_kwargs = _json_object_from_text(run_kwargs.get("load_kwargs_text"))
-    requested = load_kwargs.get("torchrun_nproc_per_node") or load_kwargs.get("ulysses_size")
+    requested = (
+        load_kwargs.get("nproc_per_node")
+        or load_kwargs.get("torchrun_nproc_per_node")
+        or load_kwargs.get("torchrun_nproc")
+        or load_kwargs.get("ulysses_size")
+    )
     try:
         nproc = int(requested or 0)
     except Exception:
         nproc = 0
     if nproc > 1:
-        return nproc
+        return _validate_model_torchrun_nproc(model_id, nproc)
     if _truthy_value(load_kwargs.get("dit_fsdp")) or _truthy_value(load_kwargs.get("t5_fsdp")):
         visible_count = _cuda_visible_device_count(os.getenv("CUDA_VISIBLE_DEVICES"))
-        return resolve_lingbot_fast_num_procs(visible_count=visible_count or None)
+        resolved = resolve_lingbot_fast_num_procs(visible_count=visible_count or None)
+        if resolved < 4:
+            raise RuntimeError(
+                "LingBot-World base-cam defaults to native multi-GPU FSDP/Ulysses and requires "
+                f"at least four visible GPUs; detected {resolved}. Explicitly disable FSDP and use "
+                "ulysses_size=1 only for a deliberate single-GPU fallback."
+            )
+        return _validate_model_torchrun_nproc(
+            model_id,
+            resolved,
+        )
     return 0
 
 
@@ -446,6 +679,22 @@ def _explicit_torchrun_nproc(model_id: str, run_kwargs: Mapping[str, Any]) -> in
 
 
 def _requested_torchrun_nproc(model_id: str, run_kwargs: Mapping[str, Any]) -> int | None:
+    for env_name in (
+        "WORLDFOUNDRY_REALTIME_NPROC_PER_NODE",
+        "WORLDFOUNDRY_REALTIME_NPROC",
+    ):
+        raw = os.getenv(env_name, "").strip()
+        if not raw:
+            continue
+        try:
+            requested = int(raw)
+        except ValueError as exc:
+            if model_id in {MATRIX_GAME3_MODEL_ID, "dreamx-world-5b-cam"}:
+                raise ValueError(f"{env_name} must be an integer, got {raw!r}.") from exc
+            return None
+        if requested <= 0 and model_id != MATRIX_GAME3_MODEL_ID:
+            return None
+        return _validate_model_torchrun_nproc(model_id, requested)
     keys = TORCHRUN_MODEL_NPROC_KEYS.get(model_id)
     if not keys:
         return None
@@ -456,10 +705,95 @@ def _requested_torchrun_nproc(model_id: str, run_kwargs: Mapping[str, Any]) -> i
             if key not in source or source.get(key) in {None, ""}:
                 continue
             try:
-                return int(source.get(key) or 0)
-            except Exception:
+                requested = int(source.get(key) or 0)
+            except Exception as exc:
+                if model_id in {MATRIX_GAME3_MODEL_ID, "dreamx-world-5b-cam"}:
+                    raise ValueError(
+                        f"{model_id} {key} must be an integer, got {source.get(key)!r}."
+                    ) from exc
                 return None
+            return _validate_model_torchrun_nproc(model_id, requested)
     return None
+
+
+def _validate_model_torchrun_nproc(model_id: str, requested: int) -> int:
+    """Validate model-specific distributed process-count constraints."""
+
+    if model_id in {LINGBOT_WORLD_MODEL_ID, LINGBOT_WORLD_V2_MODEL_ID}:
+        supported = (1, 4, 8)
+        if requested not in supported:
+            choices = ", ".join(str(value) for value in supported)
+            raise ValueError(
+                f"{model_id} Workspace integration supports nproc values {choices}; got {requested}. "
+                "The 8-GPU topology is the official recipe and 4 GPUs are the supported compact topology."
+            )
+        return requested
+    if model_id == "longvie-2":
+        if requested not in {1, 4}:
+            raise ValueError(
+                "longvie-2 supports nproc values 1 or 4 (official USP topology); "
+                f"got {requested}."
+            )
+        return requested
+    if model_id == "dreamx-world-5b-cam":
+        supported = (1, 2, 3, 4, 6, 8)
+        if requested not in supported:
+            choices = ", ".join(str(value) for value in supported)
+            raise ValueError(
+                f"dreamx-world-5b-cam supports nproc values {choices}; got {requested}."
+            )
+        return requested
+    if model_id in {"hunyuan-game-craft", "hunyuan-gamecraft"}:
+        supported = (1, 2, 3, 4, 6, 8)
+        if requested not in supported:
+            choices = ", ".join(str(value) for value in supported)
+            raise ValueError(
+                f"{model_id} supports nproc values {choices}; got {requested}. "
+                "Its Ulysses all-to-all path requires the process count to divide 24 attention heads."
+            )
+        return requested
+    if model_id == "hunyuan-worldplay":
+        supported = (1, 2, 3, 4, 6, 8)
+        if requested not in supported:
+            choices = ", ".join(str(value) for value in supported)
+            raise ValueError(
+                f"hunyuan-worldplay supports nproc values {choices}; got {requested}. "
+                "Its Ulysses all-to-all path requires the process count to divide 24 attention heads."
+            )
+        return requested
+    if model_id != MATRIX_GAME3_MODEL_ID:
+        return requested
+    spec = wmfactory_interactive_model_spec(model_id)
+    supported = tuple(spec.supported_process_counts) if spec is not None else (1, 2, 4, 8)
+    if requested not in supported:
+        choices = ", ".join(str(value) for value in supported)
+        raise ValueError(
+            f"{MATRIX_GAME3_MODEL_ID} supports nproc/ulysses_size values {choices}; got {requested}."
+        )
+    return requested
+
+
+def _matrix_game3_default_torchrun_nproc(run_kwargs: Mapping[str, Any]) -> int:
+    """Choose the largest supported Matrix-Game 3 size up to its four-GPU default."""
+
+    if str(run_kwargs.get("device") or "").startswith("cuda:"):
+        return 1
+    wmfactory_override = os.getenv("WM_MATRIXGAME3_CUDA_VISIBLE_DEVICES", "").strip()
+    explicit_visible = _cuda_visible_devices_from_kwargs(run_kwargs) or wmfactory_override
+    visible_count = _cuda_visible_device_count(
+        explicit_visible or os.getenv("CUDA_VISIBLE_DEVICES")
+    )
+    if not visible_count:
+        try:
+            visible_count = len(_parse_nvidia_smi_rows())
+        except (OSError, subprocess.SubprocessError, ValueError):
+            visible_count = 0
+    spec = wmfactory_interactive_model_spec(MATRIX_GAME3_MODEL_ID)
+    preferred = int(spec.preferred_visible_devices or 4) if spec is not None else 4
+    supported = tuple(spec.supported_process_counts) if spec is not None else (1, 2, 4, 8)
+    upper_bound = min(preferred, visible_count) if visible_count else preferred
+    eligible = [value for value in supported if value <= upper_bound]
+    return max(eligible) if eligible else 1
 
 
 def _default_torchrun_nproc(model_id: str, run_kwargs: Mapping[str, Any]) -> int:
@@ -467,12 +801,66 @@ def _default_torchrun_nproc(model_id: str, run_kwargs: Mapping[str, Any]) -> int
     if _requested_torchrun_nproc(model_id, run_kwargs) is not None:
         return 0
     if model_id in {"hunyuan-game-craft", "hunyuan-gamecraft"}:
-        return int(os.getenv("WORLDFOUNDRY_STUDIO_GAMECRAFT_TORCHRUN_NPROC", "8") or "8")
+        if str(run_kwargs.get("device") or "").startswith("cuda:"):
+            return 1
+        requested = int(os.getenv("WORLDFOUNDRY_STUDIO_GAMECRAFT_TORCHRUN_NPROC", "8") or "8")
+        requested = _validate_model_torchrun_nproc(model_id, requested)
+        visible_count = _cuda_visible_device_count(os.getenv("CUDA_VISIBLE_DEVICES"))
+        if not visible_count:
+            try:
+                visible_count = len(_parse_nvidia_smi_rows())
+            except (OSError, subprocess.SubprocessError, ValueError):
+                visible_count = 0
+        upper_bound = min(requested, visible_count) if visible_count else requested
+        eligible = [value for value in (1, 2, 3, 4, 6, 8) if value <= upper_bound]
+        return max(eligible) if eligible else 1
+    if model_id == MATRIX_GAME3_MODEL_ID:
+        return _matrix_game3_default_torchrun_nproc(run_kwargs)
+    if model_id == "dreamx-world-5b-cam":
+        if str(run_kwargs.get("device") or "").startswith("cuda:"):
+            return 1
+        explicit_visible = _cuda_visible_devices_from_kwargs(run_kwargs)
+        visible_count = _cuda_visible_device_count(
+            explicit_visible or os.getenv("CUDA_VISIBLE_DEVICES")
+        )
+        if not visible_count:
+            try:
+                visible_count = len(_parse_nvidia_smi_rows())
+            except (OSError, subprocess.SubprocessError, ValueError):
+                visible_count = 0
+        upper_bound = min(8, visible_count) if visible_count else 8
+        eligible = [value for value in (1, 2, 3, 4, 6, 8) if value <= upper_bound]
+        return max(eligible) if eligible else 1
+    if model_id == "longvie-2":
+        if str(run_kwargs.get("device") or "").startswith("cuda:"):
+            return 1
+        visible_count = _cuda_visible_device_count(os.getenv("CUDA_VISIBLE_DEVICES"))
+        if not visible_count:
+            try:
+                visible_count = len(_parse_nvidia_smi_rows())
+            except (OSError, subprocess.SubprocessError, ValueError):
+                visible_count = 0
+        return min(4, visible_count) if visible_count else 4
     if model_id != "hunyuan-worldplay":
         return 0
+    if str(run_kwargs.get("device") or "").startswith("cuda:"):
+        return 1
     load_kwargs = _json_object_from_text(run_kwargs.get("load_kwargs_text"))
     wm_spec = wmfactory_interactive_model_spec(model_id, load_kwargs=load_kwargs)
-    return int(wm_spec.preferred_visible_devices or 0) if wm_spec is not None else 0
+    preferred = int(wm_spec.preferred_visible_devices or 8) if wm_spec is not None else 8
+    supported = tuple(wm_spec.supported_process_counts) if wm_spec is not None else (1, 2, 3, 4, 6, 8)
+    explicit_visible = _cuda_visible_devices_from_kwargs(run_kwargs)
+    visible_count = _cuda_visible_device_count(
+        explicit_visible or os.getenv("CUDA_VISIBLE_DEVICES")
+    )
+    if not visible_count:
+        try:
+            visible_count = len(_parse_nvidia_smi_rows())
+        except (OSError, subprocess.SubprocessError, ValueError):
+            visible_count = 0
+    upper_bound = min(preferred, visible_count) if visible_count else preferred
+    eligible = [value for value in supported if value <= upper_bound]
+    return max(eligible) if eligible else 1
 
 
 def _internal_torchrun_nproc(model_id: str, run_kwargs: Mapping[str, Any]) -> int:
@@ -480,7 +868,7 @@ def _internal_torchrun_nproc(model_id: str, run_kwargs: Mapping[str, Any]) -> in
     call_kwargs = _json_object_from_text(run_kwargs.get("call_kwargs_text"))
     load_kwargs = _json_object_from_text(run_kwargs.get("load_kwargs_text"))
     if model_id == "gen3c":
-        requested = call_kwargs.get("num_gpus") or load_kwargs.get("num_gpus")
+        requested = call_kwargs.get("num_gpus") or load_kwargs.get("num_gpus") or 1
     elif model_id == "wan2.1-vace":
         requested = (
             call_kwargs.get("nproc_per_node")
@@ -508,17 +896,58 @@ def _internal_torchrun_nproc(model_id: str, run_kwargs: Mapping[str, Any]) -> in
             or load_kwargs.get("nproc_per_node")
             or load_kwargs.get("torchrun_nproc_per_node")
             or load_kwargs.get("torchrun_nproc")
+            or 1
         )
     else:
-        return _official_video_internal_torchrun_nproc(
+        nproc = _official_video_internal_torchrun_nproc(
             model_id,
             call_kwargs=call_kwargs,
             load_kwargs=load_kwargs,
         )
+        if model_id in {"hunyuanvideo-1.5-t2v", "hunyuanvideo-1.5-i2v"}:
+            supported = (1, 2, 3, 4, 6, 8, 12, 24)
+            if nproc not in supported:
+                choices = ", ".join(str(value) for value in supported)
+                raise ValueError(
+                    f"{model_id} supports nproc values {choices}; got {nproc}. "
+                    "Its sequence-parallel all-to-all requires nproc to divide 24 attention heads."
+                )
+        return nproc
     try:
-        return int(requested or 0)
-    except Exception:
-        return 0
+        nproc = int(requested or 0)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{model_id} nproc must be an integer, got {requested!r}.") from exc
+    if model_id == "wan2.1-vace" and nproc <= 1:
+        raise ValueError(
+            "wan2.1-vace requires nproc_per_node > 1 because its in-tree official "
+            "command enables DiT/T5 FSDP."
+        )
+    if model_id == "gen3c" and nproc not in {1, 2, 4, 8, 16}:
+        raise ValueError(
+            "gen3c supports num_gpus values 1, 2, 4, 8, or 16 for its "
+            f"121-frame context-parallel chunks; got {nproc}."
+        )
+    if model_id == "kairos-sensenova":
+        if nproc < 1 or nproc > 20:
+            raise ValueError(
+                "kairos-sensenova nproc_per_node must be between 1 and its 20 attention heads; "
+                f"got {nproc}."
+            )
+        height = int(call_kwargs.get("height", 480) or 480)
+        width = int(call_kwargs.get("width", 640) or 640)
+        num_frames = int(call_kwargs.get("num_frames", 81) or 81)
+        if height % 16 or width % 16 or (num_frames - 1) % 4:
+            raise ValueError(
+                "kairos-sensenova requires height/width divisible by 16 and num_frames=4n+1 "
+                f"for the vendored VAE/DiT patching; got {height}x{width}, frames={num_frames}."
+            )
+        sequence_tokens = ((num_frames - 1) // 4 + 1) * (height // 16) * (width // 16)
+        if sequence_tokens % nproc:
+            raise ValueError(
+                "kairos-sensenova sequence tokens must divide evenly across TP/SP ranks; "
+                f"got tokens={sequence_tokens}, nproc={nproc}."
+            )
+    return nproc
 
 
 def _cuda_visible_device_count(value: str | None) -> int:
@@ -613,7 +1042,12 @@ def _wmfactory_visible_devices_for_run(model_id: str, run_kwargs: Mapping[str, A
     override = os.getenv(f"WM_{spec.env_prefix}_CUDA_VISIBLE_DEVICES")
     if override is not None:
         return _normalize_cuda_visible_devices(override)
-    return _select_wmfactory_visible_devices(spec.preferred_visible_devices)
+    preferred_visible_devices = spec.preferred_visible_devices
+    if spec.supported_process_counts:
+        requested_nproc = _requested_torchrun_nproc(model_id, run_kwargs)
+        if requested_nproc is not None:
+            preferred_visible_devices = requested_nproc
+    return _select_wmfactory_visible_devices(preferred_visible_devices)
 
 
 def _apply_wmfactory_env_hints(model_id: str, run_kwargs: Mapping[str, Any], env: dict[str, str]) -> None:
@@ -703,16 +1137,41 @@ def _terminate_process_tree(process: subprocess.Popen[Any], *, force: bool = Fal
 def _shutdown_resident_worker(worker: _ResidentWorker, *, force: bool = False) -> None:
     process = worker.process
     if process.poll() is None:
-        try:
-            if process.stdin is not None and not force:
+        if not force:
+            try:
                 process.stdin.write(b'{"command":"shutdown"}\n')
                 process.stdin.flush()
-        except Exception:
-            pass
-        try:
-            process.wait(timeout=2)
-        except subprocess.TimeoutExpired:
+            except (AttributeError, BrokenPipeError, OSError):
+                pass
+
+        exited = False
+        if not force:
+            try:
+                process.wait(timeout=2)
+                exited = True
+            except subprocess.TimeoutExpired:
+                pass
+            except (ChildProcessError, OSError):
+                exited = process.poll() is not None
+
+        if not exited and process.poll() is None:
             _terminate_process_tree(process, force=force)
+            try:
+                process.wait(timeout=2)
+                exited = True
+            except subprocess.TimeoutExpired:
+                pass
+            except (ChildProcessError, OSError):
+                exited = process.poll() is not None
+
+        if not exited and process.poll() is None:
+            _terminate_process_tree(process, force=True)
+            try:
+                # Always reap a process after SIGKILL; otherwise repeated worker
+                # churn can accumulate zombies in a long-running Studio server.
+                process.wait()
+            except (ChildProcessError, OSError):
+                pass
     try:
         if process.stdin is not None:
             process.stdin.close()
@@ -725,7 +1184,70 @@ def _shutdown_resident_worker(worker: _ResidentWorker, *, force: bool = False) -
         pass
 
 
+def _reap_resident_workers_once(*, now: float | None = None) -> int:
+    """Remove dead and expired-idle workers, then reap them without registry locks."""
+    retired_workers: list[_ResidentWorker] = []
+    current_time = time.monotonic() if now is None else now
+    idle_ttl = _resident_worker_idle_ttl()
+    # Hold the lifecycle lock until retired processes are actually reaped so a
+    # concurrent allocator cannot replace them above the configured hard cap.
+    with _RESIDENT_WORKERS_LIFECYCLE_LOCK:
+        with _RESIDENT_WORKERS_LOCK:
+            for key, candidate in list(_RESIDENT_WORKERS.items()):
+                is_dead = candidate.process.poll() is not None
+                is_expired = (
+                    candidate.in_use == 0
+                    and idle_ttl > 0
+                    and current_time - candidate.last_used_at >= idle_ttl
+                )
+                if candidate.in_use == 0 and (is_dead or is_expired):
+                    _RESIDENT_WORKERS.pop(key, None)
+                    retired_workers.append(candidate)
+        for worker in retired_workers:
+            _shutdown_resident_worker(worker, force=False)
+    return len(retired_workers)
+
+
+def _resident_worker_reaper_loop() -> None:
+    while True:
+        idle_ttl = _resident_worker_idle_ttl()
+        interval = min(30.0, max(0.1, idle_ttl / 2.0)) if idle_ttl > 0 else 30.0
+        if _RESIDENT_WORKERS_REAPER_STOP.wait(interval):
+            return
+        try:
+            _reap_resident_workers_once()
+        except Exception:
+            # Reaping is best effort and must not permanently disable cleanup
+            # because one process object behaved unexpectedly.
+            continue
+
+
+def _ensure_resident_worker_reaper() -> None:
+    global _RESIDENT_WORKERS_REAPER_THREAD
+    with _RESIDENT_WORKERS_REAPER_LOCK:
+        thread = _RESIDENT_WORKERS_REAPER_THREAD
+        if thread is not None and thread.is_alive():
+            return
+        _RESIDENT_WORKERS_REAPER_STOP.clear()
+        thread = threading.Thread(
+            target=_resident_worker_reaper_loop,
+            name="worldfoundry-resident-worker-reaper",
+            daemon=True,
+        )
+        _RESIDENT_WORKERS_REAPER_THREAD = thread
+        thread.start()
+
+
 def _shutdown_all_resident_workers() -> None:
+    global _RESIDENT_WORKERS_REAPER_THREAD
+    _RESIDENT_WORKERS_REAPER_STOP.set()
+    with _RESIDENT_WORKERS_REAPER_LOCK:
+        reaper_thread = _RESIDENT_WORKERS_REAPER_THREAD
+    if reaper_thread is not None and reaper_thread is not threading.current_thread():
+        reaper_thread.join(timeout=1)
+    with _RESIDENT_WORKERS_REAPER_LOCK:
+        if _RESIDENT_WORKERS_REAPER_THREAD is reaper_thread:
+            _RESIDENT_WORKERS_REAPER_THREAD = None
     with _RESIDENT_WORKERS_LOCK:
         workers = list(_RESIDENT_WORKERS.values())
         _RESIDENT_WORKERS.clear()
@@ -833,7 +1355,16 @@ def _runtime_pythonpath(spec: RuntimeCondaEnvSpec, env: Mapping[str, str]) -> st
         paths.append(str(resolved))
     existing = env.get("PYTHONPATH")
     if existing:
-        paths.append(existing)
+        for item in existing.split(os.pathsep):
+            candidate = Path(item).expanduser()
+            is_package_dir = any(part in {"site-packages", "dist-packages"} for part in candidate.parts)
+            try:
+                belongs_to_child = candidate.is_relative_to(spec.env_prefix)
+            except ValueError:
+                belongs_to_child = False
+            if is_package_dir and not belongs_to_child:
+                continue
+            paths.append(item)
     deduped: list[str] = []
     for item in paths:
         if item and item not in deduped:
@@ -957,6 +1488,7 @@ def _runtime_env(spec: RuntimeCondaEnvSpec, device: str | None = None) -> dict[s
     hfd_root = resolve_hfd_root(env)
     env.setdefault("WORLDFOUNDRY_CKPT_DIR", str(ckpt_dir))
     env.setdefault("WORLDFOUNDRY_HFD_ROOT", str(hfd_root))
+    env.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
     local_hf_home = ckpt_dir / "huggingface"
     if local_hf_home.is_dir():
         env.setdefault("HF_HOME", str(local_hf_home))
@@ -1078,17 +1610,28 @@ def _start_resident_worker(
         "--workspace-root",
         workspace_root,
     ]
-    process = subprocess.Popen(
-        command,
-        cwd=str(_repo_root()),
-        env=context.env,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        bufsize=0,
-        start_new_session=sys.platform != "win32",
-    )
-    assert process.stdout is not None
+    try:
+        process = subprocess.Popen(
+            command,
+            cwd=str(_repo_root()),
+            env=context.env,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            bufsize=0,
+            start_new_session=sys.platform != "win32",
+        )
+    except OSError as exc:
+        raise _ResidentWorkerUnavailable(
+            f"could not start resident worker for {model_id}: {exc}"
+        ) from exc
+    if process.stdout is None:
+        _terminate_process_tree(process, force=True)
+        try:
+            process.wait()
+        except (ChildProcessError, OSError):
+            pass
+        raise _ResidentWorkerUnavailable("resident worker stdout pipe was not created")
     try:
         os.set_blocking(process.stdout.fileno(), False)
     except (AttributeError, OSError):
@@ -1103,11 +1646,6 @@ def _start_resident_worker(
         created_at=time.monotonic(),
         last_used_at=time.monotonic(),
     )
-    _append_log(
-        log_callback,
-        "system",
-        f"started resident conda worker for {model_id} in {spec.resolved_env_name}: {spec.python_executable}\n",
-    )
     return worker
 
 
@@ -1119,21 +1657,109 @@ def _resident_worker_for(
     context: _ResidentRunContext,
     log_callback: LogCallback | None,
 ) -> _ResidentWorker:
+    retired_workers: list[_ResidentWorker] = []
+    worker: _ResidentWorker | None = None
+    started_worker = False
+    with _RESIDENT_WORKERS_LIFECYCLE_LOCK:
+        try:
+            max_workers = _resident_worker_max_workers()
+            with _RESIDENT_WORKERS_LOCK:
+                now = time.monotonic()
+                idle_ttl = _resident_worker_idle_ttl()
+                for key, candidate in list(_RESIDENT_WORKERS.items()):
+                    is_dead = candidate.process.poll() is not None
+                    is_expired = idle_ttl > 0 and now - candidate.last_used_at >= idle_ttl
+                    if is_dead:
+                        _RESIDENT_WORKERS.pop(key, None)
+                        # An existing waiter may still be draining the dead
+                        # process. Do not close its pipes from this thread.
+                        if candidate.in_use == 0:
+                            retired_workers.append(candidate)
+                    elif candidate.in_use == 0 and is_expired:
+                        _RESIDENT_WORKERS.pop(key, None)
+                        retired_workers.append(candidate)
+
+                if max_workers == 0:
+                    for key, candidate in list(_RESIDENT_WORKERS.items()):
+                        if candidate.in_use == 0:
+                            _RESIDENT_WORKERS.pop(key, None)
+                            retired_workers.append(candidate)
+                    raise _ResidentWorkerUnavailable("resident worker capacity is disabled")
+
+                # Enforce a lowered cap before reusing an existing worker. Prefer
+                # keeping the requested key when another idle worker can retire.
+                while len(_RESIDENT_WORKERS) > max_workers:
+                    idle_workers = [candidate for candidate in _RESIDENT_WORKERS.values() if candidate.in_use == 0]
+                    if not idle_workers:
+                        raise _ResidentWorkerUnavailable(
+                            f"resident worker pool exceeds the {max_workers}-worker cap and all slots are busy"
+                        )
+                    victim = min(
+                        idle_workers,
+                        key=lambda candidate: (candidate.key == context.key, candidate.last_used_at),
+                    )
+                    _RESIDENT_WORKERS.pop(victim.key, None)
+                    retired_workers.append(victim)
+
+                existing = _RESIDENT_WORKERS.get(context.key)
+                if existing is not None:
+                    existing.in_use += 1
+                    worker = existing
+
+                while len(_RESIDENT_WORKERS) >= max_workers:
+                    if worker is not None:
+                        break
+                    idle_workers = [candidate for candidate in _RESIDENT_WORKERS.values() if candidate.in_use == 0]
+                    if not idle_workers:
+                        raise _ResidentWorkerUnavailable(
+                            f"all {max_workers} resident worker slots are busy"
+                        )
+                    victim = min(idle_workers, key=lambda candidate: candidate.last_used_at)
+                    _RESIDENT_WORKERS.pop(victim.key, None)
+                    retired_workers.append(victim)
+
+        finally:
+            # Never wait for process exit under the registry lock. Keep the
+            # lifecycle lock until exit so replacements cannot exceed the cap.
+            for retired_worker in retired_workers:
+                _shutdown_resident_worker(retired_worker, force=False)
+
+        if worker is None:
+            worker = _start_resident_worker(
+                model_id=model_id,
+                spec=spec,
+                workspace_root=workspace_root,
+                context=context,
+                log_callback=log_callback,
+            )
+            started_worker = True
+            with _RESIDENT_WORKERS_LOCK:
+                worker.in_use = 1
+                _RESIDENT_WORKERS[context.key] = worker
+
+    if worker is None:  # pragma: no cover - all paths above assign or raise
+        raise _ResidentWorkerUnavailable("resident worker allocation failed")
+    _ensure_resident_worker_reaper()
+    if started_worker:
+        try:
+            _append_log(
+                log_callback,
+                "system",
+                f"started resident conda worker for {model_id} in {spec.resolved_env_name}: "
+                f"{spec.python_executable}\n",
+            )
+        except Exception:
+            _release_resident_worker(worker)
+            raise
+    return worker
+
+
+def _release_resident_worker(worker: _ResidentWorker) -> None:
     with _RESIDENT_WORKERS_LOCK:
-        existing = _RESIDENT_WORKERS.get(context.key)
-        if existing is not None and existing.process.poll() is None:
-            return existing
-        if existing is not None:
-            _RESIDENT_WORKERS.pop(context.key, None)
-        worker = _start_resident_worker(
-            model_id=model_id,
-            spec=spec,
-            workspace_root=workspace_root,
-            context=context,
-            log_callback=log_callback,
-        )
-        _RESIDENT_WORKERS[context.key] = worker
-        return worker
+        if worker.in_use > 0:
+            worker.in_use -= 1
+        if worker.in_use == 0:
+            worker.last_used_at = time.monotonic()
 
 
 def _drop_resident_worker(worker: _ResidentWorker, *, force: bool = False) -> None:
@@ -1156,8 +1782,29 @@ def _send_resident_worker_request(
     try:
         worker.process.stdin.write(data)
         worker.process.stdin.flush()
-    except BrokenPipeError as exc:
+    except (BrokenPipeError, OSError, ValueError) as exc:
         raise _ResidentWorkerUnavailable("resident worker pipe closed before request") from exc
+
+
+def _acquire_resident_worker_request_lock(
+    worker: _ResidentWorker,
+    *,
+    deadline: float | None,
+    request_timeout: float,
+    cancel_requested: CancelCallback | None,
+) -> None:
+    """Acquire a worker serially while continuing to honor timeout and cancellation."""
+    while True:
+        if cancel_requested is not None and cancel_requested():
+            raise RuntimeError("resident inference worker cancelled while waiting for an available worker")
+        now = time.monotonic()
+        if deadline is not None and now >= deadline:
+            raise TimeoutError(f"resident worker request timed out after {request_timeout:.1f}s")
+        poll_interval = 0.05
+        if deadline is not None:
+            poll_interval = min(poll_interval, max(deadline - now, 0.0))
+        if worker.lock.acquire(timeout=poll_interval):
+            return
 
 
 def _wait_for_resident_worker_result(
@@ -1167,9 +1814,12 @@ def _wait_for_resident_worker_result(
     error_path: Path,
     log_callback: LogCallback | None,
     cancel_requested: CancelCallback | None,
+    deadline: float | None = None,
+    request_timeout: float | None = None,
 ) -> RunRecord:
-    timeout = _resident_worker_request_timeout()
-    deadline = time.monotonic() + timeout if timeout > 0 else None
+    timeout = _resident_worker_request_timeout() if request_timeout is None else max(request_timeout, 0.0)
+    if deadline is None and timeout > 0:
+        deadline = time.monotonic() + timeout
     stdout_eof = False
     process = worker.process
     if process.stdout is None:
@@ -1178,9 +1828,16 @@ def _wait_for_resident_worker_result(
 
     while True:
         if cancel_requested is not None and cancel_requested():
-            _append_log(log_callback, "system", "termination requested for resident inference worker\n")
-            _drop_resident_worker(worker, force=True)
+            try:
+                _append_log(log_callback, "system", "termination requested for resident inference worker\n")
+            finally:
+                _drop_resident_worker(worker, force=True)
             raise RuntimeError("resident inference worker cancelled")
+
+        now = time.monotonic()
+        if deadline is not None and now >= deadline:
+            _drop_resident_worker(worker, force=True)
+            raise TimeoutError(f"resident worker request timed out after {timeout:.1f}s")
 
         if result_path.is_file():
             worker.last_used_at = time.monotonic()
@@ -1192,6 +1849,13 @@ def _wait_for_resident_worker_result(
             _drain_process_output(process=process, decoder=worker.decoder, log_callback=log_callback)
             payload = json.loads(error_path.read_text(encoding="utf-8"))
             detail = payload.get("traceback") or payload.get("error") or f"see {error_path}"
+            # A failed resident request can leave partially constructed model
+            # state, CUDA allocations, and imported source modules in the
+            # worker. Reusing that process makes the next request both less
+            # deterministic and, during development, liable to execute stale
+            # code. Retire it before surfacing the original error so the next
+            # request always starts from a clean interpreter.
+            _drop_resident_worker(worker, force=True)
             raise RuntimeError(str(detail))
 
         if process.poll() is not None:
@@ -1199,21 +1863,22 @@ def _wait_for_resident_worker_result(
                 stdout_eof = _drain_process_output(process=process, decoder=worker.decoder, log_callback=log_callback)
                 if not stdout_eof:
                     time.sleep(0.05)
-            with _RESIDENT_WORKERS_LOCK:
-                if _RESIDENT_WORKERS.get(worker.key) is worker:
-                    _RESIDENT_WORKERS.pop(worker.key, None)
+            _drop_resident_worker(worker, force=False)
             raise RuntimeError(f"resident worker for {worker.model_id} exited with status {process.returncode}")
 
-        if deadline is not None and time.monotonic() > deadline:
-            _drop_resident_worker(worker, force=True)
-            raise TimeoutError(f"resident worker request timed out after {timeout:.1f}s")
-
         if not stdout_eof:
-            readable, _, _ = select.select([stdout_fd], [], [], 0.5)
+            select_timeout = 0.5
+            if deadline is not None:
+                select_timeout = min(select_timeout, max(deadline - time.monotonic(), 0.0))
+            readable, _, _ = select.select([stdout_fd], [], [], select_timeout)
             if readable:
                 stdout_eof = _drain_process_output(process=process, decoder=worker.decoder, log_callback=log_callback)
         else:
-            time.sleep(0.05)
+            sleep_interval = 0.05
+            if deadline is not None:
+                sleep_interval = min(sleep_interval, max(deadline - time.monotonic(), 0.0))
+            if sleep_interval > 0:
+                time.sleep(sleep_interval)
 
 
 def _run_manager_payload_in_resident_conda(
@@ -1226,6 +1891,9 @@ def _run_manager_payload_in_resident_conda(
     log_callback: LogCallback | None = None,
     cancel_requested: CancelCallback | None = None,
 ) -> RunRecord | None:
+    dispatch_started_at = time.monotonic()
+    request_timeout = _resident_worker_request_timeout()
+    deadline = dispatch_started_at + request_timeout if request_timeout > 0 else None
     context = _prepare_resident_run_context(
         model_id=model_id,
         spec=spec,
@@ -1268,24 +1936,42 @@ def _run_manager_payload_in_resident_conda(
         context=context,
         log_callback=log_callback,
     )
-    with worker.lock:
-        _append_log(log_callback, "system", f"dispatching {model_id} to resident conda worker\n")
-        _send_resident_worker_request(
+    lock_acquired = False
+    try:
+        _acquire_resident_worker_request_lock(
             worker,
-            request_payload={
-                "request_id": request_id,
-                "run_kwargs": _json_safe(context.payload_run_kwargs),
-                "result_path": str(result_path),
-                "error_path": str(error_path),
-            },
+            deadline=deadline,
+            request_timeout=request_timeout,
+            cancel_requested=cancel_requested,
         )
+        lock_acquired = True
+        _append_log(log_callback, "system", f"dispatching {model_id} to resident conda worker\n")
+        try:
+            _send_resident_worker_request(
+                worker,
+                request_payload={
+                    "request_id": request_id,
+                    "run_kwargs": _json_safe(context.payload_run_kwargs),
+                    "result_path": str(result_path),
+                    "error_path": str(error_path),
+                },
+            )
+        except _ResidentWorkerUnavailable:
+            _drop_resident_worker(worker, force=True)
+            raise
         return _wait_for_resident_worker_result(
             worker,
             result_path=result_path,
             error_path=error_path,
             log_callback=log_callback,
             cancel_requested=cancel_requested,
+            deadline=deadline,
+            request_timeout=request_timeout,
         )
+    finally:
+        if lock_acquired:
+            worker.lock.release()
+        _release_resident_worker(worker)
 
 
 def _append_log(log_callback: LogCallback | None, stream: str, text: str) -> None:
@@ -1336,14 +2022,6 @@ def run_manager_payload_in_conda(
         stale_log_path = dispatch_dir / stale_log
         if stale_log_path.exists():
             stale_log_path.unlink()
-    # Resolve torchrun sizing from explicit kwargs, model defaults, or internal rules.
-    requested_torchrun_nproc = (
-        _lingbot_torchrun_nproc(model_id, run_kwargs)
-        or _explicit_torchrun_nproc(model_id, run_kwargs)
-        or _default_torchrun_nproc(model_id, run_kwargs)
-    )
-    requested_internal_torchrun_nproc = _internal_torchrun_nproc(model_id, run_kwargs)
-    requested_multigpu_nproc = max(requested_torchrun_nproc, requested_internal_torchrun_nproc)
     kwargs_cuda_visible_devices = _cuda_visible_devices_from_kwargs(run_kwargs)
     device_cuda_visible_devices = _cuda_visible_devices_from_device(run_kwargs)
     parent_cuda_visible_devices = _normalize_cuda_visible_devices(os.getenv("CUDA_VISIBLE_DEVICES", ""))
@@ -1353,9 +2031,35 @@ def run_manager_payload_in_conda(
         or parent_cuda_visible_devices,
         run_kwargs,
     )
+    torchrun_nproc = _lingbot_torchrun_nproc(model_id, run_kwargs)
+    if torchrun_nproc <= 1:
+        torchrun_nproc = _explicit_torchrun_nproc(model_id, run_kwargs)
+    if torchrun_nproc <= 1:
+        torchrun_nproc = _default_torchrun_nproc(model_id, run_kwargs)
+    internal_torchrun_nproc = _internal_torchrun_nproc(model_id, run_kwargs)
+    dispatch_run_kwargs = _with_matrix_game3_parallelism(
+        model_id,
+        run_kwargs,
+        world_size=max(torchrun_nproc, 1),
+    )
+    dispatch_run_kwargs = _with_lingbot_world_parallelism(
+        model_id,
+        dispatch_run_kwargs,
+        world_size=max(torchrun_nproc, 1),
+    )
+    dispatch_run_kwargs = _with_wan_vace_parallelism(
+        model_id,
+        dispatch_run_kwargs,
+        world_size=max(internal_torchrun_nproc, 1),
+    )
+    dispatch_run_kwargs = _with_longvie2_parallelism(
+        model_id,
+        dispatch_run_kwargs,
+        world_size=max(torchrun_nproc, 1),
+    )
     # Strip parent-only kwargs and remap cuda:N indices for the child process.
     child_run_kwargs = _run_kwargs_for_child(
-        run_kwargs,
+        dispatch_run_kwargs,
         cuda_visible_devices=explicit_cuda_visible_devices,
     )
     payload_run_kwargs, secret_env = _payload_run_kwargs_with_secret_refs(child_run_kwargs)
@@ -1374,11 +2078,6 @@ def run_manager_payload_in_conda(
     if result_path.exists():
         result_path.unlink()
 
-    torchrun_nproc = _lingbot_torchrun_nproc(model_id, child_run_kwargs)
-    if torchrun_nproc <= 1:
-        torchrun_nproc = _explicit_torchrun_nproc(model_id, run_kwargs)
-    if torchrun_nproc <= 1:
-        torchrun_nproc = _default_torchrun_nproc(model_id, run_kwargs)
     internal_torchrun_nproc = _internal_torchrun_nproc(model_id, child_run_kwargs)
     wmfactory_visible_devices = "" if explicit_cuda_visible_devices else _wmfactory_visible_devices_for_run(model_id, run_kwargs)
     runtime_args = [
@@ -1431,17 +2130,29 @@ def run_manager_payload_in_conda(
     env.update(secret_env)
     _apply_wmfactory_env_hints(model_id, run_kwargs, env)
     if torchrun_nproc > 1:
-        if model_id == LINGBOT_WORLD_MODEL_ID:
+        if model_id in {LINGBOT_WORLD_MODEL_ID, LINGBOT_WORLD_V2_MODEL_ID}:
             env[TORCHRUN_LINGBOT_ENV] = "1"
-        if model_id in {"hunyuan-game-craft", "hunyuan-gamecraft", "hunyuan-worldplay"}:
+        if model_id in {
+            "hunyuan-game-craft",
+            "hunyuan-gamecraft",
+            "hunyuan-worldplay",
+            "longvie-2",
+            MATRIX_GAME3_MODEL_ID,
+            "dreamx-world-5b-cam",
+        }:
             env[TORCHRUN_DISTRIBUTED_ENV] = "1"
     if torchrun_nproc > 1 or internal_torchrun_nproc > 1:
         requested_nproc = max(torchrun_nproc, internal_torchrun_nproc)
         visible_count = _cuda_visible_device_count(env.get("CUDA_VISIBLE_DEVICES"))
-        if explicit_cuda_visible_devices and visible_count < requested_nproc:
+        if (
+            explicit_cuda_visible_devices
+            or wmfactory_visible_devices
+            or model_id == MATRIX_GAME3_MODEL_ID
+        ) and visible_count < requested_nproc:
+            selected_devices = explicit_cuda_visible_devices or env.get("CUDA_VISIBLE_DEVICES", "")
             raise RuntimeError(
                 f"{model_id} requested nproc={requested_nproc} but CUDA_VISIBLE_DEVICES="
-                f"{explicit_cuda_visible_devices!r} exposes only {visible_count} device(s)"
+                f"{selected_devices!r} exposes only {visible_count} device(s)"
             )
         # Let torchrun see all GPUs when the pinned set is too small for nproc.
         if visible_count < requested_nproc:

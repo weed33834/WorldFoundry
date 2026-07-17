@@ -1,0 +1,49 @@
+schema_version: 2
+model_id: dexora-1b
+display_name: Dexora 1B
+task_family: vla_policy
+groups:
+- vla
+- dexterous_manipulation
+- bimanual_robot_policy
+checkpoints:
+- local_dir: ${WORLDFOUNDRY_CKPT_DIR}/embodied_action/dexora-1b/checkpoint
+  role: locally_trained_policy_checkpoint
+- repo_id: google/siglip-so400m-patch14-384
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/google--siglip-so400m-patch14-384
+  role: vision_encoder
+- repo_id: google/t5-v1_1-xxl
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/google--t5-v1_1-xxl
+  role: text_encoder
+input_schema:
+  model_id: dexora-1b
+  image: true
+  prompt: true
+  state: true
+  camera_keys:
+  - cam_head
+  - cam_left_wrist
+  - cam_third_view
+  - cam_right_wrist
+  state_dim: 36
+  action_dim: 36
+  action_horizon: 32
+artifact_kind: action_trace
+artifact_filename: dexora_action_trace.json
+execution:
+  backend_stage: in_tree_checkpoint_runtime
+  runtime_status: encoders_ready_local_policy_checkpoint_required
+  integration_status: integrated
+  pipeline_binding: dexora-1b
+integration:
+  status: in_tree_checkpoint_runtime
+license: mit
+gpu_targets:
+- NVIDIA Turing in float32 or float16
+- NVIDIA Ampere in bfloat16
+- NVIDIA Ada in bfloat16
+- NVIDIA Hopper in bfloat16
+- NVIDIA Blackwell in bfloat16
+notes:
+- A local trained policy checkpoint is mandatory because the official release currently contains no public policy weights.
+- Runtime loads all weights locally and restores the action policy strictly.

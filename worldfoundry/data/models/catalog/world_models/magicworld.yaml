@@ -1,0 +1,21 @@
+id: magicworld
+name: MagicWorld
+tasks: [interactive-world-model, camera-controlled-video, image-to-video]
+provider: vivo Camera Research
+source:
+  status: open_source
+  official_repo_url: https://github.com/vivoCameraResearch/Magic-World
+  license: apache-2.0-code-and-cc-by-nc-sa-4.0-model-materials
+checkpoint: LuckyLiGY/MagicWorld
+runtime_profile: runtime-profile:magicworld
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: magicworld
+integration:
+  status: integrated
+  notes:
+  - Official source is vendored at revision a378d67d1b803db4268340fcc130c98a243ad9a8.
+  - Upstream README applies CC BY-NC-SA 4.0 terms to released model materials.
+runner_parity:
+  status: pending
+  notes: [Dedicated MagicWorld-Fast camera path is wired.]
+catalog_category: world_models

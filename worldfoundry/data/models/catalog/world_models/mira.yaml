@@ -1,0 +1,41 @@
+id: mira
+name: MIRA
+aliases:
+- mira-wm
+- multiplayer-interactive-world-model
+tasks:
+- action-conditioned-world-model
+- multiplayer-game-world-model
+output_artifacts:
+- generated_video
+provider: official_repo
+source:
+  status: open_source
+  official_repo_url: https://github.com/mira-wm/mira
+  revision: db25448391d42547161673a77950a1154d8b5f1f
+  license: apache-2.0
+official_sources:
+  project_page: https://mira-wm.com
+  github:
+    url: https://github.com/mira-wm/mira
+  paper: https://arxiv.org/abs/2607.05352
+variants:
+- id: local-checkpoint
+  task: rocket-science-rollout
+  provider: local
+  integration:
+    status: integrated
+integration:
+  status: integrated
+  notes:
+  - Inference-only upstream source is vendored under synthesis/visual_generation/world_model/mira_wm.
+  - Workspace accepts a local MIRA checkpoint and Rocket Science dataset split; no training entrypoint is integrated.
+runner_parity:
+  status: implemented_checkpoint_pending
+  notes:
+  - Workspace discovery, argument routing, and command generation are covered without loading model weights.
+  - Full artifact parity remains pending until an official-compatible checkpoint and Rocket Science split are staged.
+runtime_profile: runtime-profile:mira
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: mira
+catalog_category: world_models

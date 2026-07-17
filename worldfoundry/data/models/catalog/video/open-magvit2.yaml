@@ -17,20 +17,19 @@ checkpoint_refs:
   revision: 607230591be9efcb4ec5ec9b6417b9e863f2dd2c
   license: apache-2.0
 integration:
-  status: planned
+  status: integrated
   notes:
   - Runtime source is vendored in-tree and the CUDA generation wrapper is wired.
-  - The current artifact did not pass semantic visual QA, so do not claim visual-demo
-    parity yet.
+  - Full 256-token class-conditional generation passed checkpoint-backed GPU and semantic visual QA.
 runtime_profile: runtime-profile:open-magvit2
 runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
 pipeline_binding: open-magvit2
 runner_parity:
-  status: pending
+  status: checkpoint_backed_verified
   notes:
   - OpenMAGVIT2Synthesis provides an in-tree class-conditional PNG generation wrapper;
     the in-tree runtime validates checkpoint-backed CUDA generation.
-  - Semantic visual QA remains pending.
+  - ImageNet class 207 passed semantic visual QA at the official 256x256 output size.
 catalog_category: video
 catalog_scope: Video-generation and video-token catalog entries. Integrated entries
   expose WorldFoundry pipeline targets; metadata-only entries retain upstream provenance

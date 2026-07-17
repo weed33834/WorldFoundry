@@ -1,0 +1,47 @@
+model_id: lingbot-world-v2
+env_name: lingbot-world-v2
+env_root: ${WORLDFOUNDRY_CONDA_ENVS_ROOT}
+python: '3.10'
+cuda_profile: cu121
+driver_status: compatible
+conda_packages:
+- python=3.10
+- pip
+- ffmpeg
+pip_packages:
+- torch==2.5.1
+- torchvision==0.20.1
+- flash-attn==2.8.3
+- diffusers>=0.31.0
+- transformers==4.51.3
+- tokenizers>=0.20.3
+- accelerate>=1.1.1
+- huggingface-hub
+- safetensors
+- numpy>=1.23.5,<2
+- scipy
+- imageio[ffmpeg]
+- imageio-ffmpeg
+- einops
+- easydict
+- ftfy
+- tqdm
+- pillow
+- pyyaml
+validation_imports:
+- torch
+- torchvision
+- flash_attn
+- diffusers
+- transformers
+- huggingface_hub
+- numpy
+- scipy
+- imageio
+- einops
+- worldfoundry.pipelines.lingbot_world_v2
+- worldfoundry.synthesis.visual_generation.lingbot_world_v2
+notes:
+- Pins follow the official LingBot-World-V2 inference requirements without depending on an external source checkout.
+- The public 14B causal-fast recipe is designed for eight GPUs with DiT/T5 FSDP and Ulysses sequence parallelism.
+- Source and checkpoint usage is restricted by CC BY-NC-SA 4.0 non-commercial terms.

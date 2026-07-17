@@ -7,8 +7,11 @@ groups:
 - camera_control
 source_repos:
 - url: https://github.com/robbyant/lingbot-world
+  revision: a43bec7f8091c83e9b30b16b912f6fc906236fa6
+  in_tree_path: worldfoundry/synthesis/visual_generation/lingbot_world/lingbot_world_runtime
 checkpoints:
 - repo_id: robbyant/lingbot-world-base-cam
+  revision: 6fc824ffc338d64c97c77e2eb8c0f4cfc24d82bd
   role: lingbot_world_base_cam_checkpoint
 input_schema:
   prompt: true
@@ -20,11 +23,21 @@ input_schema:
 artifact_kind: generated_world
 artifact_filename: lingbot-world.mp4
 execution:
+  environment: lingbot-world
   backend_stage: in_tree_runtime
   runtime_status: base_cam_contract
   integration_status: verified
   pipeline_binding: lingbot-world
+  defaults:
+    nproc_per_node: 8
+    ulysses_size: 8
+    t5_fsdp: true
+    dit_fsdp: true
+    t5_cpu: false
+    offload_model: false
 integration:
   status: verified
 notes:
 - LingBotPipeline wraps the in-tree LingBot world runtime.
+- The official base-cam recipe uses eight GPUs with both DiT/T5 FSDP and Ulysses sequence parallelism.
+- Workspace also supports a four-GPU compact topology; both 4 and 8 divide the model's 40 attention heads.

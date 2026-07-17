@@ -1,0 +1,9 @@
+# Inference-only subset of TencentARC/RollingForcing configs/default_config.yaml.
+# Training, logging, and evaluation-dataset fields are intentionally excluded.
+independent_first_frame: false
+warp_denoising_step: false
+context_noise: 0
+causal: true
+height: 480
+width: 832
+num_frames: 126

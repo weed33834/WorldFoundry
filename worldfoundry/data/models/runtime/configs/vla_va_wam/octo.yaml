@@ -6,3 +6,6 @@ image_size:
   - 256
 jax_platform: cpu
 seed: 0
+text_assets:
+  clip_processor_path: ${WORLDFOUNDRY_HFD_ROOT}/openai--clip-vit-base-patch32
+  muse_model_path: ${WORLDFOUNDRY_CKPT_DIR}/octo/universal-sentence-encoder-multilingual-3

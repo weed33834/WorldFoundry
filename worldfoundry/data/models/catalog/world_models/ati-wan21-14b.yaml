@@ -1,0 +1,31 @@
+id: ati-wan21-14b
+name: ATI-Wan2.1-14B
+family: Camera-Control Video
+tasks: [camera-controlled-video, image-to-video]
+availability: open_source
+license: apache-2.0
+release_type: code_and_weights
+checkpoints:
+- repo_id: bytedance-research/ATI
+  role: ati_wan21_14b_checkpoint
+- repo_id: Wan-AI/Wan2.1-I2V-14B-480P
+  role: wan21_i2v_base_components
+official_sources:
+  github:
+    url: https://github.com/bytedance/ATI
+    revision: 1a002caf7bb55cfb016dcc670c357bd803af3a0d
+  huggingface:
+  - repo_id: bytedance-research/ATI
+    type: model
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+pipeline_binding: ati-wan21-14b
+runtime_profile: runtime-profile:ati-wan21-14b
+integration:
+  status: integrated
+  notes:
+  - Only ATI's official inference delta is vendored; the unchanged Wan2.1 implementation is reused from worldfoundry/base_models.
+  - Runtime checkpoint loading builds a read-only union of ATI weights and locally staged Wan2.1 I2V base components.
+runner_parity:
+  status: pending
+  notes: [In-tree import and camera-track compilation are verified; full GPU artifact parity requires staged weights.]
+catalog_category: world_models

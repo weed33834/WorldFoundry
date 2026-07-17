@@ -2,10 +2,10 @@ import torch
 from jaxtyping import Float, Shaped
 from torch import Tensor
 
-from worldfoundry.base_models.three_dimensions.point_clouds.pixelsplat_full.src.model.decoder.cuda_splatting import (
+from worldfoundry.base_models.three_dimensions.point_clouds.pixelsplat.src.model.decoder.cuda_splatting import (
     render_cuda_orthographic,
 )
-from worldfoundry.base_models.three_dimensions.point_clouds.pixelsplat_full.src.model.types import Gaussians
+from worldfoundry.base_models.three_dimensions.point_clouds.pixelsplat.src.model.types import Gaussians
 from worldfoundry.studio.visualization.plugins.scene3d.pixelsplat_full.visualization.annotation import add_label
 from worldfoundry.studio.visualization.plugins.scene3d.pixelsplat_full.visualization.drawing.cameras import draw_cameras
 from .drawing.cameras import compute_equal_aabb_with_margin

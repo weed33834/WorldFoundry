@@ -4,28 +4,45 @@ backend_stage: in_tree_checkpoint_runtime
 checkpoints:
 - local_dir: ${WORLDFOUNDRY_HFD_ROOT}/StarVLA--Qwen3-VL-OFT-LIBERO-4in1
   repo_id: StarVLA/Qwen3-VL-OFT-LIBERO-4in1
+  revision: 1947454be8c0f4de315f4cbde96b874819a6dab3
   role: qwen3_vl_libero_policy_checkpoint
   status: local_checkpoint_staged_official_source_predict_action_gpu_ready
 - local_dir: ${WORLDFOUNDRY_HFD_ROOT}/StarVLA--WM4A-Wan2d2-OFT-LIBERO-4in1
   repo_id: StarVLA/WM4A-Wan2d2-OFT-LIBERO-4in1
+  revision: e431aa1d059fd61864db707f3c178673af01c9d4
   role: wm4a_wan2d2_libero_world_action_checkpoint
   status: local_checkpoint_staged_checkpoint_gpu_probe_ready_official_source_import_gpu_probe_ready_wm4a_runtime_not_promoted
 - local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Qwen--Qwen3-VL-4B-Instruct
   repo_id: Qwen/Qwen3-VL-4B-Instruct
+  revision: ebb281ec70b05090aa6165b016eac8ec08e71b17
   role: qwen3_vl_4b_base_vlm
   status: local_base_vlm_staged_official_source_predict_action_gpu_ready
+- local_dir: ${WORLDFOUNDRY_HFD_ROOT}/Wan-AI--Wan2.2-TI2V-5B-Diffusers
+  repo_id: Wan-AI/Wan2.2-TI2V-5B-Diffusers
+  revision: b8fff7315c768468a5333511427288870b2e9635
+  role: base_world_model
+  status: local_base_checkpoint_staged_checkpoint_gpu_probe_ready
 gpu_readiness:
   artifact_kind: action_trace
   base_vlm: ${WORLDFOUNDRY_HFD_ROOT}/Qwen--Qwen3-VL-4B-Instruct
-  gpu_device: 80GB CUDA GPU
-  max_memory_allocated_bytes: 9296583168
-  max_memory_reserved_bytes: 9344909312
-  runtime_seconds: 84.072
-  scope: public_pipeline_checkpoint_backed_qwen3_vl_oft_libero_predict_action
-  source_repo_dir: worldfoundry/synthesis/action_generation/starvla
+  gpu_device: NVIDIA A100-SXM4-80GB
+  public_api_construct_seconds: 9.346
+  cold_public_predict_seconds: 206.579
+  model_inference_seconds: 0.743
+  attention_implementation: sdpa
+  max_memory_allocated_bytes: 9237307392
+  max_memory_reserved_bytes: 9279897600
+  output_shape: [1, 8, 7]
+  output_finite: true
+  unnormalization_reference_max_abs: 0.0
+  deterministic_repeat_max_abs: 0.0
+  cleanup_allocated_bytes: 9568256
+  cleanup_reserved_bytes: 16777216
+  scope: public_api_checkpoint_backed_qwen3_vl_oft_libero_predict_action_and_unnormalization
   status: ready
-  torch_cuda: '11.8'
-  torch_version: 2.5.1+cu118
+  torch_cuda: '12.8'
+  torch_version: 2.11.0+cu128
+  verification_date: '2026-07-15'
 id: starvla
 input_schema:
   actions:
@@ -39,8 +56,10 @@ input_schema:
   video: true
 integration_status: integrated
 notes:
-- WorldFoundry provides the StarVLA QwenOFT predict_action runtime in-tree under worldfoundry/synthesis/action_generation/starvla.
-  It does not require an external starVLA checkout for release inference.
+- WorldFoundry provides flat, inference-only QwenOFT and WanOFT model code in-tree; no external StarVLA checkout or import bridge is used.
+- Public inference stores both environment-space `actions` and the original `normalized_actions`; action unnormalization is driven by checkpoint statistics.
+- Cold startup on CPFS is storage-bound; steady-state model inference is reported separately.
+- All four pinned snapshots pass exact-size validation with no partial markers; policy files pass weights-only tensor-mapping checks and safetensors backbones pass header/index checks.
 runtime_status: in_tree_qwen3_vl_oft_libero_predict_action_gpu_ready
 task_family: embodied_action
 verification_status: checkpoint_backed_in_tree_predict_action_gpu_ready

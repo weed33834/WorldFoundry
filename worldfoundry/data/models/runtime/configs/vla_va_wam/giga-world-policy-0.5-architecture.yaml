@@ -1,0 +1,50 @@
+schema_version: 1
+architecture:
+  class_name: CasualWorldActionTransformer_MoT
+  diffusers_version: 0.36.0
+  action_expert_dim: 1024
+  action_ffn_dim: 4096
+  added_kv_proj_dim: null
+  attention_head_dim: 128
+  cross_attn_norm: true
+  eps: 0.000001
+  ffn_dim: 14336
+  freq_dim: 256
+  image_dim: null
+  in_action_channels: 16
+  in_channels: 48
+  num_attention_heads: 24
+  num_embodiments: 2
+  num_layers: 30
+  out_action_channels: 16
+  out_channels: 48
+  patch_size: [1, 2, 2]
+  pos_embed_seq_len: null
+  qk_norm: rms_norm_across_heads
+  rope_max_seq_len: 1024
+  text_dim: 4096
+inference:
+  action_only: true
+  action_chunk: 48
+  model_action_dim: 32
+  deployed_action_dim: 14
+  num_frames: 5
+  num_inference_steps: 10
+  flow_shift: 5.0
+  guidance_scale: 0.0
+  dst_size: [320, 384]
+  delta_mask:
+  - true
+  - true
+  - true
+  - true
+  - true
+  - true
+  - false
+  - true
+  - true
+  - true
+  - true
+  - true
+  - true
+  - false

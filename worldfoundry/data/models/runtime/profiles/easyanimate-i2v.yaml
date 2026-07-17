@@ -8,6 +8,8 @@ groups:
 - easyanimate
 source_repos:
 - url: https://github.com/aigc-apps/EasyAnimate
+  revision: c2a70d17daa1549a22129d0cd0e02053ecccd75c
+  in_tree_path: worldfoundry/synthesis/visual_generation/easyanimate/easyanimate_runtime
 checkpoints:
 - repo_id: alibaba-pai/EasyAnimateV5.1-7b-zh-InP
   revision: a18486a2647f32a8963bee479326947067bab836
@@ -21,6 +23,7 @@ input_schema:
 artifact_kind: generated_video
 artifact_filename: easyanimate-i2v.mp4
 execution:
+  environment: _unified
   backend_stage: official_in_tree_runtime
   runtime_status: official_demo_parity_pending
   integration_status: integrated
@@ -29,5 +32,7 @@ integration:
   status: integrated
 notes:
 - EasyAnimate image-to-video runtime wrapper is packaged in-tree.
+- WRBench camera control reuses this independent EasyAnimate runtime and never
+  resolves an external source checkout.
 - Official EasyAnimate V5.1 I2V demos use the `*-InP` checkpoint family; the non-InP
   `EasyAnimateV5.1-7b-zh` checkpoint is the text-to-video model.

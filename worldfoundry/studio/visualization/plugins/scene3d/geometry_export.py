@@ -1,7 +1,6 @@
 import os
 
 from plyfile import PlyData, PlyElement
-from scipy.spatial.transform import Rotation
 import einops
 import numpy as np
 import torch
@@ -13,6 +12,9 @@ ensure_import_paths()
 from worldfoundry.base_models.three_dimensions.general_3d.dust3r.dust3r.viz.scene3d_dust import (
     cat_meshes,
     pts3d_to_trimesh,
+)
+from worldfoundry.base_models.three_dimensions.general_3d.splatt3r.splatt3r_runtime.utils.export import (
+    _inverse_sigmoid,
 )
 
 
@@ -36,41 +38,22 @@ def save_as_ply(pred1, pred2, save_path):
             attributes.append(f"rot_{i}")
         return attributes
 
-    def covariance_to_quaternion_and_scale(covariance):
-        '''Convert the covariance matrix to a four dimensional quaternion and
-        a three dimensional scale vector'''
-
-        # Perform singular value decomposition
-        U, S, V = torch.linalg.svd(covariance)
-
-        # The scale factors are the square roots of the eigenvalues
-        scale = torch.sqrt(S)
-        scale = scale.detach().cpu().numpy()
-
-        # The rotation matrix is U*Vt
-        rotation_matrix = torch.bmm(U, V.transpose(-2, -1))
-        rotation_matrix_np = rotation_matrix.detach().cpu().numpy()
-
-        # Use scipy to convert the rotation matrix to a quaternion
-        rotation = Rotation.from_matrix(rotation_matrix_np)
-        quaternion = rotation.as_quat()
-
-        return quaternion, scale
-
     # Collect the Gaussian parameters
     means = torch.stack([pred1["means"], pred2["means_in_other_view"]], dim=1)
-    covariances = torch.stack([pred1["covariances"], pred2["covariances"]], dim=1)
+    scales = torch.stack([pred1["scales"], pred2["scales"]], dim=1)
+    rotations = torch.stack([pred1["rotations"], pred2["rotations"]], dim=1)
     harmonics = torch.stack([pred1["sh"], pred2["sh"]], dim=1)[..., 0]  # Only use the first harmonic
     opacities = torch.stack([pred1["opacities"], pred2["opacities"]], dim=1)
 
     # Rearrange the tensors to the correct shape
     means = einops.rearrange(means[0], "view h w xyz -> (view h w) xyz").detach().cpu().numpy()
-    covariances = einops.rearrange(covariances[0], "v h w i j -> (v h w) i j")
+    scales = einops.rearrange(scales[0], "view h w xyz -> (view h w) xyz").detach().cpu().numpy()
+    rotations = einops.rearrange(rotations[0], "view h w xyzw -> (view h w) xyzw")
+    rotations = rotations / rotations.norm(dim=-1, keepdim=True).clamp_min(1e-8)
+    rotations = rotations[:, [3, 0, 1, 2]].detach().cpu().numpy()
     harmonics = einops.rearrange(harmonics[0], "view h w xyz -> (view h w) xyz").detach().cpu().numpy()
-    opacities = einops.rearrange(opacities[0], "view h w xyz -> (view h w) xyz").detach().cpu().numpy()
-
-    # Convert the covariance matrices to quaternions and scales
-    rotations, scales = covariance_to_quaternion_and_scale(covariances)
+    opacities = einops.rearrange(opacities[0], "view h w xyz -> (view h w) xyz")
+    opacities = _inverse_sigmoid(opacities).detach().cpu().numpy()
 
     # Construct the attributes
     rest = np.zeros_like(means)

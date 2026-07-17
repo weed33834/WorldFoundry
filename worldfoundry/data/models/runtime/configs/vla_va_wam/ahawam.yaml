@@ -1,0 +1,47 @@
+backend: callable_entrypoint
+checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/SereneC--AHA-WAM-RoboTwin2.0/robotwin_ahawam.pt
+checkpoint_filename: robotwin_ahawam.pt
+checkpoint_ref: SereneC/AHA-WAM-RoboTwin2.0
+require_checkpoint: true
+policy_target: worldfoundry.synthesis.action_generation.ahawam.runtime:predict_action
+predict_method: inference_action
+runtime_backend: ahawam_in_tree_runtime
+action_contract: history_aware_16_step_action_chunk
+dataset_stats_path: ${WORLDFOUNDRY_HFD_ROOT}/SereneC--AHA-WAM-RoboTwin2.0/dataset_stats.json
+vae_path: ${WORLDFOUNDRY_HFD_ROOT}/DiffSynth-Studio--Wan-Series-Converted-Safetensors/Wan2.2_VAE.safetensors
+vae_filename: Wan2.2_VAE.safetensors
+text_encoder_path: ${WORLDFOUNDRY_HFD_ROOT}/DiffSynth-Studio--Wan-Series-Converted-Safetensors/models_t5_umt5-xxl-enc-bf16.safetensors
+text_encoder_filename: models_t5_umt5-xxl-enc-bf16.safetensors
+tokenizer_path: ${WORLDFOUNDRY_HFD_ROOT}/Wan-AI--Wan2.1-T2V-1.3B/google/umt5-xxl
+architecture_config_path: ${WORLDFOUNDRY_DATA_ROOT}/models/runtime/configs/vla_va_wam/ahawam-architecture.yaml
+torch_dtype: auto
+vae_device: auto
+vae_dtype: auto
+text_encoder_device: auto
+text_encoder_dtype: auto
+auto_vae_gpu_min_gib: 32
+auto_text_gpu_min_gib: 40
+chunks_per_video_prefill: 2
+num_inference_steps: 10
+sigma_shift: null
+seed: null
+rand_device: cpu
+image_width: 320
+image_height: 384
+camera_keys:
+- head
+- cam_high
+- front
+- main
+- left_wrist
+- right_wrist
+- wrist
+variants:
+  robotwin:
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/SereneC--AHA-WAM-RoboTwin2.0/robotwin_ahawam.pt
+    repo_id: SereneC/AHA-WAM-RoboTwin2.0
+    filename: robotwin_ahawam.pt
+  robotwin_flash:
+    checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/SereneC--AHA-WAM-RoboTwin2.0/robotwin_ahawam-flash.pt
+    repo_id: SereneC/AHA-WAM-RoboTwin2.0
+    filename: robotwin_ahawam-flash.pt

@@ -1,0 +1,65 @@
+schema_version: 2
+model_id: vmem
+display_name: VMem
+task_family: world_model
+groups: [world, video, interactive]
+source_repos:
+- url: https://github.com/runjiali-rl/vmem
+  revision: 39291e4f272f6b4f270691d930926ab5930f942e
+  in_tree_path: worldfoundry/synthesis/visual_generation/vmem/vmem_runtime
+checkpoints:
+- repo_id: liguang0115/vmem
+  revision: ac5921080a57f5a634f4b9acbbc8f3db67c9d113
+  size_bytes: 5056346672
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/vmem
+  role: vmem_checkpoint
+  status: checkpoint_manifest_validated
+  required_paths:
+  - vmem_weights.pth
+- repo_id: liguang0115/cut3r
+  revision: b14faf986da0df405cff1b41e60e2975c4da2745
+  size_bytes: 3173761006
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/cut3r
+  role: surfel_checkpoint
+  status: checkpoint_manifest_validated
+  required_paths:
+  - cut3r_512_dpt_4_64.pth
+- repo_id: SagiPolaczek/stable-diffusion-2-1-base
+  revision: d1dc907291ce017defe5ec44dc1ec7ef55a1e26e
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/stable-diffusion-2-1-base
+  role: vae_checkpoint
+  status: checkpoint_manifest_validated
+  required_paths:
+  - vae/config.json
+  - vae/diffusion_pytorch_model.safetensors
+- repo_id: laion/CLIP-ViT-H-14-laion2B-s32B-b79K
+  revision: 1c2b8495b28150b8a4922ee1c8edee224c284c0c
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/CLIP-ViT-H-14-laion2B-s32B-b79K
+  role: image_conditioner
+  status: checkpoint_manifest_validated
+  required_paths:
+  - open_clip_pytorch_model.bin
+- repo_id: naver/DUSt3R_ViTLarge_BaseDecoder_512_dpt
+  revision: 61c57447d7b0adc8a1a30b2b0adec7a8935aa2a3
+  local_dir: ${WORLDFOUNDRY_CKPT_DIR}/DUSt3R_ViTLarge_BaseDecoder_512_dpt
+  role: camera_preprocessor
+  status: checkpoint_manifest_validated
+  required_paths:
+  - config.json
+  - model.safetensors
+input_schema:
+  prompt: true
+  image: true
+  video: false
+  actions: [interaction, navigation]
+artifact_kind: generated_video
+artifact_filename: vmem.mp4
+execution:
+  backend_stage: official_in_tree_runtime
+  runtime_status: verified
+  integration_status: verified
+  pipeline_binding: vmem
+integration:
+  status: verified
+notes:
+- The in-tree Studio/API route produced and visually validated the official-style VMem navigation demo on 2026-06-27.

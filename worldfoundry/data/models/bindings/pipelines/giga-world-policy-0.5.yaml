@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: giga-world-policy-0.5
+model_id: giga-world-policy-0.5
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.synthesis.action_generation.giga_world_policy.pipeline:GigaWorldPolicyPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

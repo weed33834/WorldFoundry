@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: spatial-forcing
+model_id: spatial-forcing
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.spatial_forcing.pipeline_spatial_forcing:SpatialForcingPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

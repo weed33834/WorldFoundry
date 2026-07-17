@@ -1,0 +1,13 @@
+schema_version: 2
+binding_id: uni3c
+model_id: uni3c
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.uni3c.pipeline_uni3c:Uni3CPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation
+aliases:
+- pcdcontroller

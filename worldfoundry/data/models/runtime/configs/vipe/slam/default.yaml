@@ -20,6 +20,7 @@ init_disp: 1.0
 optimize_intrinsics: ???
 optimize_rig_rotation: false
 cross_view: true
+cross_view_idx: null
 adaptive_cross_view: false
 infill_chunk_size: 16
 infill_dense_disp: false
@@ -28,6 +29,14 @@ visualize: false
 keyframe_depth: metric3d-small
 ba:
   dense_disp_alpha: 0.001
+  fused: false
   intrinsics_damping_scale: 1.0
+  robust_kernel: null
+  robust_kernel_threshold: 3.0
+  gnc_mu_init: 1.0
+  gnc_mu_step: 3.0
+  gnc_mu_max: 1.0e6
+  gnc_n_mu_steps: 4
+  gnc_gn_iters_per_mu: 6
 sparse_tracks:
   name: dummy

@@ -1,0 +1,39 @@
+runner_target: worldfoundry.evaluation.models.runners.pipeline:WorldFoundryPipelineRunner
+id: eventvla
+name: EventVLA
+aliases:
+- event-vla
+- eventvla-robotwin-mem
+availability: open_source
+provider: official_repo
+license: mit
+official_sources:
+  github:
+    url: https://github.com/InternRobotics/EventVLA
+    head_sha: 4b5b26030abddf83bc60e1a6b067de8f521fd0ec
+  huggingface:
+  - repo_id: ganlinyang/EventVLA
+    role: policy_checkpoint_collection
+    license: apache-2.0
+  - repo_id: Qwen/Qwen3-VL-4B-Instruct
+    role: base_vlm
+checkpoint:
+  repo_id: ganlinyang/EventVLA
+  subfolder: RoboTwin-MeM
+  license: apache-2.0
+integration:
+  status: in_tree_checkpoint_runtime
+  notes:
+  - Qwen3-VL encoding, action-token gathering, the checkpoint-compatible MLP action head, event head, temporal anchors, and raw keyframe-image memory run in process.
+  - Local assets are restored strictly; no upstream checkout, server, or custom Hub implementation is loaded.
+  - Training, datasets, simulators, benchmark launchers, and WebSocket transport are excluded.
+tasks:
+- vla
+- vla.action_prediction
+- vla.long_horizon_memory
+output_artifacts:
+- action_trace
+pipeline_binding: eventvla
+runtime_profile: runtime-profile:eventvla
+catalog_category: vla_va_wam
+catalog_scope: VLA / VA(VAM) / WAM model entries tracked as upstream provenance, checkpoint metadata, and runtime-profile planning records.

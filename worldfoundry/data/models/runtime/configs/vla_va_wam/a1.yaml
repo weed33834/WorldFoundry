@@ -1,0 +1,32 @@
+backend: callable_entrypoint
+checkpoint_path: ${WORLDFOUNDRY_HFD_ROOT}/spatialtemporal-ai--a1-libero
+checkpoint_ref: spatialtemporal-ai/a1-libero
+policy_target: worldfoundry.synthesis.action_generation.a1.runtime:predict_action
+predict_method: predict_action
+require_checkpoint: true
+tokenizer_path: ${WORLDFOUNDRY_HFD_ROOT}/Qwen--Qwen2-7B
+tokenizer_ref: Qwen/Qwen2-7B
+torch_dtype: auto
+trust_remote_code: false
+local_files_only: true
+strict_checkpoint: true
+compile_model: false
+compile_mode: max-autotune
+seed: 0
+statistics_file: dataset_statistics.json
+# The released LIBERO checkpoint contains one statistics table per suite at
+# the JSON root.  The Workspace demo uses the LIBERO-Spatial contract, so the
+# table must be selected explicitly instead of treating the multi-suite root
+# as a single feature-statistics mapping.
+statistics_key: libero_spatial_no_noops
+normalization: bounds_q99
+allow_missing_statistics: false
+camera_keys:
+- front_camera
+- wrist_camera
+- side_camera
+output_action_dim: 7
+action_mode: delta
+delta_mask: [6, -1, 6, -1]
+runtime_backend: a1_native
+action_contract: camera_state_to_continuous_action_chunk

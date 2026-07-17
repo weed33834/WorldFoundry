@@ -1,0 +1,11 @@
+schema_version: 2
+binding_id: bernini
+model_id: bernini
+runner: worldfoundry.pipeline
+pipeline:
+  target: worldfoundry.pipelines.bernini.pipeline_bernini:BerniniWorldFoundryPipeline
+  loading:
+    method: from_pretrained
+    signature: unified
+  invocation:
+    mode: native_or_standard_invocation

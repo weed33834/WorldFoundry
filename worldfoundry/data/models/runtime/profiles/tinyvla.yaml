@@ -1,0 +1,53 @@
+schema_version: 2
+model_id: tinyvla
+display_name: TinyVLA
+task_family: vla_policy
+groups:
+- vla
+- robot_policy
+- action_chunk
+- llava_pythia
+source_repos:
+- url: https://github.com/liyaxuanliyaxuan/TinyVLA
+  revision: 94f441827b45e4f76316ef6a0ae443736dc93a5d
+checkpoints:
+- local_dir: ${WORLDFOUNDRY_CKPT_DIR}/tinyvla/policy
+  role: task_trained_action_policy
+  availability: user_supplied
+  status: no_public_task_checkpoint
+- repo_id: lesjie/Llava-Pythia-400M
+  revision: be2b5b2091e4d8f3cce9b414b110694040aeb3e2
+  local_dir: ${WORLDFOUNDRY_HFD_ROOT}/lesjie--Llava-Pythia-400M
+  role: default_local_vlm_backbone
+  status: checkpoint_manifest_validated
+input_schema:
+  model_id: tinyvla
+  prompt: true
+  image: true
+  state: required_task_dimension
+  preferred_cameras:
+  - cam_left_wrist
+  - cam_right_wrist
+  - cam_head
+  image_size: [480, 640]
+  configured_action_horizon: checkpoint_config
+  action_chunk_size: checkpoint_config
+artifact_kind: action_trace
+artifact_filename: tinyvla_action_trace.json
+execution:
+  backend_stage: in_tree_checkpoint_runtime
+  runtime_status: trained_action_checkpoint_required
+  integration_status: integrated_checkpoint_gated
+  pipeline_binding: tinyvla
+gpu_targets:
+- NVIDIA Turing in float16
+- NVIDIA Ampere in bfloat16 with TF32 enabled for fp32 fallbacks
+- NVIDIA Ada in bfloat16
+- NVIDIA Hopper in bfloat16
+- NVIDIA Blackwell in bfloat16
+notes:
+- Automatic dtype selection uses CUDA compute capability rather than a GPU-name allowlist.
+- SDPA selects architecture-appropriate fused attention when available and retains an eager fallback option.
+- torch.compile is scoped to the ACT or diffusion action head to avoid recompiling dynamic language prompt lengths.
+- The released Llava-Pythia-400M backbone passes exact pinned-manifest and safetensors-header validation with no partial markers.
+- The official release publishes VLM backbones plus training/post-processing instructions, but no task-trained TinyVLA action-policy checkpoint; that checkpoint remains user-supplied.

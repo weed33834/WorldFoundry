@@ -35,6 +35,10 @@ from worldfoundry.studio.serving import (
     send_json_response,
     send_text_response,
 )
+from worldfoundry.studio.visualization.core.artifacts import (
+    StudioVisualizationArtifact,
+    infer_visualization_artifact,
+)
 from worldfoundry.studio.visualization.core.registry import (
     EMBODIED_VISUALIZATION,
     INTERACTIVE_WORLD_VISUALIZATION,
@@ -180,9 +184,16 @@ THREE_MODULE_PATH = THREE_VENDOR_DIR / "three.module.js"
 THREE_CORE_MODULE_PATH = THREE_VENDOR_DIR / "three.core.js"
 
 
-def resolve_frontend_mode(entry: CatalogEntry, requested: str | None) -> str:
-    """Resolve ``auto`` into a concrete frontend mode for the selected model."""
-    return STUDIO_VISUALIZATIONS.resolve_mode(entry, requested)
+def resolve_frontend_mode(
+    entry: CatalogEntry,
+    requested: str | None,
+    artifact: StudioVisualizationArtifact | str | Path | None = None,
+) -> str:
+    """Resolve ``auto`` using an artifact first and model metadata as fallback."""
+
+    if artifact is not None and not isinstance(artifact, StudioVisualizationArtifact):
+        artifact = infer_visualization_artifact(artifact)
+    return STUDIO_VISUALIZATIONS.resolve_mode(entry, requested, artifact)
 
 
 def serve_native_frontend(entry: CatalogEntry, launch_config: StudioLaunchConfig, mode: str) -> None:
@@ -249,6 +260,7 @@ def serve_points_frontend(entry: CatalogEntry, launch_config: StudioLaunchConfig
     presentation = STUDIO_VISER.present_geometry(
         run_id=f"native-{entry.model_id}",
         geometry_path=asset_path,
+        model_id=entry.model_id,
         host=host,
         port=requested_port,
         embed=False,
@@ -370,12 +382,15 @@ def serve_rerun_frontend(entry: CatalogEntry, launch_config: StudioLaunchConfig)
 
     command_template = env_first("WORLDFOUNDRY_STUDIO_RERUN_COMMAND") or _default_rerun_command_template()
     grpc_port_text = (env_first("WORLDFOUNDRY_STUDIO_RERUN_GRPC_PORT") or "").strip()
-    grpc_port = int(grpc_port_text) if grpc_port_text else 0
+    grpc_port = int(grpc_port_text) if grpc_port_text else port + 1
+    ws_port_text = (env_first("WORLDFOUNDRY_STUDIO_RERUN_WS_PORT") or "").strip()
+    ws_port = int(ws_port_text) if ws_port_text else grpc_port + 1
     command = command_template.format(
         asset=shlex.quote(str(asset_path)),
         host=shlex.quote(host),
         port=port,
         grpc_port=grpc_port,
+        ws_port=ws_port,
         model=shlex.quote(entry.model_id),
     )
     print_remote_access(RERUN_FRONTEND, host, port)
@@ -395,7 +410,10 @@ def _default_rerun_command_template() -> str:
 
     sibling = Path(sys.executable).with_name("rerun")
     executable = sibling if sibling.exists() else Path(shutil.which("rerun") or "rerun")
-    return f"{shlex.quote(str(executable))} --web-viewer --port {{grpc_port}} --web-viewer-port {{port}} {{asset}}"
+    return (
+        f"{shlex.quote(str(executable))} --web-viewer --port {{grpc_port}} "
+        "--ws-server-port {ws_port} --web-viewer-port {port} {asset}"
+    )
 
 
 class MediaViewerHandler(BaseHTTPRequestHandler):

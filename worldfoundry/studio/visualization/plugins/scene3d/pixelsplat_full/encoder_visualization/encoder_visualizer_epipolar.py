@@ -9,17 +9,17 @@ from einops import rearrange, reduce, repeat
 from jaxtyping import Bool, Float
 from torch import Tensor
 
-from worldfoundry.base_models.three_dimensions.point_clouds.pixelsplat_full.src.dataset.types import BatchedViews
-from worldfoundry.base_models.three_dimensions.point_clouds.pixelsplat_full.src.misc.heterogeneous_pairings import (
+from worldfoundry.base_models.three_dimensions.point_clouds.pixelsplat.src.dataset.types import BatchedViews
+from worldfoundry.base_models.three_dimensions.point_clouds.pixelsplat.src.misc.heterogeneous_pairings import (
     generate_heterogeneous_index,
 )
-from worldfoundry.base_models.three_dimensions.point_clouds.pixelsplat_full.src.model.encoder.encoder_epipolar import (
+from worldfoundry.base_models.three_dimensions.point_clouds.pixelsplat.src.model.encoder.encoder_epipolar import (
     EncoderEpipolar,
 )
-from worldfoundry.base_models.three_dimensions.point_clouds.pixelsplat_full.src.model.encoder.epipolar.epipolar_sampler import (
+from worldfoundry.base_models.three_dimensions.point_clouds.pixelsplat.src.model.encoder.epipolar.epipolar_sampler import (
     EpipolarSampling,
 )
-from worldfoundry.base_models.three_dimensions.point_clouds.pixelsplat_full.src.model.ply_export import export_ply
+from worldfoundry.base_models.three_dimensions.point_clouds.pixelsplat.src.model.ply_export import export_ply
 from worldfoundry.studio.visualization.plugins.scene3d.pixelsplat_full.encoder_visualization.encoder_visualizer import EncoderVisualizer
 from worldfoundry.studio.visualization.plugins.scene3d.pixelsplat_full.encoder_visualization.encoder_visualizer_epipolar_cfg import (
     EncoderVisualizerEpipolarCfg,
