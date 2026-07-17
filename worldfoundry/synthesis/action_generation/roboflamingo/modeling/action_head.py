@@ -155,10 +155,10 @@ class FCDecoder(ActionDecoder):
             state_out_dim = 128
             self.fc_state = MLPNohHead(state_in_dim, state_out_dim)
             in_features += state_out_dim
-        
+
         if fusion_mode == 'two_way':
             in_features *= 2
-        
+
         self.return_feature = return_feature
         self.in_features = in_features
         self.out_features = out_features
@@ -170,7 +170,7 @@ class FCDecoder(ActionDecoder):
         self.history_memory = []
 
         self.use_diff = use_diff
-        
+
         self.mlp = torch.nn.Sequential(
             torch.nn.Linear(in_features, in_features//2),
             torch.nn.ReLU(),
@@ -181,7 +181,7 @@ class FCDecoder(ActionDecoder):
             self.gripper = MLPSigmoidHead(hidden_size, 1)
         self.hidden_state = None
         self.hidden_size = hidden_size * history_len
-        
+
         self.rnn_out = None
         self.last_action = last_action
         if self.use_diff:
@@ -196,7 +196,7 @@ class FCDecoder(ActionDecoder):
             state_tensor = None,
     ):
         if self.return_feature:
-            org_feat = copy.deepcopy(input_feature) 
+            org_feat = copy.deepcopy(input_feature)
             org_feat = org_feat.view(self.window_size, *org_feat.shape[1:])
         # reshape
         input_feature = self.mlp(input_feature)
@@ -253,7 +253,7 @@ class DeterministicDecoder(ActionDecoder):
             self.embed_arm_state = nn.Sequential(torch.nn.Linear(state_in_dim-1, in_features), nn.ReLU())
             self.embed_gripper_state = nn.Sequential(torch.nn.Embedding(2, in_features), nn.ReLU()) # one-hot gripper state
             self.embed_state = torch.nn.Linear(2*in_features, in_features)
-        
+
         if fusion_mode == 'two_way':
             in_features *= 2
         self.return_feature = return_feature
@@ -282,7 +282,7 @@ class DeterministicDecoder(ActionDecoder):
             self.global_1d_pool = nn.AdaptiveMaxPool1d(1)
         else:
             self.global_1d_pool = nn.AdaptiveAvgPool1d(1)
-        
+
         if self.fusion_mode == 'two_way':
             if pooling == 'max':
                 self.gripper_1d_max_pool = nn.AdaptiveMaxPool1d(1)
@@ -299,27 +299,27 @@ class DeterministicDecoder(ActionDecoder):
         state_tensor=None,
         return_feature=False
     ):
-        
-        
+
+
         # reshape
         if input_feature.dim() == 3:
             if self.fusion_mode == 'two_way':
                 input_feature = input_feature.reshape(-1, self.window_size, *input_feature.shape[1:])
-                
+
                 bs = int(input_feature.shape[0] // 2)
-                
+
                 rgb_feat = input_feature[:bs].view(bs*self.window_size, *input_feature.shape[2:])
                 rgb_feat = self.global_1d_pool(rgb_feat.permute(0, 2, 1)).squeeze(-1)
-                
+
                 gripper_feat = input_feature[bs:].view(bs*self.window_size, *input_feature.shape[2:])
                 gripper_feat = self.global_1d_pool(gripper_feat.permute(0, 2, 1)).squeeze(-1)
-                
+
                 input_feature = torch.cat([rgb_feat, gripper_feat], dim=-1)
             else:
                 input_feature = self.global_1d_pool(input_feature.permute(0, 2, 1)).squeeze(-1)
         input_feature = input_feature.reshape(-1, self.window_size, input_feature.shape[1])
         if self.return_feature:
-            org_feat = copy.deepcopy(input_feature) 
+            org_feat = copy.deepcopy(input_feature)
             org_feat = org_feat.view(self.window_size, org_feat.shape[-1])
 
         if state_tensor is not None and self.use_state:
@@ -334,7 +334,7 @@ class DeterministicDecoder(ActionDecoder):
 
             # input_feature = torch.cat([input_feature, state_embeddings], dim=-1)
             input_feature = input_feature + state_embeddings
-        
+
         if not isinstance(self.rnn, nn.Sequential) and isinstance(self.rnn, nn.RNNBase):
             # print('history len:',self.history_len)
             if input_feature.shape[1] == 1:
@@ -407,13 +407,13 @@ class GPTDecoder(ActionDecoder):
         **kwargs
     ):
         super(GPTDecoder, self).__init__()
-        
+
         if use_state:
             state_in_dim = 7
             state_out_dim = 128
             self.fc_state = MLPNohHead(state_in_dim, state_out_dim)
             in_features += state_out_dim
-        
+
         if fusion_mode == 'two_way':
             in_features *= 2
         self.return_feature = return_feature
@@ -425,14 +425,14 @@ class GPTDecoder(ActionDecoder):
             history_len = window_size
         self.history_len = history_len
         self.history_memory = []
-        
+
         if hidden_size is None:
             hidden_size = in_features
-        
+
         self.gpt = get_gpt_model(hidden_size, history_len)
         self.use_diff = use_diff
         self.fusion_mode = fusion_mode
-        
+
         self.hidden_size = hidden_size
         if hidden_size != in_features:
             self.fc = nn.Linear(in_features, hidden_size)
@@ -451,7 +451,7 @@ class GPTDecoder(ActionDecoder):
             self.global_1d_pool = nn.AdaptiveMaxPool1d(1)
         else:
             self.global_1d_pool = nn.AdaptiveAvgPool1d(1)
-        
+
         if self.fusion_mode == 'two_way':
             if pooling == 'max':
                 self.gripper_1d_max_pool = nn.AdaptiveMaxPool1d(1)
@@ -467,12 +467,12 @@ class GPTDecoder(ActionDecoder):
         input_feature = self.fc(input_feature)
         if input_feature.shape[1] == 1:
             self.history_memory.append(input_feature)
-            
+
             if len(self.history_memory) <= self.history_len:
                 hist_feature = torch.cat(self.history_memory, dim=1)
                 x = self.gpt(hist_feature, time_step ,attention_mask)
                 x = x[:, -1].unsqueeze(1)
-                
+
             else:
                 # the hidden state need to be refreshed based on the history window
                 cur_len = len(self.history_memory)
@@ -482,7 +482,7 @@ class GPTDecoder(ActionDecoder):
                 hist_feature = torch.cat(self.history_memory, dim=1)
                 x= self.gpt(hist_feature, time_step, attention_mask)
                 x = x[:, -1].unsqueeze(1)
-                
+
         else:
             x = self.gpt(input_feature, time_step, attention_mask)
             if self.last_action:
@@ -490,7 +490,7 @@ class GPTDecoder(ActionDecoder):
         actions = self.actions(x)
         gripper = self.gripper(x)
         return actions, gripper
-    
+
     def get_pattern_name(self):
         return 'gpt_{}_'.format(self.hidden_size, )
 
@@ -514,16 +514,16 @@ class GPTDecoderActPad(ActionDecoder):
         **kwargs
     ):
         super(GPTDecoderActPad, self).__init__()
-        
+
         if use_state:
             state_in_dim = 7
             state_out_dim = 128
             self.fc_state = MLPNohHead(state_in_dim, state_out_dim)
             in_features += state_out_dim
-        
+
         if fusion_mode == 'two_way':
             in_features *= 2
-        
+
         self.return_feature = return_feature
         self.in_features = in_features
         self.out_features = out_features
@@ -533,14 +533,14 @@ class GPTDecoderActPad(ActionDecoder):
             history_len = window_size
         self.history_len = history_len
         self.history_memory = []
-        
+
         if hidden_size is None:
             hidden_size = in_features
-        
+
         self.gpt = get_gpt_model(hidden_size, history_len, use_pe=False)
         self.use_diff = use_diff
         self.fusion_mode = fusion_mode
-        
+
         self.hidden_size = hidden_size
         if hidden_size != in_features:
             self.fc = nn.Linear(in_features, hidden_size)
@@ -565,7 +565,7 @@ class GPTDecoderActPad(ActionDecoder):
             self.global_1d_pool = nn.AdaptiveMaxPool1d(1)
         else:
             self.global_1d_pool = nn.AdaptiveAvgPool1d(1)
-        
+
         if self.fusion_mode == 'two_way':
             if pooling == 'max':
                 self.gripper_1d_max_pool = nn.AdaptiveMaxPool1d(1)
@@ -580,15 +580,15 @@ class GPTDecoderActPad(ActionDecoder):
         bs, seq_len, n_tok = input_feature.shape[:3]
         input_feature = self.fc(input_feature) # # bs, seq_len, n_tok, feat_dim
         attention_mask = torch.ones((bs, n_tok, seq_len), dtype=torch.long).to(input_feature.device)
-        
+
         if input_feature.shape[1] == 1:
             self.history_memory.append(input_feature)
-            
+
             if len(self.history_memory) <= self.history_len:
                 hist_feature = torch.cat(self.history_memory, dim=1)
                 x = self.gpt(hist_feature, time_step ,attention_mask)
                 x = x[:, -1].unsqueeze(1)
-                
+
             else:
                 # the hidden state need to be refreshed based on the history window
                 cur_len = len(self.history_memory)
@@ -598,7 +598,7 @@ class GPTDecoderActPad(ActionDecoder):
                 hist_feature = torch.cat(self.history_memory, dim=1)
                 x= self.gpt(hist_feature, time_step, attention_mask)
                 x = x[:, -1].unsqueeze(1)
-                
+
         else:
             x = self.gpt(input_feature, time_step, attention_mask)
             if self.last_action:
@@ -606,7 +606,7 @@ class GPTDecoderActPad(ActionDecoder):
         actions = self.actions(x)
         gripper = nn.functional.sigmoid(self.gripper(x))
         return actions, gripper
-    
+
     def get_pattern_name(self):
         return 'gpt_{}_'.format(self.hidden_size, )
 
@@ -730,7 +730,7 @@ class DiffusionDecoder(ActionDecoder):
 
     def p_mean_variance(self, x, t, local_cond=None, global_cond=None, returns=None):
 
-        if returns is not None: 
+        if returns is not None:
             # epsilon could be epsilon or x0 itself
             epsilon_cond = self.model(x, t, local_cond, global_cond, returns, use_dropout=False)
             epsilon_uncond = self.model(x, t, local_cond, global_cond, returns, force_dropout=True)
@@ -772,7 +772,7 @@ class DiffusionDecoder(ActionDecoder):
 
         batch_size = cond_data.shape[0]
         x = torch.randn(
-            size=cond_data.shape, 
+            size=cond_data.shape,
             dtype=cond_data.dtype,
             device=cond_data.device
         )
@@ -787,7 +787,7 @@ class DiffusionDecoder(ActionDecoder):
             timesteps = torch.full((batch_size,), i, device=device, dtype=torch.long)
             # 1. predict model output and replace sample
             x = self.p_sample(x, timesteps, local_cond, global_cond, returns)
-            
+
             # 2. apply conditioning
             x[cond_mask] = cond_data[cond_mask]
 

@@ -46,23 +46,23 @@ def custom_sdpa(q, k, v):
 
 class FlexAttnFunc(nn.Module):
     flex_attn: ClassVar[Callable] = torch.compile(
-        flex_attention, dynamic=True, 
+        flex_attention, dynamic=True,
     )
     compiled_create_block_mask: ClassVar[Callable] = torch.compile(create_block_mask)
     attention_mask: ClassVar[BlockMask] = None
     cross_attention_mask: ClassVar[BlockMask] = None
 
     def __init__(
-        self, 
+        self,
         is_cross=False,
     ) -> None:
         super().__init__()
         self.is_cross = is_cross
-    
+
     def forward(
-        self, 
-        query: torch.Tensor, 
-        key: torch.Tensor, 
+        self,
+        query: torch.Tensor,
+        key: torch.Tensor,
         value: torch.Tensor,
         dtype=torch.bfloat16,
     ) -> torch.Tensor:
@@ -74,7 +74,7 @@ class FlexAttnFunc(nn.Module):
         assert dtype in half_dtypes
         def half(x):
             return x if x.dtype in half_dtypes else x.to(dtype)
-        
+
         q_varlen = half(q_varlen)
         k_varlen = half(k_varlen)
         v_varlen = half(v_varlen)
@@ -98,9 +98,9 @@ class FlexAttnFunc(nn.Module):
     @staticmethod
     @torch.no_grad()
     def init_mask(
-        latent_shape, 
-        action_shape, 
-        padded_length, 
+        latent_shape,
+        action_shape,
+        padded_length,
         chunk_size,
         window_size,
         patch_size,
@@ -144,7 +144,7 @@ class FlexAttnFunc(nn.Module):
                 mask_mod_cross, 1, 1, len(seq_ids), len(text_seq_ids), device=device, _compile=True
             )
         FlexAttnFunc.cross_attention_mask = block_mask_cross
-    
+
     @staticmethod
     @torch.no_grad()
     def _get_cross_mask_mod(seq_ids, text_seq_ids):
@@ -153,7 +153,7 @@ class FlexAttnFunc(nn.Module):
         ):
             return (seq_ids[q_idx] == text_seq_ids[kv_idx]) & (seq_ids[q_idx] >=0 ) & (text_seq_ids[kv_idx] >= 0)
         return seq_mask
-    
+
     @staticmethod
     @torch.no_grad()
     def _get_mask_mod(seq_ids, frame_ids, noise_ids, window_size):
@@ -161,27 +161,27 @@ class FlexAttnFunc(nn.Module):
             b: torch.Tensor, h: torch.Tensor, q_idx: torch.Tensor, kv_idx: torch.Tensor
         ):
             return (seq_ids[q_idx] == seq_ids[kv_idx]) & (seq_ids[q_idx] >=0 ) & (seq_ids[kv_idx] >= 0)
-        
+
         def block_causal_mask(
             b: torch.Tensor, h: torch.Tensor, q_idx: torch.Tensor, kv_idx: torch.Tensor
         ):
             return (frame_ids[kv_idx] <= frame_ids[q_idx])
-        
+
         def block_causal_mask_exclude_self(
             b: torch.Tensor, h: torch.Tensor, q_idx: torch.Tensor, kv_idx: torch.Tensor
         ):
             return (frame_ids[kv_idx] < frame_ids[q_idx])
-        
+
         def block_self_mask(
             b: torch.Tensor, h: torch.Tensor, q_idx: torch.Tensor, kv_idx: torch.Tensor
         ):
             return (frame_ids[kv_idx] == frame_ids[q_idx])
-        
+
         def clean2clean_mask(
                 b: torch.Tensor, h: torch.Tensor, q_idx: torch.Tensor, kv_idx: torch.Tensor
         ):
             return (noise_ids[q_idx] == 1) & (noise_ids[kv_idx] == 1)
-        
+
         def noise2clean_mask(
             b: torch.Tensor, h: torch.Tensor, q_idx: torch.Tensor, kv_idx: torch.Tensor
         ):
@@ -190,7 +190,7 @@ class FlexAttnFunc(nn.Module):
             b: torch.Tensor, h: torch.Tensor, q_idx: torch.Tensor, kv_idx: torch.Tensor
         ):
             return (noise_ids[q_idx] == 0) & (noise_ids[kv_idx] == 0)
-        
+
         def block_window_mask(
             b: torch.Tensor, h: torch.Tensor, q_idx: torch.Tensor, kv_idx: torch.Tensor, window_size: int
         ):
@@ -204,7 +204,7 @@ class FlexAttnFunc(nn.Module):
         mask = and_masks(mask, seq_mask)
         mask = and_masks(mask, partial(block_window_mask, window_size=window_size))
         return mask
-       
+
 class WanTimeTextImageEmbedding(nn.Module):
 
     def __init__(
@@ -579,19 +579,19 @@ class WanTransformer3DModel(ModelMixin, ConfigMixin):
     """
     _supports_gradient_checkpointing = True
     _skip_layerwise_casting_patterns = [
-                                        # "patch_embedding", 
+                                        # "patch_embedding",
                                         "patch_embedding_mlp",
-                                        "condition_embedder", 
+                                        "condition_embedder",
                                         'condition_embedder_action',
                                         "norm"]
     _no_split_modules = ["WanTransformerBlock"]
-    _keep_in_fp32_modules = ["time_embedder", 
-                             "scale_shift_table", 
+    _keep_in_fp32_modules = ["time_embedder",
+                             "scale_shift_table",
                              "scale_shift_table_action",
-                             "norm1", 
+                             "norm1",
                              'action_norm1',
                              'text_norm1',
-                             "norm2", 
+                             "norm2",
                              'action_norm2',
                              'text_norm2',
                              "norm3",
@@ -674,7 +674,7 @@ class WanTransformer3DModel(ModelMixin, ConfigMixin):
             block.attn1.init_kv_cache(cache_name, total_tolen,
                                       self.num_attention_heads,
                                       self.attention_head_dim, device, dtype, batch_size)
-    
+
 
 
 

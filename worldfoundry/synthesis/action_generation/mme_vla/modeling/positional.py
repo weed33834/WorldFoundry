@@ -57,7 +57,7 @@ class PosEmb3D:
             raise ValueError("Position embedding dimension must be divisible by 6")
         width = dim // 6
         # 2 for temporal (t sin, t cos), 4 for spatial (h sin, h cos, w sin, w cos)
-        
+
         omega = jnp.arange(width) / (width - 1)
         self.temporal_omega = 1.0 / (temporal_base ** omega)
         self.spatial_omega = 1.0 / (spatial_base ** omega)
@@ -66,7 +66,7 @@ class PosEmb3D:
         self.spatial_pe8x8 = self.compute_spatial_pe8x8()
         self.spatial_pe4x4 = self.compute_spatial_pe4x4()
         self.spatial_pe2x2 = self.compute_spatial_pe2x2()
-        
+
     def compute_spatial_pe8x8(self):
         y, x = jnp.mgrid[:8, :8]
         y = 2 * y + 1
@@ -110,11 +110,11 @@ class PosEmb3D:
     def __call__(self, pos, spatial_size: int):
         """
         Generate 3D positional embeddings.
-        
+
         Args:
             pos: 1D array of temporal positions (frame indices)
             spatial_size: Spatial resolution (8, 4, or 2)
-            
+
         Returns:
             3D positional embeddings of shape (T, H*W, D)
         """

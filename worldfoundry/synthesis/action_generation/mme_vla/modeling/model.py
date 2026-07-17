@@ -78,16 +78,16 @@ class HistoryPi0Config(Pi0Config):
             loaded_config = get_history_config(self.history_config)
             # Create a new config with the loaded history config
             config_with_loaded_history = dataclasses.replace(self, history_config=loaded_config)
-            
+
             max_token_len = self.max_token_len
             if loaded_config.representation_type == "symbolic":
                 if loaded_config.symbolic_memory.type in ["simple_subgoal", "grounded_subgoal"]:
                     max_token_len *= 2
                 else:
                     raise ValueError(f"Not supported symbolic memory type: {loaded_config.symbolic_memory.type}")
-                config_with_loaded_history = dataclasses.replace(config_with_loaded_history, max_token_len=max_token_len) 
+                config_with_loaded_history = dataclasses.replace(config_with_loaded_history, max_token_len=max_token_len)
                 print("symbolic_memory_type: ", loaded_config.symbolic_memory.type)
-                   
+
             print("max_token_len: ", config_with_loaded_history.max_token_len)
 
             return HistoryPi0(config_with_loaded_history, rngs=nnx.Rngs(rng))
@@ -195,11 +195,11 @@ class HistoryPi0(BaseModel):
         self.pi05 = config.pi05
         paligemma_config = _gemma.get_config(config.paligemma_variant)
         action_expert_config = _gemma.get_config(config.action_expert_variant)
-    
+
 
         self.config = config
         self.use_history = config.use_history
-        
+
         if self.use_history:
             self.history_config = config.history_config
             self.integration_type = config.history_config.integration_type
@@ -231,7 +231,7 @@ class HistoryPi0(BaseModel):
                 raise ValueError(
                     f"Not supported representation type: {self.representation_type}"
                 )
-                
+
             print(
                 f"====== Using History, Representation Type: {self.representation_type} , Integration Type: {self.integration_type} ======"
             )
@@ -300,7 +300,7 @@ class HistoryPi0(BaseModel):
                 use_adarms=[False, True] if config.pi05 else [False, False],
                 mem_mods=[False, False]
             )
-            
+
         img = nnx_bridge.ToNNX(
             _siglip.Module(
                 num_classes=paligemma_config.width,
@@ -546,7 +546,7 @@ class HistoryPi0(BaseModel):
                 [prefix_tokens, None], mask=prefix_attn_mask, positions=positions
             )
             mem_seq, mem_mask, _, _, _ = self.embed_memory(observation)
-            
+
         else:
             prefix_tokens, prefix_mask, prefix_ar_mask, prefix_na_mask, _ = self.embed_prefix(observation)
             if self.integration_type == "context":
@@ -557,7 +557,7 @@ class HistoryPi0(BaseModel):
             _, kv_cache = self.PaliGemma.llm(
                 [prefix_tokens, None], mask=prefix_attn_mask, positions=positions
             )
-            
+
 
         def step(carry):
             x_t, time = carry
@@ -629,8 +629,8 @@ class HistoryPi0(BaseModel):
 
         x_0, _ = jax.lax.while_loop(cond, step, (noise, 1.0))
         return x_0
-    
-    
+
+
     def vision_encode(self, images: at.Float[at.Array, "k v 224 224 3"]):
         shape = images.shape
         assert shape[-3:] == (
@@ -642,6 +642,5 @@ class HistoryPi0(BaseModel):
         x = einops.rearrange(images, "k v h w c -> (k v) h w c")
         out, _ = self.PaliGemma.img(x)
         out = einops.rearrange(out, "(k v) p d -> k v p d", k=shape[0], v=shape[1])
-        
+
         return out
-        

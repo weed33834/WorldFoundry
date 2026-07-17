@@ -75,7 +75,7 @@ def get_config(variant: Variant) -> Config:
             },
         )
     if variant == "gemma_150m":  # this is the memory expert to be integrated in pi05
-        # 135 MB     
+        # 135 MB
         return Config(
             width=1024,
             depth=18,

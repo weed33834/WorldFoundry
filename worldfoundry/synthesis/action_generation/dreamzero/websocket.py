@@ -49,7 +49,7 @@ class WebsocketPolicyServer:
         - observation/cartesian_position: (6,)
         - observation/gripper_position: (1,)
         - prompt: str, the natural language task instruction for the policy
-    
+
       Action:
         - action: (N, 8,) or (N, 7,): either 7 movement actions (for joint action spaces) or 6 (for cartesian) plus one dimension for gripper position
                            --> all N actions will get executed on the robot before the server is queried again
@@ -92,7 +92,7 @@ class WebsocketPolicyServer:
         while True:
             try:
                 obs = msgpack_numpy.unpackb(await websocket.recv())
-                
+
                 endpoint = obs["endpoint"]
                 del obs["endpoint"]
                 if endpoint == "reset":
@@ -120,12 +120,11 @@ if __name__ == "__main__":
     class DummyPolicy(BasePolicy):
         def infer(self, obs):
             return np.zeros((1, 8), dtype=np.float32)
-        
+
         def reset(self, reset_info):
             pass
-    
+
     logging.basicConfig(level=logging.INFO)
     policy = DummyPolicy()
     server = WebsocketPolicyServer(policy, PolicyServerConfig())
     server.serve_forever()
-        

@@ -34,7 +34,7 @@ class DeltaSampler:
     @property
     def block_size(self):
         return max(self.config.scan_query_chunk_size, self.config.scan_key_chunk_size) * self.mesh.shape['sp']
-    
+
     @property
     def data_dim(self):
         return self.mesh.shape['dp'] * self.mesh.shape['fsdp']
@@ -42,12 +42,12 @@ class DeltaSampler:
     def _process_frame(self, images):
         preprocessor_finetune = albumentations.Compose([
                 albumentations.LongestMaxSize(max_size=256),  # Resize the longest side to 256
-                albumentations.Resize(256, 256), 
+                albumentations.Resize(256, 256),
             ])
         image_vqgan_list = []
         for image in images:
             img_array = np.array(image).astype(np.uint8)
-                
+
             image_vqgan = preprocessor_finetune(image=img_array)["image"]
             image_vqgan = (image_vqgan/127.5 - 1.0).astype(np.float32)
             image_vqgan_list.append(image_vqgan[None])
@@ -58,7 +58,7 @@ class DeltaSampler:
     def _read_process_vision(self, images):
 
         vision = self._process_frame(images)
-        
+
         B = 1
         encodings = []
         for i in range(0, len(vision), 1):
@@ -87,7 +87,7 @@ class DeltaSampler:
         return {
             'input_ids': np.expand_dims(tokens, axis=0),
         }
-             
+
 
     def _load_model(self):
         if self.FLAGS.load_llama_config != '':
@@ -126,14 +126,14 @@ class DeltaSampler:
                     self.FLAGS.load_checkpoint, disallow_trainstate=True
             )
             self.model = FlaxVideoLLaMAForCausalLM(
-                llama_config, 
-                input_shape=(512, 8192), 
-                seed=self.FLAGS.seed, 
+                llama_config,
+                input_shape=(512, 8192),
+                seed=self.FLAGS.seed,
                 _do_init=False,
                 dtype=get_float_dtype_by_name(self.FLAGS.dtype),
             )
 
-        
+
             self.model_ps = match_partition_rules(
                 VideoLLaMAConfig.get_partition_rules(llama_config.scan_layers, llama_config.param_scan_axis), self.params
             )
@@ -175,9 +175,9 @@ class DeltaSampler:
             static_argnums=(3,)
         )
 
-    
+
     def generate_video_pred(self, prompts, images, max_input_length):
-        
+
         sharded_rng = next_rng()
         inputs = self.prefix_tokenizer(
             prompts,
@@ -209,11 +209,11 @@ class DeltaSampler:
 
         with self.mesh:
             delta_output, sharded_rng = self._forward_generate(
-                self.params, sharded_rng, batch, 
+                self.params, sharded_rng, batch,
                 self.FLAGS.tokens_per_delta
             )
             delta_output = jax.device_get(delta_output)
-            
+
         return delta_output,
 
     def __call__(self, prompts):
@@ -221,4 +221,3 @@ class DeltaSampler:
         text_prompt = f"<s> <s> You are a helpful assistant. USER: What action should the robot take to `{prompts[0]['question']}` ASSISTANT: <vision>"
         latent_output = self.generate_video_pred(prompts=[text_prompt], images=batch['input_ids'], max_input_length=128)
         return latent_output
-        

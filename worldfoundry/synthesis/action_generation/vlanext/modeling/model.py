@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 from transformers import (
     AutoProcessor, AutoTokenizer,
-    SiglipVisionModel, SiglipImageProcessor, LlamaForCausalLM, 
-    PaliGemmaForConditionalGeneration, 
+    SiglipVisionModel, SiglipImageProcessor, LlamaForCausalLM,
+    PaliGemmaForConditionalGeneration,
     Qwen3VLForConditionalGeneration
 )
 from diffusers.schedulers.scheduling_ddim import DDIMScheduler
@@ -51,7 +51,7 @@ class LlamaProcessorWrapper:
 
 class VLANeXt(nn.Module):
     def __init__(
-        self, 
+        self,
         lmm_path="Qwen/Qwen3-VL-2B-Instruct",
         vision_encoder_path="google/siglip2-base-patch16-256",
         action_dim=7,
@@ -88,7 +88,7 @@ class VLANeXt(nn.Module):
         load_backbone_weights=True,
     ):
         super().__init__()
-        
+
         print(f"Initializing VLM {lmm_path} with attn_implementation: {attn_implementation}")
         if "paligemma" in lmm_path.lower():
             self.model_family = "paligemma"
@@ -135,10 +135,10 @@ class VLANeXt(nn.Module):
             self.vision_projector = nn.Sequential(
                 nn.Linear(self.vision_encoder.config.hidden_size, self.hidden_size),
                 nn.LayerNorm(self.hidden_size),
-                nn.SiLU(), 
+                nn.SiLU(),
                 nn.Linear(self.hidden_size, self.hidden_size),
                 nn.LayerNorm(self.hidden_size),
-                nn.SiLU(), 
+                nn.SiLU(),
                 nn.Linear(self.hidden_size, self.hidden_size)
             )
         elif "qwen" in lmm_path.lower():
@@ -179,7 +179,7 @@ class VLANeXt(nn.Module):
         if self.action_vqvae_config.get('enabled', False):
             self.action_vqvae = ActionVQVAE(
                 action_dim=action_dim,
-                latent_codes_per_step=3, 
+                latent_codes_per_step=3,
                 codebook_size=self.action_vqvae_config.get('codebook_size', 1024),
                 hidden_size=self.action_vqvae_config.get('hidden_size', 256),
                 depth=self.action_vqvae_config.get('depth', 2),
@@ -218,7 +218,7 @@ class VLANeXt(nn.Module):
                 self.action_projector = nn.Linear(projector_input_dim, self.hidden_size)
         else:
             self.action_projector = None
-        
+
         self.meta_queries = nn.Parameter(
             torch.randn(num_queries, self.hidden_size)
         )
@@ -357,7 +357,7 @@ class VLANeXt(nn.Module):
                     clip_sample=False,
                     prediction_type="epsilon"
                 )
-            elif scheduler_type == "flow_match": 
+            elif scheduler_type == "flow_match":
                 self.noise_scheduler = FlowMatchEulerDiscreteScheduler(num_train_timesteps=num_train_timesteps)
             else:
                 raise ValueError(f"Unknown scheduler type: {scheduler_type}")
@@ -376,13 +376,13 @@ class VLANeXt(nn.Module):
 
     def _get_vlm_condition_qwen(self, input_ids, attention_mask, proprioception, proprio_attention_mask, pixel_values, pixel_values_videos, image_grid_thw, video_grid_thw, mm_token_type_ids=None):
         B = input_ids.shape[0]
-        
+
         backbone = self.lmm.model
         lmm_config = self.lmm.config
         pad_token_id = getattr(lmm_config, "pad_token_id", None)
         pad_token_id = pad_token_id if pad_token_id is not None else 0
         inputs_embeds = backbone.get_input_embeddings()(input_ids)
-        
+
         if self.use_proprio_input_vlm and proprioception is not None:
             proprio_embeds = self.action_projector(proprioception.to(device=inputs_embeds.device, dtype=inputs_embeds.dtype))
             inputs_embeds = torch.cat([proprio_embeds, inputs_embeds], dim=1)
@@ -440,13 +440,13 @@ class VLANeXt(nn.Module):
         if self.condition_type == "loose" and self.connector is not None:
             query_outputs = outputs.last_hidden_state[:, -self.num_queries:, :]
             connector_out = self.connector(query_outputs)
-            
+
         return connector_out, hidden_states
 
     def _get_vlm_condition_llama(self, input_ids, attention_mask, pixel_values, proprioception, proprio_attention_mask):
         B = input_ids.shape[0]
         pixel_values = pixel_values.to(dtype=self.vision_encoder.dtype)
-        
+
         vision_outputs = self.vision_encoder(pixel_values, output_hidden_states=True)
         image_feats = vision_outputs.last_hidden_state
         image_embeds = self.vision_projector(image_feats)
@@ -455,7 +455,7 @@ class VLANeXt(nn.Module):
             num_views = image_embeds.shape[0] // B
             image_embeds = image_embeds.view(B, num_views, -1, image_embeds.shape[-1])
             image_embeds = image_embeds.flatten(1, 2)
-        
+
         text_embeds = self.lmm.model.embed_tokens(input_ids)
 
         proprio_embeds = None
@@ -473,7 +473,7 @@ class VLANeXt(nn.Module):
             else:
                 p_mask = torch.ones(B, proprio_embeds.shape[1], device=attention_mask.device, dtype=attention_mask.dtype)
                 mask_list.append(p_mask)
-        
+
         embeds_list.append(text_embeds)
         mask_list.append(attention_mask)
 
@@ -592,11 +592,11 @@ class VLANeXt(nn.Module):
             token_type_ids=token_type_ids,
             mm_token_type_ids=mm_token_type_ids,
         )
-        
+
         policy_history = history_actions if self.use_action_input_policy else None
         gen_hidden_states = None
         if self.enable_future_image_loss and self.condition_type in ["tight", "soft"]:
-             num_img_tokens = 256 
+             num_img_tokens = 256
              curr_ids = torch.zeros((B, 1), dtype=torch.long, device=input_ids.device)
              gen_context = hidden_states
              for _ in range(num_img_tokens):
@@ -617,7 +617,7 @@ class VLANeXt(nn.Module):
                 action = self.action_head(cond_input, history_actions=policy_history)
             if action.ndim == 2 and self.num_actions > 1:
                 action = action.view(action.shape[0], self.num_actions, self.action_dim)
-            
+
             return action.to(dtype=self.lmm.dtype)
 
         elif self.loss_type == "classification":
@@ -655,7 +655,7 @@ class VLANeXt(nn.Module):
                 generator=generator,
             )
             self.noise_scheduler.set_timesteps(self.num_inference_timesteps)
-            
+
             for t in self.noise_scheduler.timesteps:
                 timesteps = torch.full((B,), t, device=input_ids.device)
                 if self.scheduler_type != "flow_match": timesteps = timesteps.long()
@@ -667,11 +667,11 @@ class VLANeXt(nn.Module):
                 else:
                     cond_input = connector_out.mean(dim=1)
                     output = self.action_head(action, timesteps, cond_input, history_actions=policy_history)
-                
+
                 action = self.noise_scheduler.step(output, t, action).prev_sample
                 action = action.to(dtype=self.lmm.dtype)
-            
+
             return action
-        
+
         else:
             raise ValueError(f"Unknown loss type: {self.loss_type}")

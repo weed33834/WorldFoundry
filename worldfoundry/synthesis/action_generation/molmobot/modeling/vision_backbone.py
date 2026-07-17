@@ -89,8 +89,8 @@ class MolmoVisionBackboneConfig(BaseConfig):
 
     normalize_on_gpu: bool = False
     """Run image normalization on the GPU
-    
-    Does this will allow image loading to keep the images in uint8 which will reduce 
+
+    Does this will allow image loading to keep the images in uint8 which will reduce
     RAM/shared memory usage significantly
     """
     use_image_augmentation: bool = False
@@ -290,7 +290,7 @@ class MolmoVisionBackbone(nn.Module):
                 image_projector.weight.requires_grad = False
         else:
             raise NotImplementedError(f"Unknown image projector: {config.image_projector}")
-        
+
         return image_pooling_2d, image_projector
 
     @classmethod
@@ -347,7 +347,7 @@ class MolmoVisionBackbone(nn.Module):
                 image_features = image_features[:, 1:]
             image_features = image_features.view(B, T, N, -1)
         return image_features
-    
+
     def apply_connector(
         self,
         pooling_fn: nn.Module,
@@ -405,9 +405,9 @@ class MolmoVisionBackbone(nn.Module):
                 pooled_features = module(pooled_features)
         else:
             pooled_features = projector_fn(pooled_features)
-        
+
         return pooled_features
-    
+
     def add_image_padding_embed(self, image_features: torch.Tensor, image_masks: torch.Tensor):
         cfg = self.config
 
@@ -428,7 +428,7 @@ class MolmoVisionBackbone(nn.Module):
             image_features = image_features + pad_embed[1] * torch.unsqueeze(partial_pad, -1)
         else:
             raise ValueError(cfg.image_padding_embed)
-        
+
         return image_features
 
     def forward(

@@ -3,14 +3,14 @@ from typing import Dict
 import torch
 from .module import ModuleAttrMixin
 
-class BaseLowdimPolicy(ModuleAttrMixin):  
+class BaseLowdimPolicy(ModuleAttrMixin):
     # ========= inference  ============
     # also as self.device and self.dtype for inference device transfer
     def predict_action(self, obs_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         """
         obs_dict:
             obs: B,To,Do
-        return: 
+        return:
             action: B,Ta,Da
         To = 3
         Ta = 4

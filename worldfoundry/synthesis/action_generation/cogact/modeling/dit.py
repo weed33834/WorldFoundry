@@ -185,10 +185,10 @@ class DiT(nn.Module):
         self.num_heads = num_heads
         self.past_action_window_size = past_action_window_size
         self.future_action_window_size = future_action_window_size
-        
+
         # Action history is not used now.
         self.history_embedder = HistoryEmbedder(action_size=in_channels, hidden_size=hidden_size)
-        
+
         self.x_embedder = ActionEmbedder(action_size=in_channels, hidden_size=hidden_size)
         self.t_embedder = TimestepEmbedder(hidden_size)
         self.z_embedder = LabelEmbedder(in_size=token_size, hidden_size=hidden_size, dropout_prob=class_dropout_prob)
@@ -257,7 +257,7 @@ class DiT(nn.Module):
         """
         Forward pass of Diffusion, but also batches the unconditional forward pass for classifier-free guidance.
         """
-        
+
         # https://github.com/openai/glide-text2im/blob/main/notebooks/text2im.ipynb
         half = x[: len(x) // 2]
         combined = torch.cat([half, half], dim=0).to(next(self.x_embedder.parameters()).dtype)

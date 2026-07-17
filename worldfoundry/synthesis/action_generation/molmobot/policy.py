@@ -39,7 +39,7 @@ class SynthManipMolmoInferenceWrapper:
         Args:
             checkpoint_path: Path to the model checkpoint directory.
             device: Device to run inference on ("cuda" or "cpu").
-            num_flow_steps: Number of flow-matching integration steps. 
+            num_flow_steps: Number of flow-matching integration steps.
                            Uses checkpoint default if None.
             max_seq_len: Maximum sequence length. Uses checkpoint default if None.
             norm_repo_id: Repository ID for normalization stats lookup.
@@ -212,7 +212,7 @@ class SynthManipMolmoInferenceWrapper:
             ) from exc
 
     def _prepare_images(
-        self, 
+        self,
         images: Union[List[np.ndarray], List[str], np.ndarray, str]
     ) -> List[np.ndarray]:
         """Convert various image formats to list of numpy arrays."""
@@ -334,7 +334,7 @@ class SynthManipMolmoInferenceWrapper:
                 num_steps=self.num_flow_steps,
                 generator=generator,
             )
-        
+
         # Convert to numpy and unnormalize
         actions_np = actions.detach().cpu().numpy()
         actions_np = self._unnormalize_action(actions_np)

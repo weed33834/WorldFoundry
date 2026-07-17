@@ -85,7 +85,7 @@ class FeatureEncoder(nnx.Module):
         else:
             state_emb = nnx.silu(self.state_proj(state_emb))
             base_emb = jnp.concatenate([base_emb, state_emb], axis=-1)
-            
+
         return base_emb
 
     def _encode_memory(

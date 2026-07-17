@@ -91,7 +91,7 @@ class StrEnum(str, Enum):
 
     def __repr__(self) -> str:
         return f"'{str(self)}'"
-    
+
 
 class DType(StrEnum):
     """

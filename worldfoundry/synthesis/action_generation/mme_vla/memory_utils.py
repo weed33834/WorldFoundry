@@ -12,7 +12,7 @@ def even_sampling_indices(step_idx: int, token_budget: int) -> list[int]:
         return list(range(step_idx+1))
     else:
         return np.linspace(0, step_idx, token_budget, dtype=np.int32).tolist()
-    
+
 
 
 def right_padding_token_emb(

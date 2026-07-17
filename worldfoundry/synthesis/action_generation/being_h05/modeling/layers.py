@@ -64,7 +64,7 @@ class FlowMatchingHead(nn.Module):
     def __init__(self, condition_dim: int, action_dim: int, hidden_dim: int):
         super().__init__()
         self.action_dim = action_dim
-        
+
         self.time_encoder = SinusoidalPositionalEncoding(dim=hidden_dim)
 
         # 1. Define fusion layer
@@ -149,7 +149,7 @@ class MLPResNet(nn.Module):
         x = self.layer_norm2(x)  # shape: (batch_size, hidden_dim)
         x = self.fc2(x)  # shape: (batch_size, output_dim)
         return x
-    
+
 
 class InternVLConnector(nn.Module):
     def __init__(self, llm_hidden_size, vit_hidden_size, downsample_ratio):
@@ -171,7 +171,7 @@ class InternVLConnector(nn.Module):
                 param.data.copy_(state_dict.pop(name).data)
 
         return state_dict
-    
+
     def forward(self, x):
         return self.mlp1(x)
 

@@ -59,11 +59,11 @@ def pil_loader(img_str):
 def expand2square(pil_img, background_color):
     """
     Expand image to square by padding.
-    
+
     Args:
         pil_img: Input PIL image
         background_color: RGB tuple for padding
-        
+
     Returns:
         Square PIL image
     """
@@ -83,10 +83,10 @@ def expand2square(pil_img, background_color):
 def simulate_jpeg_degradation(quality):
     """
     Create transform that simulates JPEG compression.
-    
+
     Args:
         quality: JPEG quality (1-100)
-        
+
     Returns:
         Transform function
     """
@@ -102,14 +102,14 @@ def simulate_jpeg_degradation(quality):
 def find_closest_aspect_ratio(aspect_ratio, target_ratios, width, height, image_size):
     """
     Find closest aspect ratio from candidates.
-    
+
     Args:
         aspect_ratio: Input aspect ratio
         target_ratios: List of (width_ratio, height_ratio) tuples
         width: Input width
         height: Input height
         image_size: Base image size
-        
+
     Returns:
         Best (width_ratio, height_ratio) tuple
     """
@@ -132,16 +132,16 @@ def find_closest_aspect_ratio(aspect_ratio, target_ratios, width, height, image_
 def dynamic_preprocess(image, min_num=1, max_num=6, image_size=448, use_thumbnail=False):
     """
     Dynamically preprocess image into multiple crops.
-    
+
     Splits image into grid based on aspect ratio to minimize padding.
-    
+
     Args:
         image: Input PIL image
         min_num: Minimum number of crops
         max_num: Maximum number of crops
         image_size: Size of each crop
         use_thumbnail: Whether to add thumbnail as last crop
-        
+
     Returns:
         List of cropped images
     """
@@ -193,14 +193,14 @@ def build_vit_transform_base(force_image_size,
                              **kwargs):
     """
     Build image transforms for vision transformer.
-    
+
     Args:
         force_image_size: Target image size
         transform_type: 'default' or 'dynamic_size'
         normalize_type: 'imagenet', 'clip', or 'siglip'
         pad2square: Whether to pad to square (unused)
         **kwargs: Ignored compatibility arguments.
-        
+
     Returns:
         Tuple of (pre_transform, transform)
         pre_transform is None except for 'dynamic_size'
@@ -224,5 +224,5 @@ def build_vit_transform_base(force_image_size,
         T.ToTensor(),
         T.Normalize(mean=MEAN, std=STD),
     ])
-    
+
     return pre_transform, transform

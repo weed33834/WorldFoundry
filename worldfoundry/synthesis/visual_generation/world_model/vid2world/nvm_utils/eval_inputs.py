@@ -77,7 +77,7 @@ class BaseDataset(Dataset):
         min_dist_cat: int,
         max_dist_cat: int,
         len_traj_pred: int,
-        traj_stride: int, 
+        traj_stride: int,
         context_size: int,
         transform: object,
         traj_names: str,
@@ -86,14 +86,14 @@ class BaseDataset(Dataset):
         goals_per_obs: int = 1,
     ):
         self.data_folder = data_folder
-        
+
         # Convert relative path to absolute path based on project root
         if data_split_folder and not os.path.isabs(data_split_folder):
             project_root = os.path.dirname(os.path.dirname(__file__))
             self.data_split_folder = os.path.join(project_root, data_split_folder)
         else:
             self.data_split_folder = data_split_folder
-            
+
         self.dataset_name = dataset_name
         self.goals_per_obs = goals_per_obs
 
@@ -145,7 +145,7 @@ class BaseDataset(Dataset):
                 self.data_split_folder,
                 f"dataset_dist_{self.min_dist_cat}_to_{self.max_dist_cat}_n{self.context_size}_len_traj_pred_{self.len_traj_pred}.pkl",
             )
-            
+
             self.index_to_data, self.goals_index = self._build_index()
             with open(index_to_data_path, "wb") as f:
                 pickle.dump((self.index_to_data, self.goals_index), f)
@@ -171,7 +171,7 @@ class BaseDataset(Dataset):
                 samples_index.append((traj_name, curr_time, min_goal_distance, max_goal_distance))
 
         return samples_index, goals_index
-  
+
     def _get_trajectory(self, trajectory_name):
         with open(os.path.join(self.data_folder, trajectory_name, "traj_data.pkl"), "rb") as f:
             traj_data = pickle.load(f)
@@ -205,22 +205,22 @@ class BaseDataset(Dataset):
         waypoints_yaw = angle_difference(yaw[0], yaw)
         actions = np.concatenate([waypoints_pos, waypoints_yaw.reshape(-1, 1)], axis=-1)
         actions = actions[1:]
-        
+
         goal_pos = to_local_coords(goal_pos, positions[0], yaw[0])
         goal_yaw = angle_difference(yaw[0], goal_yaw)
-        
+
         if self.normalize:
             actions[:, :2] /= self.data_config["metric_waypoint_spacing"]
             # Ensure goal_pos is 2D for proper indexing
             if goal_pos.ndim == 1:
                 goal_pos = goal_pos.reshape(1, -1)
             goal_pos[:, :2] /= self.data_config["metric_waypoint_spacing"]
-        
+
         goal_pos = np.concatenate([goal_pos, goal_yaw.reshape(-1, 1)], axis=-1)
         # If goal_pos was originally 1D, squeeze it back to 1D
         if goal_pos.shape[0] == 1:
             goal_pos = goal_pos.squeeze(0)
-        return actions, goal_pos    
+        return actions, goal_pos
 
 class RECONVIDDataset(BaseDataset):
     def __init__(
@@ -232,7 +232,7 @@ class RECONVIDDataset(BaseDataset):
         min_dist_cat: int,
         max_dist_cat: int,
         len_traj_pred: int,
-        traj_stride: int, 
+        traj_stride: int,
         context_size: int, # dummy
         transform: object,
         traj_names: str = 'traj_names.txt',
@@ -275,7 +275,7 @@ class RECONVIDDataset(BaseDataset):
             # one may realize that such instantiation method makes the last action in actions_seq all zeros before normalization
             # after normalization, it is [-0.33333333,  0., 0.]
             # this is very much correct since we never use this action anyway.
-            
+
 
             return (
                 torch.as_tensor(obs_image, dtype=torch.float32),
@@ -297,7 +297,7 @@ class RECONEvalDataset(BaseDataset):
         min_dist_cat: int,
         max_dist_cat: int,
         len_traj_pred: int, # should be 16
-        traj_stride: int, 
+        traj_stride: int,
         context_size: int, # should be 4
         transform: object,
         traj_names: str,
@@ -319,7 +319,7 @@ class RECONEvalDataset(BaseDataset):
             if max_goal_dist < self.video_length:
                 self.__getitem__(i+1)
                 print(f"max_goal_dist < video_length, skipping {i}")
-                
+
             context_times = list(range(curr_time - self.context_size + 1, curr_time + 1))
             pred_times = list(range(curr_time + 1, curr_time + self.len_traj_pred + 1))
             assert self.context_size + self.len_traj_pred == self.video_length
@@ -344,7 +344,7 @@ class RECONEvalDataset(BaseDataset):
             # one may realize that such instantiation method makes the last action in actions_seq all zeros before normalization
             # after normalization, it is [-0.33333333,  0., 0.]
             # this is very much correct since we never use this action anyway.
-            
+
 
             return (
                 torch.as_tensor(all_frames_image, dtype=torch.float32),

@@ -21,11 +21,11 @@ DiT_models = {'DiT-S': DiT_S, 'DiT-B': DiT_B, 'DiT-L': DiT_L}
 
 # Create ActionModel
 class ActionModel(nn.Module):
-    def __init__(self, 
-                 token_size, 
-                 model_type, 
-                 in_channels, 
-                 future_action_window_size, 
+    def __init__(self,
+                 token_size,
+                 model_type,
+                 in_channels,
+                 future_action_window_size,
                  past_action_window_size,
                  diffusion_steps = 100,
                  noise_schedule = 'squaredcos_cap_v2'
@@ -44,20 +44,20 @@ class ActionModel(nn.Module):
         self.past_action_window_size = past_action_window_size
         self.future_action_window_size = future_action_window_size
         self.net = DiT_models[model_type](
-                                        token_size = token_size, 
-                                        in_channels=in_channels, 
-                                        class_dropout_prob = 0.1, 
-                                        learn_sigma = learn_sigma, 
-                                        future_action_window_size = future_action_window_size, 
+                                        token_size = token_size,
+                                        in_channels=in_channels,
+                                        class_dropout_prob = 0.1,
+                                        learn_sigma = learn_sigma,
+                                        future_action_window_size = future_action_window_size,
                                         past_action_window_size = past_action_window_size
                                         )
 
     # Create DDIM sampler
     def create_ddim(self, ddim_step=10):
-        self.ddim_diffusion = create_diffusion(timestep_respacing = "ddim"+str(ddim_step), 
+        self.ddim_diffusion = create_diffusion(timestep_respacing = "ddim"+str(ddim_step),
                                                noise_schedule = self.noise_schedule,
-                                               diffusion_steps = self.diffusion_steps, 
-                                               sigma_small = True, 
+                                               diffusion_steps = self.diffusion_steps,
+                                               sigma_small = True,
                                                learn_sigma = False
                                                )
         return self.ddim_diffusion

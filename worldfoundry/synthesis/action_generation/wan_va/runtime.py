@@ -264,7 +264,7 @@ class VA_Server:
             raise NotImplementedError
         action = action.squeeze(0).detach().cpu().numpy()
         return action[self.job_config.used_action_channel_ids]
-    
+
     def _repeat_input_for_cfg(self, input_dict):
         if self.use_cfg:
             input_dict['noisy_latents'] = input_dict['noisy_latents'].repeat(2, 1, 1, 1, 1)
@@ -638,7 +638,7 @@ class VA_Server:
             logger.info(f"################# Infer One Chunk #################")
             action, _ = self._infer(obs, frame_st_id=self.frame_st_id)
             return dict(action=action)
-    
+
     def decode_one_video(self, latents, output_type):
         latents = latents.to(self.vae.dtype)
         latents_mean = (
@@ -653,13 +653,13 @@ class VA_Server:
         video = self.vae.decode(latents, return_dict=False)[0]
         video = self.video_processor.postprocess_video(video, output_type=output_type)
         return video
-    
+
     def load_init_obs(self):
         imf_dict = {v: np.array(Image.open(os.path.join(self.job_config.input_img_path, f"{v}.png")).convert("RGB")) for v in self.job_config.obs_cam_keys}
         init_obs = {}
         init_obs['obs'] = [imf_dict]
         return init_obs
-    
+
     @torch.no_grad()
     def generate(self):
         self.video_processor = VideoProcessor(vae_scale_factor=1)
@@ -682,16 +682,16 @@ class VA_Server:
         del self.streaming_vae_half
         del self.text_encoder
         torch.cuda.empty_cache()
-        
+
         # Move VAE to GPU for decoding
         if self.enable_offload:
             self.vae = self.vae.to(self.device).to(self.dtype)
-        
+
         decoded_video = self.decode_one_video(pred_latent, 'np')[0]
         export_to_video(decoded_video, os.path.join(self.save_root, "demo.mp4"), fps=10)
 
-def run(args):    
-    
+def run(args):
+
     config = VA_CONFIGS[args.config_name]
     config.wan22_pretrained_model_name_or_path = _resolve_checkpoint_dir(args, config)
     port = config.port if args.port is None else args.port

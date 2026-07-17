@@ -32,8 +32,8 @@ class BaseModelConfig(BaseConfig):
 
     model_name: str = dataclasses.field(init=False)
     """
-    Unique name to used to identify the subclass when loading configs, should mirror the 
-    class variable `_model_name`. We duplicate it as a field so OmegaConf saves it  
+    Unique name to used to identify the subclass when loading configs, should mirror the
+    class variable `_model_name`. We duplicate it as a field so OmegaConf saves it
     """
 
     def __post_init__(self):

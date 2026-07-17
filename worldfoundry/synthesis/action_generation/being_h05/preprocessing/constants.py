@@ -144,7 +144,7 @@ SIGLIP_STD = (0.5, 0.5, 0.5)
 # ==============================================================================
 
 class EmbodimentTag(Enum):
-    """Enumeration of supported robot embodiments."""    
+    """Enumeration of supported robot embodiments."""
     LIBERO_FRANKA = "libero_franka_gripper"
     LIBERO = "libero"
     ROBOCASA = "robocasa"

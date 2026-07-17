@@ -386,7 +386,7 @@ class InternVisionModel(PreTrainedModel):
             except:
                 logger.info(f"'{name}' not initialized")
         return mllm_state_dict
-    
+
     def resize_pos_embeddings(self, old_size, new_size, patch_size):
         pos_emb = self.embeddings.position_embedding
         _, num_positions, embed_dim = pos_emb.shape

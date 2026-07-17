@@ -148,4 +148,3 @@ def set_seed(seed: int) -> None:
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     random.seed(seed)
-

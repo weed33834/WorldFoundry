@@ -394,7 +394,7 @@ class StateActionTransform(InvertibleModalityTransform):
     def set_metadata(self, dataset_metadata: DatasetMetadata):
         dataset_statistics = dataset_metadata.statistics
         modality_metadata = dataset_metadata.modalities
-        
+
         # Check that all state keys specified in apply_to have their modality_metadata
         for key in self.apply_to:
             split_key = key.split(".")
@@ -402,7 +402,7 @@ class StateActionTransform(InvertibleModalityTransform):
             assert len(split_key) == 2, "State keys should have two parts: 'modality.key'"
             if key not in self.modality_metadata:
                 modality, state_key = split_key
-      
+
                 assert hasattr(modality_metadata, modality), f"{modality} config not found"
                 assert state_key in getattr(
                     modality_metadata, modality

@@ -131,7 +131,7 @@ class BeingHConfig(PretrainedConfig):
         else:
             CustomViTConfig = VIT_MODEL_ARCH[vit_config['architectures'][0]][0]
             self.vit_config = CustomViTConfig(**vit_config)
-        
+
         #self.tokenizer_class = tokenizer_class
         self.connector_arch = connector_arch
 
@@ -178,7 +178,7 @@ class BeingH(PreTrainedModel):
     main_input_name = 'pixel_values'
     base_model_prefix = 'beingh'
     _no_split_modules = ['InternVisionModel', 'InternLM2DecoderLayer', 'Qwen2DecoderLayer']
-    
+
     _supports_flash_attn_2 = True
     supports_gradient_checkpointing = False
 
@@ -205,7 +205,7 @@ class BeingH(PreTrainedModel):
         self.hidden_size = config.llm_config.hidden_size
         self.action_hidden_size = config.llm_config.expert_config.hidden_size if \
                                 self.use_expert else config.llm_config.hidden_size
-        
+
         # --- New code: Initialize robot-related modules ---
         # Get dimension information from config
         self.action_chunk_length = config.action_chunk_length
@@ -342,7 +342,7 @@ class BeingH(PreTrainedModel):
 
         packed_text_embedding = self.language_model.get_input_embeddings()(packed_text_ids)
         packed_sequence = torch.zeros(size=(sequence_length, self.hidden_size), device=device, dtype=packed_text_embedding.dtype)
-        
+
         packed_sequence[packed_text_indexes] = packed_text_embedding
         vit_embeds = self.extract_feature(packed_vit_tokens)
         vit_embeds = vit_embeds.reshape(-1, self.config.llm_config.hidden_size)
@@ -618,7 +618,7 @@ class BeingH(PreTrainedModel):
 
             predicted_actions = actions
             predicted_actions = predicted_actions.reshape(B * self.action_chunk_length, -1)
-            
+
         else:
             if self.use_expert:
                 # packed_sequence_gen = torch.zeros(size=(sequence_length, self.action_hidden_size), device=device, dtype=packed_text_embedding.dtype)
@@ -714,14 +714,14 @@ class BeingH(PreTrainedModel):
 
     def get_output_embeddings(self):
         return self.language_model.get_output_embeddings()
-    
+
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
         """Load a pretrained BeingVLA model with comprehensive checkpoint support.
 
         This method handles:
         1. Sharded safetensors checkpoints (model-00001-of-00004.safetensors)
-        2. Single safetensors files (model.safetensors)  
+        2. Single safetensors files (model.safetensors)
         3. PyTorch checkpoints (pytorch_model.bin, pytorch_model.pt)
         4. Original InternVL models with automatic format conversion
         """
@@ -733,7 +733,7 @@ class BeingH(PreTrainedModel):
                 pretrained_model_name_or_path,
                 **kwargs
             )
-     
+
         CustomForCausalLM  = LLM_MODEL_ARCH[config.llm_config.architectures[0]][1]
         language_model = CustomForCausalLM(config.llm_config)
 
@@ -757,15 +757,15 @@ class BeingH(PreTrainedModel):
                 # Load sharded safetensors model
                 from safetensors.torch import load_file
                 import json
-                
+
                 print(f"Loading sharded model from {pretrained_model_name_or_path}")
                 with open(index_file, 'r') as f:
                     index = json.load(f)
-                
+
                 # Load all unique shard files
                 shard_files = set(index['weight_map'].values())
                 state_dict = {}
-                
+
                 for shard_file in sorted(shard_files):
                     shard_path = os.path.join(pretrained_model_name_or_path, shard_file)
                     print(f"Loading shard: {shard_file}")
@@ -807,5 +807,5 @@ class BeingH(PreTrainedModel):
         torch_dtype = kwargs.get('torch_dtype', None)
         if torch_dtype is not None:
             model = model.to(torch_dtype)
-        
+
         return model

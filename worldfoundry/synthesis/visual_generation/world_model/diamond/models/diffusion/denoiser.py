@@ -35,7 +35,7 @@ class Denoiser(nn.Module):
     def device(self) -> torch.device:
         return self.inner_model.noise_emb.weight.device
 
-    
+
 
     def compute_conditioners(self, sigma: Tensor) -> Conditioners:
         sigma = (sigma**2 + self.cfg.sigma_offset_noise**2).sqrt()
@@ -49,14 +49,14 @@ class Denoiser(nn.Module):
         rescaled_obs = obs / self.cfg.sigma_data
         rescaled_noise = noisy_next_obs * cs.c_in
         return self.inner_model(rescaled_noise, cs.c_noise, rescaled_obs, act)
-    
+
     @torch.no_grad()
     def wrap_model_output(self, noisy_next_obs: Tensor, model_output: Tensor, cs: Conditioners) -> Tensor:
         d = cs.c_skip * noisy_next_obs + cs.c_out * model_output
         # Quantize to {0, ..., 255}, then back to [-1, 1]
         d = d.clamp(-1, 1).add(1).div(2).mul(255).byte().div(255).mul(2).sub(1)
         return d
-    
+
     @torch.no_grad()
     def denoise(self, noisy_next_obs: Tensor, sigma: Tensor, obs: Tensor, act: Tensor) -> Tensor:
         cs = self.compute_conditioners(sigma)

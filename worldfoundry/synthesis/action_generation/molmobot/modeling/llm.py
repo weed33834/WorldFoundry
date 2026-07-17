@@ -587,7 +587,7 @@ class LlmConfig(BaseConfig):
 
     normalize_input_embeds: bool = False
     """
-    Normalize input embeddings (both for text and images) before 
+    Normalize input embeddings (both for text and images) before
     """
 
     activation_checkpoint: Optional[LlmActivationCheckpointMode] = LlmActivationCheckpointMode.whole_layer
@@ -645,7 +645,7 @@ class LlmConfig(BaseConfig):
             return True
         else:
             return False
- 
+
     @classmethod
     def update_legacy_settings(cls, config):
         """Remove deprecated keys from old checkpoints."""
@@ -954,14 +954,14 @@ class RotaryEmbedding(nn.Module):
         inv_freq_llama = torch.where(is_medium_freq, smoothed_inv_freq, inv_freq_llama)
 
         return inv_freq_llama
-    
+
     def compute_yarn_inv_freq(self, seq_len: int, dim: int, device: torch.device) -> torch.Tensor:
 
         def get_mscale(scale, mscale=1):
             if scale <= 1:
                 return 1.0
             return 0.1 * mscale * math.log(scale) + 1.0
-        
+
         # Compute the inverse frequencies
         def find_correction_dim(num_rotations, dim, base, max_position_embeddings):
             """Inverse dimension formula to find the dimension based on the number of rotations"""
@@ -983,7 +983,7 @@ class RotaryEmbedding(nn.Module):
             linear_func = (torch.arange(dim, dtype=torch.float32) - min) / (max - min)
             ramp_func = torch.clamp(linear_func, 0, 1)
             return ramp_func
-        
+
         factor = self.config.rope_factor
         attention_factor = self.config.rope_attention_factor
         mscale = self.config.rope_mscale
@@ -997,7 +997,7 @@ class RotaryEmbedding(nn.Module):
                 attention_factor = float(get_mscale(factor, mscale) / get_mscale(factor, mscale_all_dim))
             else:
                 attention_factor = get_mscale(factor)
-        
+
         beta_fast = self.config.rope_beta_fast or 32
         beta_slow = self.config.rope_beta_slow or 1
 
@@ -1027,9 +1027,9 @@ class RotaryEmbedding(nn.Module):
             inv_freq_interpolation * (1 - inv_freq_extrapolation_factor)
             + inv_freq_extrapolation * inv_freq_extrapolation_factor
         )
-        
+
         return inv_freq, attention_factor
-    
+
     def compute_rope_parameters(
         self,
         seq_len: int,
@@ -1050,7 +1050,7 @@ class RotaryEmbedding(nn.Module):
             attention_factor = 1.0
         else:  # rope_type == RopeType.yarn
             inv_freq, attention_factor = self.compute_yarn_inv_freq(seq_len, dim, device)
-        
+
         return inv_freq, attention_factor
 
     def get_rotary_embedding(
@@ -1732,7 +1732,7 @@ class OLMoSequentialBlock(OLMoBlock):
             qkv.clamp_(min=-self.config.clip_qkv, max=self.config.clip_qkv)
 
         q, k, v = qkv.split(self.fused_dims, dim=-1)
- 
+
         # Get attention scores. Context-parallel training is intentionally not
         # part of the in-tree action inference runtime.
         if self.fine_grained_checkpoint_fn is not None:

@@ -42,9 +42,9 @@ AutoModel.register(BeingHConfig, BeingH)
 # ==============================================================================
 # Constants
 # ==============================================================================
- 
+
 BLOCK_SIZE = 128
- 
+
 # Model version configurations
 VERSION_CONFIGS = {
     "qwen2.5": (Qwen2Config, Qwen2ForCausalLM, Qwen2Tokenizer),
@@ -126,12 +126,12 @@ class BasePolicy(ABC):
         Return the modality config of the policy.
         """
         raise NotImplementedError
-    
+
 
 class BeingHPolicy(BasePolicy):
     """
     Inference wrapper for trained Being-H VLA model.
-    
+
     Features:
     - Multi-view image processing
     - State and action normalization
@@ -282,7 +282,7 @@ class BeingHPolicy(BasePolicy):
         # Update main config
         config.llm_config = llm_config
         config.vit_config = vit_config
-        
+
         # Initialize components
         language_model = LanguageModelClass(config.llm_config)
         vit_model = InternVisionModel(config.vit_config)
@@ -363,7 +363,7 @@ class BeingHPolicy(BasePolicy):
 
 
         return version
-    
+
     def _apply_mpg_overrides(
         self,
         use_mpg: Optional[bool],
@@ -438,21 +438,21 @@ class BeingHPolicy(BasePolicy):
             local_files_only=True,
             trust_remote_code=False,
         )
-        
+
         # Get special token IDs
         tokens = [
             '<|im_start|>', '<|im_end|>', '<img>', '</img>',
             '<|state_start|>', '<|state_end|>'
         ]
         token_ids = self.tokenizer.convert_tokens_to_ids(tokens)
-        
+
         (self.bos_token_id, self.eos_token_id, self.start_of_image,
          self.end_of_image, self.start_of_state, self.end_of_state) = token_ids
-        
+
         newline_encoded = self.tokenizer.encode('\n')
         assert len(newline_encoded) == 1, "Newline should be single token"
         self.newline_token_id = newline_encoded[0]
-   
+
     def _load_metadata(self, checkpoint_dir: Path):
         """
         Load dataset metadata with hierarchical stats and variant support.
@@ -480,7 +480,7 @@ class BeingHPolicy(BasePolicy):
                 f"No metadata found for dataset: '{self.dataset_name}' in {metadata_path}"
             )
 
-        # Hierarchical Stats and Variant Selection 
+        # Hierarchical Stats and Variant Selection
         variants_key = f"{self.dataset_name}_variants"
         self.stats_level = "unknown"
         self.stats_source = "default"
@@ -578,16 +578,16 @@ class BeingHPolicy(BasePolicy):
     def get_action(self, observations: Dict[str, Any]) -> Dict[str, Any]:
         """
         Get action with RTC support.
-        
+
         For RTC mode, observations should contain:
         - 'prev_chunk': Previous action chunk (unified 200-dim, normalized)
         - 'inference_delay': Number of prefix actions
-        
+
         Server returns full chunk; client handles composition/shifting.
-        
+
         Args:
             observations: Environment observations
-            
+
         Returns:
             Action dictionary with unnormalized actions
         """
@@ -672,21 +672,21 @@ class BeingHPolicy(BasePolicy):
         """Prepare packed inputs for model."""
         first_state_key = next((k for k in processed_obs if k.startswith('state.')), None)
         N, _ = processed_obs[first_state_key].shape
-        
+
         state_tensor = torch.zeros(N, self.model.unified_state_dim, dtype=torch.float32)
 
         # Fill state tensor from mapping
         for key, (start, end) in self.unified_mapping.items():
             if key.startswith('state.') and key in processed_obs:
                 source_tensor = processed_obs[key]
-                
+
                 expected_dim = end - start
                 if source_tensor.shape[-1] != expected_dim:
                     raise ValueError(
                         f"Dimension mismatch for '{key}': "
                         f"expected {expected_dim}, got {source_tensor.shape[-1]}"
                     )
-                
+
                 state_tensor[:, start:end] = source_tensor
 
         # Prepare vision inputs
@@ -695,7 +695,7 @@ class BeingHPolicy(BasePolicy):
             video_np = processed_obs[key]
             for f_idx in range(video_np.shape[0]):
                 all_frames.append(Image.fromarray(video_np[f_idx]))
-            
+
         pixel_values = torch.stack([self.image_transform(img) for img in all_frames])
 
         # Build prompt components
@@ -704,7 +704,7 @@ class BeingHPolicy(BasePolicy):
 
         user_prompt = "user\n"
         user_ids = self.tokenizer.encode(user_prompt)
-        
+
         assistant_prompt = "assistant\n"
         assistant_ids = self.tokenizer.encode(assistant_prompt)
 
@@ -712,13 +712,13 @@ class BeingHPolicy(BasePolicy):
             task_description=instructions[0], k=self.action_chunk_length
         )
         inst_ids = self.tokenizer.encode(inst_formatted)
-        
+
         # CORE: Build packed sequence
         packed_text_ids, packed_text_indexes = [], []
         packed_vit_token_indexes, packed_state_indexes, packed_action_indexes = [], [], []
         packed_position_ids = []
         split_lens, attn_modes = [], []
-        
+
         curr = 0
         curr_rope_id = 0
 
@@ -741,7 +741,7 @@ class BeingHPolicy(BasePolicy):
         packed_text_ids.extend(block_ids)
         packed_text_indexes.extend(range(curr, curr + len(block_ids)))
         curr += len(block_ids)
-        
+
         # Vision
         num_total_images = len(all_frames)
         packed_text_ids.extend([self.start_of_image])
@@ -754,7 +754,7 @@ class BeingHPolicy(BasePolicy):
         packed_text_ids.extend([self.end_of_image])
         packed_text_indexes.append(curr)
         curr += 1
-        
+
         # State
         packed_text_ids.extend([self.start_of_state])
         packed_text_indexes.append(curr)
@@ -766,14 +766,14 @@ class BeingHPolicy(BasePolicy):
         packed_text_ids.extend([self.end_of_state])
         packed_text_indexes.append(curr)
         curr += 1
-        
+
         # Instruction
         # is_bos: False, is_eos: True
         block_ids = inst_ids + [self.eos_token_id, self.newline_token_id]
         packed_text_ids.extend(block_ids)
         packed_text_indexes.extend(range(curr, curr + len(block_ids)))
         curr += len(block_ids)
-        
+
         # Finalize Content Block
         curr_split_len = curr - curr_split_start
         packed_position_ids.extend(range(curr_rope_id, curr_rope_id + curr_split_len))
@@ -790,7 +790,7 @@ class BeingHPolicy(BasePolicy):
         packed_text_ids.extend(block_ids)
         packed_text_indexes.extend(range(curr, curr + len(block_ids)))
         curr += len(block_ids)
-        
+
         # Action placeholders
         packed_action_indexes.extend(range(curr, curr + self.action_token_num))
         curr += self.action_token_num
@@ -799,7 +799,7 @@ class BeingHPolicy(BasePolicy):
         packed_text_ids.append(self.eos_token_id)
         packed_text_indexes.append(curr)
         curr += 1
-        
+
         # Finalize Action Block
         curr_split_len = curr - curr_split_start
         packed_position_ids.extend(range(curr_rope_id, curr_rope_id + curr_split_len))
@@ -846,6 +846,6 @@ class BeingHPolicy(BasePolicy):
         if isinstance(first_val, list):  # Applies to instruction lists
             return True
         return False
-        
+
     def get_modality_config(self) -> Dict[str, ModalityConfig]:
         return self.data_config.modality_config()

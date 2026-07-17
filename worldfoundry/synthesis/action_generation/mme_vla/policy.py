@@ -36,19 +36,19 @@ class MMEVLAPolicy:
 
         self._sample_actions = nnx_utils.module_jit(model.sample_actions)
         self._vision_encode = nnx_utils.module_jit(model.vision_encode)
-        
-        
+
+
         self.config = model.history_config
         self.mem_buffer = None
-        
+
         if norm_stats is None or "state" not in norm_stats:
             raise ValueError("MME-VLA checkpoint is missing state normalization statistics")
         self.state_norm_stats = norm_stats["state"]
         self.use_quantiles = use_quantiles
-        
+
         self.reset()
-        
-    
+
+
     def _prepare_mem_buffer(self):
         if self.config is None or self.config.representation_type == "symbolic":
             self.mem_buffer = None
@@ -78,33 +78,33 @@ class MMEVLAPolicy:
         if self.config is not None and self.config.representation_type != "symbolic":
             if self.mem_buffer is None or not self.mem_buffer.has_history:
                 raise ValueError("MME-VLA requires at least one buffered history observation")
-                                        
+
         inputs = self._prepare_history(dict(obs))
         inputs = self._input_transform(inputs)
         observation = HistAugObservation.from_dict(
             jax.tree.map(lambda x: jnp.asarray(x)[np.newaxis, ...], inputs)
         )
         self._rng, sample_rng = jax.random.split(self._rng)
-    
+
         start_time = time.monotonic()
         actions = self._sample_actions(sample_rng, observation, **self._sample_kwargs)
         jax.block_until_ready(actions)
         model_time = time.monotonic() - start_time
         outputs = {"state": observation.state, "actions": actions}
-        outputs = jax.tree.map(lambda x: np.asarray(x[0, ...]), outputs)      
+        outputs = jax.tree.map(lambda x: np.asarray(x[0, ...]), outputs)
         outputs = self._output_transform(outputs)
         outputs["infer_time_ms"] = model_time * 1000
-        
+
         return outputs
-    
+
     def reset(self) -> None:
         self.mem_buffer = None
         self._prepare_mem_buffer()
-        self.step_idx = -1  
+        self.step_idx = -1
         self.exec_start_idx = 0
         self._rng = jax.random.key(self._seed)
-            
-    
+
+
     def add_buffer(self, obs: dict) -> None:
         if self.mem_buffer is None:
             return
@@ -112,7 +112,7 @@ class MMEVLAPolicy:
         states = obs["state"]
         if obs.get("exec_start_idx", 0) > 0: # has video
             self.exec_start_idx = obs["exec_start_idx"]
-        
+
         step_idx_list = list(range(self.step_idx+1, self.step_idx + len(images) + 1))
         self.mem_buffer.add_buffer(images, states, step_idx_list)
         self.step_idx += len(images)
@@ -126,7 +126,7 @@ class MMEVLAPolicy:
     def _prepare_history(self, inputs: dict) -> dict:
         if self.config is None or self.config.representation_type == "symbolic":
             return inputs
-        
+
         if self.config.representation_type == "recurrent":
             history_feats_gather_fn = self.mem_buffer.default_history_feats_gather_fn
             recur_image_emb, recur_pos_emb, recur_state_emb, recur_mask = \
@@ -139,7 +139,7 @@ class MMEVLAPolicy:
         elif self.config.representation_type == "perceptual":
             history_feats_gather_fn = self.mem_buffer.default_history_feats_gather_fn
             token_budget = self.config.budget
-            
+
             if self.config.perceptual_memory.type == "token_dropping":
                 static_image_emb, static_pos_emb, static_state_emb, static_mask = \
                     self.mem_buffer.prepare_token_dropping(
@@ -149,15 +149,15 @@ class MMEVLAPolicy:
                 static_image_emb, static_pos_emb, static_state_emb, static_mask = \
                     self.mem_buffer.prepare_frame_sampling(
                         self.step_idx, token_budget, token_per_image, history_feats_gather_fn)
-            
+
             inputs["static_image_emb"] = static_image_emb
             inputs["static_pos_emb"] = static_pos_emb
             inputs["static_state_emb"] = self._normalize_state(static_state_emb)
             inputs["static_mask"] = static_mask
         else:
             raise ValueError(f"Not supported representation type: {self.config.representation_type}")
-        
-    
+
+
         return inputs
 
     @property

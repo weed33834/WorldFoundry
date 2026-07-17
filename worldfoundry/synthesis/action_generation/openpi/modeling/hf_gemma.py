@@ -46,7 +46,7 @@ class GemmaRMSNorm(nn.Module):
         self.eps = eps
         self.dim = dim
         self.cond_dim = cond_dim
-        
+
         # Dense layer for adaptive normalization (if cond_dim is provided)
         if cond_dim is not None:
             #self.dense = nn.Linear(cond_dim, dim * 3, bias=True, dtype=torch.bfloat16)
@@ -67,32 +67,32 @@ class GemmaRMSNorm(nn.Module):
     def forward(self, x, cond=None):
         dtype = x.dtype  # original dtype, could be half-precision
         normed_inputs = self._norm(x)
-        
+
         if cond is None or self.dense is None:
             # regular RMSNorm
             # scale by learned parameter in float32 (matches source implementation)
             normed_inputs = normed_inputs * (1.0 + self.weight.float())
             return normed_inputs.to(dtype), None  # return in original dtype with None gate
-        
+
         # adaptive RMSNorm (if cond is provided and dense layer exists)
         if cond.shape[-1] != self.cond_dim:
             raise ValueError(f"Expected cond dimension {self.cond_dim}, got {cond.shape[-1]}")
-        
+
         #self.dense.to(dtype=torch.bfloat16).to(dtype=torch.float32)
         modulation = self.dense(cond)
         # Reshape modulation to broadcast properly: [batch, 1, features] for [batch, seq, features]
         if len(x.shape) == 3:  # [batch, seq, features]
             modulation = modulation.unsqueeze(1)
-        
+
         scale, shift, gate = torch.chunk(modulation, 3, dim=-1)
-        
+
         # Apply adaptive normalization: use model weight dtype to ensure compatibility
         # model_dtype = self.dense.weight.dtype  # Use the model's dtype (bfloat16)
         # scale = scale.to(model_dtype)
         # shift = shift.to(model_dtype)
         # gate = gate.to(model_dtype)
         # normed_inputs = normed_inputs.to(model_dtype)  # Convert normed_inputs to model dtype
-        
+
         normed_inputs = normed_inputs * (1 + scale.to(torch.float32)) + shift.to(torch.float32)
 
         return normed_inputs.to(dtype), gate.to(dtype)
@@ -202,12 +202,12 @@ def repeat_kv(hidden_states: torch.Tensor, n_rep: int) -> torch.Tensor:
 def _gated_residual(x, y, gate):
     """
     Applies gated residual connection with optional gate parameter.
-    
+
     Args:
         x: Input tensor (residual)
         y: Output tensor to be added
         gate: Optional gate tensor to modulate the addition
-        
+
     Returns:
         x + y if gate is None, otherwise x + y * gate
     """
@@ -286,7 +286,7 @@ class GemmaAttention(nn.Module):
         cache_position: Optional[torch.LongTensor] = None,
         use_cache: bool = False,
         **kwargs: Unpack[FlashAttentionKwargs],
-    ) -> tuple[torch.Tensor, Optional[torch.Tensor], Optional[tuple[torch.Tensor]]]:        
+    ) -> tuple[torch.Tensor, Optional[torch.Tensor], Optional[tuple[torch.Tensor]]]:
         input_shape = hidden_states.shape[:-1]
         hidden_shape = (*input_shape, -1, self.head_dim)
 

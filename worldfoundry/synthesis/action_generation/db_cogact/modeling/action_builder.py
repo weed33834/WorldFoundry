@@ -9,7 +9,7 @@ def build_action_model(config):
     in_channels = config.action_dim
     token_size = config.hidden_size
     future_action_window_size = config.chunk_size - \
-        1  
+        1
     past_action_window_size = 0
 
     if "Linear" in model_type:

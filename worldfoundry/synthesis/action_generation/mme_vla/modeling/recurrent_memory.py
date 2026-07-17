@@ -91,13 +91,13 @@ class RecurrentMemory(nnx.Module):
         )
 
         final_output = self.proj(output[:, -self.budget:])
-        
+
         if self.recur_type == "ttt":
             mask_repeat = einops.repeat(recur_mask, "b t -> b (t mb)", mb=self.mini_batch_size)
             final_mask = mask_repeat[:, -self.budget:]
         else:
             final_mask = jnp.ones((hidden_states.shape[0], self.budget), dtype=jnp.bool_)
-        
+
         return (final_output, final_mask), memory_state_new, stats
 
     def reset(self):

@@ -18,7 +18,7 @@ def get_image_processor(image_res: int = 336):
         rescale_factor=0.00392156862745098,
         size={
             "height": image_res,
-            "width": image_res, 
+            "width": image_res,
         }
     )
 

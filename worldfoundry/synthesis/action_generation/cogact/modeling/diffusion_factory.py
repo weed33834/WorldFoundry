@@ -10,7 +10,7 @@ from .respace import SpacedDiffusion, space_timesteps
 
 def create_diffusion(
     timestep_respacing,
-    noise_schedule="linear", 
+    noise_schedule="linear",
     sigma_small=False,
     predict_xstart=False,
     learn_sigma=True,
