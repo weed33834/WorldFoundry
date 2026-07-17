@@ -9,7 +9,7 @@ from worldfoundry.core.io.paths import resolve_worldfoundry_path
 from worldfoundry.evaluation.models.runtime.profiles import load_runtime_profile
 from worldfoundry.synthesis.action_generation.runtime_config import load_vla_va_wam_runtime_config
 from ..base_action_synthesis import ActionModelSynthesis
-from worldfoundry.synthesis.action_generation.act.act_runtime import ACTRuntime, ACTRuntimeConfig, select_act_checkpoint
+from worldfoundry.synthesis.action_generation.act.runtime import ACTRuntime, ACTRuntimeConfig, select_act_checkpoint
 
 
 class ACTSynthesis(ActionModelSynthesis):
@@ -119,9 +119,6 @@ class ACTSynthesis(ActionModelSynthesis):
             state_dim=int(merged["state_dim"]),
             chunk_size=int(merged["chunk_size"]),
             temporal_agg=bool(merged["temporal_agg"]),
-            lr=float(merged["lr"]),
-            lr_backbone=float(merged["lr_backbone"]),
-            weight_decay=float(merged["weight_decay"]),
             backbone=str(merged["backbone"]),
             dilation=bool(merged["dilation"]),
             position_embedding=str(merged["position_embedding"]),
@@ -133,7 +130,7 @@ class ACTSynthesis(ActionModelSynthesis):
             nheads=int(merged["nheads"]),
             pre_norm=bool(merged["pre_norm"]),
             masks=bool(merged["masks"]),
-            kl_weight=float(merged["kl_weight"]),
+            require_dataset_stats=bool(merged.get("require_dataset_stats", True)),
         )
 
     def _runtime_for(self, config: ACTRuntimeConfig) -> ACTRuntime:

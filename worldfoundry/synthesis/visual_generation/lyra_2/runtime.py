@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-import json
 import importlib
+import json
 import os
 from argparse import Namespace
 from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
 
 from worldfoundry.synthesis.visual_generation.lyra_2 import SOURCE_PACKAGE_ROOT as LYRA2_SOURCE_PACKAGE_ROOT
-
 
 DEFAULT_DA3_MODEL_NAME = "depth-anything/DA3NESTED-GIANT-LARGE-1.1"
 DEFAULT_WEIGHT_DTYPE = "bfloat16"
@@ -150,7 +149,9 @@ class Lyra2Runtime:
             checkpoint_root,
         )
         resolved_negative_prompt_path = cls._resolve_asset_path(
-            negative_prompt_path or options.get("negative_prompt_path") or "checkpoints/text_encoder/negative_prompt.pt",
+            negative_prompt_path
+            or options.get("negative_prompt_path")
+            or "checkpoints/text_encoder/negative_prompt.pt",
             checkpoint_root,
         )
         resolved_da3_model_path = cls._resolve_asset_path(
@@ -332,19 +333,27 @@ class Lyra2Runtime:
             ),
             checkpoint_dir,
         )
-        vae_path = Path(self._require_asset(checkpoint_root / "checkpoints" / "vae" / "vae.pth", "Lyra-2 VAE checkpoint"))
-        image_mean_std_path = Path(self._require_asset(
-            checkpoint_root / "checkpoints" / "vae" / "images_mean_std.pt",
-            "Lyra-2 image mean/std",
-        ))
-        video_mean_std_path = Path(self._require_asset(
-            checkpoint_root / "checkpoints" / "vae" / "video_mean_std.pt",
-            "Lyra-2 video mean/std",
-        ))
+        vae_path = Path(
+            self._require_asset(checkpoint_root / "checkpoints" / "vae" / "vae.pth", "Lyra-2 VAE checkpoint")
+        )
+        image_mean_std_path = Path(
+            self._require_asset(
+                checkpoint_root / "checkpoints" / "vae" / "images_mean_std.pt",
+                "Lyra-2 image mean/std",
+            )
+        )
+        video_mean_std_path = Path(
+            self._require_asset(
+                checkpoint_root / "checkpoints" / "vae" / "video_mean_std.pt",
+                "Lyra-2 video mean/std",
+            )
+        )
         self._install_checkpoint_aliases(checkpoint_root)
 
         from worldfoundry.synthesis.visual_generation.lyra_2.lyra_2._src.inference.depth_utils import load_da3_model
-        from worldfoundry.synthesis.visual_generation.lyra_2.lyra_2._src.utils.model_loader import load_model_from_checkpoint
+        from worldfoundry.synthesis.visual_generation.lyra_2.lyra_2._src.utils.model_loader import (
+            load_model_from_checkpoint,
+        )
 
         experiment_opts = [
             "model.config.use_mp_policy_fsdp=False",
@@ -359,8 +368,6 @@ class Lyra2Runtime:
                 experiment_name=self.experiment,
                 checkpoint_path=checkpoint_dir.as_posix(),
                 enable_fsdp=False,
-                instantiate_ema=False,
-                load_ema_to_reg=False,
                 experiment_opts=experiment_opts,
                 strict=strict,
             )
@@ -477,14 +484,18 @@ class Lyra2Runtime:
         desired_device = self.model.tensor_kwargs.get("device", self.device)
         desired_dtype = self.model.tensor_kwargs.get("dtype", self.weight_dtype)
         neg_t5 = self.negative_prompt_data["t5_text_embeddings"].to(device=desired_device, dtype=desired_dtype)
-        chunk_keys_int = sorted(int(key) for key in chunk_captions.keys() if int(key) < num_frames) if chunk_captions else []
+        chunk_keys_int = (
+            sorted(int(key) for key in chunk_captions.keys() if int(key) < num_frames) if chunk_captions else []
+        )
 
         if len(chunk_keys_int) > 1:
             chunk_keys = torch.tensor(chunk_keys_int, dtype=torch.long, device=desired_device)
             chunk_embs = []
             chunk_masks = []
             for key in chunk_keys_int:
-                embedding = self._embed_caption(chunk_captions[str(key)] or prompt or "", offload_when_prompt=offload_when_prompt)
+                embedding = self._embed_caption(
+                    chunk_captions[str(key)] or prompt or "", offload_when_prompt=offload_when_prompt
+                )
                 if embedding.dim() == 3:
                     embedding = embedding[0]
                 seq_len, dim = embedding.shape
@@ -531,7 +542,11 @@ class Lyra2Runtime:
         import numpy as np
         import torch
 
-        tensor = camera_w2c.detach().cpu().float() if torch.is_tensor(camera_w2c) else torch.from_numpy(np.asarray(camera_w2c, dtype=np.float32))
+        tensor = (
+            camera_w2c.detach().cpu().float()
+            if torch.is_tensor(camera_w2c)
+            else torch.from_numpy(np.asarray(camera_w2c, dtype=np.float32))
+        )
         if tensor.ndim != 3 or tensor.shape[-2:] != (4, 4):
             raise ValueError(f"camera_w2c must have shape [T,4,4], got {tuple(tensor.shape)}")
         return tensor
@@ -550,7 +565,11 @@ class Lyra2Runtime:
 
         if zoom_factors is None:
             return torch.ones(num_frames, dtype=torch.float32)
-        tensor = zoom_factors.detach().cpu().float() if torch.is_tensor(zoom_factors) else torch.from_numpy(np.asarray(zoom_factors, dtype=np.float32))
+        tensor = (
+            zoom_factors.detach().cpu().float()
+            if torch.is_tensor(zoom_factors)
+            else torch.from_numpy(np.asarray(zoom_factors, dtype=np.float32))
+        )
         if tensor.ndim != 1 or tensor.shape[0] != num_frames:
             raise ValueError(f"zoom_factors must have shape [T], got {tuple(tensor.shape)} and num_frames={num_frames}")
         return tensor
@@ -642,7 +661,7 @@ class Lyra2Runtime:
         desired_device = self.model.tensor_kwargs.get("device", self.device)
         desired_dtype = self.model.tensor_kwargs.get("dtype", self.weight_dtype)
 
-        from worldfoundry.synthesis.visual_generation.lyra_2.lyra_2._ext.imaginaire.utils import misc
+        from worldfoundry.core.utils import inference_runtime as misc
         from worldfoundry.synthesis.visual_generation.lyra_2.lyra_2._src.inference.lyra2_ar_inference import (
             run_lyra2_sample,
             safe_to,
@@ -670,7 +689,9 @@ class Lyra2Runtime:
         data_batch = {
             "video": img_bchw.unsqueeze(2),
             "fps": torch.tensor([fps], dtype=torch.int32, device=desired_device),
-            "padding_mask": torch.zeros((1, 1, image_chw01.shape[-2], image_chw01.shape[-1]), dtype=desired_dtype, device=desired_device),
+            "padding_mask": torch.zeros(
+                (1, 1, image_chw01.shape[-2], image_chw01.shape[-1]), dtype=desired_dtype, device=desired_device
+            ),
             "is_preprocessed": torch.tensor([True], dtype=torch.bool, device=desired_device),
             "camera_w2c": camera_w2c_t.unsqueeze(0).to(dtype=torch.float32, device=desired_device),
             "intrinsics": intrinsics.unsqueeze(0).to(dtype=torch.float32, device=desired_device),
@@ -782,7 +803,9 @@ class Lyra2Runtime:
             "shift": self.shift if shift is None else float(shift),
             "num_sampling_step": self.num_sampling_step if num_sampling_step is None else int(num_sampling_step),
             "offload": self.offload if offload is None else bool(offload),
-            "offload_when_prompt": self.offload_when_prompt if offload_when_prompt is None else bool(offload_when_prompt),
+            "offload_when_prompt": self.offload_when_prompt
+            if offload_when_prompt is None
+            else bool(offload_when_prompt),
             "blocked_reasons": list(self.BLOCKED_REASONS),
             "extra": {key: str(value) for key, value in extra.items()},
         }

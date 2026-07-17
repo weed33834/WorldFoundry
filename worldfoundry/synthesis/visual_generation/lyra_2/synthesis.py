@@ -10,13 +10,13 @@ from __future__ import annotations
 
 from typing import Any
 
+from ...base_synthesis import BaseSynthesis
 from .runtime import (
     DEFAULT_DA3_MODEL_NAME,
     DEFAULT_WEIGHT_DTYPE,
     Lyra2Runtime,
     load_runtime,
 )
-from ...base_synthesis import BaseSynthesis
 
 
 class Lyra2Synthesis(BaseSynthesis):

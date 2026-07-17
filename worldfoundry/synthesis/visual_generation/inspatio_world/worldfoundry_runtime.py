@@ -16,6 +16,11 @@ from worldfoundry.core.io import (
     materialize_video_input,
 )
 from worldfoundry.core.io.paths import package_module_root as package_root
+from worldfoundry.core.io.paths import (
+    checkpoint_root_path,
+    hfd_root_path,
+    resolve_local_hf_model_path,
+)
 from worldfoundry.base_models.diffusion_model.video.wan import wan_variant_root
 from worldfoundry.evaluation.utils import worldfoundry_data_path
 
@@ -28,12 +33,10 @@ _CONFIG_ROOT = worldfoundry_data_path("models", "runtime", "configs", "inspatio_
 _TRAJECTORY_ROOT = _CONFIG_ROOT / "traj"
 _WAN_BASE_ROOT = wan_variant_root("inspatio-world")
 
-DEFAULT_CHECKPOINT_REPO = str(
-    _BUNDLED_REPO_ROOT / "checkpoints" / "InSpatio-World-1.3B" / "InSpatio-World-1.3B.safetensors"
-)
-DEFAULT_WAN_MODEL_REPO = str(_BUNDLED_REPO_ROOT / "checkpoints" / "Wan2.1-T2V-1.3B")
-DEFAULT_DA3_MODEL_REPO = str(_BUNDLED_REPO_ROOT / "checkpoints" / "DA3")
-DEFAULT_FLORENCE_MODEL_REPO = str(_BUNDLED_REPO_ROOT / "checkpoints" / "Florence-2-large")
+DEFAULT_CHECKPOINT_REPO = "inspatio/world"
+DEFAULT_WAN_MODEL_REPO = "Wan-AI/Wan2.1-T2V-1.3B"
+DEFAULT_DA3_MODEL_REPO = "depth-anything/DA3NESTED-GIANT-LARGE-1.1"
+DEFAULT_FLORENCE_MODEL_REPO = "microsoft/Florence-2-large"
 DEFAULT_TRAJECTORY_NAME = "x_y_circle_cycle.txt"
 DEFAULT_TRAJECTORY_PATH = _TRAJECTORY_ROOT / DEFAULT_TRAJECTORY_NAME
 DEFAULT_CONFIG_PATH = _CONFIG_ROOT / "inference_1.3b.yaml"
@@ -119,10 +122,13 @@ class InspatioWorldRuntime:
             if candidate.is_dir():
                 return str(candidate.resolve())
             return str(candidate.resolve().parent)
-        raise FileNotFoundError(
-            f"Model component not found locally: {path_or_repo}. "
-            "The in-tree InSpatio-World wrapper does not download remote repositories."
-        )
+        try:
+            return str(resolve_local_hf_model_path(str(path_or_repo)))
+        except FileNotFoundError as exc:
+            raise FileNotFoundError(
+                f"Model component not found locally: {path_or_repo}. "
+                "The in-tree InSpatio-World wrapper does not download remote repositories."
+            ) from exc
 
     @classmethod
     def _resolve_checkpoint_path(cls, checkpoint_source: str) -> str:
@@ -189,11 +195,17 @@ class InspatioWorldRuntime:
 
         resolved = tae_checkpoint_path or self.defaults.get("tae_checkpoint_path")
         if resolved is None:
-            fallback = Path(self.repo_root) / "checkpoints" / "taehv" / "taew2_1.pth"
-            if fallback.exists():
-                return str(fallback.resolve())
+            fallbacks = (
+                Path(self.repo_root) / "checkpoints" / "taehv" / "taew2_1.pth",
+                checkpoint_root_path("taehv", "taew2_1.pth"),
+                hfd_root_path("custom--taehv", "taew2_1.pth"),
+            )
+            for fallback in fallbacks:
+                if fallback.is_file():
+                    return str(fallback.resolve())
             raise FileNotFoundError(
-                "TAE checkpoint is required when use_tae=True. Pass tae_checkpoint_path explicitly."
+                "TAE checkpoint is required when use_tae=True. Pass tae_checkpoint_path explicitly; "
+                f"checked: {', '.join(str(path) for path in fallbacks)}."
             )
 
         candidate = Path(str(resolved)).expanduser()
@@ -349,6 +361,12 @@ class InspatioWorldRuntime:
             None: Environment values are derived from the current process and scoped to repo_root.
         """
         env = os.environ.copy()
+        for name in ("HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE", "DIFFUSERS_OFFLINE"):
+            value = env.get(name)
+            if value is not None and value.strip().lower() not in {"1", "true", "yes", "on"}:
+                raise ValueError(
+                    f"InSpatio-World requires offline model loading; {name}={value!r} is not allowed."
+                )
         source_root = str(package_root("worldfoundry").parent)
         pythonpath = [source_root, str(_WAN_BASE_ROOT), self.repo_root]
         if env.get("PYTHONPATH"):
@@ -359,6 +377,9 @@ class InspatioWorldRuntime:
         env["PYTHON"] = sys.executable
         env["WORLDFOUNDRY_INSPATIO_WORLD_CONFIG_ROOT"] = str(_CONFIG_ROOT)
         env["WORLDFOUNDRY_INSPATIO_WORLD_TRAJECTORY_ROOT"] = str(_TRAJECTORY_ROOT)
+        env["HF_HUB_OFFLINE"] = "1"
+        env["TRANSFORMERS_OFFLINE"] = "1"
+        env["DIFFUSERS_OFFLINE"] = "1"
         return env
 
     def plan(
@@ -403,18 +424,44 @@ class InspatioWorldRuntime:
                 if traj_candidate.suffix != ".txt":
                     traj_candidate = traj_candidate.with_suffix(".txt")
 
-        checkpoint_candidate = Path(str(self.checkpoint_source)).expanduser()
-        wan_candidate = Path(str(self.wan_model_source)).expanduser()
-        da3_candidate = Path(str(self.da3_model_source)).expanduser()
-        florence_candidate = Path(str(self.florence_model_source)).expanduser()
-        tae_source = (
-            tae_checkpoint_path
-            or self.defaults.get("tae_checkpoint_path")
-            or runtime_root / "checkpoints" / "taehv" / "taew2_1.pth"
-        )
-        tae_candidate = Path(str(tae_source)).expanduser()
-
         blockers = []
+
+        def resolve_for_plan(label: str, source: str, resolver) -> Path:
+            try:
+                return Path(resolver(source))
+            except (FileNotFoundError, OSError) as exc:
+                blockers.append(f"{label} is missing: {exc}")
+                return Path(str(source)).expanduser()
+
+        checkpoint_candidate = (
+            resolve_for_plan("InSpatio-World checkpoint", self.checkpoint_source, self._resolve_checkpoint_path)
+            if not skip_step3
+            else Path(str(self.checkpoint_source)).expanduser()
+        )
+        wan_candidate = (
+            resolve_for_plan("Wan model", self.wan_model_source, self._resolve_snapshot_dir)
+            if not skip_step3
+            else Path(str(self.wan_model_source)).expanduser()
+        )
+        da3_candidate = (
+            resolve_for_plan("DA3 model", self.da3_model_source, self._resolve_snapshot_dir)
+            if not skip_step2
+            else Path(str(self.da3_model_source)).expanduser()
+        )
+        florence_candidate = (
+            resolve_for_plan("Florence model", self.florence_model_source, self._resolve_snapshot_dir)
+            if not skip_step1
+            else Path(str(self.florence_model_source)).expanduser()
+        )
+        tae_candidate: Path | None = None
+        if use_tae:
+            try:
+                resolved_tae = self._resolve_optional_tae_checkpoint(tae_checkpoint_path, True)
+                tae_candidate = Path(str(resolved_tae))
+            except (FileNotFoundError, OSError) as exc:
+                blockers.append(f"TAE checkpoint is missing: {exc}")
+                tae_candidate = Path(str(tae_checkpoint_path or "taew2_1.pth")).expanduser()
+
         if not runtime_root.exists():
             blockers.append(f"Bundled runtime directory is missing: {runtime_root}")
         if not script_path.is_file():
@@ -423,16 +470,6 @@ class InspatioWorldRuntime:
             blockers.append(f"Runtime config is missing: {config_candidate}")
         if not traj_candidate.is_file():
             blockers.append(f"Trajectory file is missing: {traj_candidate}")
-        if not skip_step3 and not checkpoint_candidate.is_file():
-            blockers.append(f"InSpatio-World checkpoint is missing: {checkpoint_candidate}")
-        if not skip_step3 and not wan_candidate.is_dir():
-            blockers.append(f"Wan model directory is missing: {wan_candidate}")
-        if not skip_step2 and not da3_candidate.is_dir():
-            blockers.append(f"DA3 model directory is missing: {da3_candidate}")
-        if not skip_step1 and not florence_candidate.is_dir():
-            blockers.append(f"Florence model directory is missing: {florence_candidate}")
-        if use_tae and not tae_candidate.is_file():
-            blockers.append(f"TAE checkpoint is missing: {tae_candidate}")
 
         return {
             "status": "ready" if not blockers else "blocked",
@@ -445,7 +482,7 @@ class InspatioWorldRuntime:
             "wan_model_path": str(wan_candidate),
             "da3_model_path": str(da3_candidate),
             "florence_model_path": str(florence_candidate),
-            "tae_checkpoint_path": str(tae_candidate) if use_tae else None,
+            "tae_checkpoint_path": str(tae_candidate) if tae_candidate is not None else None,
             "skip_steps": {
                 "step1": bool(skip_step1),
                 "step2": bool(skip_step2),

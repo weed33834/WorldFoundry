@@ -10,84 +10,47 @@ from __future__ import annotations
 
 import hashlib
 import json
-import logging
-import os
 import threading
 import time
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from worldfoundry.core.io.paths import project_root, resolve_worldfoundry_path
+from worldfoundry.core.io.paths import (
+    project_root,
+    resolve_local_hf_model_path,
+    resolve_worldfoundry_path,
+)
+from worldfoundry.synthesis.action_generation.runtime_config import load_vla_va_wam_runtime_config
 
 
-log = logging.getLogger(__name__)
+@lru_cache(maxsize=1)
+def _embodiment_defaults() -> dict[str, dict[str, Any]]:
+    """Load MolmoAct2 variant metadata from the packaged data configuration."""
+    config = load_vla_va_wam_runtime_config("molmoact2")
+    variants = config.get("variants")
+    if not isinstance(variants, Mapping):
+        raise ValueError("MolmoAct2 runtime config has no variants mapping")
+    defaults: dict[str, dict[str, Any]] = {}
+    for name, value in variants.items():
+        if not isinstance(value, Mapping):
+            continue
+        payload = dict(value)
+        canonical = str(payload.get("embodiment") or name).strip().lower().replace("-", "_")
+        payload["variant_name"] = str(name)
+        payload["camera_keys"] = tuple(payload.get("camera_keys") or ())
+        defaults[canonical] = payload
+    if not defaults:
+        raise ValueError("MolmoAct2 runtime config defines no usable variants")
+    return defaults
 
 
-#: Default configuration parameters for different MolmoAct2 robot embodiments.
-EMBODIMENT_DEFAULTS: dict[str, dict[str, Any]] = {
-    "droid": {
-        "repo_id": "allenai/MolmoAct2-DROID",
-        "norm_tag": "franka_droid",
-        "camera_keys": ("external_cam", "external_cam_2", "wrist_cam"),
-        "state_dim": 8,
-        "action_mode_key": "inference_action_mode",
-        "default_port": 8000,
-    },
-    "yam": {
-        "repo_id": "allenai/MolmoAct2-BimanualYAM",
-        "norm_tag": "yam_dual_molmoact2",
-        "camera_keys": ("top_cam", "left_cam", "right_cam"),
-        "state_dim": 14,
-        "action_mode_key": "inference_action_mode",
-        "default_port": 8202,
-    },
-    "so100": {
-        "repo_id": "allenai/MolmoAct2-SO100_101",
-        "norm_tag": "so100_so101_molmoact2",
-        "camera_keys": ("top_cam", "side_cam"),
-        "state_dim": 6,
-        "action_mode_key": "inference_action_mode",
-        "default_port": 8203,
-    },
-    "libero": {
-        "repo_id": "allenai/MolmoAct2-LIBERO",
-        "norm_tag": "libero",
-        "camera_keys": ("agentview_cam", "wrist_cam"),
-        "state_dim": 8,
-        "action_mode_key": "inference_action_mode",
-        "default_port": 8204,
-    },
-    "think_libero": {
-        "repo_id": "allenai/MolmoAct2-Think-LIBERO",
-        "norm_tag": "libero",
-        "camera_keys": ("agentview_cam", "wrist_cam"),
-        "state_dim": 8,
-        "action_mode_key": "inference_action_mode",
-        "default_port": 8205,
-    },
-}
-
-#: Aliases for different ways to refer to embodiments, mapping them to canonical names.
-_EMBODIMENT_ALIASES = {
-    "bimanual-yam": "yam",
-    "bimanual_yam": "yam",
-    "molmoact2-bimanualyam": "yam",
-    "molmoact2-droid": "droid",
-    "franka": "droid",
-    "franka_droid": "droid",
-    "so101": "so100",
-    "so100_101": "so100",
-    "so100-so101": "so100",
-    "molmoact2-so100-101": "so100",
-    "molmoact2-so100_101": "so100",
-    "molmoact2-libero": "libero",
-    "libero-10": "libero",
-    "think-libero": "think_libero",
-    "think_libero": "think_libero",
-    "molmoact2-think-libero": "think_libero",
-    "depth-libero": "think_libero",
-}
+def _default_embodiment() -> str:
+    config = load_vla_va_wam_runtime_config("molmoact2")
+    requested = str(config.get("default_variant") or "droid").lower().replace("-", "_")
+    defaults = _embodiment_defaults()
+    return requested if requested in defaults else next(iter(defaults))
 
 
 def _jsonable(value: Any) -> Any:
@@ -152,12 +115,12 @@ def _expand_path_value(value: Any) -> Path | None:
     """
     if value in (None, ""):
         return None
-    repo_root = _worldfoundry_repository_root()
+    project_dir = _worldfoundry_repository_root()
     # Resolve against worldfoundry project paths first
     path = resolve_worldfoundry_path(value)
     # If still not absolute, assume it's relative to the project root
     if not path.is_absolute():
-        path = repo_root / path
+        path = project_dir / path
     # Resolve any symlinks and `.` `..` components to get the canonical path
     return path.resolve()
 
@@ -177,19 +140,28 @@ def _normalize_embodiment(value: Any = None, *, repo_id: str = "", norm_tag: str
     Returns:
         The canonical embodiment name (e.g., "yam", "droid", "so100").
     """
-    text = str(value or "").strip().lower().replace(" ", "-")
-    # Check if the text matches an alias directly
-    if text in _EMBODIMENT_ALIASES:
-        return _EMBODIMENT_ALIASES[text]
-    # Check if the text is already a canonical embodiment name
-    if text in EMBODIMENT_DEFAULTS:
-        return text
-    # Use repo_id or norm_tag as hints if direct matches fail
-    hint = f"{repo_id} {norm_tag}".lower()
-    if "yam" in hint:
-        return "yam"
-    # Default to "droid" if no specific embodiment is identified
-    return "droid"
+    text = str(value or "").strip().lower().replace("_", "-").replace(" ", "-")
+    defaults = _embodiment_defaults()
+    for canonical, payload in defaults.items():
+        candidates = {
+            canonical.replace("_", "-"),
+            str(payload.get("variant_name") or "").lower().replace("_", "-"),
+            str(payload.get("embodiment") or "").lower().replace("_", "-"),
+            *(str(item).lower().replace("_", "-") for item in payload.get("aliases") or ()),
+        }
+        if text and text in candidates:
+            return canonical
+    # Use repository and normalization hints if direct matches fail.
+    repo_value = str(repo_id or "").strip().lower()
+    norm_value = str(norm_tag or "").strip().lower()
+    for canonical, payload in defaults.items():
+        repo_hint = str(payload.get("repo_id") or "").lower()
+        norm_hint = str(payload.get("norm_tag") or "").lower()
+        if (repo_value and repo_hint == repo_value) or (
+            not repo_value and norm_value and norm_hint == norm_value
+        ):
+            return canonical
+    return _default_embodiment()
 
 
 def _role_matches_checkpoint(item: Mapping[str, Any], needles: Sequence[str]) -> bool:
@@ -266,12 +238,13 @@ def select_molmoact2_checkpoint(
     explicit_repo = str(repo_id or "")
     # Normalize the embodiment based on provided hints
     resolved_embodiment = _normalize_embodiment(embodiment or variant_id, repo_id=explicit_repo)
+    defaults = _embodiment_defaults()
 
     # If explicit directory or repository ID is provided, use it directly
     if explicit_dir is not None or explicit_repo:
         return {
             "embodiment": resolved_embodiment,
-            "repo_id": explicit_repo or EMBODIMENT_DEFAULTS[resolved_embodiment]["repo_id"],
+            "repo_id": explicit_repo or defaults[resolved_embodiment]["repo_id"],
             "local_dir": explicit_dir,
         }
 
@@ -297,7 +270,7 @@ def select_molmoact2_checkpoint(
 
     # If a preferred checkpoint was found, construct the return dict using its metadata
     if preferred is not None:
-        repo = str(preferred.get("repo_id") or EMBODIMENT_DEFAULTS[resolved_embodiment]["repo_id"])
+        repo = str(preferred.get("repo_id") or defaults[resolved_embodiment]["repo_id"])
         # Re-normalize embodiment using hints from the preferred checkpoint's metadata
         resolved_embodiment = _normalize_embodiment(resolved_embodiment, repo_id=repo, norm_tag=str(preferred.get("norm_tag") or ""))
         return {
@@ -309,72 +282,9 @@ def select_molmoact2_checkpoint(
     # If no explicit or preferred checkpoint was found, return defaults for the resolved embodiment
     return {
         "embodiment": resolved_embodiment,
-        "repo_id": EMBODIMENT_DEFAULTS[resolved_embodiment]["repo_id"],
+        "repo_id": defaults[resolved_embodiment]["repo_id"],
         "local_dir": None,
     }
-
-
-def _patch_modeling_for_bf16(local_dir: str | Path) -> None:
-    """
-    Applies patches to `modeling_molmoact2.py` to enable bfloat16 compatibility
-    for certain operations within the MolmoAct2 model.
-
-    This is necessary to fix specific dtype issues when running the model
-    with bfloat16 precision. The patches ensure tensors are created with the
-    correct dtype and numpy conversions handle bfloat16 properly.
-
-    Args:
-        local_dir: The local directory where the `modeling_molmoact2.py` file
-                   is expected to be found. It also searches in HuggingFace cache.
-    """
-    # Define the patches: (original_string, replacement_string, unique_marker)
-    # The marker is used to check if the patch has already been applied.
-    patches = [
-        (
-            "device=device,\n            dtype=torch.float32,\n            generator=generator,",
-            "device=device,\n"
-            "            dtype=source_tensor.dtype,  # patched_bf16_dtype\n"
-            "            generator=generator,",
-            "patched_bf16_dtype",
-        ),
-        (
-            "return value.detach().cpu().numpy().astype(np.float32, copy=False)",
-            "return value.detach().cpu().float().numpy().astype(np.float32, copy=False)  # patched_bf16_to_array",
-            "patched_bf16_to_array",
-        ),
-    ]
-    # Define potential paths where `modeling_molmoact2.py` might reside
-    candidates = [Path(local_dir) / "modeling_molmoact2.py"]
-    modules_root = Path("~/.cache/huggingface/modules/transformers_modules").expanduser()
-    if modules_root.is_dir():
-        # Include any `modeling_molmoact2.py` found in HuggingFace's transformers modules cache
-        candidates.extend(modules_root.glob("*/modeling_molmoact2.py"))
-
-    for path in candidates:
-        if not path.is_file():
-            continue
-        try:
-            src = path.read_text(encoding="utf-8")
-        except OSError:
-            # Skip files that cannot be read
-            continue
-        new_src = src
-        applied: list[str] = []
-        for needle, replacement, marker in patches:
-            # Check if the patch marker is already in the source to avoid re-patching
-            if marker in new_src:
-                continue
-            # Check if the original string to be replaced exists
-            if needle not in new_src:
-                log.debug("MolmoAct2 patch %s needle not found in %s", marker, path)
-                continue
-            # Apply the replacement once
-            new_src = new_src.replace(needle, replacement, 1)
-            applied.append(marker)
-        # If any changes were made, write the new source back to the file
-        if new_src != src:
-            path.write_text(new_src, encoding="utf-8")
-            log.info("Applied MolmoAct2 patches %s in %s", applied, path)
 
 
 def _to_pil(arr: Any) -> Any:
@@ -451,6 +361,57 @@ def _ordered_images(images: Any, camera_keys: Sequence[str]) -> list[Any]:
     raise ValueError(f"MolmoAct2 requires images for camera keys {list(camera_keys)}")
 
 
+def _load_in_tree_processor(local_dir: Path) -> Any:
+    """Build the official processor classes without executing checkpoint Python."""
+    from transformers import AutoTokenizer
+
+    from .image_processing_molmoact2 import MolmoAct2ImageProcessor
+    from .processing_molmoact2 import MolmoAct2Processor
+    from .video_processing_molmoact2 import MolmoAct2VideoProcessor
+
+    config_path = local_dir / "processor_config.json"
+    if not config_path.is_file():
+        raise FileNotFoundError(f"MolmoAct2 processor config is missing: {config_path}")
+    processor_config = json.loads(config_path.read_text(encoding="utf-8"))
+
+    def component_options(key: str, type_key: str) -> dict[str, Any]:
+        options = dict(processor_config.get(key) or {})
+        options.pop("auto_map", None)
+        options.pop(type_key, None)
+        options.pop("processor_class", None)
+        return options
+
+    image_processor = MolmoAct2ImageProcessor(
+        **component_options("image_processor", "image_processor_type")
+    )
+    video_processor = MolmoAct2VideoProcessor(
+        **component_options("video_processor", "video_processor_type")
+    )
+    tokenizer = AutoTokenizer.from_pretrained(
+        str(local_dir),
+        trust_remote_code=False,
+        local_files_only=True,
+    )
+    chat_template_path = local_dir / "chat_template.jinja"
+    chat_template = (
+        chat_template_path.read_text(encoding="utf-8")
+        if chat_template_path.is_file()
+        else processor_config.get("chat_template")
+    )
+    optional = {
+        key: processor_config[key]
+        for key in MolmoAct2Processor.optional_attributes
+        if key in processor_config and key != "chat_template"
+    }
+    return MolmoAct2Processor(
+        image_processor=image_processor,
+        video_processor=video_processor,
+        tokenizer=tokenizer,
+        chat_template=chat_template,
+        **optional,
+    )
+
+
 @dataclass(frozen=True)
 class MolmoAct2RuntimeConfig:
     """
@@ -468,7 +429,7 @@ class MolmoAct2RuntimeConfig:
     state_dim: int
     action_mode_key: str
     device: str = "cuda:0"
-    torch_dtype: str = "bfloat16"
+    torch_dtype: str = "auto"
     num_steps: int = 10
     enable_cuda_graph: bool = False
     enable_depth_reasoning: bool = False
@@ -507,52 +468,56 @@ class MolmoAct2Runtime:
         """
         Loads the MolmoAct2 model and processor if they haven't been loaded already.
 
-        This method handles downloading the model snapshot (if `local_dir` is not
-        provided or doesn't exist), applying necessary bfloat16 patches, and
-        initializing the Hugging Face `AutoProcessor` and `AutoModelForImageTextToText`.
+        This method resolves an already staged local checkpoint and initializes
+        WorldFoundry's pinned in-tree processor and model classes.
         It also customizes the model's input movement to handle specific dtypes.
         """
         if self.model is not None and self.processor is not None:
             return  # Model already loaded
 
         import torch
-        from huggingface_hub import snapshot_download
-        from transformers import AutoModelForImageTextToText, AutoProcessor
+        from worldfoundry.core.device import resolve_inference_device, resolve_inference_dtype
 
-        # Enable HF_HUB_ENABLE_HF_TRANSFER for faster downloads if available
-        os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "1")
+        from .configuration_molmoact2 import MolmoAct2Config
+        from .modeling_molmoact2 import MolmoAct2ForConditionalGeneration
 
         local_dir = self.config.local_dir
-        # Resolve the actual model directory: either explicit local_dir or downloaded snapshot
-        if local_dir is not None and local_dir.is_dir():
-            resolved = local_dir
+        # Inference is deliberately local-only. Checkpoint acquisition is handled
+        # by WorldFoundry's hfd/model preparation workflow, never from model code.
+        if local_dir is not None:
+            if not local_dir.is_dir():
+                raise FileNotFoundError(f"MolmoAct2 checkpoint directory does not exist: {local_dir}")
+            resolved = local_dir.resolve()
         else:
-            resolved = Path(snapshot_download(repo_id=self.config.repo_id)).resolve()
-        
-        # Apply necessary bfloat16 patches to the modeling file
-        _patch_modeling_for_bf16(resolved)
+            resolved = resolve_local_hf_model_path(
+                self.config.repo_id,
+                required_files=("config.json", "processor_config.json"),
+            )
+        if not (
+            (resolved / "model.safetensors").is_file()
+            or (resolved / "model.safetensors.index.json").is_file()
+        ):
+            raise FileNotFoundError(
+                f"MolmoAct2 model weights are missing from local checkpoint: {resolved}"
+            )
 
-        # Map string dtype names to torch dtypes
-        dtype = {
-            "bfloat16": torch.bfloat16,
-            "bf16": torch.bfloat16,
-            "float16": torch.float16,
-            "fp16": torch.float16,
-            "float32": torch.float32,
-            "fp32": torch.float32,
-            "auto": "auto",
-        }.get(str(self.config.torch_dtype).lower(), torch.bfloat16)
+        resolved_device = resolve_inference_device(self.config.device, allow_cpu_fallback=True)
+        dtype = resolve_inference_dtype(resolved_device, self.config.torch_dtype)
 
-        self.processor = AutoProcessor.from_pretrained(
+        self.processor = _load_in_tree_processor(resolved)
+        model_config = MolmoAct2Config.from_pretrained(
             str(resolved),
-            trust_remote_code=True,
-            extra_special_tokens={},
+            local_files_only=True,
+            trust_remote_code=False,
         )
-        model = AutoModelForImageTextToText.from_pretrained(
+        model = MolmoAct2ForConditionalGeneration.from_pretrained(
             str(resolved),
-            trust_remote_code=True,
-            torch_dtype=dtype,
-        ).to(self.config.device).eval()
+            config=model_config,
+            dtype=dtype,
+            local_files_only=True,
+            trust_remote_code=False,
+            use_safetensors=True,
+        ).to(resolved_device).eval()
         target_dtype = next(model.parameters()).dtype
 
         # Override the model's internal method for moving inputs to device

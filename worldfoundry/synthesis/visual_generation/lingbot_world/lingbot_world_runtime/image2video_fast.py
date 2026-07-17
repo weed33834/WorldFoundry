@@ -16,7 +16,12 @@ from tqdm import tqdm
 
 from worldfoundry.core import autocast_context
 from worldfoundry.core.distributed.block_fsdp import shard_model
-from worldfoundry.core.attention.causal_rope_sequence_parallel import sp_attn_forward_causal, sp_dit_forward_causal
+from worldfoundry.core.attention.causal_rope_sequence_parallel import (
+    sp_attn_forward_causal,
+    sp_attn_forward_causal_chunked,
+    sp_dit_forward_causal,
+    sp_dit_forward_causal_chunked,
+)
 from worldfoundry.core.distributed.sequence_ops import get_world_size
 from worldfoundry.base_models.diffusion_model.video.wan.wan_2p2.modules.lingbot_model_fast import WanModelFast
 from worldfoundry.base_models.diffusion_model.video.wan.wan_2p1.modules.t5 import T5EncoderModel
@@ -75,6 +80,7 @@ class WanI2VFast:
         init_on_cpu=True,
         convert_model_dtype=False,
         pipe_dtype: torch.dtype = torch.bfloat16,
+        control_type=None,
     ):
         r"""
         Initializes the image-to-video generation model components.
@@ -116,10 +122,14 @@ class WanI2VFast:
         if t5_fsdp or dit_fsdp or use_sp:
             self.init_on_cpu = False
 
-        if 'cam' in checkpoint_dir:
-            self.control_type = 'cam'
-        elif 'act' in checkpoint_dir:
-            self.control_type = 'act'
+        inferred_control_type = control_type
+        if inferred_control_type is None and 'cam' in checkpoint_dir:
+            inferred_control_type = 'cam'
+        elif inferred_control_type is None and 'act' in checkpoint_dir:
+            inferred_control_type = 'act'
+        if inferred_control_type not in {'cam', 'act'}:
+            raise ValueError("LingBot control_type must be 'cam' or 'act'; pass it explicitly for custom checkpoint paths.")
+        self.control_type = inferred_control_type
 
         shard_fn = partial(shard_model, device_id=device_id)
         self.text_encoder = T5EncoderModel(
@@ -192,10 +202,24 @@ class WanI2VFast:
         model.eval().requires_grad_(False)
 
         if use_sp:
+            replicated_sequence = os.getenv(
+                "WORLDFOUNDRY_LINGBOT_SP_LAYOUT",
+                "chunked",
+            ).strip().lower() == "replicated"
+            attention_forward = (
+                sp_attn_forward_causal
+                if replicated_sequence
+                else sp_attn_forward_causal_chunked
+            )
+            model_forward = (
+                sp_dit_forward_causal
+                if replicated_sequence
+                else sp_dit_forward_causal_chunked
+            )
             for block in model.blocks:
                 block.self_attn.forward = types.MethodType(
-                    sp_attn_forward_causal, block.self_attn)
-            model.forward = types.MethodType(sp_dit_forward_causal, model)
+                    attention_forward, block.self_attn)
+            model.forward = types.MethodType(model_forward, model)
 
         if dist.is_initialized():
             dist.barrier()

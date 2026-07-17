@@ -6,13 +6,18 @@ import argparse
 
 
 def get_lora_model(base_model_path, lora_model_input_path, lora_model_output_path):
-    model = AutoModelForCausalLM.from_pretrained(base_model_path, torch_dtype=torch.float16, device_map="auto",trust_remote_code=True)
+    model = AutoModelForCausalLM.from_pretrained(
+        base_model_path,
+        torch_dtype=torch.float16,
+        device_map="auto",
+        local_files_only=True,
+    )
     model = PeftModel.from_pretrained(model, lora_model_input_path)
     merged_model = model.merge_and_unload()
     merged_model.save_pretrained(lora_model_output_path, safe_serialization=True)
     print("Merge lora to base model")
 
-    tokenizer = AutoTokenizer.from_pretrained(base_model_path, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(base_model_path, local_files_only=True)
     tokenizer.save_pretrained(lora_model_output_path)
     print("Save tokenizer")
 

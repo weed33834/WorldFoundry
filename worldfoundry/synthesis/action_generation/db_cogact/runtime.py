@@ -7,17 +7,28 @@ from worldfoundry.synthesis.action_generation._native_policy_runtime import (
     collect_images,
     completed_action_result,
     first_present,
-    import_from_workdir,
     load_json_if_present,
     option_bool,
     option_float,
     option_int,
-    resolve_source_workdir,
 )
 
 
 _RUNTIME_CACHE: dict[tuple[Any, ...], Any] = {}
-_IN_TREE_RUNTIME = "worldfoundry/synthesis/action_generation/db_cogact/db_cogact_runtime"
+
+
+def clear_runtime_cache() -> None:
+    from worldfoundry.core.runtime_cache import clear_inference_runtime_cache
+
+    clear_inference_runtime_cache(_RUNTIME_CACHE)
+
+
+def _finalize_vision_tower(model: Any) -> None:
+    vision_tower = model.model.mm_vision_tower
+    if getattr(vision_tower, "_meta_initialized", False) and not vision_tower.is_loaded:
+        # Mirrors CogActExp after Transformers 5 meta-device initialization:
+        # checkpoint weights are loaded, but the image processor is non-parameter state.
+        vision_tower.load_model()
 
 
 def _normalization_stats(checkpoint_path: str, options: Mapping[str, Any]) -> dict[str, Any]:
@@ -39,41 +50,84 @@ def _normalization_stats(checkpoint_path: str, options: Mapping[str, Any]) -> di
 
 
 def _runtime_for(location: str, device: str, options: Mapping[str, Any]) -> Any:
-    workdir = resolve_source_workdir(
-        options,
-        "db-cogact",
-        specific_env="WORLDFOUNDRY_DB_COGACT_REPO",
-        in_tree_subdir=_IN_TREE_RUNTIME,
-    )
     camera_order = tuple(str(item) for item in options.get("camera_order") or ("front", "left_wrist", "right_wrist"))
-    key = (str(workdir), location, device, camera_order, options.get("torch_dtype"))
+    cpu_offload_enabled = option_bool(options.get("cpu_offload"), False)
+    key = (location, device, camera_order, options.get("torch_dtype"), options.get("attention_backend"), cpu_offload_enabled)
     policy = _RUNTIME_CACHE.get(key)
     if policy is not None:
         return policy
 
-    cogact_arch = import_from_workdir("dexbotic.model.cogact.cogact_arch", workdir)
-    policy_module = import_from_workdir("dexbotic.policy.cogact_policy", workdir)
-    transformers = import_from_workdir("transformers", workdir)
     import torch
+    from transformers import AutoTokenizer
+    from transformers.modeling_utils import no_init_weights
 
-    dtype = torch.bfloat16 if str(options.get("torch_dtype") or "bfloat16").lower() in {"bf16", "bfloat16"} else torch.float32
-    load_kwargs: dict[str, Any] = {
-        "torch_dtype": dtype,
-        "low_cpu_mem_usage": True,
-        "trust_remote_code": option_bool(options.get("trust_remote_code"), True),
-    }
+    from worldfoundry.core.attention import resolve_transformers_attention_implementation
+    from worldfoundry.core.checkpoint import load_safetensors_into_model_streaming
+    from worldfoundry.core.vram import skip_model_initialization
+
+    from .modeling.architecture import CogACTForCausalLM, CogActConfig
+    from .modeling.policy import CogACTPolicy
+
+    dtype_name = str(options.get("torch_dtype") or "bfloat16").lower()
+    dtype = {
+        "bf16": torch.bfloat16,
+        "bfloat16": torch.bfloat16,
+        "fp16": torch.float16,
+        "float16": torch.float16,
+        "fp32": torch.float32,
+        "float32": torch.float32,
+    }.get(dtype_name)
+    if dtype is None:
+        raise ValueError(f"unsupported DB-CogACT torch_dtype {dtype_name!r}")
     device_text = str(device or "cpu")
     requested_cuda = device_text.startswith("cuda")
-    if requested_cuda and torch.cuda.is_available():
-        load_kwargs["device_map"] = {"": "cuda:0"}
-    model = cogact_arch.CogACTForCausalLM.from_pretrained(location, **load_kwargs)
-    if hasattr(model, "to"):
-        target_device = "cpu" if requested_cuda and not torch.cuda.is_available() else device_text
-        model = model.to(torch.device(target_device))
+    if requested_cuda and not torch.cuda.is_available():
+        device_text = "cpu"
+    elif device_text == "cuda":
+        device_text = "cuda:0"
+    target_device = torch.device(device_text)
+
+    config = CogActConfig.from_pretrained(location, local_files_only=True)
+    config._attn_implementation = resolve_transformers_attention_implementation(
+        preferred=options.get("attention_backend"),
+        device=target_device,
+    )
+    # Build only parameter metadata, then assign each safetensors shard
+    # directly on its final device. This avoids a 15+ GiB merged host state
+    # dict and avoids loading on cuda:0 before copying to the requested GPU.
+    with no_init_weights(), skip_model_initialization():
+        model = CogACTForCausalLM(config)
+    weight_report = load_safetensors_into_model_streaming(
+        model,
+        location,
+        strict=True,
+        device="cpu" if cpu_offload_enabled else str(target_device),
+        assign=True,
+    )
+    model._worldfoundry_weight_report = weight_report
+    _finalize_vision_tower(model)
+    if cpu_offload_enabled:
+        from accelerate import cpu_offload
+
+        model = model.to(device="cpu", dtype=dtype)
+        for module in model.modules():
+            module._worldfoundry_execution_device = target_device
+        cpu_offload(
+            model,
+            execution_device=target_device,
+            offload_buffers=True,
+        )
+        model._worldfoundry_cpu_offload = True
+    elif hasattr(model, "to"):
+        model = model.to(device=target_device, dtype=dtype)
     if hasattr(model, "eval"):
         model = model.eval()
-    tokenizer = transformers.AutoTokenizer.from_pretrained(location, trust_remote_code=option_bool(options.get("trust_remote_code"), True))
-    policy = policy_module.CogACTPolicy(
+    tokenizer = AutoTokenizer.from_pretrained(
+        location,
+        trust_remote_code=option_bool(options.get("trust_remote_code"), False),
+        local_files_only=True,
+    )
+    policy = CogACTPolicy(
         model=model,
         tokenizer=tokenizer,
         norm_stats=_normalization_stats(location, options),
@@ -99,6 +153,18 @@ def _policy_observation(observation: Mapping[str, Any], image: Any, instruction:
     return payload
 
 
+def _prepare_policy_observation(policy: Any, payload: dict[str, Any]) -> dict[str, Any]:
+    if not getattr(policy, "state_used", False):
+        payload.pop("state", None)
+    elif isinstance(payload.get("state"), list):
+        # The official batch normalizer treats every Python list as a batch.
+        # Preserve a single robot state vector as one array-valued sample.
+        import numpy as np
+
+        payload["state"] = np.asarray(payload["state"])
+    return payload
+
+
 def predict_action(
     *,
     instruction: str,
@@ -113,19 +179,15 @@ def predict_action(
     options = dict(runtime_options or {})
     location = checkpoint_path or str(options.get("checkpoint_ref") or "Dexmal/libero-db-cogact")
     policy = _runtime_for(location, device, options)
-    policy_obs = _policy_observation(observation, image, instruction, options)
+    policy_obs = _prepare_policy_observation(
+        policy,
+        _policy_observation(observation, image, instruction, options),
+    )
     if not any(key.startswith("image/") for key in policy_obs):
         raise ValueError("DB-CogACT requires at least one image slot for direct select_action inference.")
-    types_module = import_from_workdir(
-        "dexbotic.policy.types",
-        resolve_source_workdir(
-            options,
-            "db-cogact",
-            specific_env="WORLDFOUNDRY_DB_COGACT_REPO",
-            in_tree_subdir=_IN_TREE_RUNTIME,
-        ),
-    )
-    sampling = types_module.SamplingConfig(
+    from .modeling.types import SamplingConfig
+
+    sampling = SamplingConfig(
         num_steps=option_int(options.get("num_steps"), 10),
         cfg_scale=option_float(options.get("cfg_scale"), 1.5),
         seed=options.get("seed"),
@@ -140,8 +202,12 @@ def predict_action(
         device=device,
         runtime="worldfoundry.db_cogact.native_in_process",
         metadata={
-            "official_entrypoint": "dexbotic.policy.base_policy:BasePolicy.select_action",
+            "official_entrypoint": "db_cogact.modeling.policy_base:BasePolicy.select_action",
             "action_mode": getattr(policy, "action_mode", None),
             "state_used": getattr(policy, "state_used", None),
+            "cpu_offload": bool(getattr(policy.model, "_worldfoundry_cpu_offload", False)),
         },
     )
+
+
+__all__ = ["clear_runtime_cache", "predict_action"]

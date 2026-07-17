@@ -8,6 +8,7 @@ camera parameters, and text prompts.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from contextlib import nullcontext
 from typing import Optional
 
@@ -160,7 +161,12 @@ class FantasyWorldWan21Runner:
         )
 
         # Load the main model checkpoint
-        ckpt = torch.load(model_ckpt, map_location="cpu")
+        ckpt = torch.load(model_ckpt, map_location="cpu", weights_only=True)
+        if not isinstance(ckpt, Mapping):
+            raise TypeError(
+                "FantasyWorld Wan2.1 checkpoint must contain a tensor state-dict mapping; "
+                f"got {type(ckpt).__name__}."
+            )
         messages = self.model.load_state_dict(ckpt, strict=False)
         if messages.unexpected_keys:
             raise RuntimeError(f"Unexpected FantasyWorld Wan2.1 keys: {messages.unexpected_keys}")

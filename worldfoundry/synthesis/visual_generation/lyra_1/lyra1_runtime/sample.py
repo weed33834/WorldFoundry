@@ -50,7 +50,7 @@ def load_model(ckpt_path, config, weight_dtype):
     )
 
     # Load ckpt
-    data = torch.load(ckpt_path)
+    data = torch.load(ckpt_path, map_location="cpu", weights_only=True)
     transformer.load_state_dict(data["module"])
 
     # Cast model

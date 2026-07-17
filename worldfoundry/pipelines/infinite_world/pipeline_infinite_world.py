@@ -63,17 +63,39 @@ class InfiniteWorldPipeline(PipelineABC):
         """Resolve num chunks for InfiniteWorldPipeline."""
         if num_chunks is not None:
             return max(int(num_chunks), 1)
+        # ``chunk_stride`` is measured in VAE latent frames (21 latent frames
+        # with one-frame overlap => a stride of 20).  The public ``num_frames``
+        # argument and action sequence are measured in decoded video frames.
+        # One runtime chunk decodes ``validation_num_frames`` frames and appends
+        # all but its overlapping first frame.
+        output_stride = max(int(self.synthesis_model.validation_num_frames) - 1, 1)
         if num_frames is not None:
             if num_frames <= condition_frames:
                 return 1
             return max(
                 1,
-                math.ceil((int(num_frames) - int(condition_frames)) / self.synthesis_model.chunk_stride),
+                math.ceil((int(num_frames) - int(condition_frames)) / output_stride),
             )
         if action_count <= self.synthesis_model.validation_num_frames:
             return 1
         extra_actions = action_count - self.synthesis_model.validation_num_frames
-        return 1 + math.ceil(extra_actions / self.synthesis_model.chunk_stride)
+        return 1 + math.ceil(extra_actions / output_stride)
+
+    @staticmethod
+    def _trim_result_frames(result: Dict[str, Any], num_frames: int) -> Dict[str, Any]:
+        """Trim a generated chunk sequence to the public decoded-frame target."""
+        target = max(int(num_frames), 1)
+        video = result.get("video")
+        if video is not None:
+            result["video"] = video[:target]
+        video_uint8 = result.get("video_uint8")
+        if video_uint8 is not None:
+            result["video_uint8"] = video_uint8[:target]
+        video_tensor = result.get("video_tensor")
+        if video_tensor is not None:
+            result["video_tensor"] = video_tensor[:, :, :target]
+        result["num_frames"] = min(int(result.get("num_frames", target)), target)
+        return result
 
     def process(
         self,
@@ -143,6 +165,11 @@ class InfiniteWorldPipeline(PipelineABC):
             seed=seed,
             **kwargs,
         )
+        # Chunked generation can only produce multiples of the decoded output
+        # stride.  Honour ``num_frames`` exactly unless the caller explicitly
+        # requested a chunk count, in which case full chunks are intentional.
+        if num_chunks is None and num_frames is not None:
+            result = self._trim_result_frames(result, num_frames)
         if return_dict:
             return result
         return result["video"]

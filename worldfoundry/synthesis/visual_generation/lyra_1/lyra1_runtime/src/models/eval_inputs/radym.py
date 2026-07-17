@@ -214,7 +214,11 @@ class Radym(BaseDataset):
             elif data_field == DataField.LATENT_RGB:
                 # Load rgb latent
                 rgb_latents_path = data_base_path / "latent" / f"{data_key}.pkl"
-                rgb_latents_data = torch.load(rgb_latents_path, map_location='cpu', weights_only=False)
+                rgb_latents_data = torch.load(
+                    rgb_latents_path,
+                    map_location="cpu",
+                    weights_only=True,
+                )
                 if isinstance(rgb_latents_data, np.ndarray):
                     rgb_latents_data = torch.from_numpy(rgb_latents_data)
                 # Remove batch index

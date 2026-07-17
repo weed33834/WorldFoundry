@@ -20,10 +20,15 @@ import os
 import torch
 import torch.distributed.checkpoint as dcp
 
-from lyra_2._ext.imaginaire.checkpointer.dcp import DefaultLoadPlanner, DistributedCheckpointer, ModelWrapper
-from lyra_2._ext.imaginaire.lazy_config import instantiate
-from lyra_2._ext.imaginaire.utils import log, misc
-from lyra_2._ext.imaginaire.utils.config_helper import get_config_module, override
+from worldfoundry.base_models.diffusion_model.video.cosmos.cosmos2.runtime.cosmos_predict2.cosmos_predict2._src.predict2.checkpointer.dcp import (
+    DefaultLoadPlanner,
+    DistributedCheckpointer,
+    ModelWrapper,
+)
+from worldfoundry.core.configuration.hydra import get_config_module, override
+from worldfoundry.core.configuration.lazy_config import instantiate
+from worldfoundry.core.distributed.logging import log
+from worldfoundry.core.utils import inference_runtime as misc
 from worldfoundry.data.io import easy_io
 
 
@@ -32,8 +37,6 @@ def load_model_from_checkpoint(
     checkpoint_path,
     config_file="lyra_2/_src/configs/t2v_wan/config.py",
     enable_fsdp=False,
-    instantiate_ema=True,
-    load_ema_to_reg=False,
     seed=0,
     experiment_opts: list[str] = [],
     strict=True,
@@ -49,17 +52,14 @@ def load_model_from_checkpoint(
     config = importlib.import_module(config_module).make_config()
     config = override(config, ["--", f"experiment={experiment_name}"] + experiment_opts)
 
-    if instantiate_ema is False and config.model.config.ema.enabled:
-        config.model.config.ema.enabled = False
-
     # Check that the config is valid
     config.validate()
     # Freeze the config so runtime construction is deterministic.
     config.freeze()  # type: ignore
     misc.set_random_seed(seed=seed, by_rank=True)
     # Initialize cuDNN.
-    torch.backends.cudnn.deterministic = config.runtime.cudnn.deterministic
-    torch.backends.cudnn.benchmark = config.runtime.cudnn.benchmark
+    torch.backends.cudnn.deterministic = config.trainer.cudnn.deterministic
+    torch.backends.cudnn.benchmark = config.trainer.cudnn.benchmark
     # Floating-point precision settings.
     torch.backends.cudnn.allow_tf32 = torch.backends.cuda.matmul.allow_tf32 = True
 
@@ -82,7 +82,7 @@ def load_model_from_checkpoint(
         cur_key_ckpt_full_path = os.path.join(checkpoint_path, "model")
         storage_reader = checkpointer.get_storage_reader(cur_key_ckpt_full_path)
 
-        _model_wrapper = ModelWrapper(model, load_ema_to_reg=load_ema_to_reg)
+        _model_wrapper = ModelWrapper(model)
         _state_dict = _model_wrapper.state_dict()
         dcp.load(
             _state_dict,

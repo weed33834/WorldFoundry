@@ -14,20 +14,23 @@ class CaptionModel:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.torch_dtype = torch.float16 if self.device == "cuda" else torch.float32
 
-        config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
+        config = AutoConfig.from_pretrained(
+            model_path,
+            local_files_only=True,
+        )
 
         self.model = AutoModelForCausalLM.from_pretrained(
             model_path,
             config=config,
             torch_dtype=self.torch_dtype,
-            trust_remote_code=True,
+            local_files_only=True,
             attn_implementation="eager"  # prevents _supports_sdpa errors with some model versions
         ).to(self.device)
 
         self.processor = AutoProcessor.from_pretrained(
             model_path,
             config=config,
-            trust_remote_code=True
+            local_files_only=True,
         )
 
         self.batch_size = batch_size

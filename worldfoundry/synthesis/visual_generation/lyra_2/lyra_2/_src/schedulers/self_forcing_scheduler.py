@@ -1,9 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-"""Flow-matching scheduler used by DMD distillation (4-step) inference.
-
-Ported from imaginaire4's `self_forcing_scheduler.py` for Lyra-2.
-"""
+"""Flow-matching scheduler used by Lyra-2 DMD (four-step) inference."""
 
 import torch
 
@@ -53,9 +50,7 @@ class FlowMatchScheduler:
             timestep = timestep.flatten(0, 1)
         self.sigmas = self.sigmas.to(model_output.device)
         self.timesteps = self.timesteps.to(model_output.device)
-        timestep_id = torch.argmin(
-            (self.timesteps.unsqueeze(0) - timestep.unsqueeze(1)).abs(), dim=1
-        )
+        timestep_id = torch.argmin((self.timesteps.unsqueeze(0) - timestep.unsqueeze(1)).abs(), dim=1)
         sigma = self.sigmas[timestep_id].reshape(-1, 1, 1, 1)
         if to_final or (timestep_id + 1 >= len(self.timesteps)).any():
             sigma_ = 1 if (self.inverse_timesteps or self.reverse_sigmas) else 0
@@ -73,9 +68,7 @@ class FlowMatchScheduler:
             timestep = timestep.flatten(0, 1)
         self.sigmas = self.sigmas.to(noise.device)
         self.timesteps = self.timesteps.to(noise.device)
-        timestep_id = torch.argmin(
-            (self.timesteps.unsqueeze(0) - timestep.unsqueeze(1)).abs(), dim=1
-        )
+        timestep_id = torch.argmin((self.timesteps.unsqueeze(0) - timestep.unsqueeze(1)).abs(), dim=1)
         sigma = self.sigmas[timestep_id].reshape(-1, 1, 1, 1)
         sample = (1 - sigma) * original_samples + sigma * noise
         return sample.type_as(noise)
@@ -87,7 +80,5 @@ class FlowMatchScheduler:
         if timestep.ndim == 2:
             timestep = timestep.flatten(0, 1)
         self.linear_timesteps_weights = self.linear_timesteps_weights.to(timestep.device)
-        timestep_id = torch.argmin(
-            (self.timesteps.unsqueeze(1) - timestep.unsqueeze(0)).abs(), dim=0
-        )
+        timestep_id = torch.argmin((self.timesteps.unsqueeze(1) - timestep.unsqueeze(0)).abs(), dim=0)
         return self.linear_timesteps_weights[timestep_id]

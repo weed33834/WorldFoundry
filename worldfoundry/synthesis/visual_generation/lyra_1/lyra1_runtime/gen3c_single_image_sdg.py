@@ -19,7 +19,7 @@ import os
 from pathlib import Path
 import cv2
 from worldfoundry.base_models.three_dimensions.depth.moge.model.v1 import MoGeModel
-from worldfoundry.runtime import resolve_hfd_root
+from worldfoundry.runtime.env import resolve_hfd_root
 import torch
 import random
 import numpy as np

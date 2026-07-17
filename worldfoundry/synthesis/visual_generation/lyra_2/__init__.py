@@ -11,7 +11,6 @@ from importlib import import_module
 from pathlib import Path
 from typing import Any
 
-
 SOURCE_PACKAGE_ROOT = Path(__file__).resolve().parent / "lyra_2"
 
 

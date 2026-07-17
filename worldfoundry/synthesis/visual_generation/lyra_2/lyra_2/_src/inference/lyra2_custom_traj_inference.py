@@ -34,21 +34,20 @@ import os
 import cv2
 import numpy as np
 import torch
-import torch.nn.functional as F
-from worldfoundry.core.attention import attention_backend_context
-
-from lyra_2._ext.imaginaire.utils import log, misc
-from worldfoundry.data.io import save_img_or_video
 from lyra_2._src.inference.lyra2_ar_inference import (
-    save_output,
-    safe_to,
     run_lyra2_sample,
+    safe_to,
 )
 from lyra_2._src.inference.lyra2_zoomgs_inference import (
-    _da3_infer_depth_intrinsics_single,
     _build_image_list,
+    _da3_infer_depth_intrinsics_single,
 )
 from lyra_2._src.utils.model_loader import load_model_from_checkpoint
+
+from worldfoundry.core.attention import attention_backend_context
+from worldfoundry.core.distributed.logging import log
+from worldfoundry.core.utils import inference_runtime as misc
+from worldfoundry.data.io import save_img_or_video
 
 torch.enable_grad(False)
 torch.backends.cudnn.enabled = False
@@ -57,6 +56,7 @@ torch.backends.cudnn.enabled = False
 # ---------------------------------------------------------------------------
 # Trajectory loading
 # ---------------------------------------------------------------------------
+
 
 def load_trajectory(
     path: str,
@@ -101,29 +101,41 @@ def load_trajectory(
 # Argument parser
 # ---------------------------------------------------------------------------
 
+
 def parse_arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Single-image video generation with a custom camera trajectory"
-    )
+    parser = argparse.ArgumentParser(description="Single-image video generation with a custom camera trajectory")
     # Input
-    parser.add_argument("--input_image_path", type=str, required=True,
-                        help="Path to a single image or a folder of images")
-    parser.add_argument("--trajectory_path", type=str, required=True,
-                        help="Path to .npz trajectory file (or a folder of per-image .npz files). "
-                             "Expected keys: w2c (N,4,4), intrinsics (N,3,3), "
-                             "image_height, image_width.")
+    parser.add_argument(
+        "--input_image_path", type=str, required=True, help="Path to a single image or a folder of images"
+    )
+    parser.add_argument(
+        "--trajectory_path",
+        type=str,
+        required=True,
+        help="Path to .npz trajectory file (or a folder of per-image .npz files). "
+        "Expected keys: w2c (N,4,4), intrinsics (N,3,3), "
+        "image_height, image_width.",
+    )
     parser.add_argument("--num_samples", type=int, default=10)
     parser.add_argument("--sample_start_idx", type=int, default=0)
-    parser.add_argument("--prompt", type=str, default="",
-                        help="Optional explicit prompt applied to ALL images (single caption).")
-    parser.add_argument("--prompt_dir", type=str, default=None,
-                        help="Directory containing per-image .txt caption files (single caption).")
-    parser.add_argument("--captions_path", type=str, default=None,
-                        help="Path to captions.json (or dir with per-image .json files). "
-                             "JSON maps frame-index strings to caption text. "
-                             "Each AR chunk uses the caption whose key is <= current frame.")
-    parser.add_argument("--prompt_suffix", type=str, default="",
-                        help="Text appended to every prompt.")
+    parser.add_argument(
+        "--prompt", type=str, default="", help="Optional explicit prompt applied to ALL images (single caption)."
+    )
+    parser.add_argument(
+        "--prompt_dir",
+        type=str,
+        default=None,
+        help="Directory containing per-image .txt caption files (single caption).",
+    )
+    parser.add_argument(
+        "--captions_path",
+        type=str,
+        default=None,
+        help="Path to captions.json (or dir with per-image .json files). "
+        "JSON maps frame-index strings to caption text. "
+        "Each AR chunk uses the caption whose key is <= current frame.",
+    )
+    parser.add_argument("--prompt_suffix", type=str, default="", help="Text appended to every prompt.")
 
     # Model and generation
     parser.add_argument("--experiment", type=str, default="lyra_framepack_spatial")
@@ -134,10 +146,15 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--num_sampling_step", type=int, default=35)
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--fps", type=int, default=16)
-    parser.add_argument("--num_frames", type=int, default=161,
-                        help="Number of frames to generate (taken from the start of the trajectory).")
-    parser.add_argument("--pose_scale", type=float, default=1.1,
-                        help="Scale factor applied to w2c translation vectors.")
+    parser.add_argument(
+        "--num_frames",
+        type=int,
+        default=161,
+        help="Number of frames to generate (taken from the start of the trajectory).",
+    )
+    parser.add_argument(
+        "--pose_scale", type=float, default=1.1, help="Scale factor applied to w2c translation vectors."
+    )
     parser.add_argument("--resolution", type=str, default="480,832", help="H,W")
     parser.add_argument("--context_parallel_size", type=int, default=1)
     parser.add_argument("--lora_paths", type=str, default=None, nargs="+")
@@ -147,8 +164,12 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--debug", action="store_true")
 
     # Depth backend
-    parser.add_argument("--use_moge_scale", action=argparse.BooleanOptionalAction, default=True,
-                        help="Align DA3 depth to MoGe scale (default: True).")
+    parser.add_argument(
+        "--use_moge_scale",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Align DA3 depth to MoGe scale (default: True).",
+    )
     parser.add_argument("--depth_backend", type=str, default="da3", choices=["da3"])
     parser.add_argument("--da3_model_name", type=str, default="depth-anything/DA3NESTED-GIANT-LARGE-1.1")
     parser.add_argument("--da3_model_path_custom", type=str, default=None)
@@ -159,9 +180,12 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--da3_predicted_pose_continuation", action="store_true")
 
     # DMD distillation (4-step fast inference)
-    parser.add_argument("--use_dmd", action="store_true",
-                        help="Enable DMD fast inference: loads DMD distillation LoRA, "
-                             "activates DMD scheduler, and reduces sampling steps.")
+    parser.add_argument(
+        "--use_dmd",
+        action="store_true",
+        help="Enable DMD fast inference: loads DMD distillation LoRA, "
+        "activates DMD scheduler, and reduces sampling steps.",
+    )
 
     # Misc flags needed by run_lyra2_sample internals
     parser.add_argument("--ablate_same_t5", action="store_true")
@@ -210,6 +234,7 @@ if __name__ == "__main__":
 
     if args.debug:
         import debugpy
+
         debugpy.listen(5678)
         log.info("Waiting for debugger to attach...")
         debugpy.wait_for_client()
@@ -217,7 +242,8 @@ if __name__ == "__main__":
     process_group = None
     if args.context_parallel_size > 1:
         from worldfoundry.core.distributed import torch_process_group as distributed
-        from megatron.core import parallel_state
+        from worldfoundry.core.distributed.megatron_compat import parallel_state
+
         distributed.init()
         parallel_state.initialize_model_parallel(context_parallel_size=args.context_parallel_size)
         process_group = parallel_state.get_context_parallel_group()
@@ -242,8 +268,6 @@ if __name__ == "__main__":
         experiment_name=args.experiment,
         checkpoint_path=args.checkpoint_dir,
         enable_fsdp=False,
-        instantiate_ema=False,
-        load_ema_to_reg=False,
         experiment_opts=experiment_opts,
     )
     if args.lora_paths:
@@ -278,6 +302,7 @@ if __name__ == "__main__":
 
     # ---- Load DA3 model ----
     from lyra_2._src.inference.depth_utils import load_da3_model
+
     da3_device = model.tensor_kwargs.get("device", "cuda" if torch.cuda.is_available() else "cpu")
     da3_model = load_da3_model(
         da3_model_name=args.da3_model_name,
@@ -290,6 +315,7 @@ if __name__ == "__main__":
     moge_model = None
     if args.use_moge_scale:
         from lyra_2._src.inference.depth_utils import load_moge_model
+
         moge_device = model.tensor_kwargs.get("device", "cuda" if torch.cuda.is_available() else "cpu")
         moge_model = load_moge_model(moge_device)
         moge_model.eval()
@@ -397,6 +423,7 @@ if __name__ == "__main__":
 
         # ---- Load captions ----
         from lyra_2._src.inference.get_t5_emb import get_umt5_embedding, get_umt5_embedding_offloaded
+
         neg_t5 = misc.to(negative_prompt_data["t5_text_embeddings"], **model.tensor_kwargs)
 
         captions_file = None
@@ -466,9 +493,7 @@ if __name__ == "__main__":
                     caption = f.read().strip()
                 log.info(f"Loaded caption from {txt_path}", rank0_only=True)
             else:
-                raise RuntimeError(
-                    "No caption source specified. Use --captions_path, --prompt, or --prompt_dir."
-                )
+                raise RuntimeError("No caption source specified. Use --captions_path, --prompt, or --prompt_dir.")
             if args.prompt_suffix:
                 caption = caption.rstrip() + " " + args.prompt_suffix
             if args.offload_when_prompt:
@@ -539,10 +564,12 @@ if __name__ == "__main__":
 
     # Clean up distributed
     if args.context_parallel_size > 1:
-        from megatron.core import parallel_state
+        from worldfoundry.core.distributed.megatron_compat import parallel_state
+
         parallel_state.destroy_model_parallel()
         try:
             import torch.distributed as dist
+
             dist.destroy_process_group()
         except Exception:
             pass

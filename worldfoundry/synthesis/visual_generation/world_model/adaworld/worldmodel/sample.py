@@ -176,7 +176,7 @@ def main() -> None:
     samples_to_run = discover_samples(args)
     model = init_model(str(args.config), str(args.checkpoint))
     generated = []
-    with torch.no_grad(), autocast("cuda"), model.ema_scope("Sampling"):
+    with torch.no_grad(), autocast("cuda"):
         for source_item, target_item in tqdm(samples_to_run, desc="AdaWorld inference"):
             samples = run_fdm(model, source_item, target_item, args)
             generated.append(samples.cpu())

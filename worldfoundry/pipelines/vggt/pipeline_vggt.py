@@ -16,6 +16,8 @@ from worldfoundry.core.io.artifacts import depths_to_pil_images
 from ...operators.vggt_operator import VGGTOperator
 from ...representations.point_clouds_generation.vggt.vggt_representation import (
     VGGTRepresentation,
+    _opencv_world_to_opengl,
+    _opencv_w2c_to_opengl_c2w,
 )
 from ...base_models.three_dimensions.point_clouds.gaussian_splatting.scene.dataset_readers import (
     storePly,
@@ -397,7 +399,11 @@ class VGGTPipeline(PipelineABC):
         valid = np.isfinite(points_flat).all(axis=1) & np.isfinite(colors_flat).all(axis=1)
         valid &= conf_flat >= point_conf_threshold
 
-        points = points_flat[valid].astype(np.float32)
+        # VGGT point maps are world-space but retain the normalized first
+        # camera's OpenCV axes (right/down/forward).  Persist an OpenGL-style
+        # right/up/backward cloud so Viser and the stage-2 orbit renderer share
+        # one proper, non-reflected coordinate frame.
+        points = _opencv_world_to_opengl(points_flat[valid].astype(np.float32))
         colors = np.clip(colors_flat[valid], 0.0, 1.0)
         if points.shape[0] == 0:
             raise RuntimeError("No valid points after confidence filtering.")
@@ -418,11 +424,15 @@ class VGGTPipeline(PipelineABC):
 
         center = points.mean(axis=0)
         dists = np.linalg.norm(points - center[None, :], axis=1)
-        radius = float(dists.max() + 1e-6)
+        # A few low-confidence boundary points can be several times farther
+        # than the reconstructed scene.  Use a robust extent for navigation;
+        # retain a generous upper bound without forcing the initial camera to
+        # frame those outliers.
+        radius = float(np.percentile(dists, 99.0) + 1e-6)
 
         camera_range = {
             "center": center.tolist(),
-            "radius_min": max(radius * 0.5, 1e-3),
+            "radius_min": max(radius * 0.2, 1e-3),
             "radius_max": radius * 3.0,
             "yaw_min": -180.0,
             "yaw_max": 180.0,
@@ -430,12 +440,33 @@ class VGGTPipeline(PipelineABC):
             "pitch_max": 75.0,
         }
 
-        # Default view distance: 1.0 = closer (was 1.5).
+        default_radius = radius
+        default_yaw = 0.0
+        default_pitch = 0.0
+        extrinsics = result.numpy_data.get("extrinsic")
+        if extrinsics is not None:
+            try:
+                first_c2w = _opencv_w2c_to_opengl_c2w(np.asarray(extrinsics)[0])
+                offset = first_c2w[:3, 3] - center
+                source_radius = float(np.linalg.norm(offset))
+                if np.isfinite(source_radius) and source_radius > 1e-6:
+                    # Pull back from the recovered source center enough to
+                    # frame the scene while retaining its verified yaw/pitch.
+                    default_radius = float(
+                        np.clip(source_radius * 1.75, camera_range["radius_min"], camera_range["radius_max"])
+                    )
+                    default_yaw = float(np.degrees(np.arctan2(offset[0], offset[2])))
+                    default_pitch = float(
+                        np.degrees(np.arcsin(np.clip(offset[1] / source_radius, -1.0, 1.0)))
+                    )
+            except (ValueError, np.linalg.LinAlgError, IndexError):
+                pass
+
         default_camera = {
             "center": center.tolist(),
-            "radius": radius * 1.0,
-            "yaw": 0.0,
-            "pitch": 0.0,
+            "radius": default_radius,
+            "yaw": default_yaw,
+            "pitch": default_pitch,
         }
 
         return {
@@ -599,6 +630,7 @@ class VGGTPipeline(PipelineABC):
         interaction_sequence: List[str],
         image_width: int = 704,
         image_height: int = 480,
+        frames_per_interaction: int = 1,
         fps: int = 12,
         output_path: Optional[str] = None,
     ) -> List[Image.Image]:
@@ -611,16 +643,29 @@ class VGGTPipeline(PipelineABC):
             "pitch": float(base_camera_config.get("pitch", 0.0)),
         }
 
+        steps = max(int(frames_per_interaction), 1)
         for sig in interaction_sequence:
-            camera_cfg = self._apply_interaction_to_camera(camera_cfg, sig, camera_range)
-            frames.append(
-                self.render_with_3dgs(
-                    ply_path=ply_path,
-                    camera_config=camera_cfg,
-                    image_width=image_width,
-                    image_height=image_height,
+            # One interaction token describes one complete action.  Multiple
+            # video frames interpolate that action; they must not apply the
+            # full 22-degree/0.88 delta repeatedly (which produced 220-degree
+            # flips and extreme zoom for the default ten frames).
+            for _ in range(steps):
+                camera_cfg = self._apply_interaction_to_camera(
+                    camera_cfg,
+                    sig,
+                    camera_range,
+                    yaw_step=22.0 / steps,
+                    pitch_step=15.0 / steps,
+                    zoom_factor=0.88 ** (1.0 / steps),
                 )
-            )
+                frames.append(
+                    self.render_with_3dgs(
+                        ply_path=ply_path,
+                        camera_config=camera_cfg,
+                        image_width=image_width,
+                        image_height=image_height,
+                    )
+                )
 
         if output_path is not None and len(frames) > 0:
             self._export_video(frames, output_path, fps=fps)
@@ -636,8 +681,8 @@ class VGGTPipeline(PipelineABC):
         resolution: int = 518,
         preprocess_mode: str = "crop",
         camera_radius: Optional[float] = None,
-        camera_yaw: float = 0.0,
-        camera_pitch: float = 0.0,
+        camera_yaw: Optional[float] = None,
+        camera_pitch: Optional[float] = None,
         camera_view: Optional[List[float]] = None,
         camera_trajectory: Any = None,
         image_width: int = 704,
@@ -662,8 +707,8 @@ class VGGTPipeline(PipelineABC):
         base_camera = {
             "center": camera_range["center"],
             "radius": float(camera_radius if camera_radius is not None else default_camera["radius"]),
-            "yaw": camera_yaw,
-            "pitch": camera_pitch,
+            "yaw": float(default_camera.get("yaw", 0.0) if camera_yaw is None else camera_yaw),
+            "pitch": float(default_camera.get("pitch", 0.0) if camera_pitch is None else camera_pitch),
         }
 
         # Apply high-level 5D camera_view if provided.
@@ -675,11 +720,6 @@ class VGGTPipeline(PipelineABC):
 
         output_video_path = os.path.join(output_dir, output_name)
         interaction_sequence = self._normalize_interaction_sequence(interactions)
-        # Each interaction token is repeated frames_per_interaction times (e.g. 10 frames per action).
-        if interaction_sequence and frames_per_interaction > 1:
-            interaction_sequence = [
-                a for a in interaction_sequence for _ in range(frames_per_interaction)
-            ]
         if interaction_sequence:
             self.render_interaction_video_with_3dgs(
                 ply_path=ply_path,
@@ -688,6 +728,7 @@ class VGGTPipeline(PipelineABC):
                 interaction_sequence=interaction_sequence,
                 image_width=image_width,
                 image_height=image_height,
+                frames_per_interaction=frames_per_interaction,
                 fps=fps,
                 output_path=output_video_path,
             )
@@ -709,8 +750,8 @@ class VGGTPipeline(PipelineABC):
         frames_per_interaction: int = 10,
         output_dir: str = "./vggt_output",
         camera_radius: Optional[float] = None,
-        camera_yaw: float = 0.0,
-        camera_pitch: float = 0.0,
+        camera_yaw: Optional[float] = None,
+        camera_pitch: Optional[float] = None,
         camera_view: Optional[List[float]] = None,
         camera_trajectory: Any = None,
         image_width: int = 704,
@@ -729,8 +770,8 @@ class VGGTPipeline(PipelineABC):
         base_camera = {
             "center": camera_range["center"],
             "radius": float(camera_radius if camera_radius is not None else default_camera["radius"]),
-            "yaw": camera_yaw,
-            "pitch": camera_pitch,
+            "yaw": float(default_camera.get("yaw", 0.0) if camera_yaw is None else camera_yaw),
+            "pitch": float(default_camera.get("pitch", 0.0) if camera_pitch is None else camera_pitch),
         }
 
         base_camera = self._apply_camera_view_to_camera_cfg(
@@ -749,6 +790,7 @@ class VGGTPipeline(PipelineABC):
                 interaction_sequence=interaction_sequence,
                 image_width=image_width,
                 image_height=image_height,
+                frames_per_interaction=frames_per_interaction,
                 fps=fps,
                 output_path=output_video_path,
             )

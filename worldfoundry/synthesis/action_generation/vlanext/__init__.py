@@ -1,3 +1,15 @@
-from .vlanext_synthesis import VLANeXtSynthesis
+"""Public VLANeXt API with lazy inference dependency loading."""
+
+from __future__ import annotations
+
+from typing import Any
+
+
+def __getattr__(name: str) -> Any:
+    if name == "VLANeXtSynthesis":
+        from .vlanext_synthesis import VLANeXtSynthesis
+
+        return VLANeXtSynthesis
+    raise AttributeError(name)
 
 __all__ = ["VLANeXtSynthesis"]

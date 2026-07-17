@@ -33,20 +33,21 @@ import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
-from worldfoundry.core.attention import attention_backend_context
-
-from lyra_2._ext.imaginaire.utils import log, misc
-from worldfoundry.data.io import save_img_or_video
-from lyra_2._src.inference.lyra2_ar_inference import (
-    save_output,
-    safe_to,
-    run_lyra2_sample,
-)
 from lyra_2._src.inference.camera_traj_utils import (
-    build_camera_trajectory,
     CAMERA_TRAJECTORY_CHOICES,
+    build_camera_trajectory,
+)
+from lyra_2._src.inference.lyra2_ar_inference import (
+    run_lyra2_sample,
+    safe_to,
+    save_output,
 )
 from lyra_2._src.utils.model_loader import load_model_from_checkpoint
+
+from worldfoundry.core.attention import attention_backend_context
+from worldfoundry.core.distributed.logging import log
+from worldfoundry.core.utils import inference_runtime as misc
+from worldfoundry.data.io import save_img_or_video
 
 torch.enable_grad(False)
 torch.backends.cudnn.enabled = False
@@ -54,6 +55,7 @@ torch.backends.cudnn.enabled = False
 # ---------------------------------------------------------------------------
 # DA3 single-image depth (reused from lyra2_ar_inference_from_image)
 # ---------------------------------------------------------------------------
+
 
 def _da3_infer_depth_intrinsics_single(
     da3_model,
@@ -131,26 +133,31 @@ def _camera_centers_from_w2c(w2c: torch.Tensor) -> torch.Tensor:
 # Argument parser
 # ---------------------------------------------------------------------------
 
+
 def parse_arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Single-image zoom-in/zoom-out video generation"
-    )
+    parser = argparse.ArgumentParser(description="Single-image zoom-in/zoom-out video generation")
     # Input
-    parser.add_argument("--input_image_path", type=str, required=True,
-                        help="Path to a single image or a folder of images")
+    parser.add_argument(
+        "--input_image_path", type=str, required=True, help="Path to a single image or a folder of images"
+    )
     parser.add_argument("--num_samples", type=int, default=10)
     parser.add_argument("--sample_start_idx", type=int, default=0)
-    parser.add_argument("--sample_id", type=int, default=None,
-                        help="Run only the sample at this index (0-based). "
-                             "Overrides --num_samples and --sample_start_idx.")
-    parser.add_argument("--prompt", type=str, default="",
-                        help="Optional explicit prompt applied to ALL images.")
-    parser.add_argument("--prompt_dir", type=str, default=None,
-                        help="Directory containing per-image .txt caption files. "
-                             "Each file should be named <image_stem>.txt. "
-                             "When set, Gemini captioning is skipped entirely.")
-    parser.add_argument("--prompt_suffix", type=str, default="",
-                        help="Text appended to every prompt.")
+    parser.add_argument(
+        "--sample_id",
+        type=int,
+        default=None,
+        help="Run only the sample at this index (0-based). Overrides --num_samples and --sample_start_idx.",
+    )
+    parser.add_argument("--prompt", type=str, default="", help="Optional explicit prompt applied to ALL images.")
+    parser.add_argument(
+        "--prompt_dir",
+        type=str,
+        default=None,
+        help="Directory containing per-image .txt caption files. "
+        "Each file should be named <image_stem>.txt. "
+        "When set, Gemini captioning is skipped entirely.",
+    )
+    parser.add_argument("--prompt_suffix", type=str, default="", help="Text appended to every prompt.")
 
     # Model and generation
     parser.add_argument("--experiment", type=str, default="lyra_framepack_spatial")
@@ -161,66 +168,122 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--num_sampling_step", type=int, default=50)
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--fps", type=int, default=16)
-    parser.add_argument("--num_frames", type=int, default=161,
-                        help="Default frames per direction. Overridden by --num_frames_zoom_in / --num_frames_zoom_out.")
-    parser.add_argument("--num_frames_zoom_in", type=int, default=81,
-                        help="Frames for zoom-in. Falls back to --num_frames if not set.")
-    parser.add_argument("--num_frames_zoom_out", type=int, default=241,
-                        help="Frames for zoom-out. Falls back to --num_frames if not set.")
+    parser.add_argument(
+        "--num_frames",
+        type=int,
+        default=161,
+        help="Default frames per direction. Overridden by --num_frames_zoom_in / --num_frames_zoom_out.",
+    )
+    parser.add_argument(
+        "--num_frames_zoom_in", type=int, default=81, help="Frames for zoom-in. Falls back to --num_frames if not set."
+    )
+    parser.add_argument(
+        "--num_frames_zoom_out",
+        type=int,
+        default=241,
+        help="Frames for zoom-out. Falls back to --num_frames if not set.",
+    )
     parser.add_argument("--resolution", type=str, default="480,832", help="H,W")
     parser.add_argument("--context_parallel_size", type=int, default=1)
-    parser.add_argument("--lora_paths", type=str, nargs="+",
-                        default=["checkpoints/lora/realism_boost.safetensors",
-                                 "checkpoints/lora/detail_enhancer.safetensors"])
+    parser.add_argument(
+        "--lora_paths",
+        type=str,
+        nargs="+",
+        default=["checkpoints/lora/realism_boost.safetensors", "checkpoints/lora/detail_enhancer.safetensors"],
+    )
     parser.add_argument("--lora_weights", type=float, nargs="+", default=[0.4, 0.4])
     parser.add_argument("--offload", action="store_true")
     parser.add_argument("--offload_when_prompt", action="store_true")
 
     # Camera trajectory for zoom
-    parser.add_argument("--zoom_in_trajectory", type=str, default="horizontal_zoom",
-                        choices=list(CAMERA_TRAJECTORY_CHOICES),
-                        help="Camera trajectory for zoom-in video.")
-    parser.add_argument("--zoom_out_trajectory", type=str, default="horizontal_zoom",
-                        choices=list(CAMERA_TRAJECTORY_CHOICES),
-                        help="Camera trajectory for zoom-out video.")
-    parser.add_argument("--zoom_in_direction", type=str, default="right",
-                        choices=["left", "right", "up", "down"],
-                        help="Direction for zoom-in (right = forward along z).")
-    parser.add_argument("--zoom_out_direction", type=str, default="left",
-                        choices=["left", "right", "up", "down"],
-                        help="Direction for zoom-out (left = backward along z).")
+    parser.add_argument(
+        "--zoom_in_trajectory",
+        type=str,
+        default="horizontal_zoom",
+        choices=list(CAMERA_TRAJECTORY_CHOICES),
+        help="Camera trajectory for zoom-in video.",
+    )
+    parser.add_argument(
+        "--zoom_out_trajectory",
+        type=str,
+        default="horizontal_zoom",
+        choices=list(CAMERA_TRAJECTORY_CHOICES),
+        help="Camera trajectory for zoom-out video.",
+    )
+    parser.add_argument(
+        "--zoom_in_direction",
+        type=str,
+        default="right",
+        choices=["left", "right", "up", "down"],
+        help="Direction for zoom-in (right = forward along z).",
+    )
+    parser.add_argument(
+        "--zoom_out_direction",
+        type=str,
+        default="left",
+        choices=["left", "right", "up", "down"],
+        help="Direction for zoom-out (left = backward along z).",
+    )
     parser.add_argument("--zoom_in_strength", type=float, default=0.5)
     parser.add_argument("--zoom_out_strength", type=float, default=1.5)
 
     # Depth backend
-    parser.add_argument("--use_moge_scale", action=argparse.BooleanOptionalAction, default=True,
-                        help="Align DA3 depth to MoGe scale during seeding (default: True).")
-    parser.add_argument("--ground_plane_align", action="store_true",
-                        help="Fit a ground plane from depth and move camera parallel to it.")
-    parser.add_argument("--ground_plane_bottom_frac", type=float, default=0.4,
-                        help="Fraction of the image (from bottom) to use for ground plane fitting.")
-    parser.add_argument("--zoom_out_upward_shift", type=float, default=0.05,
-                        help="Extra linear upward shift (along ground normal) applied to zoom-out "
-                             "trajectory. 0 = disabled. Units are in camera-space translation.")
-    parser.add_argument("--zoom_out_upward_ratio", type=float, default=0.15,
-                        help="Ratio of upward component added to the zoom-out backward trajectory. "
-                             "0 = pure z-axis retreat, 0.15 = slight diagonal upward tilt. "
-                             "Applied independently of --zoom_out_upward_shift.")
+    parser.add_argument(
+        "--use_moge_scale",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Align DA3 depth to MoGe scale during seeding (default: True).",
+    )
+    parser.add_argument(
+        "--ground_plane_align",
+        action="store_true",
+        help="Fit a ground plane from depth and move camera parallel to it.",
+    )
+    parser.add_argument(
+        "--ground_plane_bottom_frac",
+        type=float,
+        default=0.4,
+        help="Fraction of the image (from bottom) to use for ground plane fitting.",
+    )
+    parser.add_argument(
+        "--zoom_out_upward_shift",
+        type=float,
+        default=0.05,
+        help="Extra linear upward shift (along ground normal) applied to zoom-out "
+        "trajectory. 0 = disabled. Units are in camera-space translation.",
+    )
+    parser.add_argument(
+        "--zoom_out_upward_ratio",
+        type=float,
+        default=0.15,
+        help="Ratio of upward component added to the zoom-out backward trajectory. "
+        "0 = pure z-axis retreat, 0.15 = slight diagonal upward tilt. "
+        "Applied independently of --zoom_out_upward_shift.",
+    )
     parser.add_argument("--depth_backend", type=str, default="da3", choices=["da3"])
     parser.add_argument("--da3_model_name", type=str, default="depth-anything/DA3NESTED-GIANT-LARGE-1.1")
     parser.add_argument("--da3_model_path_custom", type=str, default="checkpoints/recon/model.pt")
     parser.add_argument("--da3_frame_interval", type=int, default=8)
     parser.add_argument("--da3_max_history_frames", type=int, default=10)
     parser.add_argument("--da3_include_ar_chunk_last_frames", action="store_true")
-    parser.add_argument("--da3_use_predicted_pose", action="store_true",
-                        help="Use DA3-predicted camera poses (aligned to pipeline coords) for cache updates.")
-    parser.add_argument("--da3_predicted_pose_continuation", action="store_true",
-                        help="Apply DA3-predicted pose alignment for continuation segments.")
+    parser.add_argument(
+        "--da3_use_predicted_pose",
+        action="store_true",
+        help="Use DA3-predicted camera poses (aligned to pipeline coords) for cache updates.",
+    )
+    parser.add_argument(
+        "--da3_predicted_pose_continuation",
+        action="store_true",
+        help="Apply DA3-predicted pose alignment for continuation segments.",
+    )
 
     # DMD distillation (4-step fast inference)
-    parser.add_argument("--use_dmd", action="store_true",
-                        help="Enable DMD fast inference: loads DMD distillation LoRA, "
-                             "activates DMD scheduler, and reduces sampling steps.")
+    parser.add_argument(
+        "--use_dmd",
+        action="store_true",
+        help="Enable DMD fast inference: loads DMD distillation LoRA, "
+        "activates DMD scheduler, and reduces sampling steps.",
+    )
 
     # Misc flags needed by run_lyra2_sample internals
     parser.add_argument("--ablate_same_t5", action="store_true")
@@ -232,8 +295,6 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--offload_da3_diffusion", action="store_true")
 
     return parser.parse_args()
-
-
 
 
 def _build_image_list(path: str) -> List[str]:
@@ -326,7 +387,6 @@ def _correct_trajectory_ground_parallel(
     projected onto the ground plane, preserving the total displacement magnitude.
     Camera orientation (rotation) is kept unchanged.
     """
-    T = w2cs_T_44.shape[0]
     n = ground_normal_cam.to(w2cs_T_44.device, dtype=w2cs_T_44.dtype)
 
     t0 = w2cs_T_44[0, :3, 3]
@@ -492,7 +552,8 @@ if __name__ == "__main__":
     process_group = None
     if args.context_parallel_size > 1:
         from worldfoundry.core.distributed import torch_process_group as distributed
-        from megatron.core import parallel_state
+        from worldfoundry.core.distributed.megatron_compat import parallel_state
+
         distributed.init()
         parallel_state.initialize_model_parallel(context_parallel_size=args.context_parallel_size)
         process_group = parallel_state.get_context_parallel_group()
@@ -517,8 +578,6 @@ if __name__ == "__main__":
         experiment_name=args.experiment,
         checkpoint_path=args.checkpoint_dir,
         enable_fsdp=False,
-        instantiate_ema=False,
-        load_ema_to_reg=False,
         experiment_opts=experiment_opts,
     )
     if args.lora_paths:
@@ -553,6 +612,7 @@ if __name__ == "__main__":
 
     # Load DA3 model
     from lyra_2._src.inference.depth_utils import load_da3_model
+
     da3_device = model.tensor_kwargs.get("device", "cuda" if torch.cuda.is_available() else "cpu")
     da3_model = load_da3_model(
         da3_model_name=args.da3_model_name,
@@ -565,6 +625,7 @@ if __name__ == "__main__":
     moge_model = None
     if args.use_moge_scale:
         from lyra_2._src.inference.depth_utils import load_moge_model
+
         moge_device = model.tensor_kwargs.get("device", "cuda" if torch.cuda.is_available() else "cpu")
         moge_model = load_moge_model(moge_device)
         moge_model.eval()
@@ -574,12 +635,10 @@ if __name__ == "__main__":
     all_image_paths = _build_image_list(args.input_image_path)
     if args.sample_id is not None:
         if args.sample_id < 0 or args.sample_id >= len(all_image_paths):
-            raise IndexError(
-                f"--sample_id {args.sample_id} out of range [0, {len(all_image_paths) - 1}]"
-            )
+            raise IndexError(f"--sample_id {args.sample_id} out of range [0, {len(all_image_paths) - 1}]")
         image_paths = [all_image_paths[args.sample_id]]
     else:
-        image_paths = all_image_paths[args.sample_start_idx:args.sample_start_idx + args.num_samples]
+        image_paths = all_image_paths[args.sample_start_idx : args.sample_start_idx + args.num_samples]
 
     videos_dir = os.path.join(args.output_path, "videos")
     os.makedirs(videos_dir, exist_ok=True)
@@ -686,6 +745,7 @@ if __name__ == "__main__":
 
         # Step 2b: T5 embeddings
         from lyra_2._src.inference.get_t5_emb import get_umt5_embedding, get_umt5_embedding_offloaded
+
         if args.offload_when_prompt:
             t5 = get_umt5_embedding_offloaded(caption, device=desired_device).to(dtype=desired_dtype)
         else:
@@ -703,14 +763,19 @@ if __name__ == "__main__":
         ground_normal = None
         if args.ground_plane_align:
             ground_normal = _fit_ground_normal_from_depth(
-                depth_hw, K_33, mask_hw,
+                depth_hw,
+                K_33,
+                mask_hw,
                 bottom_frac=args.ground_plane_bottom_frac,
             )
             if ground_normal is None:
                 log.warning("Ground plane fitting failed, using original trajectory.", rank0_only=True)
 
         # Step 3: Generate zoom-in video
-        log.info(f"=== Generating ZOOM-IN video ({args.zoom_in_trajectory} {args.zoom_in_direction} str={args.zoom_in_strength}, N={N_in}) ===", rank0_only=True)
+        log.info(
+            f"=== Generating ZOOM-IN video ({args.zoom_in_trajectory} {args.zoom_in_direction} str={args.zoom_in_strength}, N={N_in}) ===",
+            rank0_only=True,
+        )
         result_in = _generate_one_direction(
             model=model,
             args=args,
@@ -735,7 +800,10 @@ if __name__ == "__main__":
             torch.cuda.empty_cache()
 
         # Step 3b: Generate zoom-out video
-        log.info(f"=== Generating ZOOM-OUT video ({args.zoom_out_trajectory} {args.zoom_out_direction} str={args.zoom_out_strength}, N={N_out}) ===", rank0_only=True)
+        log.info(
+            f"=== Generating ZOOM-OUT video ({args.zoom_out_trajectory} {args.zoom_out_direction} str={args.zoom_out_strength}, N={N_out}) ===",
+            rank0_only=True,
+        )
         result_out = _generate_one_direction(
             model=model,
             args=args,
@@ -797,10 +865,12 @@ if __name__ == "__main__":
 
     # Clean up distributed
     if args.context_parallel_size > 1:
-        from megatron.core import parallel_state
+        from worldfoundry.core.distributed.megatron_compat import parallel_state
+
         parallel_state.destroy_model_parallel()
         try:
             import torch.distributed as dist
+
             dist.destroy_process_group()
         except Exception:
             pass

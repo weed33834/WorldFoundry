@@ -1,13 +1,24 @@
-"""
-This module serves as part of the public API for the current package,
-exposing key components for direct import.
+"""Public OpenPI API with lazy inference dependency loading."""
 
-It primarily re-exports the `OpenPISynthesis` class, making it accessible
-at the top level of the package for easier consumption by external modules.
-"""
+from __future__ import annotations
 
-from .openpi_synthesis import OpenPISynthesis
+from typing import Any
 
-# Defines the public API of this module, specifying which names will be
-# imported when `from package import *` is used.
-__all__ = ["OpenPISynthesis"]
+
+def __getattr__(name: str) -> Any:
+    if name == "OpenPISynthesis":
+        from .openpi_synthesis import OpenPISynthesis
+
+        return OpenPISynthesis
+    if name in {"Pi0Synthesis", "Pi05Synthesis", "Pi0FastSynthesis"}:
+        from .variants_synthesis import Pi0FastSynthesis, Pi0Synthesis, Pi05Synthesis
+
+        return {
+            "Pi0Synthesis": Pi0Synthesis,
+            "Pi05Synthesis": Pi05Synthesis,
+            "Pi0FastSynthesis": Pi0FastSynthesis,
+        }[name]
+    raise AttributeError(name)
+
+
+__all__ = ["OpenPISynthesis", "Pi0FastSynthesis", "Pi0Synthesis", "Pi05Synthesis"]

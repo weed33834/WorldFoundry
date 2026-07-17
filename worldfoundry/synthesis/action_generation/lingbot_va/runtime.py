@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from worldfoundry.core.io.paths import project_root, resolve_worldfoundry_path, worldfoundry_path_tokens
-from worldfoundry.synthesis.action_generation.wan_va import RUNTIME_ROOT, WAN_VA_PACKAGE, WAN_VA_ROOT, install_aliases
+from worldfoundry.synthesis.action_generation.wan_va import RUNTIME_ROOT, WAN_VA_PACKAGE, WAN_VA_ROOT
 
 
 @dataclass(frozen=True)
@@ -91,11 +91,11 @@ def _expand_checkpoint_path(value: str | Path) -> Path:
     Returns:
         The absolute and resolved Path to the checkpoint.
     """
-    repo_root = _worldfoundry_repository_root()
+    project_dir = _worldfoundry_repository_root()
     path = resolve_worldfoundry_path(value)
     # If the path is not absolute, treat it as relative to the repository root.
     if not path.is_absolute():
-        path = repo_root / path
+        path = project_dir / path
     return path.resolve()
 
 
@@ -299,7 +299,7 @@ def build_server_command(
         "--master_port",
         str(config.master_port),
         "-m",
-        f"{WAN_VA_PACKAGE}.wan_va_server",
+        f"{WAN_VA_PACKAGE}.runtime",
         "--config-name",
         config.config_name,
         "--port",
@@ -388,8 +388,7 @@ def _lingbot_va_camera_keys(config_name: str) -> tuple[str, ...]:
     """
     try:
         # Attempt to dynamically load camera keys from the installed WAN-VA package configuration.
-        install_aliases()
-        from worldfoundry.synthesis.action_generation.wan_va.wan_va.configs import VA_CONFIGS
+        from worldfoundry.synthesis.action_generation.wan_va.configuration import VA_CONFIGS
 
         config = VA_CONFIGS.get(config_name)
         keys = tuple(str(key) for key in getattr(config, "obs_cam_keys", ()) if key)
@@ -615,8 +614,7 @@ class LingBotVAWebsocketRuntime:
             An instance of WebsocketClientPolicy connected to the LingBot-VA server.
         """
         if self._client is None:
-            install_aliases()
-            from worldfoundry.synthesis.action_generation.wan_va.wan_va.utils.Simple_Remote_Infer.deploy.websocket_client_policy import (
+            from worldfoundry.synthesis.action_generation.wan_va.websocket_client import (
                 WebsocketClientPolicy,
             )
 

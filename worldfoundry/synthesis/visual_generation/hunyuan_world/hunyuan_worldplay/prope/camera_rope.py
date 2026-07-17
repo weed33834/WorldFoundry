@@ -32,8 +32,6 @@ from functools import partial
 from typing import Callable, Optional, Tuple, List
 
 import torch
-import torch.nn.functional as F
-from worldfoundry.core.attention import scaled_dot_product_attention as _worldfoundry_scaled_dot_product_attention
 
 
 def prope_qkv(
@@ -54,7 +52,7 @@ def prope_qkv(
     is_cache: bool = False,
     **kwargs,
 ) -> torch.Tensor:
-    """Similar to _worldfoundry_scaled_dot_product_attention, but applies PRoPE-style
+    """Prepare PRoPE-transformed query, key, value, and output projection.
     positional encoding.
 
     Currently, we assume that the sequence length is equal to:

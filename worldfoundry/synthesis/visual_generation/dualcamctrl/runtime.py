@@ -15,17 +15,17 @@ from worldfoundry.base_models.diffusion_model.diffsynth.pipelines.wan_video_dual
     ModelConfig,
     WanVideoCameraPipeline,
 )
-from worldfoundry.core.io.paths import local_model_root_path
+from worldfoundry.core.io.paths import checkpoint_root_path, local_model_root_path
 from worldfoundry.core.io.video import write_video
 from worldfoundry.core.model_loading import load_state_dict
 from worldfoundry.evaluation.utils import worldfoundry_data_path
-
 
 MODEL_ID = "dualcamctrl"
 DISPLAY_NAME = "DualCamCtrl"
 OFFICIAL_SOURCE_REPO = "https://github.com/EnVision-Research/DualCamCtrl"
 DEFAULT_BASE_REPO = "alibaba-pai/Wan2.1-Fun-V1.1-1.3B-Control-Camera"
 DEFAULT_TOKENIZER_REPO = "Wan-AI/Wan2.1-T2V-1.3B"
+DEFAULT_CLIP_REPO = "Wan-AI/Wan2.1-I2V-14B-480P"
 DEFAULT_DUALCAMCTRL_REPO = "FayeHongfeiZhang/DualCamCtrl"
 DEFAULT_DUALCAMCTRL_CHECKPOINT = "checkpoints/dualcamctrl_diffusion_transformer.pt"
 DEFAULT_CONFIG = worldfoundry_data_path("models", "runtime", "configs", "dualcamctrl", "controlnet_gate_asym_5_10.yaml")
@@ -239,46 +239,50 @@ class DualCamCtrlRuntime:
             use_usp=bool(options.get("use_usp", False)),
         )
 
+    def _model_config(
+        self,
+        model_id: str,
+        file_pattern: str,
+        *,
+        preferred_path: str | Path | None = None,
+    ) -> ModelConfig:
+        roots = []
+        if preferred_path is not None:
+            preferred = Path(preferred_path).expanduser()
+            if preferred.is_file():
+                return ModelConfig(path=str(preferred), offload_device=self.device, offload_dtype=self.torch_dtype)
+            roots.append(preferred)
+        roots.extend(
+            (
+                Path(self.local_model_path) / Path(model_id),
+                checkpoint_root_path(*Path(model_id).parts),
+            )
+        )
+        for root in dict.fromkeys(roots):
+            matches = sorted(root.glob(file_pattern)) if root.is_dir() else []
+            if matches:
+                paths: str | list[str] = [str(path) for path in matches]
+                if len(paths) == 1:
+                    paths = paths[0]
+                return ModelConfig(path=paths, offload_device=self.device, offload_dtype=self.torch_dtype)
+        return ModelConfig(
+            model_id=model_id,
+            origin_file_pattern=file_pattern,
+            download_resource=self.download_resource,
+            offload_device=self.device,
+            offload_dtype=self.torch_dtype,
+        )
+
     def _base_model_configs(self) -> list[ModelConfig]:
-        if self.base_model_path:
-            root = Path(self.base_model_path)
-            if root.is_dir():
-                return [
-                    ModelConfig(path=sorted(str(path) for path in root.glob("diffusion_pytorch_model*.safetensors"))),
-                    ModelConfig(path=str(root / "models_t5_umt5-xxl-enc-bf16.pth")),
-                    ModelConfig(path=str(root / "Wan2.1_VAE.pth")),
-                    ModelConfig(path=str(root / "models_clip_open-clip-xlm-roberta-large-vit-huge-14.pth")),
-                ]
-            return [ModelConfig(path=str(root))]
         return [
-            ModelConfig(
-                model_id=self.base_model_repo,
-                origin_file_pattern="diffusion_pytorch_model*.safetensors",
-                download_resource=self.download_resource,
-                offload_device=self.device,
-                offload_dtype=self.torch_dtype,
+            self._model_config(
+                self.base_model_repo,
+                "diffusion_pytorch_model*.safetensors",
+                preferred_path=self.base_model_path,
             ),
-            ModelConfig(
-                model_id=self.base_model_repo,
-                origin_file_pattern="models_t5_umt5-xxl-enc-bf16.pth",
-                download_resource=self.download_resource,
-                offload_device=self.device,
-                offload_dtype=self.torch_dtype,
-            ),
-            ModelConfig(
-                model_id=self.base_model_repo,
-                origin_file_pattern="Wan2.1_VAE.pth",
-                download_resource=self.download_resource,
-                offload_device=self.device,
-                offload_dtype=self.torch_dtype,
-            ),
-            ModelConfig(
-                model_id=self.base_model_repo,
-                origin_file_pattern="models_clip_open-clip-xlm-roberta-large-vit-huge-14.pth",
-                download_resource=self.download_resource,
-                offload_device=self.device,
-                offload_dtype=self.torch_dtype,
-            ),
+            self._model_config(self.tokenizer_repo, "models_t5_umt5-xxl-enc-bf16.pth"),
+            self._model_config(self.tokenizer_repo, "Wan2.1_VAE.pth"),
+            self._model_config(DEFAULT_CLIP_REPO, "models_clip_open-clip-xlm-roberta-large-vit-huge-14.pth"),
         ]
 
     def _resolve_checkpoint_path(self) -> str:
@@ -287,11 +291,7 @@ class DualCamCtrlRuntime:
             if path.is_file():
                 return str(path)
             raise FileNotFoundError(f"DualCamCtrl checkpoint not found: {path}")
-        checkpoint_config = ModelConfig(
-            model_id=self.dualcamctrl_repo,
-            origin_file_pattern=self.checkpoint_name,
-            download_resource=self.download_resource,
-        )
+        checkpoint_config = self._model_config(self.dualcamctrl_repo, self.checkpoint_name)
         checkpoint_config.download_if_necessary(
             self.local_model_path,
             skip_download=not self.allow_download,
@@ -321,11 +321,7 @@ class DualCamCtrlRuntime:
             torch_dtype=self.torch_dtype,
             device=self.device,
             model_configs=self._base_model_configs(),
-            tokenizer_config=ModelConfig(
-                model_id=self.tokenizer_repo,
-                origin_file_pattern="google/*",
-                download_resource=self.download_resource,
-            ),
+            tokenizer_config=self._model_config(self.tokenizer_repo, "google/*"),
             local_model_path=self.local_model_path,
             skip_download=not self.allow_download,
             redirect_common_files=self.redirect_common_files,
@@ -483,6 +479,7 @@ class DualCamCtrlRuntime:
 
 __all__ = [
     "DEFAULT_BASE_REPO",
+    "DEFAULT_CLIP_REPO",
     "DEFAULT_CONFIG",
     "DEFAULT_DUALCAMCTRL_CHECKPOINT",
     "DEFAULT_DUALCAMCTRL_REPO",

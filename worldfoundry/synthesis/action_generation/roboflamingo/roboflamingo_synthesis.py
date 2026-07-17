@@ -15,7 +15,7 @@ from typing import Any, Mapping, Sequence
 
 from worldfoundry.evaluation.models.runtime.profiles import load_runtime_profile
 from ..base_action_synthesis import ActionModelSynthesis
-from worldfoundry.synthesis.action_generation.roboflamingo.roboflamingo_runtime.inference import (
+from worldfoundry.synthesis.action_generation.roboflamingo.runtime import (
     RoboFlamingoRuntime,
     RoboFlamingoRuntimeConfig,
     select_roboflamingo_runtime_config,

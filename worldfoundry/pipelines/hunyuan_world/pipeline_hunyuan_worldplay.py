@@ -1,16 +1,19 @@
 """Hunyuan Worldplay visual generation pipeline module."""
 
 import os
-from typing import Optional, Generator, List, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Generator, List, Mapping, Optional, Sequence
+
 import torch
 from PIL import Image
-from ..pipeline_utils import PipelineABC
-from ...operators.hunyuan_worldplay_operator import HunyuanWorldPlayOperator
+
+from worldfoundry.core.io import write_video
 from worldfoundry.synthesis.visual_generation.hunyuan_world import load_hunyuan_world_runtime_defaults
 from worldfoundry.synthesis.visual_generation.hunyuan_world.worldplay_checkpoints import (
     resolve_worldplay_video_model_path,
 )
-from worldfoundry.core.io import write_video
+
+from ...operators.hunyuan_worldplay_operator import HunyuanWorldPlayOperator
+from ..pipeline_utils import PipelineABC
 
 if TYPE_CHECKING:
     from ...synthesis.visual_generation.hunyuan_world.hunyuan_worldplay_synthesis import HunyuanWorldPlaySynthesis
@@ -48,6 +51,7 @@ class HunyuanWorldPlayPipeline(PipelineABC):
         self.synthesis_model = synthesis_model
         self.operators = operators
         self.device = device
+        self._realtime_session = None
 
     @classmethod
     def from_pretrained(
@@ -302,6 +306,86 @@ class HunyuanWorldPlayPipeline(PipelineABC):
         流式输出
         """
         pass
+
+    def _ensure_realtime_session(self):
+        """Create the model-owned resident rollout adapter once."""
+
+        if self._realtime_session is None:
+            if self.synthesis_model is None or self.operators is None:
+                raise RuntimeError("HY-WorldPlay pipeline is not initialized.")
+            from ...synthesis.visual_generation.hunyuan_world.hunyuan_worldplay.realtime import (
+                HunyuanWorldPlayRealtimeSession,
+            )
+
+            self._realtime_session = HunyuanWorldPlayRealtimeSession(
+                self.synthesis_model.runtime,
+                self.operators,
+            )
+        return self._realtime_session
+
+    def prepare_realtime(self) -> dict[str, Any]:
+        """Report the released model's native causal playback cadence."""
+
+        session = self._ensure_realtime_session()
+        return {"realtime_spec": session.realtime_spec().to_payload()}
+
+    def configure_realtime(
+        self,
+        images: Any,
+        prompt: str = "",
+        seed: int = 1,
+        num_inference_steps: int = 4,
+        negative_prompt: str = "",
+        few_step: bool = True,
+        user_height: int | None = None,
+        user_width: int | None = None,
+        flow_shift: float | None = None,
+        guidance_scale: float | None = None,
+        **_: Any,
+    ) -> dict[str, Any] | None:
+        """Configure a user-provided seed image without generating a test clip."""
+
+        if isinstance(images, (str, os.PathLike)):
+            with Image.open(os.fspath(images)) as source:
+                images = source.convert("RGB")
+        elif isinstance(images, Sequence) and not isinstance(images, (str, bytes)):
+            images = images[0] if images else None
+        if not isinstance(images, Image.Image):
+            raise ValueError("HY-WorldPlay realtime requires a PIL image or image path.")
+        return self._ensure_realtime_session().configure(
+            images,
+            prompt=prompt,
+            seed=seed,
+            negative_prompt=negative_prompt,
+            num_inference_steps=num_inference_steps,
+            flow_shift=flow_shift,
+            guidance_scale=guidance_scale,
+            few_step=few_step,
+            user_height=user_height,
+            user_width=user_width,
+        )
+
+    def stream_realtime(
+        self,
+        interactions: Sequence[str] | None = None,
+        realtime_segments: Sequence[Mapping[str, Any]] | None = None,
+        **_: Any,
+    ) -> dict[str, Any] | None:
+        """Advance the existing rollout by one native four-latent block."""
+
+        return self._ensure_realtime_session().generate(
+            interactions=list(interactions or ()),
+            control_segments=realtime_segments,
+        )
+
+    def realtime_next_output_frames(self) -> int:
+        return int(self._ensure_realtime_session().next_output_frames())
+
+    def reset_realtime(self) -> None:
+        """Release session caches while retaining loaded model weights."""
+
+        if self._realtime_session is not None:
+            self._realtime_session.reset()
 
     def save_pretrained(self, save_directory: str):
         """

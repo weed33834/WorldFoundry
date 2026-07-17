@@ -14,6 +14,7 @@ import torch.nn.functional as F
 import torchvision.transforms as tvf
 
 from worldfoundry.base_models.three_dimensions.point_clouds.cut3r import ARCroco3DStereo
+from worldfoundry.core.io.paths import resolve_local_checkpoint_file
 from worldfoundry.synthesis.visual_generation.vmem.vmem_runtime.surfel_alignment.surfel_inference import (
     run_inference_from_pil,
 )
@@ -22,23 +23,36 @@ from worldfoundry.synthesis.visual_generation.vmem.vmem_runtime.surfel_alignment
     global_aligner,
 )
 
-from modeling import VMemWrapper, VMemModel, VMemModelParams
-from modeling.modules.autoencoder import AutoEncoder
-from modeling.sampling import DDPMDiscretization, DiscreteDenoiser, create_samplers
-from modeling.modules.conditioner import CLIPConditioner
-from utils import (encode_vae_image, 
-	                   encode_image, 
-	                   tensor_to_pil,
-	                   Octree, 
-	                   Surfel,
-                   get_plucker_coordinates,
-                   do_sample,
-                   average_camera_pose)
+from worldfoundry.synthesis.visual_generation.vmem.vmem_runtime.modeling.network import (
+    VMemModel,
+    VMemModelParams,
+    VMemWrapper,
+)
+from worldfoundry.synthesis.visual_generation.vmem.vmem_runtime.modeling.modules.autoencoder import (
+    AutoEncoder,
+)
+from worldfoundry.synthesis.visual_generation.vmem.vmem_runtime.modeling.modules.conditioner import (
+    CLIPConditioner,
+)
+from worldfoundry.synthesis.visual_generation.vmem.vmem_runtime.modeling.sampling import (
+    DDPMDiscretization,
+    DiscreteDenoiser,
+    create_samplers,
+)
+from worldfoundry.synthesis.visual_generation.vmem.vmem_runtime.utils.util import (
+    Octree,
+    Surfel,
+    average_camera_pose,
+    do_sample,
+    encode_image,
+    encode_vae_image,
+    get_plucker_coordinates,
+    tensor_to_pil,
+)
 
 
 
 ImgNorm = tvf.Compose([tvf.ToTensor(), tvf.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-
 
 
 class VMemPipeline:
@@ -48,9 +62,13 @@ class VMemPipeline:
         model_path = self.config.model.get("model_path", None)
 
         self.model = VMemModel(VMemModelParams()).to(device, dtype)
-        # load from huggingface
-        from huggingface_hub import hf_hub_download
-        state_dict = torch.load(hf_hub_download(repo_id=model_path, filename="vmem_weights.pth"), map_location='cpu')
+        model_weight_path = resolve_local_checkpoint_file(model_path, "vmem_weights.pth")
+        state_dict = torch.load(
+            model_weight_path,
+            map_location="cpu",
+            weights_only=True,
+            mmap=True,
+        )
         state_dict = {k.replace("module.", "") if "module." in k else k: v for k, v in state_dict.items()}
                 
             
@@ -81,7 +99,10 @@ class VMemPipeline:
         self.device = device
         
 
-        surfel_model_path = hf_hub_download(repo_id=self.config.surfel.model_path, filename="cut3r_512_dpt_4_64.pth")
+        surfel_model_path = resolve_local_checkpoint_file(
+            self.config.surfel.model_path,
+            "cut3r_512_dpt_4_64.pth",
+        )
         print(f"Loading model from {surfel_model_path}...")
         self.surfel_model = ARCroco3DStereo.from_pretrained(surfel_model_path).to(device)
         self.surfel_model.eval()

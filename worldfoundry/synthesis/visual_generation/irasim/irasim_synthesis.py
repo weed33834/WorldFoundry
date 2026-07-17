@@ -97,6 +97,7 @@ class IRASimSynthesis(BaseSynthesis):
         interactions: Sequence[str] = (),
         output_path: str | Path | None = None,
         fps: int | None = None,
+        plan_only: bool = False,
         **kwargs: Any,
     ) -> dict[str, Any]:
         """
@@ -112,6 +113,7 @@ class IRASimSynthesis(BaseSynthesis):
             interactions: Optional sequence of actions or interaction trajectories.
             output_path: Target path for the output JSON plan file. If None, defaults to 'irasim_plan.json' in the current working directory.
             fps: Optional target frames per second for video generation.
+            plan_only: Allow explicit plan generation instead of video inference.
             **kwargs: Additional runtime options to be included in the plan's 'extra' field.
 
         Returns:
@@ -129,11 +131,21 @@ class IRASimSynthesis(BaseSynthesis):
         # that might expect it to be globally available.
         sys.modules.setdefault("irasim_runtime", irasim_runtime)
 
-        # Determine the target path for the output JSON plan file.
-        # If output_path is not provided, default to 'irasim_plan.json' in the current directory.
+        requested_path = (
+            None if output_path is None else Path(output_path).expanduser().resolve()
+        )
+        if requested_path is not None and requested_path.suffix.lower() != ".json" and not plan_only:
+            raise RuntimeError(
+                "IRASim currently provides an inference plan, not a generated video. "
+                "Pass plan_only=True with a JSON output path, or stage the official checkpoints and executor."
+            )
+
+        # Never serialize a plan under a media extension.
         target = Path(output_path) if output_path is not None else Path.cwd() / "irasim_plan.json"
         # Expand user path (e.g., ~) and resolve to an absolute path.
         target = target.expanduser().resolve()
+        if target.suffix.lower() != ".json":
+            target = target.with_suffix(".plan.json")
         # Create parent directories if they don't exist, preventing FileNotFoundError.
         target.parent.mkdir(parents=True, exist_ok=True)
         

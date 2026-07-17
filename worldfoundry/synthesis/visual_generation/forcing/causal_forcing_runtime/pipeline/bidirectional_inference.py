@@ -1,7 +1,11 @@
 from typing import List
 import torch
 
-from utils.wan_wrapper import WanDiffusionWrapper, WanTextEncoder, WanVAEWrapper
+from worldfoundry.synthesis.visual_generation.forcing.shared.wan_wrapper import (
+    WanDiffusionWrapper,
+    WanTextEncoder,
+    WanVAEWrapper,
+)
 
 
 class BidirectionalInferencePipeline(torch.nn.Module):

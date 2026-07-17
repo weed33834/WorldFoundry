@@ -7,7 +7,7 @@ for performing text-to-video synthesis using the specified CogVideoX variant.
 """
 from __future__ import annotations
 
-from worldfoundry.base_models.diffusion_model.video.cogvideox import CogVideoX
+from .worldfoundry_runtime import CogVideoX
 
 from ..runtime_video_synthesis import RuntimeVideoSynthesis
 

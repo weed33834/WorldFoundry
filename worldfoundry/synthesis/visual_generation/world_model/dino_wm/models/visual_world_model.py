@@ -31,9 +31,7 @@ class VWorldModel(nn.Module):
         self.action_encoder = action_encoder
         self.decoder = decoder  # decoder could be None
         self.predictor = predictor  # predictor could be None
-        self.train_encoder = train_encoder
-        self.train_predictor = train_predictor
-        self.train_decoder = train_decoder
+        del train_encoder, train_predictor, train_decoder
         self.num_action_repeat = num_action_repeat
         self.num_proprio_repeat = num_proprio_repeat
         self.proprio_dim = proprio_dim * num_proprio_repeat 
@@ -63,30 +61,6 @@ class VWorldModel(nn.Module):
             # set self.encoder_transform to identity transform
             self.encoder_transform = lambda x: x
 
-        self.decoder_criterion = nn.MSELoss()
-        self.decoder_latent_loss_weight = 0.25
-        self.emb_criterion = nn.MSELoss()
-
-    def train(self, mode=True):
-        super().train(mode)
-        if self.train_encoder:
-            self.encoder.train(mode)
-        if self.predictor is not None and self.train_predictor:
-            self.predictor.train(mode)
-        self.proprio_encoder.train(mode)
-        self.action_encoder.train(mode)
-        if self.decoder is not None and self.train_decoder:
-            self.decoder.train(mode)
-
-    def eval(self):
-        super().eval()
-        self.encoder.eval()
-        if self.predictor is not None:
-            self.predictor.eval()
-        self.proprio_encoder.eval()
-        self.action_encoder.eval()
-        if self.decoder is not None:
-            self.decoder.eval()
 
     def encode(self, obs, act): 
         """
@@ -186,89 +160,6 @@ class VWorldModel(nn.Module):
         z_obs = {"visual": z_visual, "proprio": z_proprio}
         return z_obs, z_act
 
-    def forward(self, obs, act):
-        """
-        input:  obs (dict):  "visual", "proprio" (b, num_frames, 3, img_size, img_size)
-                act: (b, num_frames, action_dim)
-        output: z_pred: (b, num_hist, num_patches, emb_dim)
-                visual_pred: (b, num_hist, 3, img_size, img_size)
-                visual_reconstructed: (b, num_frames, 3, img_size, img_size)
-        """
-        loss = 0
-        loss_components = {}
-        z = self.encode(obs, act)
-        z_src = z[:, : self.num_hist, :, :]  # (b, num_hist, num_patches, dim)
-        z_tgt = z[:, self.num_pred :, :, :]  # (b, num_hist, num_patches, dim)
-        visual_src = obs['visual'][:, : self.num_hist, ...]  # (b, num_hist, 3, img_size, img_size)
-        visual_tgt = obs['visual'][:, self.num_pred :, ...]  # (b, num_hist, 3, img_size, img_size)
-
-        if self.predictor is not None:
-            z_pred = self.predict(z_src)
-            if self.decoder is not None:
-                obs_pred, diff_pred = self.decode(
-                    z_pred.detach()
-                )  # recon loss should only affect decoder
-                visual_pred = obs_pred['visual']
-                recon_loss_pred = self.decoder_criterion(visual_pred, visual_tgt)
-                decoder_loss_pred = (
-                    recon_loss_pred + self.decoder_latent_loss_weight * diff_pred
-                )
-                loss_components["decoder_recon_loss_pred"] = recon_loss_pred
-                loss_components["decoder_vq_loss_pred"] = diff_pred
-                loss_components["decoder_loss_pred"] = decoder_loss_pred
-            else:
-                visual_pred = None
-
-            # Compute loss for visual, proprio dims (i.e. exclude action dims)
-            if self.concat_dim == 0:
-                z_visual_loss = self.emb_criterion(z_pred[:, :, :-2, :], z_tgt[:, :, :-2, :].detach())
-                z_proprio_loss = self.emb_criterion(z_pred[:, :, -2, :], z_tgt[:, :, -2, :].detach())
-                z_loss = self.emb_criterion(z_pred[:, :, :-1, :], z_tgt[:, :, :-1, :].detach())
-            elif self.concat_dim == 1:
-                z_visual_loss = self.emb_criterion(
-                    z_pred[:, :, :, :-(self.proprio_dim + self.action_dim)], \
-                    z_tgt[:, :, :, :-(self.proprio_dim + self.action_dim)].detach()
-                )
-                z_proprio_loss = self.emb_criterion(
-                    z_pred[:, :, :, -(self.proprio_dim + self.action_dim): -self.action_dim], 
-                    z_tgt[:, :, :, -(self.proprio_dim + self.action_dim): -self.action_dim].detach()
-                )
-                z_loss = self.emb_criterion(
-                    z_pred[:, :, :, :-self.action_dim], 
-                    z_tgt[:, :, :, :-self.action_dim].detach()
-                )
-
-            loss = loss + z_loss
-            loss_components["z_loss"] = z_loss
-            loss_components["z_visual_loss"] = z_visual_loss
-            loss_components["z_proprio_loss"] = z_proprio_loss
-        else:
-            visual_pred = None
-            z_pred = None
-
-        if self.decoder is not None:
-            obs_reconstructed, diff_reconstructed = self.decode(
-                z.detach()
-            )  # recon loss should only affect decoder
-            visual_reconstructed = obs_reconstructed["visual"]
-            recon_loss_reconstructed = self.decoder_criterion(visual_reconstructed, obs['visual'])
-            decoder_loss_reconstructed = (
-                recon_loss_reconstructed
-                + self.decoder_latent_loss_weight * diff_reconstructed
-            )
-
-            loss_components["decoder_recon_loss_reconstructed"] = (
-                recon_loss_reconstructed
-            )
-            loss_components["decoder_vq_loss_reconstructed"] = diff_reconstructed
-            loss_components["decoder_loss_reconstructed"] = (
-                decoder_loss_reconstructed
-            )
-            loss = loss + decoder_loss_reconstructed
-        else:
-            visual_reconstructed = None
-        loss_components["loss"] = loss
-        return z_pred, visual_pred, visual_reconstructed, loss, loss_components
 
     def replace_actions_from_z(self, z, act):
         act_emb = self.encode_act(act)

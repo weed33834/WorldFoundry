@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Mapping, Sequence
 
 from worldfoundry.synthesis.action_generation._official_action_trace import checkpoint_gated_action_trace, precomputed_actions
-from worldfoundry.synthesis.action_generation.openvla_oft.openvla_oft_runtime import (
+from worldfoundry.synthesis.action_generation.openvla_oft.inference import (
     OpenVLAOFTRuntime,
     OpenVLAOFTRuntimeConfig,
 )
@@ -111,10 +111,10 @@ def predict_action(
     config = OpenVLAOFTRuntimeConfig(
         checkpoint_location=location,
         device=device,
-        torch_dtype=str(options.get("torch_dtype") or "bfloat16"),
+        torch_dtype=str(options.get("torch_dtype") or "auto"),
         cache_dir=options.get("cache_dir"),
-        local_files_only=_as_bool(options.get("local_files_only"), False),
-        attn_implementation=str(options.get("attn_implementation") or "eager"),
+        local_files_only=_as_bool(options.get("local_files_only"), True),
+        attn_implementation=str(options.get("attn_implementation") or "auto"),
         unnorm_key=str(options.get("unnorm_key") or "libero_spatial_no_noops"),
         task_suite_name=str(options.get("task_suite_name") or "libero_spatial"),
         use_l1_regression=_as_bool(options.get("use_l1_regression"), True),

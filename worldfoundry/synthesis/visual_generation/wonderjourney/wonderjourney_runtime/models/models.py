@@ -18,7 +18,10 @@ from pytorch3d.renderer import (
 from pytorch3d.renderer.points.compositor import _add_background_color_to_images
 from pytorch3d.structures import Pointclouds
 from torchvision.transforms import ToTensor, ToPILImage, Resize
-from util.midas_utils import dpt_transform, dpt_512_transform
+from worldfoundry.synthesis.visual_generation.wonderworld.wonderworld_runtime.util.midas_utils import (
+    dpt_512_transform,
+    dpt_transform,
+)
 from util.utils import functbl, save_depth_map
 
 from util.segment_utils import refine_disp_with_segments, save_sam_anns

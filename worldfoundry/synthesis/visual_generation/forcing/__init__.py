@@ -8,13 +8,14 @@ This `__init__.py` file exposes the primary classes from the submodules
 """
 
 from .forcing_synthesis import CausalForcingSynthesis, SelfForcingSynthesis
-from .runtime import CausalForcingRuntime, SelfForcingRuntime
+from .runtime import CausalForcingRuntime, RollingForcingRuntime, SelfForcingRuntime
 
 # Define the public API of the 'forcing' package.
 # These names will be imported when a user does 'from forcing import *'.
 __all__ = [
     "CausalForcingRuntime",
     "CausalForcingSynthesis",
+    "RollingForcingRuntime",
     "SelfForcingRuntime",
     "SelfForcingSynthesis",
 ]

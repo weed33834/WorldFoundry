@@ -7,13 +7,18 @@ import imageio.v3 as iio
 import numpy as np
 import torch
 
+from worldfoundry.core.io.paths import resolve_local_hf_model_path
 from worldfoundry.synthesis.visual_generation.vmem.runtime_env import (
     canonical_dust3r_parent,
 )
 
 
 class Dust3rPipeline(object):
-    def __init__(self, device: str | torch.device = "cuda"):
+    def __init__(
+        self,
+        device: str | torch.device = "cuda",
+        model_path: str = "naver/DUSt3R_ViTLarge_BaseDecoder_512_dpt",
+    ):
         dust3r_parent = str(canonical_dust3r_parent())
         if dust3r_parent not in sys.path:
             sys.path.insert(0, dust3r_parent)
@@ -34,8 +39,12 @@ class Dust3rPipeline(object):
             )
 
         self.device = torch.device(device)
+        local_model = resolve_local_hf_model_path(
+            model_path,
+            required_files=("config.json", "model.safetensors"),
+        )
         self.model = AsymmetricCroCo3DStereo.from_pretrained(
-            "naver/DUSt3R_ViTLarge_BaseDecoder_512_dpt"
+            str(local_model)
         ).to(self.device)
 
         self._GlobalAlignerMode = GlobalAlignerMode

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from worldfoundry.base_models.three_dimensions.point_clouds.pixelsplat_runtime import PixelSplatRuntime
+from worldfoundry.base_models.three_dimensions.point_clouds.pixelsplat import PixelSplatRuntime
 
 from ...base_synthesis import BaseSynthesis
 

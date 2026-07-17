@@ -19,9 +19,15 @@ from .runtime_env import (
 from .worldfoundry_runtime import normalize_wan_num_frames, pad_camera_params_to_frames
 
 
-def _checkpoint_uses_control_adapter(state_dict: dict[str, torch.Tensor]) -> bool:
-    return any(key.startswith("pipe.dit.control_adapter.") for key in state_dict)
-
+_WAN22_CAMERA_GROUP_COUNTS = {"pipe": 453, "vggt": 765, "IRGBlock": 1440}
+_WAN22_CAMERA_CONTROL_KEYS = {
+    "pipe.dit.control_adapter.conv.weight",
+    "pipe.dit.control_adapter.conv.bias",
+    "pipe.dit.control_adapter.residual_blocks.0.conv1.weight",
+    "pipe.dit.control_adapter.residual_blocks.0.conv1.bias",
+    "pipe.dit.control_adapter.residual_blocks.0.conv2.weight",
+    "pipe.dit.control_adapter.residual_blocks.0.conv2.bias",
+}
 
 def _ensure_wan22_control_adapter(model) -> None:
     dit = model.pipe.dit
@@ -38,6 +44,74 @@ def _ensure_wan22_control_adapter(model) -> None:
         kernel_size=dit.patch_size[1:],
         stride=dit.patch_size[1:],
     ).to(device=reference.device, dtype=reference.dtype)
+
+
+def _load_wan22_camera_checkpoint(model, checkpoint_path: str, *, label: str) -> None:
+    """Strictly validate and load one released FantasyWorld camera checkpoint."""
+
+    state_dict = torch.load(
+        checkpoint_path,
+        map_location="cpu",
+        weights_only=True,
+        mmap=True,
+    )
+    group_counts = {
+        group: sum(key.startswith(f"{group}.") for key in state_dict)
+        for group in _WAN22_CAMERA_GROUP_COUNTS
+    }
+    if group_counts != _WAN22_CAMERA_GROUP_COUNTS:
+        raise RuntimeError(
+            f"FantasyWorld Wan2.2 {label} checkpoint schema is incomplete: "
+            f"expected={_WAN22_CAMERA_GROUP_COUNTS}, actual={group_counts}"
+        )
+    control_keys = {key for key in state_dict if key.startswith("pipe.dit.control_adapter.")}
+    if control_keys != _WAN22_CAMERA_CONTROL_KEYS:
+        raise RuntimeError(
+            f"FantasyWorld Wan2.2 {label} camera-control schema mismatch: "
+            f"missing={sorted(_WAN22_CAMERA_CONTROL_KEYS - control_keys)}, "
+            f"unexpected={sorted(control_keys - _WAN22_CAMERA_CONTROL_KEYS)}"
+        )
+    _ensure_wan22_control_adapter(model)
+
+    prefix = "pipe.dit."
+    checkpoint_dit = {
+        key[len(prefix) :]: value
+        for key, value in state_dict.items()
+        if key.startswith(prefix)
+    }
+    model_dit = model.pipe.dit.state_dict()
+    unexpected = sorted(set(checkpoint_dit) - set(model_dit))
+    mismatched = sorted(
+        key
+        for key in set(model_dit) & set(checkpoint_dit)
+        if tuple(model_dit[key].shape) != tuple(checkpoint_dit[key].shape)
+    )
+    if unexpected or mismatched:
+        raise RuntimeError(
+            f"FantasyWorld Wan2.2 {label} DiT overlay mismatch: "
+            f"unexpected={unexpected[:8]}, "
+            f"shape_mismatch={mismatched[:8]}"
+        )
+
+    messages = model.load_state_dict(state_dict, strict=False)
+    if messages.unexpected_keys:
+        raise RuntimeError(
+            f"Unexpected FantasyWorld Wan2.2 {label} keys: {messages.unexpected_keys}"
+        )
+    missing_control = [
+        key for key in messages.missing_keys if key.startswith("pipe.dit.control_adapter.")
+    ]
+    if missing_control:
+        raise RuntimeError(
+            f"FantasyWorld Wan2.2 {label} camera-control keys were not restored: "
+            f"{missing_control}"
+        )
+    print(
+        f"Strictly restored FantasyWorld Wan2.2 {label} DiT overlay: "
+        f"{len(checkpoint_dit)} matched tensors including camera-control adapter; "
+        f"{len(set(model_dit) - set(checkpoint_dit))} tensors retained from the official base",
+        flush=True,
+    )
 
 
 class FantasyWorldWan22Runner:
@@ -189,21 +263,8 @@ class FantasyWorldWan22Runner:
             camera_cfg=camera_cfg,
         )
 
-        ckpt_high = torch.load(model_ckpt_high, map_location="cpu")
-        if _checkpoint_uses_control_adapter(ckpt_high):
-            _ensure_wan22_control_adapter(self.model_high)
-        messages = self.model_high.load_state_dict(ckpt_high, strict=False)
-        if messages.unexpected_keys:
-            raise RuntimeError(f"Unexpected FantasyWorld Wan2.2 HIGH keys: {messages.unexpected_keys}")
-        del ckpt_high
-
-        ckpt_low = torch.load(model_ckpt_low, map_location="cpu")
-        if _checkpoint_uses_control_adapter(ckpt_low):
-            _ensure_wan22_control_adapter(self.model_low)
-        messages = self.model_low.load_state_dict(ckpt_low, strict=False)
-        if messages.unexpected_keys:
-            raise RuntimeError(f"Unexpected FantasyWorld Wan2.2 LOW keys: {messages.unexpected_keys}")
-        del ckpt_low
+        _load_wan22_camera_checkpoint(self.model_high, model_ckpt_high, label="HIGH")
+        _load_wan22_camera_checkpoint(self.model_low, model_ckpt_low, label="LOW")
 
         self.model_high.to(self.torch_dtype)
         self.model_high.to(self.high_device)

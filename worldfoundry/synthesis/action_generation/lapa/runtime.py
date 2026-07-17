@@ -15,7 +15,6 @@ from typing import Any, Mapping
 from worldfoundry.core import jsonable
 from worldfoundry.core.io.paths import project_root, resolve_worldfoundry_path
 
-from worldfoundry.synthesis.action_generation.lapa.lapa_runtime import install_aliases
 
 
 def _install_tux_jax_compat() -> None:
@@ -32,6 +31,7 @@ def _install_tux_jax_compat() -> None:
 
         import jax
         import jax.numpy as jnp
+        import transformers
         from jax.experimental import pjit
     except Exception:
         # If JAX or its experimental components are not available, skip compatibility patches.
@@ -46,6 +46,11 @@ def _install_tux_jax_compat() -> None:
     # Patch jnp.DeviceArray if it's missing (renamed to jax.Array in newer JAX).
     if not hasattr(jnp, "DeviceArray") and hasattr(jax, "Array"):
         jnp.DeviceArray = jax.Array
+    if not hasattr(transformers, "FlaxLogitsWarper"):
+        class FlaxLogitsWarper:
+            """Compatibility base removed from recent Transformers releases."""
+
+        transformers.FlaxLogitsWarper = FlaxLogitsWarper
 
 
 def _install_tux_checkpoint_compat() -> None:
@@ -225,8 +230,6 @@ class LAPARuntime:
         if self._model is not None:
             return self._model
 
-        # Install necessary type aliases for LAPA.
-        install_aliases()
         # Apply JAX compatibility patches for tux.
         _install_tux_jax_compat()
         # Import JAX distributed configuration and random seed setter.
@@ -235,8 +238,8 @@ class LAPARuntime:
         # Apply tux checkpoint compatibility patches for large files.
         _install_tux_checkpoint_compat()
         # Import LAPA-specific model configurations and inference class.
-        from worldfoundry.synthesis.action_generation.lapa.lapa_runtime.latent_runtime.delta_llama import VideoLLaMAConfig
-        from worldfoundry.synthesis.action_generation.lapa.lapa_runtime.latent_runtime.inference import LAPAInference
+        from .modeling.delta_llama import VideoLLaMAConfig
+        from .modeling.inference import LAPAInference
 
         # Configure JAX distributed environment.
         jax_distributed = JaxDistributedConfig.get_default_config()

@@ -65,7 +65,11 @@ def load_vae(vae_type,
             vae = AutoencoderKLCausal3D.from_config(config, sample_size=sample_size)
         else:
             vae = AutoencoderKLCausal3D.from_config(config)
-        ckpt = torch.load(Path(vae_path) / "pytorch_model.pt", map_location=vae.device)
+        ckpt = torch.load(
+            Path(vae_path) / "pytorch_model.pt",
+            map_location=vae.device,
+            weights_only=True,
+        )
         if "state_dict" in ckpt:
             ckpt = ckpt["state_dict"]
         vae_ckpt = {k.replace("vae.", ""): v for k, v in ckpt.items() if k.startswith("vae.")}
@@ -118,7 +122,7 @@ class Inference(object):
         self.args = args
         self.device = device if device is not None else "cuda" if torch.cuda.is_available() else "cpu"
         if nccl_info.sp_size > 1:
-            self.device = torch.device(f"cuda:{torch.distributed.get_rank()}")
+            self.device = torch.device(f"cuda:{torch.cuda.current_device()}")
         
         self.logger = logger
 
@@ -248,7 +252,11 @@ class Inference(object):
         ckpt_path = Path(ckpt_path)
         if ckpt_path.is_dir():
             ckpt_path = next(ckpt_path.glob("*_model_states.pt"))
-        state_dict = torch.load(ckpt_path, map_location=lambda storage, loc: storage)
+        state_dict = torch.load(
+            ckpt_path,
+            map_location=lambda storage, loc: storage,
+            weights_only=True,
+        )
         if load_key in state_dict:
             state_dict = state_dict[load_key]
         elif load_key == ".":

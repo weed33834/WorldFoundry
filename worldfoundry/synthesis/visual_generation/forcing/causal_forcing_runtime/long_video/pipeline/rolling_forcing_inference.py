@@ -1,7 +1,18 @@
+"""Rolling-window inference adapted from TencentARC/RollingForcing.
+
+WorldFoundry modifications use the shared in-tree Wan wrapper and initialize
+the optional context cursor before use.
+"""
+
 from typing import List, Optional
+
 import torch
 
-from utils.wan_wrapper import WanDiffusionWrapper, WanTextEncoder, WanVAEWrapper
+from worldfoundry.synthesis.visual_generation.forcing.shared.wan_wrapper import (
+    WanDiffusionWrapper,
+    WanTextEncoder,
+    WanVAEWrapper,
+)
 
 
 class CausalInferencePipeline(torch.nn.Module):
@@ -124,7 +135,9 @@ class CausalInferencePipeline(torch.nn.Module):
                 self.kv_cache_clean[block_index]["local_end_index"] = torch.tensor(
                     [0], dtype=torch.long, device=noise.device)
 
-        # Step 2: Cache context feature
+        # Step 2: Cache context feature.  Upstream referenced this variable in
+        # the optional initial-latent path before assigning it.
+        current_start_frame = 0
         if initial_latent is not None:
             timestep = torch.ones([batch_size, 1], device=noise.device, dtype=torch.int64) * 0
             if self.independent_first_frame:

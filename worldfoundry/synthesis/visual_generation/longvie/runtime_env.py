@@ -13,7 +13,8 @@ import sys
 from pathlib import Path
 from typing import Iterable, Sequence
 
-from worldfoundry.runtime import expand_worldfoundry_path, resolve_hfd_root
+from worldfoundry.runtime.assets import expand_worldfoundry_path
+from worldfoundry.runtime.env import resolve_hfd_root
 
 
 # Default Hugging Face repository IDs for various LongVie components and dependencies.

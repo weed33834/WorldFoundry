@@ -59,7 +59,7 @@ PROMPT_TEMPLATE_ENCODE_VIDEO_JSON = [
 PROMPT_TEMPLATE = {
     "li-dit-encode-image-json": {
         "template": PROMPT_TEMPLATE_ENCODE_IMAGE_JSON,
-        "crop": -1,
+        "crop_start": -1,
     },  # auto-calculate crop_start
     "li-dit-encode-video-json": {
         "template": PROMPT_TEMPLATE_ENCODE_VIDEO_JSON,

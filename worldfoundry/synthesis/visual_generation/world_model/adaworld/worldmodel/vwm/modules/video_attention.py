@@ -91,15 +91,10 @@ class VideoTransformerBlock(nn.Module):
         self.norm3 = nn.LayerNorm(inner_dim)
         self.switch_temporal_ca_to_sa = switch_temporal_ca_to_sa
 
-        self.use_checkpoint = use_checkpoint
-        if self.use_checkpoint:
-            print(f"{self.__class__.__name__} is using checkpointing")
+        del use_checkpoint
 
     def forward(self, x: torch.Tensor, context: torch.Tensor = None, timesteps: int = None) -> torch.Tensor:
-        if self.use_checkpoint:
-            return checkpoint(self._forward, x, context, timesteps)
-        else:
-            return self._forward(x, context, timesteps=timesteps)
+        return self._forward(x, context, timesteps=timesteps)
 
     def _forward(self, x, context=None, timesteps=None):
         assert self.timesteps or timesteps

@@ -1,16 +1,18 @@
-import os
-import cv2
-import json
-import random
+import datetime
 import glob
-import torch
+import json
+import os
+import random
+
+import cv2
 import einops
 import numpy as np
-import datetime
-import torchvision
-
 import safetensors.torch as sf
+import torch
+import torchvision
 from PIL import Image
+
+from worldfoundry.core.io.video import write_video_torchvision
 
 
 def min_resize(x, m):
@@ -276,7 +278,7 @@ def save_bcthw_as_mp4(x, output_filename, fps=10, crf=0):
     x = torch.clamp(x.float(), -1., 1.) * 127.5 + 127.5
     x = x.detach().cpu().to(torch.uint8)
     x = einops.rearrange(x, '(m n) c t h w -> t (m h) (n w) c', n=per_row)
-    torchvision.io.write_video(output_filename, x, fps=fps, video_codec='libx264', options={'crf': str(int(crf))})
+    write_video_torchvision(output_filename, x, fps=fps, video_codec='libx264', options={'crf': str(int(crf))})
     return x
 
 

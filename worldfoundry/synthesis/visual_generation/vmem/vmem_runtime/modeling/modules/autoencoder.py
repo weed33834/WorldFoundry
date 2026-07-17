@@ -2,17 +2,27 @@ import torch
 from diffusers.models import AutoencoderKL  # type: ignore
 from torch import nn
 
+from worldfoundry.core.io.paths import resolve_local_hf_model_path
+
+
+DEFAULT_AUTOENCODER_REPO = "stabilityai/stable-diffusion-2-1-base"
+
 
 class AutoEncoder(nn.Module):
     scale_factor: float = 0.18215
     downsample: int = 8
 
-    def __init__(self, chunk_size: int):
+    def __init__(self, chunk_size: int, model_path: str = DEFAULT_AUTOENCODER_REPO):
         super().__init__()
+        local_base = resolve_local_hf_model_path(
+            model_path,
+            required_files=("vae/config.json", "vae/diffusion_pytorch_model.safetensors"),
+        )
         self.module = AutoencoderKL.from_pretrained(
-            "stabilityai/stable-diffusion-2-1-base",
+            str(local_base),
             subfolder="vae",
             force_download=False,
+            local_files_only=True,
             low_cpu_mem_usage=False,
         )
         self.module.eval().requires_grad_(False)  # type: ignore

@@ -32,7 +32,7 @@ def get_mg_vae_wrapper(model_path, weight_dtype):
     config = AutoencoderKLCausal3D.load_config(model_path)
     vae = AutoencoderKLCausal3D.from_config(config)
     vae_ckpt = Path(model_path) / "pytorch_model.pt"
-    ckpt = torch.load(vae_ckpt)
+    ckpt = torch.load(vae_ckpt, map_location="cpu", weights_only=True)
     if "state_dict" in ckpt:
         ckpt = ckpt["state_dict"]
     if any(k.startswith("vae.") for k in ckpt.keys()):

@@ -87,6 +87,8 @@ class OfficialVideoPipeline(PipelineABC):
         prompt: str,
         images: Any = None,
         video: Any = None,
+        num_frames: int | None = None,
+        fps: int | None = None,
         output_path: str | Path | None = None,
         return_dict: bool = False,
         **kwargs: Any,
@@ -95,6 +97,10 @@ class OfficialVideoPipeline(PipelineABC):
         target = Path(output_path or f"tmp/pipeline_eval/{self.model_id}.mp4")
         processed = self.process(prompt=prompt, images=images, video=video)
         runtime_kwargs = dict(kwargs)
+        if num_frames is not None:
+            runtime_kwargs.setdefault("num_frames", int(num_frames))
+        if fps is not None:
+            runtime_kwargs.setdefault("fps", int(fps))
         explicit_image_path = runtime_kwargs.pop("image_path", None)
         explicit_video_path = runtime_kwargs.pop("video_path", None)
         image_path = self._materialize_image(processed["images"], target) or explicit_image_path

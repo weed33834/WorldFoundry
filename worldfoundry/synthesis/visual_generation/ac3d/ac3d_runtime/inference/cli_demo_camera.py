@@ -1,25 +1,22 @@
 import sys
+
 sys.path.append('..')
 import argparse
 import os
 
 import torch
-from transformers import T5EncoderModel, T5Tokenizer
-from diffusers import (
-    CogVideoXDDIMScheduler,
-    CogVideoXDPMScheduler,
-    AutoencoderKLCogVideoX
-)
-from diffusers.utils import export_to_video, load_video
-from controlnet_aux import HEDdetector, CannyDetector
-
-from controlnet_pipeline import ControlnetCogVideoXPipeline
-from cogvideo_transformer import CustomCogVideoXTransformer3DModel
 from cogvideo_controlnet import CogVideoXControlnet
-from inference.datasets.controlnet_datasets_camera import RealEstate10KPoseControlnetDataset
+from cogvideo_transformer import CustomCogVideoXTransformer3DModel
+from controlnet_pipeline import ControlnetCogVideoXPipeline
+from diffusers import AutoencoderKLCogVideoX, CogVideoXDDIMScheduler, CogVideoXDPMScheduler
+from diffusers.utils import export_to_video
 from torchvision.transforms.functional import to_pil_image
+from transformers import T5EncoderModel, T5Tokenizer
 
+from inference.datasets.controlnet_datasets_camera import RealEstate10KPoseControlnetDataset
 from inference.utils import stack_images_horizontally
+from worldfoundry.core.checkpoint import load_tensor_state_dict
+
 
 @torch.no_grad()
 def generate_video(
@@ -112,10 +109,7 @@ def generate_video(
         **controlnet_kwargs,   
     )
     if controlnet_model_path:
-        ckpt = torch.load(controlnet_model_path, map_location='cpu', weights_only=False)
-        controlnet_state_dict = {}
-        for name, params in ckpt['state_dict'].items():
-            controlnet_state_dict[name] = params
+        controlnet_state_dict = load_tensor_state_dict(controlnet_model_path)
         m, u = controlnet.load_state_dict(controlnet_state_dict, strict=False)
         print(f'[ Weights from pretrained controlnet was loaded into controlnet ] [M: {len(m)} | U: {len(u)}]')
     

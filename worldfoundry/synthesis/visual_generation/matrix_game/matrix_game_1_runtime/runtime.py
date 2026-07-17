@@ -12,7 +12,7 @@ from typing import Any, Mapping, Sequence
 from worldfoundry.core import jsonable
 from worldfoundry.core.io.paths import conda_envs_root_path, conda_root_path, project_root, resolve_worldfoundry_path
 from worldfoundry.evaluation.utils import worldfoundry_data_path
-from worldfoundry.runtime import resolve_ckpt_dir, resolve_hfd_root
+from worldfoundry.runtime.env import resolve_ckpt_dir, resolve_hfd_root
 
 
 RUNTIME_ROOT = Path(__file__).resolve().parent

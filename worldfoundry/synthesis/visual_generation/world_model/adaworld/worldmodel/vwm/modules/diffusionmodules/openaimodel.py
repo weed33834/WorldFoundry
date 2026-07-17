@@ -5,7 +5,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
-from torch.utils.checkpoint import checkpoint
 from vwm.modules.video_attention import SpatialVideoTransformer
 
 from .util import avg_pool_nd, conv_nd, linear, normalization, timestep_embedding, zero_module
@@ -168,7 +167,7 @@ class ResBlock(TimestepBlock):
         self.dropout = dropout
         self.out_channels = out_channels or channels
         self.use_conv = use_conv
-        self.use_checkpoint = use_checkpoint
+        del use_checkpoint
         self.use_scale_shift_norm = use_scale_shift_norm
         self.exchange_temb_dims = exchange_temb_dims
 
@@ -234,10 +233,7 @@ class ResBlock(TimestepBlock):
         :return: An [N x C x ...] Tensor of outputs.
         """
 
-        if self.use_checkpoint:
-            return checkpoint(self._forward, x, emb)
-        else:
-            return self._forward(x, emb)
+        return self._forward(x, emb)
 
     def _forward(self, x: torch.Tensor, emb: torch.Tensor) -> torch.Tensor:
         if self.updown:

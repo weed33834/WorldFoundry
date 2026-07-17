@@ -3,7 +3,6 @@ from __future__ import annotations
 import importlib
 import inspect
 import json
-import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -71,6 +70,23 @@ def _expand_path(value: str | Path | None) -> Path | None:
         path = project_root() / path
     # Return the fully resolved path, normalizing any '..' or symlinks.
     return path.resolve()
+
+
+def _as_bool(value: Any, default: bool = False) -> bool:
+    """Parse config booleans without treating the string ``"false"`` as true."""
+
+    if value in (None, ""):
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "y", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "n", "off"}:
+        return False
+    raise ValueError(f"invalid boolean value: {value!r}")
 
 
 def _first_checkpoint(
@@ -248,8 +264,6 @@ class OfficialPolicyRuntimeConfig:
         model_id: A unique identifier for the model.
         backend: The backend type for loading the policy (e.g., "hf_auto_action_model", "lerobot_policy").
         checkpoint_path: The resolved Path to the model's checkpoint.
-        source_repo: The resolved Path to the source repository for custom policies, if applicable.
-        source_subdir: Subdirectory within `source_repo` where policy code resides.
         device: The computational device to use (e.g., "cuda", "cpu").
         torch_dtype: The PyTorch data type to use for model weights (e.g., "bfloat16", "float32").
         trust_remote_code: Whether to trust remote code when loading models from Hugging Face.
@@ -265,8 +279,6 @@ class OfficialPolicyRuntimeConfig:
     backend: str
     checkpoint_path: Path | None
     checkpoint_ref: str | None
-    source_repo: Path | None
-    source_subdir: str
     device: str
     torch_dtype: str
     trust_remote_code: bool
@@ -283,21 +295,13 @@ class OfficialPolicyRuntimeConfig:
         if self.checkpoint_path is not None and self.checkpoint_path.exists():
             return str(self.checkpoint_path)
         if self.checkpoint_ref:
-            return self.checkpoint_ref
-        return str(self.checkpoint_path) if self.checkpoint_path is not None else None
+            from worldfoundry.core.io.paths import resolve_local_hf_model_path
 
-    @property
-    def source_workdir(self) -> Path | None:
-        """
-        Returns the resolved working directory for custom source code.
-
-        This combines `source_repo` and `source_subdir` to form the full path
-        where custom policy code is expected to be found.
-        """
-        if self.source_repo is None:
-            return None
-        # If a subdirectory is specified, combine it with the source repository path.
-        return (self.source_repo / self.source_subdir).resolve() if self.source_subdir else self.source_repo
+            try:
+                return str(resolve_local_hf_model_path(self.checkpoint_ref))
+            except FileNotFoundError:
+                return None
+        return None
 
 
 def build_runtime_config(
@@ -327,35 +331,84 @@ def build_runtime_config(
     """
     # Merge defaults and options, with options taking precedence.
     merged = {**dict(defaults), **dict(options)}
+    option_checkpoint_path = (
+        options.get("checkpoint_path")
+        or options.get("checkpoint_dir")
+        or options.get("ckpt_path")
+    )
+    option_checkpoint_ref = (
+        options.get("checkpoint_ref")
+        or options.get("checkpoint_repo_id")
+        or options.get("repo_id")
+        or options.get("hf_repo_id")
+    )
+    configured_checkpoint_path = (
+        merged.get("checkpoint_path")
+        or merged.get("checkpoint_dir")
+        or merged.get("ckpt_path")
+    )
+    configured_checkpoint_ref = (
+        merged.get("checkpoint_ref")
+        or merged.get("checkpoint_repo_id")
+        or merged.get("repo_id")
+        or merged.get("hf_repo_id")
+    )
+    if option_checkpoint_ref not in (None, "") and option_checkpoint_path in (None, ""):
+        configured_checkpoint_path = None
+    if option_checkpoint_path not in (None, "") and option_checkpoint_ref in (None, ""):
+        configured_checkpoint_ref = None
     # Determine the primary checkpoint path.
     checkpoint_path = _first_checkpoint(
-        explicit=merged.get("checkpoint_path") or merged.get("checkpoint_dir") or merged.get("ckpt_path"),
-        checkpoints=profile_checkpoints,
+        explicit=configured_checkpoint_path,
+        # An explicit repository reference must not be shadowed by an unrelated
+        # profile-local path.  Fall back to the profile only when neither side
+        # of the checkpoint location was explicitly selected.
+        checkpoints=(
+            profile_checkpoints
+            if option_checkpoint_ref in (None, "") or option_checkpoint_path not in (None, "")
+            else ()
+        ),
     )
     checkpoint_ref = _first_checkpoint_ref(
-        explicit=(
-            merged.get("checkpoint_ref")
-            or merged.get("checkpoint_repo_id")
-            or merged.get("repo_id")
-            or merged.get("hf_repo_id")
+        explicit=configured_checkpoint_ref,
+        # Likewise, a custom local checkpoint must not inherit stale remote
+        # provenance from the profile's default checkpoint.
+        checkpoints=(
+            profile_checkpoints
+            if option_checkpoint_path in (None, "") or option_checkpoint_ref not in (None, "")
+            else ()
         ),
-        checkpoints=profile_checkpoints,
     )
+    requested_remote_code = _as_bool(merged.get("trust_remote_code"), False)
+    if requested_remote_code:
+        raise ValueError(
+            f"{model_id} requests remote checkpoint code, which is forbidden for in-tree inference"
+        )
+    external_source = (
+        merged.get("source_repo")
+        or merged.get("source_subdir")
+        or merged.get("source_workdir")
+        or merged.get("pythonpath_dirs")
+    )
+    if external_source and (
+        not isinstance(external_source, str) or external_source.strip()
+    ):
+        raise ValueError(
+            f"{model_id} requests an external source checkout, which is forbidden for in-tree inference"
+        )
     return OfficialPolicyRuntimeConfig(
         model_id=model_id,
         # Default backend to "hf_auto_action_model" if not specified.
         backend=str(merged.get("backend") or "hf_auto_action_model"),
         checkpoint_path=checkpoint_path,
         checkpoint_ref=checkpoint_ref,
-        source_repo=_expand_path(merged.get("source_repo")),
-        source_subdir=str(merged.get("source_subdir") or ""),
         # Use provided device if not overridden in config.
         device=str(merged.get("device") or device),
         torch_dtype=str(merged.get("torch_dtype") or "auto"),
-        # Default trust_remote_code to True.
-        trust_remote_code=bool(merged.get("trust_remote_code", True)),
+        # In-tree integrations do not execute Python shipped by checkpoints.
+        trust_remote_code=False,
         # Default require_checkpoint to True.
-        require_checkpoint=bool(merged.get("require_checkpoint", True)),
+        require_checkpoint=_as_bool(merged.get("require_checkpoint"), True),
         policy_target=str(merged.get("policy_target") or "") or None,
         processor_target=str(merged.get("processor_target") or "") or None,
         # Default prediction method to "predict_action".
@@ -412,17 +465,6 @@ class OfficialPolicyRuntime:
                 }
             )
 
-        # Check for source repository requirements
-        source_workdir = self.config.source_workdir
-        if self.config.source_repo is not None and (source_workdir is None or not source_workdir.exists()):
-            missing.append(
-                {
-                    "kind": "source_repo",
-                    "path": str(source_workdir or self.config.source_repo),
-                    "reason": "official source repository path does not exist",
-                }
-            )
-
         # Check for other required assets
         for item in self.config.required_assets:
             path = _expand_path(item)
@@ -471,7 +513,6 @@ class OfficialPolicyRuntime:
             "checkpoint_path": "" if self.config.checkpoint_path is None else str(self.config.checkpoint_path),
             "checkpoint_ref": "" if self.config.checkpoint_ref is None else self.config.checkpoint_ref,
             "checkpoint_location": "" if self.config.checkpoint_location is None else self.config.checkpoint_location,
-            "source_workdir": "" if self.config.source_workdir is None else str(self.config.source_workdir),
             "device": self.config.device,
             "torch_dtype": self.config.torch_dtype,
             "trust_remote_code": self.config.trust_remote_code,
@@ -490,19 +531,6 @@ class OfficialPolicyRuntime:
             "output_path": str(output_path),
             "metadata": _jsonable(dict(extra_metadata or {})),
         }
-
-    def _install_source_path(self) -> None:
-        """
-        Adds the policy's source work directory to `sys.path` if it exists.
-
-        This allows custom policies defined in the source repository to be
-        imported dynamically.
-        """
-        source_workdir = self.config.source_workdir
-        if source_workdir is not None and source_workdir.exists():
-            text = str(source_workdir)
-            if text not in sys.path:
-                sys.path.insert(0, text)
 
     def _load_policy(self) -> Any:
         """
@@ -525,13 +553,25 @@ class OfficialPolicyRuntime:
         if self._policy is not None:
             return self._policy
 
+        if self.config.policy_target:
+            target_module = self.config.policy_target.partition(":")[0]
+            if not target_module.startswith("worldfoundry."):
+                raise RuntimeError(
+                    f"{self.config.model_id} policy_target must be in-tree under worldfoundry; "
+                    f"got {self.config.policy_target!r}"
+                )
+        if self.config.processor_target:
+            target_module = self.config.processor_target.partition(":")[0]
+            if not target_module.startswith("worldfoundry."):
+                raise RuntimeError(
+                    f"{self.config.model_id} processor_target must be in-tree under worldfoundry; "
+                    f"got {self.config.processor_target!r}"
+                )
+
         # Ensure checkpoint exists if required
         checkpoint_location = self.config.checkpoint_location
         if self.config.require_checkpoint and checkpoint_location is None:
             raise FileNotFoundError(f"{self.config.model_id} checkpoint path is not configured.")
-
-        # Add source path to sys.path for custom policy imports
-        self._install_source_path()
 
         # Backend-specific policy loading logic
         if self.config.backend == "lerobot_policy":
@@ -544,7 +584,11 @@ class OfficialPolicyRuntime:
             if not self.config.policy_target:
                 raise RuntimeError(f"{self.config.model_id} requires policy_target for custom_from_pretrained backend.")
             policy_cls = _import_attr(self.config.policy_target)
-            policy = policy_cls.from_pretrained(str(checkpoint_location), trust_remote_code=self.config.trust_remote_code)
+            policy = policy_cls.from_pretrained(
+                str(checkpoint_location),
+                local_files_only=True,
+                trust_remote_code=False,
+            )
             # Move policy to device and set to eval mode if methods are available
             if hasattr(policy, "to"):
                 policy = policy.to(self.config.device)
@@ -553,7 +597,11 @@ class OfficialPolicyRuntime:
             processor = None
             if self.config.processor_target:
                 processor_cls = _import_attr(self.config.processor_target)
-                processor = processor_cls.from_pretrained(str(checkpoint_location))
+                processor = processor_cls.from_pretrained(
+                    str(checkpoint_location),
+                    local_files_only=True,
+                    trust_remote_code=False,
+                )
             self._policy = (processor, policy)
             return self._policy
         if self.config.backend == "callable_entrypoint":
@@ -570,13 +618,17 @@ class OfficialPolicyRuntime:
                 dtype = torch.bfloat16
             elif self.config.torch_dtype in {"float16", "fp16"}:
                 dtype = torch.float16
-            model_kwargs: dict[str, Any] = {"trust_remote_code": self.config.trust_remote_code}
+            model_kwargs: dict[str, Any] = {
+                "local_files_only": True,
+                "trust_remote_code": False,
+            }
             if dtype is not None:
                 model_kwargs["torch_dtype"] = dtype
             # Load processor and model from Hugging Face
             processor = AutoProcessor.from_pretrained(
                 str(checkpoint_location),
-                trust_remote_code=self.config.trust_remote_code,
+                local_files_only=True,
+                trust_remote_code=False,
             )
             model = AutoModel.from_pretrained(str(checkpoint_location), **model_kwargs)
             model = model.to(self.config.device).eval()
@@ -591,13 +643,17 @@ class OfficialPolicyRuntime:
                 dtype = torch.bfloat16
             elif self.config.torch_dtype in {"float16", "fp16"}:
                 dtype = torch.float16
-            model_kwargs: dict[str, Any] = {"trust_remote_code": self.config.trust_remote_code}
+            model_kwargs: dict[str, Any] = {
+                "local_files_only": True,
+                "trust_remote_code": False,
+            }
             if dtype is not None:
                 model_kwargs["torch_dtype"] = dtype
             # Load processor and model from Hugging Face specifically for image-text-to-text
             processor = AutoProcessor.from_pretrained(
                 str(checkpoint_location),
-                trust_remote_code=self.config.trust_remote_code,
+                local_files_only=True,
+                trust_remote_code=False,
             )
             model = AutoModelForImageTextToText.from_pretrained(str(checkpoint_location), **model_kwargs)
             model = model.to(self.config.device).eval()
@@ -803,7 +859,6 @@ class OfficialPolicyRuntime:
             "checkpoint_path": "" if self.config.checkpoint_path is None else str(self.config.checkpoint_path),
             "checkpoint_ref": "" if self.config.checkpoint_ref is None else self.config.checkpoint_ref,
             "checkpoint_location": "" if self.config.checkpoint_location is None else self.config.checkpoint_location,
-            "source_workdir": "" if self.config.source_workdir is None else str(self.config.source_workdir),
             "instruction": instruction,
             "actions": _jsonable(action_values),
             "raw_output": _jsonable(raw_actions),

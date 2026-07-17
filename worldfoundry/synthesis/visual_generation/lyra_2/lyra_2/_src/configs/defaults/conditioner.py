@@ -1,21 +1,21 @@
+import os
 from dataclasses import dataclass
 from typing import Dict, Optional
 
 import torch
 from hydra.core.config_store import ConfigStore
-
-from lyra_2._ext.imaginaire.lazy_config import LazyCall as L
-from lyra_2._ext.imaginaire.lazy_config import LazyDict
 from lyra_2._src.models.lyra2_model import WAN2PT1_I2V_COND_LATENT_KEY
-from lyra_2._src.networks.clip_lyra2 import Wan2pt1CLIPEmbLyra2
 from lyra_2._src.modules.conditioner import (
     BaseCondition,
     GeneralConditioner,
     ReMapkey,
     T2VCondition,
     TextAttrEmptyStringDrop,
-    broadcast_condition,
 )
+from lyra_2._src.networks.clip_lyra2 import Wan2pt1CLIPEmbLyra2
+
+from worldfoundry.core.configuration.lazy_config import LazyCall as L
+from worldfoundry.core.configuration.lazy_config import LazyDict
 from worldfoundry.core.distributed.context_parallel import broadcast
 
 
@@ -52,6 +52,10 @@ Lyra2ConditionerConfig: LazyDict = L(Img2VidWan2pt1ConditionerLyra2)(
     text=L(TextAttrEmptyStringDrop)(
         input_key=["t5_text_embeddings"],
         dropout_rate=0.2,
+        empty_prompt_path=os.environ.get(
+            "WORLDFOUNDRY_LYRA2_EMPTY_PROMPT_PATH",
+            "./checkpoints/empty_string_umt5.pt",
+        ),
     ),
     fps=L(ReMapkey)(
         input_key="fps",

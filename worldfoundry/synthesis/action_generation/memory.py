@@ -237,14 +237,6 @@ GigaBrain0Memory = _action_memory_class(
     storage_attr="giga_brain_0_traces",
     doc="GigaBrain-0 action prediction memory scoped to one pipeline instance.",
 )
-GigaWorldPolicyMemory = _action_memory_class(
-    "GigaWorldPolicyMemory",
-    model_id="giga-world-policy",
-    policy_family="world_action_model",
-    default_type="giga_world_policy_action_trace",
-    storage_attr="giga_world_policy_actions",
-    doc="GigaWorld-Policy action-trace memory.",
-)
 GR00TMemory = _action_memory_class(
     "GR00TMemory",
     model_id="gr00t",
@@ -334,7 +326,6 @@ __all__ = [
     "DiffusionPolicyMemory",
     "DreamZeroMemory",
     "GigaBrain0Memory",
-    "GigaWorldPolicyMemory",
     "GR00TMemory",
     "LAPAMemory",
     "LingBotVAMemory",

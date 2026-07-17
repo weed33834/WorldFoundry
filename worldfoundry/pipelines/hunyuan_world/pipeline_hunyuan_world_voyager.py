@@ -9,7 +9,7 @@ from pathlib import Path
 from PIL import Image
 from typing import Optional, Any, TYPE_CHECKING
 from ..pipeline_utils import PipelineABC
-from worldfoundry.runtime import resolve_ckpt_dir
+from worldfoundry.runtime.env import resolve_ckpt_dir
 
 DEFAULT_HUNYUAN_WORLD_VOYAGER_MOGE1_REPO = "Ruicheng/moge-vitl"
 

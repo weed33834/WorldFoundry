@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import inspect
+import os
+from importlib import metadata as importlib_metadata
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -166,6 +168,35 @@ class LongVieOfficialRuntime:
     def load(self) -> Any:
         if self.pipe is not None:
             return self.pipe
+        try:
+            from packaging.version import Version
+
+            transformers_version = Version(importlib_metadata.version("transformers"))
+        except (importlib_metadata.PackageNotFoundError, ImportError, ValueError) as exc:
+            raise RuntimeError(
+                "LongVie requires transformers>=4.57,<5 in its isolated runtime environment."
+            ) from exc
+        if not (Version("4.57.0") <= transformers_version < Version("5")):
+            raise RuntimeError(
+                "LongVie requires transformers>=4.57,<5; "
+                f"the active environment has transformers {transformers_version}."
+            )
+        if self.use_usp:
+            try:
+                world_size = int(os.getenv("WORLD_SIZE", "1") or "1")
+            except ValueError as exc:
+                raise RuntimeError("LongVie USP requires an integer WORLD_SIZE from torchrun.") from exc
+            if world_size <= 1:
+                raise RuntimeError(
+                    "LongVie use_usp=True must be launched with torchrun. In Studio, set "
+                    "torchrun_nproc_per_node (the LongVie 2 quality profile defaults to 4)."
+                )
+            if self.ring_degree * self.ulysses_degree != world_size:
+                raise RuntimeError(
+                    "LongVie USP topology must match WORLD_SIZE: "
+                    f"ring_degree({self.ring_degree}) * ulysses_degree({self.ulysses_degree}) "
+                    f"!= WORLD_SIZE({world_size})."
+                )
         ensure_longvie_runtime()
         try:
             from worldfoundry.base_models.diffusion_model.diffsynth.pipelines.wan_video_new_longvie import (
@@ -216,6 +247,17 @@ class LongVieOfficialRuntime:
         if isinstance(result, tuple):
             return result
         return result, None
+
+    @staticmethod
+    def is_output_rank() -> bool:
+        """Only rank zero may write artifacts during USP torchrun inference."""
+
+        try:
+            import torch.distributed as dist
+
+            return not dist.is_available() or not dist.is_initialized() or dist.get_rank() == 0
+        except (ImportError, RuntimeError):
+            return True
 
     @staticmethod
     def save_video(video: Any, output_path: str | Path, *, fps: int = 16, quality: int = 10) -> Path:

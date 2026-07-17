@@ -2,14 +2,9 @@
 
 from __future__ import annotations
 
-import importlib
 import json
-import os
-import sys
 from pathlib import Path
 from typing import Any, Mapping, Sequence
-
-from worldfoundry.core.io.paths import project_root, resolve_worldfoundry_path
 
 
 def option_bool(value: Any, default: bool = False) -> bool:
@@ -34,6 +29,18 @@ def option_float(value: Any, default: float) -> float:
     return float(value)
 
 
+def runtime_options_cache_key(options: Mapping[str, Any]) -> str:
+    """Return a deterministic cache key for a policy runtime option mapping.
+
+    Policy instances retain preprocessing and inference options, so omitting a
+    seemingly small flag from a hand-written cache tuple can silently reuse the
+    wrong runtime.  JSON with a string fallback handles paths, dtypes, and other
+    declarative config values without requiring them to be hashable.
+    """
+
+    return json.dumps(dict(options), ensure_ascii=False, sort_keys=True, default=str, separators=(",", ":"))
+
+
 def first_present(mapping: Mapping[str, Any], *keys: str) -> Any:
     for key in keys:
         if key not in mapping:
@@ -45,70 +52,6 @@ def first_present(mapping: Mapping[str, Any], *keys: str) -> Any:
             continue
         return value
     return None
-
-
-def resolve_source_workdir(
-    options: Mapping[str, Any],
-    repo_name: str,
-    *,
-    specific_env: str | None = None,
-    default_subdir: str = "",
-    in_tree_subdir: str | None = None,
-    allow_external_override: bool | None = None,
-) -> Path:
-    source_subdir = str(options.get("source_subdir") or default_subdir or "")
-    candidates: list[Path] = []
-
-    repo_root = project_root().resolve()
-
-    def _under_repo(path: Path) -> bool:
-        try:
-            path.expanduser().resolve().relative_to(repo_root)
-            return True
-        except ValueError:
-            return False
-
-    if in_tree_subdir:
-        candidates.append(repo_root / in_tree_subdir)
-
-    explicit = first_present(options, "source_repo", "official_source_repo", "repo_source")
-    if explicit is not None:
-        explicit_path = resolve_worldfoundry_path(str(explicit))
-        if _under_repo(explicit_path):
-            candidates.append(explicit_path)
-        elif allow_external_override or option_bool(options.get("allow_external_source_repo"), False):
-            candidates.append(explicit_path)
-
-    if specific_env and os.environ.get(specific_env):
-        env_path = resolve_worldfoundry_path(os.environ[specific_env])
-        if _under_repo(env_path) or allow_external_override or option_bool(options.get("allow_external_source_repo"), False):
-            candidates.append(env_path)
-
-    seen: set[Path] = set()
-    for root in candidates:
-        workdir = (root / source_subdir).resolve() if source_subdir else root.resolve()
-        if workdir in seen:
-            continue
-        seen.add(workdir)
-        if workdir.exists():
-            return workdir
-
-    root = candidates[0] if candidates else repo_root / repo_name
-    return (root / source_subdir).resolve() if source_subdir else root.resolve()
-
-
-def ensure_import_path(path: str | Path) -> Path:
-    resolved = Path(path).expanduser().resolve()
-    text = str(resolved)
-    if text not in sys.path:
-        sys.path.insert(0, text)
-        importlib.invalidate_caches()
-    return resolved
-
-
-def import_from_workdir(module_name: str, workdir: str | Path) -> Any:
-    ensure_import_path(workdir)
-    return importlib.import_module(module_name)
 
 
 def load_json_if_present(path: str | Path) -> dict[str, Any] | None:

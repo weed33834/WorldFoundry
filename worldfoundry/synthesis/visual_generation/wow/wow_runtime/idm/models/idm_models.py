@@ -1,29 +1,17 @@
-import os
-import hashlib
-import glob
-import json
-import argparse
-import numpy as np
-from PIL import Image
-from tqdm import tqdm
-
+import timm
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torchvision import transforms
 import torchvision.models as models
-import torch.nn.init as init
-
-import timm
 
 # ------------------------------
 # Model definitions
 # ------------------------------
 
+
 class DinoIDM(nn.Module):
     def __init__(self, output_dim=7):
         super().__init__()
-        self.encoder = timm.create_model('vit_small_patch14_dinov2', pretrained=True)
+        self.encoder = timm.create_model("vit_small_patch14_dinov2", pretrained=True)
         # get model specific transforms (normalization, resize)
         data_config = timm.data.resolve_model_data_config(self.encoder)
         self.transforms = timm.data.create_transform(**data_config, is_training=False)
@@ -41,7 +29,7 @@ class DinoIDM(nn.Module):
             nn.LeakyReLU(),
             nn.Linear(512, 256),
             nn.LeakyReLU(),
-            nn.Linear(256, output_dim)
+            nn.Linear(256, output_dim),
         )
 
     def forward(self, rgb, instr):
@@ -56,17 +44,16 @@ class DinoIDM(nn.Module):
         out = self.fc(x)
         return out
 
-import torch
-import torch.nn as nn
-import timm
+
 # from cotracker.utils.visualizer import Visualizer
+
 
 class Dino3DFlowIDM(nn.Module):
     def __init__(self, output_dim=7):
         super().__init__()
         # load Co-Tracker model via torch.hub (kept flexible; no hardcoded paths)
         self.flow_tracker = torch.hub.load("facebookresearch/co-tracker", "cotracker3_offline")
-        self.encoder = timm.create_model('vit_small_patch14_dinov2', pretrained=True)
+        self.encoder = timm.create_model("vit_small_patch14_dinov2", pretrained=True)
 
         data_config = timm.data.resolve_model_data_config(self.encoder)
         self.transforms = timm.data.create_transform(**data_config, is_training=False)
@@ -78,11 +65,7 @@ class Dino3DFlowIDM(nn.Module):
         self.image_fc = nn.Linear(self.embed_dim * 2, 512)
 
         # Flow feature processing layers
-        self.flow_fc = nn.Sequential(
-            nn.Linear(400 * 2, 256),
-            nn.ReLU(),
-            nn.Linear(256, 128)
-        )
+        self.flow_fc = nn.Sequential(nn.Linear(400 * 2, 256), nn.ReLU(), nn.Linear(256, 128))
 
         # Overall fusion and prediction layers
         self.fc = nn.Sequential(
@@ -93,7 +76,7 @@ class Dino3DFlowIDM(nn.Module):
             nn.LeakyReLU(),
             nn.Linear(512, 256),
             nn.LeakyReLU(),
-            nn.Linear(256, output_dim)
+            nn.Linear(256, output_dim),
         )
 
     # inference forward: accepts raw RGB pair tensors and runs flow tracker internally
@@ -106,12 +89,12 @@ class Dino3DFlowIDM(nn.Module):
         feat1 = self.encoder(self.transforms(img1))  # B, D
         feat2 = self.encoder(self.transforms(img2))  # B, D
         img_feat = torch.cat([feat1, feat2], dim=1)  # B, 2D
-        img_feat = self.image_fc(img_feat)           # B, 512
+        img_feat = self.image_fc(img_feat)  # B, 512
 
         # Flow feature extraction (processed per-sample to avoid CoTracker batching issues)
         flow_feats = []
         for i in range(B):
-            rgb_i = rgb[i:i+1]  # shape: (1, 2, C, H, W)
+            rgb_i = rgb[i : i + 1]  # shape: (1, 2, C, H, W)
             rgb_i_repeat = rgb_i.repeat(1, 5, 1, 1, 1) * 255
 
             # Single inference through flow tracker
@@ -124,32 +107,33 @@ class Dino3DFlowIDM(nn.Module):
 
         # Stack and reduce flow features
         flow_feats = torch.stack(flow_feats, dim=0)  # shape: (B, 800)
-        flow_feats = self.flow_fc(flow_feats)        # shape: (B, 128)
+        flow_feats = self.flow_fc(flow_feats)  # shape: (B, 128)
 
         # Concatenate image and flow features and predict
         x = torch.cat([img_feat, flow_feats], dim=1)  # B, 640
         out = self.fc(x)
         return out
 
+
 class ResNetIDM(nn.Module):
     def __init__(self, input_dim=3, output_dim=7):
         super().__init__()
         self.model = models.resnet18(pretrained=True)
-        
+
         self.model = nn.Sequential(*list(self.model.children()))[:7]
         self.embeds = nn.Embedding(20, 128)
         self.down = nn.Conv2d(256, 256, 3, 2, 1)
 
         self.image_fc = nn.Linear(8192, 512)
         self.fc = nn.Sequential(
-            nn.Linear(512+128, 1024),
+            nn.Linear(512 + 128, 1024),
             nn.LeakyReLU(),
             nn.Dropout(0.1),
             nn.Linear(1024, 512),
             nn.LeakyReLU(),
             nn.Linear(512, 256),
             nn.LeakyReLU(),
-            nn.Linear(256, output_dim)
+            nn.Linear(256, output_dim),
         )
 
     def forward(self, rgb, instr):
@@ -164,6 +148,7 @@ class ResNetIDM(nn.Module):
         x = torch.cat([x, instr], 1)
         x = self.fc(x)
         return x
+
 
 def cycle(dl):
     while True:

@@ -15,8 +15,24 @@ from typing import Any, Mapping, Sequence
 
 from worldfoundry.evaluation.models.runtime.profiles import load_runtime_profile
 from worldfoundry.synthesis.action_generation.runtime_config import load_vla_va_wam_runtime_config
+
 from ..base_action_synthesis import ActionModelSynthesis
 from .runtime import OfficialPolicyRuntime, OfficialPolicyRuntimeConfig, build_runtime_config
+
+
+def _looks_like_hub_repo_id(value: str) -> bool:
+    """Distinguish an ``owner/repository`` model reference from a local path."""
+
+    text = value.strip()
+    if not text or text.startswith(("/", "./", "../", "~", "$")) or "://" in text:
+        return False
+    owner, separator, repository = text.partition("/")
+    if not separator or not owner or not repository or "/" in repository:
+        return False
+    allowed = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")
+    return all(character in allowed for character in owner) and all(
+        character in allowed for character in repository
+    )
 
 
 class OfficialPolicySynthesis(ActionModelSynthesis):
@@ -96,9 +112,18 @@ class OfficialPolicySynthesis(ActionModelSynthesis):
 
         # Initialize options from pretrained_model_path if it's a mapping, otherwise an empty dict.
         options = dict(pretrained_model_path) if isinstance(pretrained_model_path, Mapping) else {}
-        # If pretrained_model_path is a path-like string, set it as the checkpoint_path.
+        # Studio's ``model_ref`` is passed through this argument as a plain
+        # string.  Treat an ``owner/repository`` value as a repository
+        # reference; classifying it as a relative filesystem path makes it
+        # resolve under the current working directory and blocks every
+        # non-default checkpoint variant.  Existing/local path spellings keep
+        # their original path semantics.
         if pretrained_model_path is not None and not isinstance(pretrained_model_path, Mapping):
-            options["checkpoint_path"] = str(pretrained_model_path)
+            checkpoint_value = str(pretrained_model_path)
+            if _looks_like_hub_repo_id(checkpoint_value):
+                options["checkpoint_ref"] = checkpoint_value
+            else:
+                options["checkpoint_path"] = checkpoint_value
         # Merge any additional keyword arguments into the options dictionary.
         options.update(kwargs)
 
@@ -171,7 +196,6 @@ class OfficialPolicySynthesis(ActionModelSynthesis):
             config.backend,
             str(config.checkpoint_path),
             str(config.checkpoint_ref),
-            str(config.source_workdir),
             config.device,
             config.torch_dtype,
             config.policy_target,

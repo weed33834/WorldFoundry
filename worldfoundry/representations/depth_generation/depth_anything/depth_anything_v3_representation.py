@@ -222,6 +222,21 @@ class DepthAnything3Representation(BaseRepresentation):
         )
         depth_visualizations = _build_depth_visualizations(prediction.depth)
 
+        # Depth Anything V3 writes its viewer-ready outputs below
+        # ``<export_dir>/exports`` but the upstream API returns only the in-memory
+        # prediction.  Surface the files explicitly so Studio does not stop after
+        # registering the 2D depth previews and omit the NPZ/GLB/PLY artifact.
+        export_artifacts = []
+        export_dir = data.get("export_dir")
+        if export_dir:
+            exports_root = Path(export_dir) / "exports"
+            if exports_root.is_dir():
+                export_artifacts = [
+                    str(path)
+                    for path in sorted(exports_root.rglob("*"))
+                    if path.is_file()
+                ]
+
         return {
             "prediction": prediction,
             "depth": prediction.depth,
@@ -235,4 +250,5 @@ class DepthAnything3Representation(BaseRepresentation):
             "gaussians": prediction.gaussians,
             "is_metric": bool(prediction.is_metric),
             "scale_factor": prediction.scale_factor,
+            "artifact_paths": export_artifacts,
         }

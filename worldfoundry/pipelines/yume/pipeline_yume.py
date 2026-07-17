@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from worldfoundry.runtime import resolve_ckpt_dir
+from worldfoundry.runtime.env import resolve_ckpt_dir
 
 from ..pipeline_utils import PipelineABC
 

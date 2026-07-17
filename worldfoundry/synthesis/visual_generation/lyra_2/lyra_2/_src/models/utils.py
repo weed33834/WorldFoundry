@@ -15,7 +15,8 @@
 
 import torch
 
-from lyra_2._ext.imaginaire.utils import log
+from worldfoundry.core.distributed.logging import log
+
 
 # based on https://github.com/huggingface/diffusers/blob/b793debd9d09225582943a1e9cb4ccdab30f1b37/src/diffusers/loaders/lora_conversion_utils.py#L1817
 # since our model is the same as non-diffusers Wan, we only need to change the lora keys:
@@ -206,11 +207,11 @@ def _convert_non_diffusers_wan_lora_to_diffusers(state_dict, adapter_name="defau
             if original_key in original_state_dict:
                 converted_state_dict[converted_up_key] = original_state_dict.pop(original_key)
 
-            alpha_key = f"time_projection.1.alpha"
+            alpha_key = "time_projection.1.alpha"
             if alpha_key in original_state_dict:
                 down_weight = converted_state_dict[converted_down_key]
                 up_weight = converted_state_dict[converted_up_key]
-                scale_down, scale_up = get_alpha_scales(down_weight, f"time_projection.1")
+                scale_down, scale_up = get_alpha_scales(down_weight, "time_projection.1")
                 converted_state_dict[converted_down_key] = down_weight * scale_down
                 converted_state_dict[converted_up_key] = up_weight * scale_up
 
@@ -231,11 +232,11 @@ def _convert_non_diffusers_wan_lora_to_diffusers(state_dict, adapter_name="defau
                     "head.head.diff_b"
                 )
 
-            alpha_key = f"head.head.alpha"
+            alpha_key = "head.head.alpha"
             if alpha_key in original_state_dict:
                 down_weight = converted_state_dict[f"head.head.lora_A.{adapter_name}.weight"]
                 up_weight = converted_state_dict[f"head.head.lora_B.{adapter_name}.weight"]
-                scale_down, scale_up = get_alpha_scales(down_weight, f"head.head")
+                scale_down, scale_up = get_alpha_scales(down_weight, "head.head")
                 converted_state_dict[f"head.head.lora_A.{adapter_name}.weight"] = down_weight * scale_down
                 converted_state_dict[f"head.head.lora_B.{adapter_name}.weight"] = up_weight * scale_up
 

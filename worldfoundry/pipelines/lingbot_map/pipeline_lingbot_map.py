@@ -164,9 +164,19 @@ class LingBotMapResult:
             if extrinsic_arr is not None and len(extrinsic_arr):
                 ext = extrinsic_arr[min(frame_idx, len(extrinsic_arr) - 1)]
                 if ext.shape == (3, 4):
-                    pts = pts @ ext[:, :3].T + ext[:, 3]
+                    ext_h = np.eye(4, dtype=np.float32)
+                    ext_h[:3, :] = ext
                 elif ext.shape == (4, 4):
-                    pts = pts @ ext[:3, :3].T + ext[:3, 3]
+                    ext_h = ext
+                else:
+                    ext_h = None
+                if ext_h is not None:
+                    try:
+                        camera_to_world = np.linalg.inv(ext_h)
+                    except np.linalg.LinAlgError:
+                        camera_to_world = None
+                    if camera_to_world is not None:
+                        pts = pts @ camera_to_world[:3, :3].T + camera_to_world[:3, 3]
             if color_arr is not None and color_arr.ndim == 4:
                 color_frame = color_arr[min(frame_idx, color_arr.shape[0] - 1)]
                 frame_rgb = color_frame.reshape(-1, color_frame.shape[-1])[valid, :3]

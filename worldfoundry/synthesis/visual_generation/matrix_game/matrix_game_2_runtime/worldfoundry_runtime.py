@@ -158,7 +158,11 @@ class MatrixGame2Runtime:
 
         generator = WanDiffusionWrapper(**getattr(config, "model_kwargs", {}), is_causal=True)
         current_vae_decoder = VAEDecoderWrapper()
-        vae_state_dict = torch.load(os.path.join(model_root, "Wan2.1_VAE.pth"), map_location="cpu")
+        vae_state_dict = torch.load(
+            os.path.join(model_root, "Wan2.1_VAE.pth"),
+            map_location="cpu",
+            weights_only=True,
+        )
         decoder_state_dict = {}
         for key, value in vae_state_dict.items():
             if "decoder." in key or "conv2" in key:

@@ -134,7 +134,7 @@ class OctoSynthesis(ActionModelSynthesis):
         Raises:
             ValueError: If `image_size` is not a tuple of two integers.
         """
-        from worldfoundry.synthesis.action_generation.octo.octo_runtime.inference import OctoRuntimeConfig, select_octo_checkpoint
+        from .runtime import OctoRuntimeConfig, select_octo_checkpoint
 
         # Combine instance-level runtime options with call-specific options.
         explicit_options = {**self.runtime_options, **dict(options)}
@@ -164,13 +164,18 @@ class OctoSynthesis(ActionModelSynthesis):
         image_size = tuple(int(item) for item in image_size_value)
         if len(image_size) != 2:
             raise ValueError("Octo image_size must contain width and height.")
+        jax_platform = explicit_options.get("jax_platform")
+        if jax_platform is None:
+            jax_platform = (
+                "cuda" if str(self.device).lower().startswith("cuda") else merged["jax_platform"]
+            )
         return OctoRuntimeConfig(
             checkpoint_dir=checkpoint,
             variant=variant,
             dataset_key=str(merged["dataset_key"]),
             image_key=str(merged["image_key"]),
             image_size=(image_size[0], image_size[1]),
-            jax_platform=str(merged["jax_platform"]),
+            jax_platform=str(jax_platform),
             seed=int(merged["seed"]),
         )
 
@@ -186,7 +191,7 @@ class OctoSynthesis(ActionModelSynthesis):
         Returns:
             An initialized OctoRuntime instance.
         """
-        from worldfoundry.synthesis.action_generation.octo.octo_runtime.inference import OctoRuntime
+        from .runtime import OctoRuntime
 
         # Create a unique key from the configuration parameters for caching.
         key = (

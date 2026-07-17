@@ -25,7 +25,7 @@ from worldfoundry.synthesis.action_generation.dreamzero import runtime_root as d
 RUNTIME_ROOT = dreamzero_runtime_root()
 # Full module path for the optimized DreamZero AR server entrypoint.
 OFFICIAL_SERVER_MODULE = (
-    "worldfoundry.synthesis.action_generation.dreamzero.dreamzero_runtime.server_optimized_ar"
+    "worldfoundry.synthesis.action_generation.dreamzero.server"
 )
 
 
@@ -259,7 +259,12 @@ def select_dreamzero_checkpoint(
         # If an explicit checkpoint directory is provided, use it directly.
         selected = _expand_runtime_path(checkpoint_dir)
     else:
-        candidates = [dict(item) for item in checkpoints]
+        checkpoint_items = [
+            dict(item)
+            for item in checkpoints
+            if str(item.get("role") or "").endswith("_checkpoint")
+        ]
+        candidates = checkpoint_items or [dict(item) for item in checkpoints]
         if not candidates:
             raise ValueError("DreamZero requires checkpoint_dir or profile checkpoint metadata.")
 
@@ -271,7 +276,7 @@ def select_dreamzero_checkpoint(
                 for item in candidates
                 if variant_text in str(item.get("id") or "").lower()
                 or variant_text in str(item.get("repo_id") or "").lower()
-            ] or [dict(item) for item in checkpoints]
+            ] or list(candidates)
 
         # Prioritize existing local checkpoints if available.
         existing = [item for item in candidates if item.get("local_dir") and _checkpoint_exists(str(item["local_dir"]))]
@@ -308,12 +313,11 @@ def describe_in_tree_runtime(checkpoint_dir: str | Path | None = None) -> dict[s
         "runtime_root": str(RUNTIME_ROOT),
         "official_server_module": OFFICIAL_SERVER_MODULE,
         "source_evidence": {
-            "server_entrypoint": str(RUNTIME_ROOT / "server_optimized_ar.py"),
+            "server_entrypoint": str(RUNTIME_ROOT / "server.py"),
             "official_source_entrypoint": "socket_test_optimized_AR.py",
-            "wan22_server_entrypoint": str(RUNTIME_ROOT / "eval_utils" / "serve_dreamzero_wan22.py"),
-            "policy_class": "dreamzero_runtime.groot.vla.model.n1_5.sim_policy.GrootSimPolicy",
-            "model_class": "dreamzero_runtime.groot.vla.model.dreamzero.base_vla.VLA",
-            "package_aliases": ["groot", "eval_utils"],
+            "wan22_server_entrypoint": str(RUNTIME_ROOT / "serve_wan22.py"),
+            "policy_class": "worldfoundry.synthesis.action_generation.dreamzero.modeling.policy.GrootSimPolicy",
+            "model_class": "worldfoundry.synthesis.action_generation.dreamzero.modeling.vla.VLA",
         },
         "checkpoint": {
             "path": "" if checkpoint is None else str(checkpoint),
@@ -322,7 +326,8 @@ def describe_in_tree_runtime(checkpoint_dir: str | Path | None = None) -> dict[s
         },
         "known_blockers": [
             "Official DreamZero inference still requires external checkpoint assets.",
-            "Official runtime requires Python 3.11, torch 2.8/cu129-era CUDA dependencies, flash-attn, TensorRT, and multi-GPU CUDA for default 14B serving.",
+            "The default 14B runtime requires Python 3.11, torch 2.8/cu129-era CUDA dependencies, and two CUDA ranks; the Wan2.2 5B entrypoint can use one rank.",
+            "Flash Attention and TensorRT are optional local accelerators; PyTorch SDPA remains available and TensorRT loads only when LOAD_TRT_ENGINE is explicitly configured.",
             "Live inference requires launching the in-tree distributed WebSocket server before the client demo.",
         ],
     }
@@ -589,9 +594,9 @@ class DreamZeroWebsocketClient:
             host: The hostname or IP address of the DreamZero server.
             port: The port number of the DreamZero WebSocket server.
         """
-        # Imports are placed here to avoid making websockets/openpi-client hard dependencies for the module.
+        # Imports are placed here to avoid making WebSocket transport a module import dependency.
         import websockets.sync.client
-        from openpi_client import msgpack_numpy
+        from . import protocol as msgpack_numpy
 
         self._msgpack_numpy = msgpack_numpy
         self._packer = msgpack_numpy.Packer()

@@ -4,16 +4,18 @@ source videos, and camera trajectories using the ReCamMaster model integrated wi
 It handles model loading, initialization, and video generation through a standardized interface.
 """
 import os
+
 import torch
 import torch.nn as nn
-import numpy as np
 from torchvision.transforms import v2
-from ...base_synthesis import BaseSynthesis
 
+from worldfoundry.core.checkpoint import load_tensor_state_dict
 from worldfoundry.synthesis.visual_generation.kling.recammaster_runtime.model_manager import ModelManager
 from worldfoundry.synthesis.visual_generation.kling.recammaster_runtime.pipelines.wan_video_recammaster import (
     WanVideoReCamMasterPipeline,
 )
+
+from ...base_synthesis import BaseSynthesis
 
 
 class ReCamMasterSynthesis(BaseSynthesis):
@@ -112,7 +114,7 @@ class ReCamMasterSynthesis(BaseSynthesis):
 
         # Load ReCamMaster specific checkpoint state dictionary
         recammaster_ckpt_path = os.path.join(recammaster_ckpt_path, "step20000.ckpt")
-        state_dict = torch.load(recammaster_ckpt_path, map_location="cpu")
+        state_dict = load_tensor_state_dict(recammaster_ckpt_path)
         pipe.dit.load_state_dict(state_dict, strict=True) # Load checkpoint into the DIT model with strict key matching
         pipe.to(device) # Move the entire pipeline to the specified device
         pipe.to(dtype=weight_dtype) # Set the data type for the pipeline's tensors

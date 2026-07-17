@@ -64,7 +64,7 @@ class OpenPISynthesis(ActionModelSynthesis):
         self._runtime: OpenPIRuntime | None = None
         # Stores the key (config parameters) associated with the currently loaded runtime.
         # Used for caching to avoid reloading the runtime if config doesn't change.
-        self._runtime_key: tuple[str, str, str | None, int] | None = None
+        self._runtime_key: tuple[str, str, str | None, str, int, str, str] | None = None
 
     @classmethod
     def from_pretrained(
@@ -152,6 +152,17 @@ class OpenPISynthesis(ActionModelSynthesis):
         merged = {**runtime_defaults, **explicit_options}
 
         config_name = str(merged["config_name"])
+        data_family = config_name.rsplit("_", 1)[-1].lower()
+        if data_family not in {"aloha", "droid", "libero"}:
+            raise ValueError(
+                f"OpenPI config {config_name!r} does not identify a supported data family"
+            )
+        configured_family = str(merged.get("data_family") or data_family).lower()
+        if configured_family != data_family:
+            raise ValueError(
+                f"OpenPI config {config_name!r} implies data family {data_family!r}, "
+                f"not {configured_family!r}"
+            )
         # Resolve the checkpoint directory from multiple possible keys in explicit_options.
         checkpoint_dir = (
             explicit_options.get("checkpoint_dir")
@@ -165,13 +176,17 @@ class OpenPISynthesis(ActionModelSynthesis):
             config_name=config_name,
             require_exists=bool(merged.get("require_checkpoint_exists", True)),
         )
-        pytorch_device = merged.get("pytorch_device")
+        pytorch_device = merged.get("pytorch_device") or merged.get("device")
         seed = int(merged["seed"])
         return OpenPIRuntimeConfig(
             checkpoint_dir=checkpoint,
             config_name=config_name,
+            data_family=data_family,
             pytorch_device=str(pytorch_device) if pytorch_device is not None else None,
+            torch_dtype=str(merged.get("torch_dtype") or "auto"),
             seed=seed,
+            paligemma_tokenizer_path=str(merged["paligemma_tokenizer_path"]),
+            fast_tokenizer_path=str(merged["fast_tokenizer_path"]),
         )
 
     def _runtime_for(self, config: OpenPIRuntimeConfig) -> OpenPIRuntime:
@@ -191,8 +206,12 @@ class OpenPISynthesis(ActionModelSynthesis):
         key = (
             str(config.checkpoint_dir),
             config.config_name,
+            config.data_family,
             config.pytorch_device,
+            config.torch_dtype,
             config.seed,
+            config.paligemma_tokenizer_path,
+            config.fast_tokenizer_path,
         )
         # Check if runtime is not loaded or if the configuration key has changed.
         if self._runtime is None or self._runtime_key != key:
@@ -240,7 +259,7 @@ class OpenPISynthesis(ActionModelSynthesis):
         **kwargs: Any,
     ) -> dict[str, Any]:
         """
-        Prepares an OpenPI run plan and optionally executes vendored policy inference.
+        Prepares an OpenPI run plan and optionally executes in-tree policy inference.
 
         This method generates a plan for an OpenPI execution, including model configuration
         and context. If `plan_only` is False, it then proceeds to execute the OpenPI policy
@@ -298,7 +317,9 @@ class OpenPISynthesis(ActionModelSynthesis):
                 "backend": "worldfoundry.openpi.in_tree_runtime.create_trained_policy_infer",
                 "checkpoint_dir": str(runtime_config.checkpoint_dir),
                 "config_name": runtime_config.config_name,
+                "data_family": runtime_config.data_family,
                 "pytorch_device": runtime_config.pytorch_device,
+                "torch_dtype": runtime_config.torch_dtype,
                 "seed": runtime_config.seed,
             },
         }
@@ -322,12 +343,27 @@ class OpenPISynthesis(ActionModelSynthesis):
         if image is None and context.get("image_path"):
             image = context["image_path"]
 
+        observation_payload = dict(kwargs.get("openpi_observation") or {})
+        for key in (
+            "state",
+            "proprio",
+            "robot_state",
+            "joint_state",
+            "joint_position",
+            "gripper_position",
+            "observation/state",
+            "observation/joint_position",
+            "observation/gripper_position",
+        ):
+            if key in kwargs and kwargs[key] is not None:
+                observation_payload.setdefault(key, kwargs[key])
+
         # Execute the OpenPI policy prediction using the resolved runtime and inputs.
         result = self._runtime_for(runtime_config).predict_action(
             instruction=prompt,
             image=image,
             output_path=context["output_path"],
-            openpi_observation=kwargs.get("openpi_observation"),
+            openpi_observation=observation_payload,
             extra_metadata={
                 "run_dir": str(run_dir),
                 "profile": self.profile.to_dict(),

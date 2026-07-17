@@ -3,54 +3,72 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any, Mapping, Sequence
 
+from worldfoundry.core.io.paths import hfd_root_path
 from worldfoundry.synthesis.action_generation._native_policy_runtime import (
     completed_action_result,
     first_present,
-    import_from_workdir,
     option_int,
-    resolve_source_workdir,
     to_numpy_image,
 )
 
-
 _RUNTIME_CACHE: dict[tuple[Any, ...], tuple[Any, Any, Any]] = {}
-_IN_TREE_RUNTIME = "worldfoundry/synthesis/action_generation/vlanext/vlanext_runtime"
+
+
+def clear_runtime_cache() -> None:
+    from worldfoundry.core.runtime_cache import clear_inference_runtime_cache
+
+    clear_inference_runtime_cache(_RUNTIME_CACHE)
+
+
+def _local_hfd_ref(repo_id: str) -> str:
+    slug = repo_id.replace("/", "--")
+    hfd_root = hfd_root_path()
+    for root in (hfd_root, hfd_root.parent / "hfd_models"):
+        candidate = root / slug
+        if (candidate / "config.json").is_file():
+            return str(candidate)
+    return repo_id
 
 
 def _cfg(location: str, options: Mapping[str, Any]) -> Any:
-    model_options = {}
+    model_options = {
+        "lmm_path": str(options.get("lmm_path") or _local_hfd_ref("Qwen/Qwen3-VL-2B-Instruct")),
+    }
     if options.get("diffusion_steps") is not None:
         model_options["diffusion_steps"] = option_int(options.get("diffusion_steps"), 10)
     if options.get("scheduler_type") is not None:
         model_options["scheduler_type"] = str(options["scheduler_type"])
+    if options.get("attention_backend") is not None:
+        model_options["attention_backend"] = str(options["attention_backend"])
     return SimpleNamespace(eval=SimpleNamespace(finetuned_checkpoint=location), model=SimpleNamespace(**model_options))
 
 
 def _runtime_for(location: str, device: str, options: Mapping[str, Any]) -> tuple[Any, Any, Any]:
-    workdir = resolve_source_workdir(
-        options,
-        "vlanext",
-        specific_env="WORLDFOUNDRY_VLANEXT_REPO",
-        in_tree_subdir=_IN_TREE_RUNTIME,
-    )
+    from . import inference
+
     key = (
-        str(workdir),
         location,
         device,
         options.get("diffusion_steps"),
         options.get("scheduler_type"),
+        options.get("torch_dtype"),
+        options.get("attention_backend"),
+        options.get("lmm_path"),
     )
     cached = _RUNTIME_CACHE.get(key)
     if cached is not None:
         return cached
-    utils = import_from_workdir("src.evaluation.libero_bench.VLANeXt_utils", workdir)
     cfg = _cfg(location, options)
-    model = utils.get_vla(cfg)
-    if hasattr(model, "to"):
-        model = model.to(device)
+    model = inference.get_vla(
+        cfg,
+        device=device,
+        torch_dtype=options.get("torch_dtype", "auto"),
+    )
     if hasattr(model, "eval"):
         model = model.eval()
-    processor = utils.get_processor(cfg)
+    processor = getattr(model, "processor", None)
+    if processor is None:
+        processor = inference.get_processor(cfg, checkpoint_config=model.checkpoint_config)
     cached = (cfg, model, processor)
     _RUNTIME_CACHE[key] = cached
     return cached
@@ -88,6 +106,8 @@ def predict_action(
     device: str,
     runtime_options: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    from . import inference
+
     del action_context
     options = dict(runtime_options or {})
     location = checkpoint_path or str(options.get("checkpoint_ref") or "")
@@ -97,15 +117,14 @@ def predict_action(
     obs = _observation(observation, image, instruction)
     if obs.get("full_image") is None:
         raise ValueError("VLANeXt requires full_image or image input for direct inference.")
-    raw = import_from_workdir(
-        "src.evaluation.libero_bench.VLANeXt_utils",
-        resolve_source_workdir(
-            options,
-            "vlanext",
-            specific_env="WORLDFOUNDRY_VLANEXT_REPO",
-            in_tree_subdir=_IN_TREE_RUNTIME,
-        ),
-    ).get_vla_action(cfg, model, processor, obs, instruction)
+    raw = inference.get_vla_action(
+        cfg,
+        model,
+        processor,
+        obs,
+        instruction,
+        seed=options.get("seed"),
+    )
     return completed_action_result(
         model_id="vlanext",
         instruction=instruction,
@@ -115,7 +134,11 @@ def predict_action(
         device=device,
         runtime="worldfoundry.vlanext.native_in_process",
         metadata={
-            "official_entrypoint": "src.evaluation.libero_bench.VLANeXt_utils:get_vla_action",
+            "official_entrypoint": "worldfoundry.vlanext.inference:get_vla_action",
             "task_suite_name": options.get("task_suite_name"),
+            "strict_checkpoint": True,
         },
     )
+
+
+__all__ = ["clear_runtime_cache", "predict_action"]

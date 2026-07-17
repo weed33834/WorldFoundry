@@ -7,13 +7,13 @@ import cv2
 import os
 import inspect
 from PIL import Image
-from typing import Optional, Any, List, Union, TYPE_CHECKING
+from typing import Optional, Any, List, Mapping, Sequence, Union, TYPE_CHECKING
 from worldfoundry.core.io import write_video
 from ...operators.matrix_game_2_operator import MatrixGame2Operator
 from ...synthesis.visual_generation.memory.stream import VisualFrameMemory
 import logging
 
-from worldfoundry.runtime import resolve_ckpt_dir
+from worldfoundry.runtime.env import resolve_ckpt_dir
 
 if TYPE_CHECKING:
     from ...synthesis.visual_generation.matrix_game.matrix_game_2_synthesis import MatrixGame2Synthesis
@@ -43,6 +43,7 @@ class MatrixGame2Pipeline(PipelineABC):
         self.device = device
         self.weight_dtype = weight_dtype
         self.current_image = None
+        self._realtime_session: Any = None
 
     @classmethod
     def from_pretrained(cls,
@@ -253,3 +254,75 @@ class MatrixGame2Pipeline(PipelineABC):
         self.memory_module.record(video_output)
 
         return video_output
+
+    def _ensure_realtime_session(self) -> Any:
+        """Construct the model-owned resident rollout adapter once."""
+
+        if self._realtime_session is None:
+            if self.synthesis_model is None or self.operators is None:
+                raise RuntimeError("Matrix-Game 2 pipeline is not initialized.")
+            from ...synthesis.visual_generation.matrix_game.matrix_game_2_runtime.realtime import (
+                MatrixGame2RealtimeSession,
+            )
+
+            self._realtime_session = MatrixGame2RealtimeSession(
+                self.synthesis_model.runtime,
+                self.operators,
+            )
+        return self._realtime_session
+
+    def prepare_realtime(self) -> dict[str, Any]:
+        """Load the resident adapter and report the model's native cadence."""
+
+        session = self._ensure_realtime_session()
+        return {"realtime_spec": session.realtime_spec().to_payload()}
+
+    def configure_realtime(
+        self,
+        images: Any,
+        prompt: str = "",
+        seed: int = 42,
+        fps: int = 12,
+        **_: Any,
+    ) -> dict[str, Any]:
+        """Encode a seed image and allocate rollout caches without generating."""
+
+        del prompt, fps
+        if isinstance(images, (str, os.PathLike)):
+            with Image.open(os.fspath(images)) as source:
+                images = source.convert("RGB")
+        if not isinstance(images, Image.Image):
+            raise ValueError("Matrix-Game 2 realtime requires a PIL image or image path.")
+        if self.memory_module is not None:
+            self.memory_module.manage(action="reset")
+            self.memory_module.record(images, record_frames=False, type="image")
+        return self._ensure_realtime_session().configure(images, seed=seed)
+
+    def stream_realtime(
+        self,
+        interactions: Sequence[str] | None = None,
+        realtime_segments: Sequence[Mapping[str, Any]] | None = None,
+        seed: int = 42,
+        prompt: str = "",
+        **_: Any,
+    ) -> dict[str, Any]:
+        """Advance the existing causal rollout by exactly one native block."""
+
+        # The rollout owns one continuous RNG stream. Re-seeding every control
+        # chunk would repeat diffusion noise and create visible temporal beats.
+        del seed, prompt
+        return self._ensure_realtime_session().generate(
+            interactions=list(interactions or ()),
+            control_segments=realtime_segments,
+        )
+
+    def realtime_next_output_frames(self) -> int:
+        return int(self._ensure_realtime_session().next_output_frames())
+
+    def reset_realtime(self) -> None:
+        """Drop rollout caches while retaining decoder and model weights."""
+
+        if self._realtime_session is not None:
+            self._realtime_session.reset()
+        if self.memory_module is not None:
+            self.memory_module.manage(action="reset")

@@ -340,6 +340,7 @@ class GeometryPriorSynthesis(BaseSynthesis):
                 output_dir=output_dir,
                 depth_kind=str(getattr(model.depth_type, "value", model.depth_type)),
                 max_points=int(kwargs.get("max_points") or 5000),
+                focal_length=focal,
                 extra_metadata={"checkpoint_path": ckpt, "pattern": str(kwargs.get("pattern") or "2000")},
             )
         elif self.model_id == "unidepth-v2-prior":
@@ -351,7 +352,19 @@ class GeometryPriorSynthesis(BaseSynthesis):
             from worldfoundry.base_models.three_dimensions.depth.unik3d import Unik3DModel
 
             model = Unik3DModel(type=str(kwargs.get("type") or "l"), model_path=ckpt)
-            src = DepthEstimationInput(rgb=rgb_tensor)
+            camera_model = str(kwargs.get("camera_model") or "auto").strip().lower()
+            if camera_model == "panorama":
+                src = DepthEstimationInput(rgb=rgb_tensor, camera_type=CameraType.PANORAMA)
+            elif camera_model == "pinhole":
+                src = DepthEstimationInput(
+                    rgb=rgb_tensor,
+                    intrinsics=torch.tensor([focal], device=device),
+                    camera_type=CameraType.PINHOLE,
+                )
+            elif camera_model == "auto":
+                src = DepthEstimationInput(rgb=rgb_tensor, camera_type=CameraType.PINHOLE)
+            else:
+                raise ValueError("UniK3D camera_model must be one of: auto, pinhole, panorama")
         else:
             raise RuntimeError(f"Unsupported geometry prior model: {self.model_id}")
 
@@ -364,7 +377,11 @@ class GeometryPriorSynthesis(BaseSynthesis):
             output_dir=output_dir,
             depth_kind=str(getattr(model.depth_type, "value", model.depth_type)),
             max_points=int(kwargs.get("max_points") or 5000),
-            extra_metadata={"checkpoint_path": ckpt},
+            focal_length=focal,
+            extra_metadata={
+                "checkpoint_path": ckpt,
+                **({"camera_model": camera_model} if self.model_id == "unik3d-prior" else {}),
+            },
         )
 
     def _run_video_depth(self, *, video: Any, images: Any, output_dir: Path, **kwargs: Any) -> dict[str, Any]:
@@ -692,14 +709,14 @@ def _as_uint8_frame(item: Any) -> np.ndarray:
 
 
 def _load_prompt_depth(path: Any, shape: tuple[int, int], *, device: str) -> torch.Tensor:
-    if path:
-        array = np.load(path) if str(path).endswith(".npy") else np.asarray(Image.open(path).convert("F"), dtype=np.float32)
-        if array.shape != shape:
-            array = np.asarray(Image.fromarray(array.astype(np.float32)).resize((shape[1], shape[0]), Image.BILINEAR), dtype=np.float32)
-    else:
-        h, w = shape
-        y = np.linspace(0.25, 1.0, h, dtype=np.float32)[:, None]
-        array = np.repeat(y, w, axis=1)
+    if not path:
+        raise ValueError(
+            "Prior Depth Anything requires prompt_depth_path or prior_depth_path; "
+            "a synthetic depth ramp is not a valid inference condition"
+        )
+    array = np.load(path) if str(path).endswith(".npy") else np.asarray(Image.open(path).convert("F"), dtype=np.float32)
+    if array.shape != shape:
+        array = np.asarray(Image.fromarray(array.astype(np.float32)).resize((shape[1], shape[0]), Image.BILINEAR), dtype=np.float32)
     return torch.from_numpy(array.astype(np.float32)).to(device=device)
 
 
@@ -711,6 +728,7 @@ def _write_depth_artifacts(
     output_dir: Path,
     depth_kind: str,
     max_points: int,
+    focal_length: float | None = None,
     extra_metadata: Mapping[str, Any],
 ) -> dict[str, Any]:
     depth = getattr(result, "metric_depth", None)
@@ -730,19 +748,29 @@ def _write_depth_artifacts(
     preview_path = output_dir / "depth_preview.png"
     _save_depth_preview(first_depth, preview_path)
     ply_path = output_dir / "point_cloud.ply"
-    _write_point_cloud_ply(
-        ply_path,
-        rgb=rgb,
-        depth=first_depth,
-        inverse_depth=depth_source == "relative_inv_depth",
-        max_points=max_points,
-    )
+    points = _result_points(result)
+    if points is not None:
+        _write_camera_points_ply(ply_path, rgb=rgb, points=points, max_points=max_points)
+        point_source = "model_points"
+    else:
+        _write_point_cloud_ply(
+            ply_path,
+            rgb=rgb,
+            depth=first_depth,
+            inverse_depth=depth_source == "relative_inv_depth",
+            max_points=max_points,
+            focal_length=focal_length,
+        )
+        point_source = "depth_backprojection"
     metadata_path = output_dir / "depth_metadata.json"
     metadata = {
         "model_id": model_id,
         "depth_source": depth_source,
         "depth_kind": depth_kind,
         "depth_shape": list(depth_np.shape),
+        "point_source": point_source,
+        "coordinate_frame": "camera",
+        "coordinate_convention": "x-right/y-up/z-forward",
         "preview_image": str(preview_path),
         "point_cloud_path": str(ply_path),
         **dict(extra_metadata),
@@ -864,7 +892,40 @@ def _save_mask_overlay(frame: np.ndarray, mask: np.ndarray, path: Path) -> None:
     Image.fromarray(np.clip(overlay, 0, 255).astype(np.uint8)).save(path)
 
 
-def _write_point_cloud_ply(path: Path, *, rgb: np.ndarray, depth: np.ndarray, inverse_depth: bool, max_points: int) -> None:
+def _result_points(result: Any) -> np.ndarray | None:
+    points = getattr(result, "points", None)
+    if points is None:
+        return None
+    array = points.detach().cpu().float().numpy() if isinstance(points, torch.Tensor) else np.asarray(points)
+    if array.ndim == 4:
+        array = np.moveaxis(array, 1, -1)[0] if array.shape[1] == 3 else array[0]
+    if array.ndim != 3:
+        return None
+    if array.shape[-1] != 3 and array.shape[0] == 3:
+        array = np.moveaxis(array, 0, -1)
+    return np.asarray(array, dtype=np.float32) if array.shape[-1] == 3 else None
+
+
+def _write_camera_points_ply(path: Path, *, rgb: np.ndarray, points: np.ndarray, max_points: int) -> None:
+    points = np.asarray(points, dtype=np.float32).copy()
+    colors = np.clip(rgb * 255.0, 0, 255).astype(np.uint8)
+    if colors.shape[:2] != points.shape[:2]:
+        colors = np.asarray(Image.fromarray(colors).resize((points.shape[1], points.shape[0]), Image.BILINEAR))
+    # Model outputs use OpenCV camera coordinates. Persist a user-facing
+    # right/up/forward frame so exported PLY assets need no second transform.
+    points[..., 1] *= -1.0
+    _write_colored_points_ply(path, points=(points,), colors=(colors,), max_points=max_points)
+
+
+def _write_point_cloud_ply(
+    path: Path,
+    *,
+    rgb: np.ndarray,
+    depth: np.ndarray,
+    inverse_depth: bool,
+    max_points: int,
+    focal_length: float | None = None,
+) -> None:
     depth = np.asarray(depth, dtype=np.float32)
     if inverse_depth:
         values = depth[np.isfinite(depth)]
@@ -888,7 +949,7 @@ def _write_point_cloud_ply(path: Path, *, rgb: np.ndarray, depth: np.ndarray, in
         xs, ys, zs = xs[indices], ys[indices], zs[indices]
     colors = rgb_uint8[(ys.astype(np.int64)).clip(0, h - 1), (xs.astype(np.int64)).clip(0, w - 1)]
     cx, cy = (w - 1) / 2.0, (h - 1) / 2.0
-    focal = max(h, w)
+    focal = float(focal_length or max(h, w))
     points = np.stack(((xs - cx) / focal * zs, -(ys - cy) / focal * zs, zs), axis=1)
     with path.open("w", encoding="utf-8") as handle:
         handle.write("ply\nformat ascii 1.0\n")

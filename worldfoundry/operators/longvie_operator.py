@@ -79,6 +79,10 @@ class LongVieOperator(BaseOperator):
             self._pick(payload, "dense_video", "depth_video", "depth"),
             self._pick(video_map, "dense_video", "depth_video", "depth"),
             self._pick(interaction_map, "dense_video", "depth_video", "depth"),
+            # Studio's conditioned-video workbench has one primary video
+            # upload. LongVie assigns that explicit slot to the dense depth
+            # control; the sparse pointmap/track path is supplied separately.
+            video if video is not None and not isinstance(video, Mapping) else None,
         )
         sparse_video = self._first_present(
             self._pick(payload, "sparse_video", "track_video", "track", "pointmap_video"),

@@ -16,13 +16,12 @@ def runtime_root() -> Path:
     """
     Determines and returns the absolute path to the DreamZero runtime directory.
 
-    This directory is expected to contain various runtime assets or configurations
-    necessary for the DreamZero operations.
+    The inference runtime is integrated directly under this package.
 
     Returns:
-        Path: An absolute path object pointing to the 'dreamzero_runtime' directory.
+        Path: The absolute in-tree DreamZero package directory.
     """
-    return Path(__file__).resolve().parent / "dreamzero_runtime"
+    return Path(__file__).resolve().parent
 
 
 def __getattr__(name: str):

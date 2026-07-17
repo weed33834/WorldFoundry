@@ -133,6 +133,13 @@ def main():
     # == build scheduler ==
     scheduler = build_module(cfg.scheduler, SCHEDULERS)
 
+    # Checkpoint construction is an implementation detail and must not change
+    # the diffusion noise associated with a user-visible seed.  Upstream
+    # Open-Sora relied on the Transformers 4.36 no-init loading lifecycle for
+    # this property.  Re-seed after every model has been built so direct local
+    # loaders and newer Transformers/Diffusers releases remain reproducible.
+    set_random_seed(seed=cfg.get("seed", 1024))
+
     # ======================================================
     # inference
     # ======================================================

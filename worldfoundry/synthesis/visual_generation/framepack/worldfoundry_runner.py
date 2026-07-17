@@ -11,7 +11,6 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-
 DEFAULT_RUNTIME_ROOT = Path(__file__).resolve().parent / "framepack_runtime"
 
 
@@ -84,24 +83,6 @@ def _patched_script(
     if flux_redux_root:
         text = text.replace('"lllyasviel/flux_redux_bfl"', repr(flux_redux_root))
     text = text.replace("outputs_folder = './outputs/'", f"outputs_folder = {str(output_dir / '.framepack_outputs')!r}")
-    text = text.replace(
-        "from diffusers_helper.utils import find_nearest_bucket\n",
-        "from diffusers_helper.utils import find_nearest_bucket\n\n"
-        "def save_bcthw_as_mp4(x, output_filename, fps=10, crf=0):\n"
-        "    import imageio.v2 as imageio\n"
-        "    b, c, t, h, w = x.shape\n"
-        "    per_row = b\n"
-        "    for p in [6, 5, 4, 3, 2]:\n"
-        "        if b % p == 0:\n"
-        "            per_row = p\n"
-        "            break\n"
-        "    os.makedirs(os.path.dirname(os.path.abspath(os.path.realpath(output_filename))), exist_ok=True)\n"
-        "    x = torch.clamp(x.float(), -1., 1.) * 127.5 + 127.5\n"
-        "    x = x.detach().cpu().to(torch.uint8)\n"
-        "    frames = einops.rearrange(x, '(m n) c t h w -> t (m h) (n w) c', n=per_row).numpy()\n"
-        "    imageio.mimsave(output_filename, list(frames), fps=fps, quality=8, macro_block_size=None)\n"
-        "    return x\n",
-    )
     target = output_dir / "framepack_official_inference_worldfoundry.py"
     target.write_text(text, encoding="utf-8")
     return target

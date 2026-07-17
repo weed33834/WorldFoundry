@@ -711,6 +711,7 @@ class CUT3RPipeline(PipelineABC):
         revisit: int = 1,
         update: bool = True,
         use_pose: bool = True,
+        vis_threshold: float = 1.5,
         **_unused: Any,
     ) -> Dict[str, str]:
         """Run official export for CUT3RPipeline."""
@@ -731,6 +732,7 @@ class CUT3RPipeline(PipelineABC):
             revisit=revisit,
             update=update,
             use_pose=use_pose,
+            vis_threshold=vis_threshold,
         )
     
     def __call__(

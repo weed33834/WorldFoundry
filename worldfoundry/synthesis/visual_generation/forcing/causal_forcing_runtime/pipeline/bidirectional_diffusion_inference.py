@@ -4,7 +4,11 @@ import torch
 
 from wan.utils.fm_solvers import FlowDPMSolverMultistepScheduler, get_sampling_sigmas, retrieve_timesteps
 from wan.utils.fm_solvers_unipc import FlowUniPCMultistepScheduler
-from utils.wan_wrapper import WanDiffusionWrapper, WanTextEncoder, WanVAEWrapper
+from worldfoundry.synthesis.visual_generation.forcing.shared.wan_wrapper import (
+    WanDiffusionWrapper,
+    WanTextEncoder,
+    WanVAEWrapper,
+)
 
 
 class BidirectionalDiffusionInferencePipeline(torch.nn.Module):

@@ -7,6 +7,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Optional, Sequence
 
 from worldfoundry.core import cuda_visible_devices_from_device, load_pil_image, load_video_frames
@@ -20,7 +21,7 @@ from worldfoundry.evaluation.utils import worldfoundry_data_path
 
 import numpy as np
 import torch
-from worldfoundry.runtime import resolve_hfd_root
+from worldfoundry.runtime.env import resolve_hfd_root
 
 
 DEFAULT_MATRIX_GAME3_ALIASES = {
@@ -188,6 +189,7 @@ class MatrixGame3Runtime:
         self.checkpoint_dir = checkpoint_dir
         self.device = device
         self.defaults = defaults or {}
+        self._resident_pipeline = None
 
     @classmethod
     def from_pretrained(
@@ -346,13 +348,14 @@ class MatrixGame3Runtime:
         )
 
         video_path = output_dir_path / f"{save_name}.mp4"
-        if not video_path.is_file():
-            raise FileNotFoundError(f"Matrix-Game-3 output video not found: {video_path}")
-
         if _distributed_rank_from_env() == 0:
             _wait_for_video_readable(video_path)
             video = load_video_frames(str(video_path))
         else:
+            # Only rank 0 owns a VAE and writes the artifact.  Distributed
+            # Studio workers intentionally use rank-local temporary directories,
+            # so requiring this rank's path to exist races (or always fails)
+            # after an otherwise successful sequence-parallel generation.
             video = None
         return {
             "video": video,
@@ -362,6 +365,100 @@ class MatrixGame3Runtime:
             "num_iterations": int(num_iterations),
             "size": size_value,
         }
+
+    def ensure_resident_pipeline(self):
+        """Load the native model once for in-memory interactive rollout."""
+
+        if self._resident_pipeline is not None:
+            return self._resident_pipeline
+        self._ensure_checkpoint_layout(self.checkpoint_dir)
+        world_size = int(os.environ.get("WORLD_SIZE", "1") or "1")
+        distributed = (
+            torch.distributed.is_available()
+            and torch.distributed.is_initialized()
+        )
+        if world_size > 1 and not distributed:
+            raise RuntimeError(
+                "Matrix-Game 3 multi-GPU realtime requires an initialized torch.distributed "
+                "process group on every rank."
+            )
+        if distributed:
+            world_size = torch.distributed.get_world_size()
+            rank = torch.distributed.get_rank()
+        else:
+            world_size = 1
+            rank = 0
+        if world_size not in {1, 2, 4, 8}:
+            raise ValueError(
+                "Matrix-Game 3 realtime supports 1, 2, 4, or 8 sequence-parallel "
+                f"processes; got world_size={world_size}."
+            )
+
+        runtime_path = str(Path(self.runtime_root).expanduser().resolve())
+        if runtime_path in sys.path:
+            sys.path.remove(runtime_path)
+        sys.path.insert(0, runtime_path)
+        from .worldfoundry_runner import patch_torch_dynamo_config_aliases
+
+        patch_torch_dynamo_config_aliases()
+        from worldfoundry.base_models.diffusion_model.video.wan.configs.action_wan2p2 import (
+            WAN_CONFIGS,
+        )
+        import pipeline.inference_interactive_pipeline as native_runtime
+
+        device = torch.device(self.device)
+        device_id = (
+            torch.cuda.current_device()
+            if torch.cuda.is_available()
+            else int(device.index or os.environ.get("LOCAL_RANK", "0") or "0")
+        )
+        defaults = self.defaults
+        requested_parallelism = int(defaults.get("ulysses_size", world_size) or world_size)
+        if requested_parallelism != world_size:
+            raise ValueError(
+                "Matrix-Game 3 realtime ulysses_size must equal the torchrun world size; "
+                f"got ulysses_size={requested_parallelism}, world_size={world_size}."
+            )
+        runtime_args = SimpleNamespace(
+            ckpt_dir=self.checkpoint_dir,
+            size=self._normalize_size(defaults.get("size", "704*1280")),
+            save_name=str(defaults.get("save_name", "matrix_game_3")),
+            seed=int(defaults.get("seed", 42)),
+            num_iterations=1,
+            output_dir=None,
+            sample_shift=defaults.get("sample_shift"),
+            sample_guide_scale=float(defaults.get("sample_guide_scale", 5.0)),
+            num_inference_steps=int(defaults.get("num_inference_steps", 3)),
+            ulysses_size=world_size,
+            t5_fsdp=False,
+            t5_cpu=bool(defaults.get("t5_cpu", False)),
+            dit_fsdp=False,
+            convert_model_dtype=bool(defaults.get("convert_model_dtype", False)),
+            use_base_model=bool(defaults.get("use_base_model", False)),
+            use_int8=bool(defaults.get("use_int8", True)),
+            verify_quant=bool(defaults.get("verify_quant", False)),
+            vae_type=str(defaults.get("vae_type", "mg_lightvae")),
+            lightvae_pruning_rate=defaults.get("lightvae_pruning_rate", 0.5),
+            use_async_vae=False,
+            async_vae_warmup_iters=0,
+            compile_vae=bool(defaults.get("compile_vae", True)),
+            fa_version=defaults.get("fa_version", "3"),
+        )
+        self._resident_pipeline = native_runtime.MatrixGame3Pipeline(
+            config=WAN_CONFIGS["matrix_game3"],
+            checkpoint_dir=self.checkpoint_dir,
+            device_id=device_id,
+            rank=rank,
+            t5_fsdp=False,
+            dit_fsdp=False,
+            use_sp=world_size > 1,
+            t5_cpu=runtime_args.t5_cpu,
+            convert_model_dtype=runtime_args.convert_model_dtype,
+            args=runtime_args,
+            fa_version=runtime_args.fa_version,
+            use_base_model=runtime_args.use_base_model,
+        )
+        return self._resident_pipeline
 
     def _materialize_image(self, image, output_dir: Path) -> Path:
         if isinstance(image, str):

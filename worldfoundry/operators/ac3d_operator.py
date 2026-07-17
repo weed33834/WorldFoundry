@@ -15,8 +15,8 @@ class AC3DOperator(BaseOperator):
     DEFAULT_INPUT_SCHEMA = {
         "prompt": True,
         "image": False,
-        "video": False,
-        "actions": ["camera_index", "camera_index_range"],
+        "video": True,
+        "actions": ["camera_index", "camera_index_range", "camera_pose_rows"],
     }
 
     def __init__(self, input_schema: Dict[str, Any] | None = None):
@@ -79,11 +79,11 @@ class AC3DOperator(BaseOperator):
     ) -> Dict[str, Any]:
         """Process perception inputs like images, videos, and reference frames."""
         del ref_image_path
-        if images is not None or video is not None:
-            raise ValueError("AC3D consumes prompt plus RealEstate10K-style camera dataset paths, not direct image/video input.")
+        if images is not None:
+            raise ValueError("AC3D accepts a source video, not an image input.")
         return {
             "images": None,
-            "video": None,
+            "video": video,
             "extra_inputs": dict(kwargs),
         }
 

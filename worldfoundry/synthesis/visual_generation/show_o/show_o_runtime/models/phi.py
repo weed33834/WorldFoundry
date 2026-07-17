@@ -247,7 +247,7 @@ class PhiAttention(nn.Module):
         self.num_key_value_heads = config.num_key_value_heads
         self.num_key_value_groups = self.num_heads // self.num_key_value_heads
         self.max_position_embeddings = config.max_position_embeddings
-        self.rope_theta = config.rope_theta
+        self.rope_theta = getattr(config, "rope_theta", 10000.0)
         self.partial_rotary_factor = config.partial_rotary_factor
         self.is_causal = True
 
@@ -274,15 +274,16 @@ class PhiAttention(nn.Module):
         self._init_rope()
 
     def _init_rope(self):
-        if self.config.rope_scaling is None:
+        rope_scaling = self.config.rope_scaling
+        scaling_type = None if rope_scaling is None else rope_scaling.get("type", rope_scaling.get("rope_type"))
+        if scaling_type in {None, "default"}:
             self.rotary_emb = PhiRotaryEmbedding(
                 int(self.partial_rotary_factor * self.head_dim),
                 max_position_embeddings=self.max_position_embeddings,
                 base=self.rope_theta,
             )
         else:
-            scaling_type = self.config.rope_scaling["type"]
-            scaling_factor = self.config.rope_scaling["factor"]
+            scaling_factor = rope_scaling["factor"]
             if scaling_type == "linear":
                 self.rotary_emb = PhiLinearScalingRotaryEmbedding(
                     int(self.partial_rotary_factor * self.head_dim),

@@ -163,7 +163,12 @@ def encode_actions(action_list, mode):
     COMBINATION_MAP = {}
     if mode == "universal":
         KEYBOARD_IDX = {"forward":0, "back":1, "left":2, "right":3}
-        CAM_MAP = {"camera_l":[0,-0.1], "camera_r":[0,0.1]}
+        CAM_MAP = {
+            "camera_up": [0.1, 0],
+            "camera_down": [-0.1, 0],
+            "camera_l": [0, -0.1],
+            "camera_r": [0, 0.1],
+        }
         keyboard_dim = 4
         mouse = True
         COMBINATION_MAP = {

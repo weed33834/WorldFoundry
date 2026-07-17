@@ -17,7 +17,7 @@ from typing import Any, Mapping, Sequence
 from worldfoundry.evaluation.models.runtime.profiles import load_runtime_profile
 from worldfoundry.synthesis.action_generation.runtime_config import load_vla_va_wam_runtime_config
 from ..base_action_synthesis import ActionModelSynthesis
-from worldfoundry.synthesis.action_generation.openvla.openvla_runtime import OpenVLARuntime, OpenVLARuntimeConfig, select_openvla_checkpoint
+from worldfoundry.synthesis.action_generation.openvla.engine import OpenVLARuntime, OpenVLARuntimeConfig, select_openvla_checkpoint
 
 
 class OpenVLASynthesis(ActionModelSynthesis):

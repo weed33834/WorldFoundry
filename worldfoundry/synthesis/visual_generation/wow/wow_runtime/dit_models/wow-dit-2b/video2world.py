@@ -24,27 +24,27 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 import time
 
 import torch
-from megatron.core import parallel_state
 
 from worldfoundry.base_models.diffusion_model.video.cosmos.cosmos2.runtime.cosmos_predict2_wow import (
     cosmos_predict2 as _cosmos_predict2,
 )
+from worldfoundry.core.distributed import torch_process_group as distributed
+from worldfoundry.core.distributed.logging import log
+from worldfoundry.core.distributed.megatron_compat import parallel_state
+from worldfoundry.core.io import save_image_or_video_tensor
+from worldfoundry.core.utils import set_random_seed
 
 sys.modules.setdefault("cosmos_predict2", _cosmos_predict2)
 
-from worldfoundry.base_models.diffusion_model.video.cosmos.cosmos2.runtime.cosmos_predict2_wow.cosmos_predict2.configs.base.config_video2world import (
+from worldfoundry.base_models.diffusion_model.video.cosmos.cosmos2.runtime.cosmos_predict2_wow.cosmos_predict2.configs.base.config_video2world import (  # noqa: E402
     PREDICT2_VIDEO2WORLD_PIPELINE_2B,
     PREDICT2_VIDEO2WORLD_PIPELINE_14B,
 )
-from worldfoundry.base_models.diffusion_model.video.cosmos.cosmos2.runtime.cosmos_predict2_wow.cosmos_predict2.pipelines.video2world import (
+from worldfoundry.base_models.diffusion_model.video.cosmos.cosmos2.runtime.cosmos_predict2_wow.cosmos_predict2.pipelines.video2world import (  # noqa: E402
     _IMAGE_EXTENSIONS,
     _VIDEO_EXTENSIONS,
     Video2WorldPipeline,
 )
-from worldfoundry.core.distributed import torch_process_group as distributed
-from worldfoundry.core.io import save_image_or_video_tensor
-from worldfoundry.core.utils import set_random_seed
-from imaginaire.utils import log
 
 _DEFAULT_NEGATIVE_PROMPT = "The video captures a series of frames showing ugly scenes, static with no motion, motion blur, over-saturation, shaky footage, low resolution, grainy texture, pixelated images, poorly lit areas, underexposed and overexposed scenes, poor color balance, washed out colors, choppy sequences, jerky movements, low frame rate, artifacting, color banding, unnatural transitions, outdated special effects, fake elements, unconvincing visuals, poorly edited content, jump cuts, visual noise, and flickering. Overall, the video is of poor quality."
 
@@ -311,7 +311,7 @@ def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
     if args.batch_input_json is not None:
         # Process batch inputs from JSON file
         log.info(f"Loading batch inputs from JSON file: {args.batch_input_json}")
-        
+
         # with open(args.batch_input_json, "r") as f:
         #     batch_inputs = json.load(f)
 

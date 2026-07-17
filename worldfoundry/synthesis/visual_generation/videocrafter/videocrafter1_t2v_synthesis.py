@@ -7,7 +7,7 @@ of the model within the `worldfoundry` framework.
 """
 from __future__ import annotations
 
-from worldfoundry.base_models.diffusion_model.video.videocrafter.worldfoundry_runtime import VideoCrafter
+from .worldfoundry_runtime import VideoCrafter
 
 from ..runtime_video_synthesis import RuntimeVideoSynthesis
 

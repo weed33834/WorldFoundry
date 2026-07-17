@@ -207,6 +207,7 @@ class BeingH05Synthesis(ActionModelSynthesis):
                 or runtime_defaults["instruction_template"]
             ),
             device=str(merged.get("device") or self.device),
+            torch_dtype=str(merged.get("torch_dtype") or merged.get("dtype") or "auto"),
             enable_rtc=bool(merged["enable_rtc"]),
             metadata_variant=str(metadata_variant) if metadata_variant is not None else None,
             stats_selection_mode=str(
@@ -239,6 +240,7 @@ class BeingH05Synthesis(ActionModelSynthesis):
             config.dataset_name,
             config.embodiment_tag,
             config.device,
+            config.torch_dtype,
             config.enable_rtc,
             config.metadata_variant,
             config.stats_selection_mode,

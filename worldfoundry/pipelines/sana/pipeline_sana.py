@@ -18,6 +18,15 @@ class SanaPipeline(PipelineABC):
     MODEL_ID = "sana"
     SYNTHESIS_CLS = SanaSynthesis
 
+    @staticmethod
+    def _operator_generation_type(runner: str) -> str:
+        """Map Sana runtime routes to the shared operator input mode."""
+        if runner == "controlnet":
+            return "i2v"
+        if runner == "streaming":
+            return "v2v"
+        return "t2v"
+
     def __init__(
         self,
         *,
@@ -35,7 +44,7 @@ class SanaPipeline(PipelineABC):
         self.generation_type = self.variant.task
         self.model_name = self.variant.display_name
         self.operator = operator or RuntimeVideoOperator(
-            generation_type="i2v" if self.variant.runner == "controlnet" else "t2v"
+            generation_type=self._operator_generation_type(self.variant.runner)
         )
         self.operators = self.operator
         self.memory_module = memory_module or VideoArtifactMemory(model_id=self.model_id)
@@ -74,13 +83,19 @@ class SanaPipeline(PipelineABC):
         variant = get_sana_variant(resolved_model_id)
         return cls(
             model_id=resolved_model_id,
-            operator=RuntimeVideoOperator(generation_type="i2v" if variant.runner == "controlnet" else "t2v"),
+            operator=RuntimeVideoOperator(generation_type=cls._operator_generation_type(variant.runner)),
             synthesis_model=synthesis_model,
             memory_module=VideoArtifactMemory(model_id=variant.model_id),
             device=device,
         )
 
-    def process(self, prompt: str | None = None, images: Any = None, **kwargs: Any) -> Dict[str, Any]:
+    def process(
+        self,
+        prompt: str | None = None,
+        images: Any = None,
+        video: Any = None,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
         """Process and normalize input arguments and conditions for inference."""
         if prompt is None:
             prompt = ""
@@ -92,6 +107,7 @@ class SanaPipeline(PipelineABC):
         return {
             "prompt": interaction["processed_prompt"],
             "images": images,
+            "video": video,
             "extra_inputs": dict(kwargs),
         }
 
@@ -99,6 +115,7 @@ class SanaPipeline(PipelineABC):
         self,
         prompt: str | None = None,
         images: Any = None,
+        video: Any = None,
         output_path: str | Path | None = None,
         fps: int | None = None,
         return_dict: bool = False,
@@ -107,10 +124,16 @@ class SanaPipeline(PipelineABC):
         """Execute the complete pipeline generation flow."""
         if self.synthesis_model is None:
             raise RuntimeError("Sana synthesis model is not loaded. Use from_pretrained() first.")
-        processed = self.process(prompt=prompt, images=images, **kwargs.pop("operator_kwargs", {}))
+        processed = self.process(
+            prompt=prompt,
+            images=images,
+            video=video,
+            **kwargs.pop("operator_kwargs", {}),
+        )
         result = self.synthesis_model.predict(
             prompt=processed["prompt"],
             images=processed["images"],
+            video=processed["video"],
             output_path=output_path,
             fps=fps,
             **processed["extra_inputs"],
@@ -125,6 +148,7 @@ class SanaPipeline(PipelineABC):
         self,
         prompt: str | None = None,
         images: Any = None,
+        video: Any = None,
         output_path: str | Path | None = None,
         fps: int | None = None,
         return_dict: bool = False,
@@ -138,6 +162,7 @@ class SanaPipeline(PipelineABC):
         return self(
             prompt=prompt,
             images=images,
+            video=video,
             output_path=output_path,
             fps=fps,
             return_dict=return_dict,
@@ -245,6 +270,18 @@ class LongsanaVideo2b480pPipeline(SanaPipeline):
     MODEL_ID = "longsana-video-2b-480p"
 
 
+class SanaStreaming2b720pPipeline(SanaPipeline):
+    """Pipeline for minute-length SANA-Streaming video-to-video editing."""
+
+    MODEL_ID = "sana-streaming-2b-720p"
+
+
+class SanaStreamingBidirectional2b720pPipeline(SanaPipeline):
+    """Pipeline for short-video bidirectional SANA-Streaming editing."""
+
+    MODEL_ID = "sana-streaming-bidirectional-2b-720p"
+
+
 __all__ = [
     "LongsanaVideo2b480pPipeline",
     "Sana1600M1024pxBf16Pipeline",
@@ -263,6 +300,8 @@ __all__ = [
     "SanaPipeline",
     "SanaSprint1600M1024pxPipeline",
     "SanaSprint600M1024pxPipeline",
+    "SanaStreaming2b720pPipeline",
+    "SanaStreamingBidirectional2b720pPipeline",
     "SanaVideo2b480pPipeline",
     "SanaVideo2b720pPipeline",
 ]

@@ -56,7 +56,7 @@ def _repo_src_root() -> Path:
 def _expand_path_tokens(value: str | Path | None) -> str | None:
     if value is None:
         return None
-    from worldfoundry.runtime import expand_worldfoundry_path
+    from worldfoundry.runtime.assets import expand_worldfoundry_path
 
     return str(expand_worldfoundry_path(os.path.expandvars(str(value))))
 

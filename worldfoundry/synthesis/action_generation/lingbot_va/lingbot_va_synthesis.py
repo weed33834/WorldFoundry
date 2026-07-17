@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from worldfoundry.evaluation.models.runtime.profiles import load_runtime_profile
+from worldfoundry.core.io.paths import project_root
 from worldfoundry.synthesis.action_generation.runtime_config import load_vla_va_wam_runtime_config
 from ..base_action_synthesis import ActionModelSynthesis
 from worldfoundry.synthesis.action_generation.lingbot_va.runtime import (
@@ -15,7 +16,6 @@ from worldfoundry.synthesis.action_generation.lingbot_va.runtime import (
     LingBotVAWebsocketRuntime,
     RUNTIME_ROOT,
     WAN_VA_PACKAGE,
-    WAN_VA_ROOT,
     build_server_command,
     config_name_for_checkpoint,
     read_transformer_attn_mode,
@@ -219,7 +219,7 @@ class LingBotVASynthesis(ActionModelSynthesis):
     @staticmethod
     def _server_env(wait_timeout_seconds: int) -> dict[str, str]:
         """
-        Prepares the environment variables for launching the LingBot-VA server process.
+        Prepare environment variables for the in-tree LingBot-VA server.
 
         Args:
             wait_timeout_seconds: Timeout for the server to become ready.
@@ -228,14 +228,6 @@ class LingBotVASynthesis(ActionModelSynthesis):
             A dictionary of environment variables.
         """
         env = dict(os.environ)
-        # Prepend LingBot-VA specific paths to PYTHONPATH to ensure correct module resolution.
-        pythonpath = [
-            str(WAN_VA_ROOT),
-            str(RUNTIME_ROOT),
-            *(item for item in env.get("PYTHONPATH", "").split(os.pathsep) if item),
-        ]
-        # Use dict.fromkeys to maintain order and remove duplicates from PYTHONPATH.
-        env["PYTHONPATH"] = os.pathsep.join(dict.fromkeys(pythonpath))
         env["PYTHONUNBUFFERED"] = "1"  # Ensure Python output is unbuffered for real-time logging.
         env["WORLDFOUNDRY_LINGBOT_VA_SERVER_WAIT_TIMEOUT"] = str(wait_timeout_seconds)
         return env
@@ -344,7 +336,12 @@ class LingBotVASynthesis(ActionModelSynthesis):
         # Construct the command used to launch the LingBot-VA server.
         server_command = build_server_command(
             python=str(context["python"]),
-            torchrun=str(context["torchrun"]),
+            # Default to ``python -m torch.distributed.run`` so the server
+            # necessarily uses the same interpreter and CUDA/PyTorch ABI as
+            # the Workspace process.  A PATH-resolved torchrun can belong to
+            # an unrelated base conda environment; retain an explicit escape
+            # hatch for deployments that intentionally provide one.
+            torchrun=str(runtime_options.get("torchrun_executable") or ""),
             config=runtime_config,
             save_root=save_root,
         )
@@ -366,9 +363,8 @@ class LingBotVASynthesis(ActionModelSynthesis):
             "runtime": {
                 "backend": "worldfoundry.lingbot_va.in_tree_official_server_client",
                 "runtime_root": str(RUNTIME_ROOT),
-                "base_model_source_dir": str(WAN_VA_ROOT),
-                "server_module": f"{WAN_VA_PACKAGE}.wan_va_server",
-                "client_class": f"{WAN_VA_PACKAGE}.utils.Simple_Remote_Infer.deploy.websocket_client_policy.WebsocketClientPolicy",
+                "server_module": f"{WAN_VA_PACKAGE}.runtime",
+                "client_class": f"{WAN_VA_PACKAGE}.websocket_client.WebsocketClientPolicy",
                 "checkpoint_dir": str(runtime_config.checkpoint_dir),
                 "config_name": runtime_config.config_name,
                 "host": runtime_config.host,
@@ -381,10 +377,10 @@ class LingBotVASynthesis(ActionModelSynthesis):
                 "auto_start_server": auto_start_server,
                 "server_wait_timeout_seconds": wait_timeout_seconds,
                 "server_log_path": str(server_log_path),
-                "known_blockers": [
-                    "Official runtime requires torch 2.9.0 / CUDA 12.6 compatible driver plus flash-attn.",
-                    "Server mode requires launching the in-tree vendored torch.distributed server before client inference.",
-                    "transformer/config.json attn_mode must be torch or flashattn for inference.",
+                "runtime_requirements": [
+                    "A complete local checkpoint containing transformer, VAE, tokenizer, and text encoder assets.",
+                    "One or more CUDA devices; torchrun launches the in-tree distributed inference server.",
+                    "transformer/config.json must select a supported in-tree attention implementation.",
                 ],
             },
         }
@@ -414,7 +410,9 @@ class LingBotVASynthesis(ActionModelSynthesis):
                 # Launch the LingBot-VA server as a subprocess.
                 server_process = subprocess.Popen(
                     server_command,
-                    cwd=str(RUNTIME_ROOT),
+                    # Run from the repository root so the fully qualified
+                    # WorldFoundry module resolves without PYTHONPATH surgery.
+                    cwd=str(project_root()),
                     env=self._server_env(wait_timeout_seconds),
                     stdout=server_log_handle,
                     stderr=subprocess.STDOUT,  # Redirect stderr to stdout for combined logging.

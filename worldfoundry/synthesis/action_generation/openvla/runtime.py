@@ -9,7 +9,7 @@ from typing import Any, Mapping, Sequence
 
 from worldfoundry.evaluation.models.runtime.profiles import load_runtime_profile
 from worldfoundry.evaluation.tasks.embodied.adapters.runtime_bridge import first_image
-from worldfoundry.synthesis.action_generation.openvla.openvla_runtime import (
+from worldfoundry.synthesis.action_generation.openvla.engine import (
     OpenVLARuntime,
     OpenVLARuntimeConfig,
     select_openvla_checkpoint,

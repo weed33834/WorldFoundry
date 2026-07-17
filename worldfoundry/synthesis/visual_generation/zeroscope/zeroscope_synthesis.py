@@ -12,7 +12,7 @@ from typing import Any, Mapping, Sequence
 
 from worldfoundry.synthesis.visual_generation.zeroscope.worldfoundry_runtime import ZeroScopeRuntime
 from worldfoundry.evaluation.models.runtime.profiles import RuntimeProfileSynthesis
-from worldfoundry.runtime import expand_worldfoundry_path
+from worldfoundry.runtime.assets import expand_worldfoundry_path
 
 
 class ZeroScopeSynthesis(RuntimeProfileSynthesis):

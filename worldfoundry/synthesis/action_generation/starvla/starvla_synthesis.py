@@ -6,14 +6,44 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from worldfoundry.evaluation.models.runtime.profiles import load_runtime_profile
+from worldfoundry.core.io.paths import resolve_worldfoundry_path
 from worldfoundry.synthesis.action_generation.runtime_config import load_vla_va_wam_runtime_config
 from ..base_action_synthesis import ActionModelSynthesis
 from worldfoundry.synthesis.action_generation.starvla.runtime import (
     StarVLAPlanRuntime,
     StarVLARuntimeConfig,
     select_starvla_base_vlm,
+    select_starvla_base_world_model,
     select_starvla_checkpoint,
 )
+
+
+def _as_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off", ""}:
+            return False
+        raise ValueError(f"Invalid StarVLA boolean option: {value!r}.")
+    return bool(value)
+
+
+def _first_option(
+    explicit: Mapping[str, Any],
+    merged: Mapping[str, Any],
+    *names: str,
+    default: Any = None,
+) -> Any:
+    for source in (explicit, merged):
+        for name in names:
+            if name in source:
+                return source[name]
+    return default
 
 
 class StarVLASynthesis(ActionModelSynthesis):
@@ -64,7 +94,7 @@ class StarVLASynthesis(ActionModelSynthesis):
         # Initialize internal cache for the StarVLA runtime instance.
         self._runtime: StarVLAPlanRuntime | None = None
         # Initialize internal cache key for the StarVLA runtime to check if a new runtime is needed.
-        self._runtime_key: tuple[str, str, str, str, str, int, int, str, str, bool] | None = None
+        self._runtime_key: tuple[Any, ...] | None = None
 
     @classmethod
     def from_pretrained(
@@ -197,25 +227,25 @@ class StarVLASynthesis(ActionModelSynthesis):
             action_dim=int(merged["action_dim"]),
             action_horizon=int(merged["action_horizon"]),
             device=str(merged.get("device") or self.device),  # Use explicit device or instance device.
+            torch_dtype=str(merged.get("torch_dtype") or "auto"),
             track=track,
-            source_repo_dir=Path(
-                explicit_options.get("source_repo_dir")
-                or explicit_options.get("official_source_dir")
-                or merged.get("source_repo_dir")
-                or ""
-            ).expanduser().resolve()
-            if (
-                explicit_options.get("source_repo_dir")
-                or explicit_options.get("official_source_dir")
-                or merged.get("source_repo_dir")
-            )
-            else None,  # Resolve source repository directory if provided.
             attn_implementation=str(merged["attn_implementation"]),
-            enable_official_runtime=bool(
-                explicit_options.get("enable_official_runtime")
-                or explicit_options.get("official_runtime")
-                or merged.get("enable_official_runtime")
+            enable_official_runtime=_as_bool(
+                _first_option(
+                    explicit_options,
+                    merged,
+                    "enable_checkpoint_runtime",
+                    "enable_official_runtime",
+                    "official_runtime",
+                    default=True,
+                )
             ),
+            base_world_model=select_starvla_base_world_model(
+                base_world_model=merged.get("base_world_model"),
+                checkpoints=self.profile.checkpoints,
+            ),
+            unnorm_key=str(merged["unnorm_key"]) if merged.get("unnorm_key") else None,
+            action_normalization=str(merged.get("action_normalization") or "min_max"),
         )
 
     def _runtime_for(self, config: StarVLARuntimeConfig) -> StarVLAPlanRuntime:
@@ -238,12 +268,15 @@ class StarVLASynthesis(ActionModelSynthesis):
             config.base_vlm,
             config.action_model_type,
             config.device,
+            config.torch_dtype,
             config.track,
             config.action_dim,
             config.action_horizon,
-            "" if config.source_repo_dir is None else str(config.source_repo_dir),
             config.attn_implementation,
             config.enable_official_runtime,
+            config.base_world_model or "",
+            config.unnorm_key or "",
+            config.action_normalization,
         )
         # If no runtime is cached, or the configuration has changed, create a new runtime.
         if self._runtime is None or self._runtime_key != key:

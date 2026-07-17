@@ -7,23 +7,13 @@ to output WorldFoundry-compatible action traces.
 
 from __future__ import annotations
 
-import importlib
 import json
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
 from worldfoundry.core import jsonable
 from worldfoundry.core.io.paths import project_root, resolve_worldfoundry_path
-
-
-# Defines the root directory where the in-tree Diffusion Policy runtime package is located.
-# This path is used to dynamically import the policy's modules.
-RUNTIME_ROOT = (
-    Path(__file__).resolve().parent
-    / "diffusion_policy_runtime"
-)
 
 
 @dataclass(frozen=True)
@@ -33,11 +23,87 @@ class DiffusionPolicyRuntimeConfig:
     Attributes:
         checkpoint_path: Path to the Diffusion Policy model checkpoint file.
         device: The PyTorch device (e.g., "cuda" or "cpu") on which to run the policy.
-        output_dir: Optional directory to store any runtime-generated files (e.g., model logs).
     """
     checkpoint_path: Path
     device: str = "cuda"
-    output_dir: Path | None = None
+
+
+_TARGET_REWRITES = {
+    "diffusion_policy.policy.diffusion_unet_lowdim_policy": (
+        "worldfoundry.synthesis.action_generation.diffusion_policy.modeling.policy"
+    ),
+    "diffusion_policy.model.diffusion.conditional_unet1d": (
+        "worldfoundry.synthesis.action_generation.diffusion_policy.modeling.unet"
+    ),
+    "diffusion_policy.model.diffusion.conv1d_components": (
+        "worldfoundry.synthesis.action_generation.diffusion_policy.modeling.convolution"
+    ),
+    "diffusion_policy.model.diffusion.positional_embedding": (
+        "worldfoundry.synthesis.action_generation.diffusion_policy.modeling.embeddings"
+    ),
+    "diffusion_policy.model.common.normalizer": (
+        "worldfoundry.synthesis.action_generation.diffusion_policy.modeling.normalizer"
+    ),
+}
+
+_ALLOWED_HYDRA_TARGET_PREFIXES = (
+    "worldfoundry.synthesis.action_generation.diffusion_policy.modeling.",
+    "diffusers.schedulers.",
+)
+
+
+def _rewrite_checkpoint_targets(value: Any) -> Any:
+    """Map serialized upstream Hydra targets to their shallow in-tree modules."""
+    if isinstance(value, str):
+        for old, new in _TARGET_REWRITES.items():
+            if value == old or value.startswith(old + "."):
+                return new + value[len(old):]
+        return value
+    if isinstance(value, Mapping):
+        return {key: _rewrite_checkpoint_targets(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_rewrite_checkpoint_targets(item) for item in value]
+    return value
+
+
+def _validate_safe_config(value: Any, *, path: str = "cfg") -> None:
+    """Reject executable or unresolved values in a converted policy config."""
+
+    if isinstance(value, str):
+        if "${" in value:
+            raise ValueError(
+                f"Diffusion Policy safe config must be fully resolved before conversion: {path}"
+            )
+        return
+    if isinstance(value, Mapping):
+        target = value.get("_target_")
+        if target is not None:
+            target_text = str(target)
+            if not target_text.startswith(_ALLOWED_HYDRA_TARGET_PREFIXES):
+                raise ValueError(
+                    f"Diffusion Policy config target is not allowlisted at {path}: {target_text}"
+                )
+        for key, item in value.items():
+            _validate_safe_config(item, path=f"{path}.{key}")
+        return
+    if isinstance(value, (list, tuple)):
+        for index, item in enumerate(value):
+            _validate_safe_config(item, path=f"{path}[{index}]")
+        return
+    if value is not None and not isinstance(value, (bool, int, float)):
+        raise TypeError(
+            f"Diffusion Policy safe config contains unsupported value at {path}: {type(value).__name__}"
+        )
+
+
+def _tensor_state_dict(value: Any, *, name: str) -> dict[str, Any]:
+    import torch
+
+    if not isinstance(value, Mapping) or not value:
+        raise TypeError(f"Diffusion Policy {name} must be a non-empty tensor mapping")
+    if not all(isinstance(key, str) and torch.is_tensor(item) for key, item in value.items()):
+        raise TypeError(f"Diffusion Policy {name} may contain only named tensors")
+    return dict(value)
 
 
 def _expand_runtime_path(value: str | Path) -> Path:
@@ -64,6 +130,7 @@ def select_diffusion_policy_checkpoint(
     *,
     checkpoint_path: str | Path | None,
     checkpoints: tuple[Mapping[str, Any], ...],
+    require_exists: bool = True,
 ) -> Path:
     """Select the checkpoint path for the in-tree Diffusion Policy runtime.
 
@@ -91,47 +158,11 @@ def select_diffusion_policy_checkpoint(
     
     # Expand the path to be absolute and resolve any project-relative references.
     path = _expand_runtime_path(candidate)
-    if not path.is_file():
+    if require_exists and not path.is_file():
         raise FileNotFoundError(f"Diffusion Policy checkpoint not found: {path}")
     return path
 
 
-def _install_runtime_alias() -> None:
-    """Dynamically imports the in-tree Diffusion Policy runtime package.
-
-    This ensures that `diffusion_policy` refers to the package located within the `RUNTIME_ROOT`
-    directory, preventing conflicts if another `diffusion_policy` package is already installed
-    or imported from elsewhere. It registers the in-tree package in `sys.modules`.
-
-    Raises:
-        RuntimeError: If `diffusion_policy` is already imported from an external location,
-                      or if the in-tree package cannot be loaded.
-    """
-    # Check if 'diffusion_policy' is already in sys.modules.
-    if "diffusion_policy" in sys.modules:
-        module = sys.modules["diffusion_policy"]
-        module_file = Path(str(getattr(module, "__file__", ""))).resolve()
-        # If it's already imported and points to the in-tree runtime, do nothing.
-        if RUNTIME_ROOT in module_file.parents or module_file == RUNTIME_ROOT / "__init__.py":
-            return
-        # If it's imported from an external location, raise an error to prevent conflicts.
-        raise RuntimeError(f"diffusion_policy is already imported from outside the in-tree runtime: {module_file}")
-
-    # Create a module specification for the in-tree 'diffusion_policy' package.
-    spec = importlib.util.spec_from_file_location(
-        "diffusion_policy",
-        RUNTIME_ROOT / "__init__.py",
-        submodule_search_locations=[str(RUNTIME_ROOT)],
-    )
-    # Ensure the specification and its loader are valid.
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Unable to load Diffusion Policy runtime package from {RUNTIME_ROOT}")
-    # Create the module object from the spec.
-    module = importlib.util.module_from_spec(spec)
-    # Register the new module in sys.modules, effectively making it importable.
-    sys.modules["diffusion_policy"] = module
-    # Execute the module's code to fully initialize it.
-    spec.loader.exec_module(module)
 
 
 def _coerce_observation(observation: Any, *, device: str) -> Mapping[str, Any]:
@@ -207,11 +238,11 @@ class DiffusionPolicyRuntime:
         self._policy = None
 
     def _load_policy(self) -> Any:
-        """Loads the Diffusion Policy model checkpoint, initializes the workspace, and prepares the policy for inference.
+        """Load a Diffusion Policy checkpoint and prepare the policy for inference.
 
         This method is called lazily and ensures the policy model is loaded and ready
         for prediction. It handles dynamic import of the Diffusion Policy package,
-        deserialization of the checkpoint, workspace setup, and model state loading.
+        deserialization, Hydra policy construction, and model-state loading.
 
         Returns:
             The loaded and configured Diffusion Policy model instance.
@@ -224,46 +255,61 @@ class DiffusionPolicyRuntime:
         if self._policy is not None:
             return self._policy
 
-        # Dynamically install the in-tree diffusion_policy package alias.
-        _install_runtime_alias()
-        import dill
+        import copy
         import hydra
         import torch
+        from omegaconf import OmegaConf
+        from worldfoundry.core.model_loading.file import load_torch_checkpoint
 
-        from diffusion_policy.workspace.base_workspace import BaseWorkspace
+        # Official workspace checkpoints use dill and can execute arbitrary code while
+        # deserializing.  Runtime inference accepts only an offline-converted payload:
+        # a fully resolved primitive cfg plus tensor-only model/EMA state dictionaries.
+        try:
+            payload = load_torch_checkpoint(
+                self.config.checkpoint_path,
+                map_location="cpu",
+                weights_only=True,
+            )
+        except Exception as error:
+            raise RuntimeError(
+                "Diffusion Policy rejected the executable official dill checkpoint. "
+                "Convert it once in a trusted offline environment to a weights-only payload "
+                "containing a fully resolved primitive 'cfg' mapping and tensor-only "
+                "'state_dicts' before WorldFoundry inference."
+            ) from error
+        if not isinstance(payload, Mapping):
+            raise TypeError("Diffusion Policy converted checkpoint root must be a mapping")
+        cfg_container = payload.get("cfg")
+        if not isinstance(cfg_container, Mapping):
+            raise TypeError(
+                "Diffusion Policy converted checkpoint requires a primitive 'cfg' mapping"
+            )
+        rewritten_cfg = _rewrite_checkpoint_targets(dict(cfg_container))
+        _validate_safe_config(rewritten_cfg)
+        cfg = OmegaConf.create(rewritten_cfg)
+        state_dicts = payload.get("state_dicts")
+        if not isinstance(state_dicts, Mapping):
+            raise TypeError("Diffusion Policy converted checkpoint requires 'state_dicts'")
+        policy = hydra.utils.instantiate(cfg.policy)
+        model_state = state_dicts.get("model")
+        if model_state is None:
+            model_state = state_dicts.get("ema_model")
+        if model_state is None:
+            raise KeyError("Diffusion Policy checkpoint has neither model nor ema_model state")
+        policy.load_state_dict(_tensor_state_dict(model_state, name="model state"), strict=True)
 
-        # Load the policy checkpoint, including its configuration and state dictionaries.
-        # Use dill for deserialization as Diffusion Policy checkpoints often contain custom objects.
-        payload = torch.load(self.config.checkpoint_path.open("rb"), pickle_module=dill, map_location="cpu")
-        cfg = payload["cfg"]
-        
-        # Instantiate the workspace class defined in the checkpoint's configuration.
-        workspace_cls = hydra.utils.get_class(cfg._target_)
-        output_dir = str(self.config.output_dir) if self.config.output_dir is not None else None
-        workspace = workspace_cls(cfg, output_dir=output_dir)
-        
-        state_dicts = payload.get("state_dicts", {})
-        # Identify state dictionary keys that correspond to policy models (e.g., 'model', 'ema_model').
-        policy_state_keys = {"model", "ema_model"}
-        loadable_policy_keys = {
-            key
-            for key in state_dicts
-            if key in policy_state_keys and hasattr(getattr(workspace, key, None), "load_state_dict")
-        }
-        # Exclude state dicts that are not policy-related or cannot be loaded into the workspace.
-        exclude_keys = tuple(key for key in state_dicts if key not in loadable_policy_keys)
-        # Load the payload into the workspace, specifically handling policy-related components.
-        workspace.load_payload(payload, exclude_keys=exclude_keys, include_keys=())
-        
-        # Determine whether to use the Exponential Moving Average (EMA) model if enabled in training config.
         training_cfg = getattr(cfg, "training", None)
         use_ema = bool(getattr(training_cfg, "use_ema", False))
-        policy = workspace.ema_model if use_ema and workspace.ema_model is not None else workspace.model
+        if use_ema and "ema_model" in state_dicts:
+            policy = copy.deepcopy(policy)
+            policy.load_state_dict(
+                _tensor_state_dict(state_dicts["ema_model"], name="EMA state"),
+                strict=True,
+            )
         
         # Move the selected policy model to the configured device and set it to evaluation mode.
         policy.to(torch.device(self.config.device))
         policy.eval()
-        assert isinstance(workspace, BaseWorkspace) # Ensure type consistency for downstream use.
         self._policy = policy
         return policy
 
@@ -297,6 +343,14 @@ class DiffusionPolicyRuntime:
         
         # Coerce the input observation into the expected PyTorch tensor format for the policy.
         obs_dict = _coerce_observation(observation, device=self.config.device)
+        normalizer = policy.normalizer["obs"]
+        expected_features = int(normalizer.params_dict["scale"].shape[0])
+        actual_features = int(obs_dict["obs"].shape[-1])
+        if actual_features != expected_features:
+            raise ValueError(
+                "Diffusion Policy observation feature dimension does not match the "
+                f"checkpoint normalizer: expected {expected_features}, got {actual_features}"
+            )
         
         # Perform inference without gradient computation.
         with torch.no_grad():

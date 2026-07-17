@@ -26,7 +26,10 @@ class SplatFile:
         normals = np.zeros_like(xyz)
         f_dc = (self.rgbs - 0.5) / 0.28209479177387814 # convert to SH coefficients
         opacities = self.opacities
-        scale = np.log(self.scales)
+        # Equirectangular pixels at the poles have zero horizontal extent, and
+        # sin(pi) can also become very slightly negative in float32.  Keep the
+        # Gaussian degenerate without emitting NaN/-inf values into the PLY.
+        scale = np.log(np.maximum(self.scales, np.finfo(np.float32).tiny))
         rotation = self.rotations
 
         attribute_names = ['x', 'y', 'z', 'nx', 'ny', 'nz']

@@ -165,7 +165,7 @@ class AstraSynthesis(BaseSynthesis):
         astra_dit_path = os.path.join(resolved_astra_path,
                                       "models/Astra/checkpoints/diffusion_pytorch_model.ckpt")
         # Load the Astra DiT state dictionary, mapping to CPU first to avoid GPU memory issues.
-        dit_state_dict = torch.load(astra_dit_path, map_location="cpu")
+        dit_state_dict = torch.load(astra_dit_path, map_location="cpu", weights_only=True)
         # Load the weights into the pipeline's DiT model. `strict=False` allows for partial loading
         # if the state dict does not perfectly match (e.g., new components added).
         pipe.dit.load_state_dict(dit_state_dict, strict=False)
@@ -225,7 +225,7 @@ class AstraSynthesis(BaseSynthesis):
         """
         print(f"Loading encoded video from {pth_path}")
         # Load the encoded data from the .pth file, ensuring it's on CPU.
-        encoded_data = torch.load(pth_path, weights_only=False, map_location="cpu")
+        encoded_data = torch.load(pth_path, weights_only=True, map_location="cpu")
         full_latents = encoded_data['latents']
         # Validate that the requested frame range is within the bounds of available latents.
         if start_frame + num_frames > full_latents.shape[1]:

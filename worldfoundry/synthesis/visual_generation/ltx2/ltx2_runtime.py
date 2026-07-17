@@ -24,6 +24,28 @@ import torch  # noqa: E402
 from PIL import Image  # noqa: E402
 
 
+# LTX-2 distilled inference schedule published by Lightricks and mirrored by
+# Diffusers. Keep the values in-tree so inference does not depend on a private
+# helper in a particular Diffusers release.
+_LTX2_DISTILLED_SIGMA_VALUES = (
+    1.0,
+    0.99375,
+    0.9875,
+    0.98125,
+    0.975,
+    0.909375,
+    0.725,
+    0.421875,
+)
+
+
+def _is_distilled_single_file(checkpoint_path: str) -> bool:
+    """Return whether a standalone checkpoint is an LTX-2 distilled model."""
+    path = Path(checkpoint_path).expanduser()
+    filename = path.name.lower()
+    return path.is_file() and "distilled" in filename and "lora" not in filename
+
+
 def _load_image(image_path: str, height: int, width: int) -> Image.Image:
     """
     Loads an image from the specified path, converts it to RGB, and resizes it.
@@ -88,11 +110,10 @@ def _resolve_pipeline_source(checkpoint_path: str) -> tuple[str, bool]:
     if path.is_dir():
         # If the path is a directory, assume it's a standard `from_pretrained` source.
         return str(path), False
-    if path.is_file() and (path.parent / "model_index.json").is_file():
-        # If it's a file within a directory that also contains model_index.json,
-        # treat the parent directory as the source for `from_pretrained`.
-        return str(path.parent), False
-    # Otherwise, assume it's a single file checkpoint.
+    # An explicitly selected checkpoint file must be honored even when its
+    # parent also contains a Diffusers model_index.json. Falling back to the
+    # parent here can silently load a different checkpoint (for example, the
+    # dev model instead of ltx-2-19b-distilled.safetensors).
     return str(path), True
 
 
@@ -286,6 +307,15 @@ class LTX2Video:
         self.torch_dtype = getattr(torch, torch_dtype)
         # Determine pipeline variant if not explicitly provided
         self.pipeline_variant = pipeline_variant or ("distilled" if str(version_hint).startswith("2.3") else "diffusers")
+        self.is_distilled_diffusers_checkpoint = (
+            self.pipeline_variant != "distilled" and _is_distilled_single_file(self.checkpoint_path)
+        )
+        if self.is_distilled_diffusers_checkpoint:
+            # LTX-2 distilled checkpoints are trained for this exact schedule.
+            # Applying dev defaults (40 steps and CFG=4) is both slower and can
+            # substantially reduce motion quality.
+            self.num_inference_steps = len(_LTX2_DISTILLED_SIGMA_VALUES)
+            self.guidance_scale = 1.0
         self.spatial_upsampler_path = spatial_upsampler_path
         self.gemma_root = gemma_root
         self.offload_mode = offload_mode
@@ -316,12 +346,68 @@ class LTX2Video:
         Returns:
             An instance of `LTX2ImageToVideoPipeline`.
         """
-        from diffusers import LTX2ImageToVideoPipeline
+        from diffusers import LTX2ImageToVideoPipeline, LTX2VideoTransformer3DModel
 
         source, single_file = _resolve_pipeline_source(self.checkpoint_path)
         load_kwargs = {"torch_dtype": self.torch_dtype}
         if single_file:
-            pipeline = LTX2ImageToVideoPipeline.from_single_file(source, **load_kwargs)
+            # Reuse the adjacent Diffusers component configs and invariant
+            # components. This keeps loading fully local while the selected
+            # single-file checkpoint supplies the transformer weights.
+            config_dir = Path(source).parent
+            if (config_dir / "model_index.json").is_file():
+                from transformers import Gemma3ForConditionalGeneration, GemmaTokenizerFast
+
+                text_encoder_dir = config_dir / "text_encoder"
+                tokenizer_dir = config_dir / "tokenizer"
+                if not text_encoder_dir.is_dir():
+                    raise FileNotFoundError(
+                        "LTX-2 single-file loading requires the adjacent local text_encoder directory: "
+                        f"{text_encoder_dir}"
+                    )
+                if not tokenizer_dir.is_dir():
+                    raise FileNotFoundError(
+                        "LTX-2 single-file loading requires the adjacent local tokenizer directory: "
+                        f"{tokenizer_dir}"
+                    )
+
+                # Diffusers' single-file component probe only recognizes an
+                # unsharded model.safetensors file. Gemma is sharded here, so
+                # load it explicitly from the adjacent local component. This
+                # also guarantees that no Hub fallback is attempted.
+                text_encoder = Gemma3ForConditionalGeneration.from_pretrained(
+                    str(text_encoder_dir),
+                    torch_dtype=self.torch_dtype,
+                    local_files_only=True,
+                )
+                tokenizer = GemmaTokenizerFast.from_pretrained(
+                    str(tokenizer_dir),
+                    local_files_only=True,
+                )
+                # Pipeline-level from_single_file currently fails after loading
+                # the LTX-2 transformer because its subsequent VAE conversion
+                # incorrectly reports the VAE-prefixed weights as missing.
+                # Load only the selected transformer from the single file, then
+                # assemble the remaining invariant components from the adjacent
+                # local Diffusers directory. Supplying `transformer` prevents
+                # from_pretrained from ever reading the parent dev transformer.
+                transformer = LTX2VideoTransformer3DModel.from_single_file(
+                    source,
+                    config=str(config_dir),
+                    subfolder="transformer",
+                    torch_dtype=self.torch_dtype,
+                    local_files_only=True,
+                )
+                pipeline = LTX2ImageToVideoPipeline.from_pretrained(
+                    str(config_dir),
+                    transformer=transformer,
+                    text_encoder=text_encoder,
+                    tokenizer=tokenizer,
+                    torch_dtype=self.torch_dtype,
+                    local_files_only=True,
+                )
+            else:
+                pipeline = LTX2ImageToVideoPipeline.from_single_file(source, **load_kwargs)
         else:
             pipeline = LTX2ImageToVideoPipeline.from_pretrained(source, **load_kwargs)
 
@@ -499,7 +585,7 @@ class LTX2Video:
         image = _load_image(image_path, self.height, self.width)
         # Create a torch generator for reproducible random noise.
         generator = torch.Generator(device=self.device).manual_seed(self.seed)
-        output = self.pipeline(
+        pipeline_kwargs = dict(
             image=image,
             prompt=prompt,
             negative_prompt=self.negative_prompt,
@@ -512,6 +598,9 @@ class LTX2Video:
             generator=generator,
             output_type="pt",  # Request output as PyTorch tensors.
         )
+        if self.is_distilled_diffusers_checkpoint:
+            pipeline_kwargs["sigmas"] = list(_LTX2_DISTILLED_SIGMA_VALUES)
+        output = self.pipeline(**pipeline_kwargs)
         frames = output.frames[0]
         # Clear CUDA memory and synchronize after generation for resource management.
         if torch.cuda.is_available():

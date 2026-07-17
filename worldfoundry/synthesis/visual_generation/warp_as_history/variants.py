@@ -160,7 +160,7 @@ WARP_AS_HISTORY_VARIANTS: dict[str, WarpAsHistoryVariant] = {
         lora_path=_prefer_existing_path(
             checkpoint_root() / "warp-as-history" / "visible_lora_state_step1000.safetensors",
         ),
-        demo_csv_path="bmx-trees.csv",
+        demo_csv_path="data/demo/bmx-trees.csv",
         notes=(
             "Official Warp-as-History source is vendored in-tree. Runtime checkpoints remain external: "
             "BestWishYsh/Helios-Distilled, yyfz233/warp-as-history, and yyfz233/Pi3X for camera-pose warping."

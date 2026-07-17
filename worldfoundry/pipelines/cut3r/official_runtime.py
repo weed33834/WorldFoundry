@@ -22,6 +22,7 @@ from worldfoundry.base_models.three_dimensions.point_clouds.cut3r import (
     load_images,
     pose_encoding_to_camera,
 )
+from worldfoundry.studio.visualization.core.geometry import depth_to_world_points
 
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"}
@@ -252,6 +253,89 @@ def prepare_output(
     }
 
 
+def build_rerun_recording(
+    output_dir: Union[str, Path],
+    *,
+    vis_threshold: float = 1.5,
+) -> Optional[str]:
+    """Build the official-style point-cloud, camera, RGB, and depth timeline."""
+
+    try:
+        import rerun as rr
+    except ImportError:
+        return None
+
+    root = Path(output_dir)
+    camera_paths = sorted((root / "camera").glob("*.npz"))
+    if not camera_paths:
+        return None
+
+    recording_path = root / "cut3r_sequence.rrd"
+    rr.init("worldfoundry_cut3r", recording_id=root.name, spawn=False)
+    rr.save(recording_path)
+    rr.log("world", rr.ViewCoordinates.RDF, static=True)
+    for frame_id, camera_path in enumerate(camera_paths):
+        if hasattr(rr, "set_time"):
+            rr.set_time("frame", sequence=frame_id)
+        else:
+            rr.set_time_sequence("frame", frame_id)
+        camera = np.load(camera_path)
+        pose = camera["pose"]
+        intrinsics = camera["intrinsics"]
+        frame_name = f"{frame_id:06d}"
+        color = iio.imread(root / "color" / f"{frame_name}.png")
+        depth = np.load(root / "depth" / f"{frame_name}.npy")
+        confidence = np.load(root / "conf" / f"{frame_name}.npy")
+        world_points = depth_to_world_points(depth, intrinsics, pose)
+        valid = (
+            np.isfinite(world_points).all(axis=-1)
+            & np.isfinite(confidence)
+            & (confidence > vis_threshold)
+        )
+        frame_root = f"world/frames/{frame_name}"
+        rr.log(
+            f"{frame_root}/points",
+            rr.Points3D(world_points[valid], colors=color[valid], radii=0.005),
+        )
+        rr.log(
+            f"{frame_root}/camera",
+            rr.Transform3D(translation=pose[:3, 3], mat3x3=pose[:3, :3], from_parent=True),
+        )
+        rr.log(
+            f"{frame_root}/camera",
+            rr.Pinhole(
+                image_from_camera=intrinsics,
+                resolution=[color.shape[1], color.shape[0]],
+                camera_xyz=rr.ViewCoordinates.RDF,
+                image_plane_distance=0.15,
+            ),
+        )
+        rr.log(
+            "world/current_camera",
+            rr.Transform3D(translation=pose[:3, 3], mat3x3=pose[:3, :3], from_parent=True),
+        )
+        rr.log(
+            "world/current_camera",
+            rr.Pinhole(
+                image_from_camera=intrinsics,
+                resolution=[color.shape[1], color.shape[0]],
+                camera_xyz=rr.ViewCoordinates.RDF,
+                image_plane_distance=0.15,
+            ),
+        )
+        rr.log("world/current_camera/rgb", rr.Image(color))
+        rr.log(
+            "observations/depth",
+            rr.DepthImage(
+                depth,
+                meter=1.0,
+                depth_range=[float(np.percentile(depth, 1)), float(np.percentile(depth, 99))],
+            ),
+        )
+    rr.disconnect()
+    return str(recording_path)
+
+
 def run_official_export(
     input_source: Union[str, Path, Sequence[Union[str, Path]]],
     model: ARCroco3DStereo,
@@ -262,6 +346,7 @@ def run_official_export(
     revisit: int = 1,
     update: bool = True,
     use_pose: bool = True,
+    vis_threshold: float = 1.5,
 ) -> Dict[str, str]:
     """Run official export helper function."""
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
@@ -300,6 +385,7 @@ def run_official_export(
             R=prepared["camera"]["R"],
             t=prepared["camera"]["t"],
         )
+        rerun_path = build_rerun_recording(output_dir, vis_threshold=vis_threshold)
     finally:
         if temp_dir is not None:
             # Safely clean up any pre-existing output directory structure
@@ -308,7 +394,7 @@ def run_official_export(
     if device_type == "cuda":
         torch.cuda.empty_cache()
 
-    return {
+    result = {
         "output_dir": str(output_dir),
         "summary_path": str(summary_path),
         "depth_dir": str(output_dir / "depth"),
@@ -316,11 +402,15 @@ def run_official_export(
         "color_dir": str(output_dir / "color"),
         "camera_dir": str(output_dir / "camera"),
     }
+    if rerun_path is not None:
+        result["rrd_path"] = rerun_path
+    return result
 
 
 __all__ = [
     "parse_seq_path",
     "prepare_input",
     "prepare_output",
+    "build_rerun_recording",
     "run_official_export",
 ]

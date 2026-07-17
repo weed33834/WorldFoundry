@@ -1,4 +1,4 @@
-"""Provides utilities and a runtime for interacting with vendored GR00T checkpoints.
+"""Provides utilities and a runtime for in-tree GR00T checkpoint inference.
 
 This module includes functions for selecting GR00T checkpoints, preparing observations
 from various input formats, and a class for managing the GR00T policy inference lifecycle
@@ -15,9 +15,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from worldfoundry.runtime import resolve_ckpt_dir, resolve_hfd_root
-from worldfoundry.synthesis.action_generation.gr00t.gr00t_runtime import install_aliases
-from worldfoundry.synthesis.action_generation.gr00t.gr00t_runtime.architecture import load_checkpoint_architecture, load_embodiment_ids
+from worldfoundry.runtime.env import resolve_ckpt_dir, resolve_hfd_root
+from worldfoundry.synthesis.action_generation.gr00t.architecture import load_checkpoint_architecture, load_embodiment_ids
 
 
 def _jsonable(value: Any) -> Any:
@@ -374,8 +373,7 @@ class GR00TRuntime:
     def _resolve_embodiment_value(self) -> str:
         """Resolves the internal GR00T embodiment value from the configured embodiment tag."""
         # Ensure gr00t modules are correctly aliased before importing EmbodimentTag
-        install_aliases()
-        from gr00t.inference_support.embodiment_tags import EmbodimentTag
+        from worldfoundry.synthesis.action_generation.gr00t.preprocessing import EmbodimentTag
 
         tag = EmbodimentTag.resolve(self.config.embodiment_tag)
         return str(tag.value)
@@ -388,20 +386,24 @@ class GR00TRuntime:
         """
         if self.policy is not None:
             return
+        from worldfoundry.core.device import resolve_inference_device, resolve_inference_dtype
+
         # Ensure gr00t modules are correctly aliased before policy import
-        install_aliases()
         checkpoint = self.config.checkpoint_dir.expanduser().resolve()
         # Verify checkpoint files and load metadata
         self.describe_checkpoint(checkpoint)
         # Resolve the internal string representation of the embodiment tag
         self.embodiment_value = self._resolve_embodiment_value()
-        # Dynamically import Gr00tPolicy and instantiate it
-        from gr00t.policy.gr00t_policy import Gr00tPolicy
+        from worldfoundry.synthesis.action_generation.gr00t.policy import Gr00tPolicy
+
+        device = resolve_inference_device(self.config.device, allow_cpu_fallback=True)
+        dtype = resolve_inference_dtype(device, self.config.torch_dtype)
 
         self.policy = Gr00tPolicy(
             embodiment_tag=self.config.embodiment_tag,
             model_path=str(checkpoint),
-            device=self.config.device,
+            device=device,
+            torch_dtype=dtype,
         )
 
     def predict_action(

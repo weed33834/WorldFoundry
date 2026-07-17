@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-from ..pipeline_utils import PipelineABC
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
 
 import torch
 from PIL import Image
 
-from ...synthesis.visual_generation.memory.stream import VisualFrameMemory
 from ...operators.matrix_game_3_operator import MatrixGame3Operator
 from ...synthesis.visual_generation.matrix_game.matrix_game_3_synthesis import MatrixGame3Synthesis
-
+from ...synthesis.visual_generation.memory.stream import VisualFrameMemory
+from ..pipeline_utils import PipelineABC
 
 DEFAULT_MATRIX_GAME3_COMPONENTS = {
     # Mirrors the upstream lightweight inference recipe while staying single-GPU friendly.
@@ -53,6 +52,7 @@ class MatrixGame3Pipeline(PipelineABC):
         self.memory_module = memory_module or VisualFrameMemory(model_id="matrix-game-3")
         self.device = device
         self.weight_dtype = weight_dtype
+        self._realtime_session: Any = None
 
     @classmethod
     def from_pretrained(
@@ -67,7 +67,7 @@ class MatrixGame3Pipeline(PipelineABC):
         """Load the pipeline from pretrained checkpoints and configurations."""
         required_components = {**DEFAULT_MATRIX_GAME3_COMPONENTS, **(required_components or {})}
         checkpoint_dir = required_components.get("checkpoint_dir")
-        if checkpoint_dir is None and not _looks_like_matrix_game3_code_path(model_path):
+        if model_path is not None and not _looks_like_matrix_game3_code_path(model_path):
             checkpoint_dir = model_path
         synthesis_model = MatrixGame3Synthesis.from_pretrained(
             pretrained_model_path=checkpoint_dir,
@@ -205,3 +205,84 @@ class MatrixGame3Pipeline(PipelineABC):
         )
         self.memory_module.record(video_output)
         return video_output
+
+    def _ensure_realtime_session(self) -> Any:
+        """Construct one model-owned resident rollout without spawning a runner."""
+
+        if self._realtime_session is None:
+            if self.synthesis_model is None:
+                raise RuntimeError("Matrix-Game 3 pipeline is not initialized.")
+            from ...synthesis.visual_generation.matrix_game.matrix_game_3_runtime.realtime import (
+                MatrixGame3RealtimeSession,
+            )
+
+            self._realtime_session = MatrixGame3RealtimeSession(
+                self.synthesis_model.runtime,
+                self.operators,
+            )
+        return self._realtime_session
+
+    def prepare_realtime(self) -> dict[str, Any]:
+        """Load resident weights and expose the native playback cadence."""
+
+        session = self._ensure_realtime_session()
+        return {"realtime_spec": session.realtime_spec().to_payload()}
+
+    def configure_realtime(
+        self,
+        images: Any,
+        prompt: str = "",
+        seed: int = 42,
+        fps: int = 17,
+        size: str | Sequence[int] = "704*1280",
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Encode user-provided session conditions while retaining model weights."""
+
+        if isinstance(images, (str, Path)):
+            with Image.open(images) as source:
+                images = source.convert("RGB")
+        if not isinstance(images, Image.Image):
+            raise ValueError("Matrix-Game 3 realtime requires a PIL image or image path.")
+        if self.memory_module is not None:
+            self.memory_module.manage(action="reset")
+            self.memory_module.record(images)
+        return self._ensure_realtime_session().configure(
+            image=images,
+            prompt=str(prompt or ""),
+            seed=seed,
+            fps=fps,
+            size=size,
+            num_inference_steps=kwargs.get("num_inference_steps"),
+            sample_shift=kwargs.get("sample_shift"),
+            sample_guide_scale=kwargs.get("sample_guide_scale"),
+            use_base_model=kwargs.get("use_base_model"),
+        )
+
+    def stream_realtime(
+        self,
+        prompt: str | None = None,
+        interactions: Sequence[str] | None = None,
+        realtime_segments: Sequence[Mapping[str, Any]] | None = None,
+        **_: Any,
+    ) -> dict[str, Any]:
+        """Advance the resident camera-aware rollout by one native window."""
+
+        session = self._ensure_realtime_session()
+        if prompt is not None:
+            session.update_prompt(prompt)
+        return session.generate(
+            interactions=list(interactions or ()),
+            control_segments=realtime_segments,
+        )
+
+    def realtime_next_output_frames(self) -> int:
+        return int(self._ensure_realtime_session().next_output_frames())
+
+    def reset_realtime(self) -> None:
+        """Release session state but keep native model weights loaded."""
+
+        if self._realtime_session is not None:
+            self._realtime_session.reset()
+        if self.memory_module is not None:
+            self.memory_module.manage(action="reset")

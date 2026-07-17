@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from worldfoundry.runtime import resolve_hfd_root
+from worldfoundry.runtime.env import resolve_hfd_root
 from worldfoundry.synthesis.visual_generation.pusa_vidgen.adapter import PusaVidGenRuntime
 
 from ..pipeline_utils import PipelineABC

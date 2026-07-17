@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from worldfoundry.evaluation.models.runtime.profiles import load_runtime_profile
-from worldfoundry.runtime import expand_worldfoundry_path
+from worldfoundry.runtime.assets import expand_worldfoundry_path
 
 from ...base_synthesis import BaseSynthesis
 
@@ -116,6 +116,20 @@ WORLD_MODEL_RUNTIME_SPECS: Mapping[str, WorldModelRuntimeSpec] = {
         runtime_module="worldfoundry.synthesis.visual_generation.world_model.le_wm.worldfoundry_runtime",
         input_schema=_ROBOT_INPUTS,
     ),
+    "mira": WorldModelRuntimeSpec(
+        model_id="mira",
+        display_name="MIRA",
+        runtime_module="worldfoundry.synthesis.visual_generation.world_model.mira_wm.worldfoundry_runtime",
+        blocked_reason="",
+        official_repo_url="https://github.com/mira-wm/mira",
+        required_assets=("MIRA world-model checkpoint", "kyutai/rocket-science local dataset split"),
+        input_schema={
+            "prompt": False,
+            "image": False,
+            "video": False,
+            "actions": ["rocket_league_keyboard", "game_action"],
+        },
+    ),
     "mineworld": WorldModelRuntimeSpec(
         model_id="mineworld",
         display_name="MineWorld",
@@ -172,11 +186,29 @@ WORLD_MODEL_RUNTIME_SPECS: Mapping[str, WorldModelRuntimeSpec] = {
     "dreamx-world-5b-cam": WorldModelRuntimeSpec(
         model_id="dreamx-world-5b-cam",
         display_name="DreamX-World 5B Cam",
-        source_dir_names=("DreamX-World",),
-        official_repo_url="https://github.com/AMAP-ML/DreamX-World",
-        entrypoint_relative="predict.py",
-        blocked_reason="DreamX-World official source route is registered; generation requires the DreamX-World 5B Cam checkpoint and official runtime assets.",
-        required_assets=("GD-ML/DreamX-World-5B-Cam checkpoint",),
+        runtime_module="worldfoundry.synthesis.visual_generation.dreamx_world.realtime",
+        runtime_root_attr=None,
+        entrypoint_attr=None,
+        command_builder_attr=None,
+        blocked_reason_attr=None,
+        required_assets=(
+            "GD-ML/DreamX-World-5B-Cam checkpoint",
+            "Wan2.2-TI2V-5B VAE, tokenizer, and T5 checkpoint",
+        ),
+        input_schema={"prompt": True, "image": True, "video": False, "actions": ["camera_navigation", "world_action"]},
+    ),
+    "dreamx-world-5b": WorldModelRuntimeSpec(
+        model_id="dreamx-world-5b",
+        display_name="DreamX-World 5B AR",
+        runtime_module="worldfoundry.synthesis.visual_generation.dreamx_world.ar_realtime",
+        runtime_root_attr=None,
+        entrypoint_attr=None,
+        command_builder_attr=None,
+        blocked_reason_attr=None,
+        required_assets=(
+            "GD-ML/DreamX-World-5B checkpoint",
+            "Wan2.2-TI2V-5B VAE, tokenizer, and T5 checkpoint",
+        ),
         input_schema={"prompt": True, "image": True, "video": False, "actions": ["camera_navigation", "world_action"]},
     ),
     "droid-w": WorldModelRuntimeSpec(
@@ -493,8 +525,10 @@ class WorldModelRuntimeSynthesis(BaseSynthesis):
         hook = self._module_hook(self.profile.missing_requirements_attr)
         if hook is None:
             return []
+        hook_options = dict(self.options)
+        hook_options.setdefault("device", self.device)
         extra_missing = hook(
-            options=self.options,
+            options=hook_options,
             runtime_root=self.runtime_root,
             entrypoint=self.entrypoint,
             profile=self.runtime_profile,

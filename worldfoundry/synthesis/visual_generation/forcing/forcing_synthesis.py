@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from ...base_synthesis import BaseSynthesis
-from .runtime import CausalForcingRuntime, SelfForcingRuntime
+from .runtime import CausalForcingRuntime, RollingForcingRuntime, SelfForcingRuntime
 
 
 class _BaseForcingSynthesis(BaseSynthesis):
@@ -14,7 +14,10 @@ class _BaseForcingSynthesis(BaseSynthesis):
     DISPLAY_NAME = ""
     RUNTIME_CLS = SelfForcingRuntime
 
-    def __init__(self, runtime: SelfForcingRuntime | CausalForcingRuntime) -> None:
+    def __init__(
+        self,
+        runtime: SelfForcingRuntime | CausalForcingRuntime | RollingForcingRuntime,
+    ) -> None:
         super().__init__()
         self.runtime = runtime
         self.model_id = runtime.model_id

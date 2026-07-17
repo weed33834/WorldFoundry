@@ -22,6 +22,61 @@ from ....base_models.three_dimensions.point_clouds.flash_world.render import (
 )
 
 
+_SH_C0 = 0.28209479177387814
+
+
+def _rgb_to_sh0(colors: torch.Tensor) -> torch.Tensor:
+    """Encode linear RGB as degree-zero spherical-harmonic coefficients."""
+
+    return (colors - 0.5) / _SH_C0
+
+
+def _opencv_world_to_opengl(points: np.ndarray) -> np.ndarray:
+    """Convert VGGT's OpenCV-aligned world points to right/up/backward axes."""
+
+    converted = np.asarray(points).copy()
+    converted[..., 1:3] *= -1.0
+    return converted
+
+
+def _opencv_w2c_to_opengl_c2w(world_to_camera: np.ndarray) -> np.ndarray:
+    """Convert an OpenCV world-to-camera pose into an OpenGL c2w pose."""
+
+    w2c = np.eye(4, dtype=np.float64)
+    pose = np.asarray(world_to_camera, dtype=np.float64)
+    if pose.shape not in {(3, 4), (4, 4)}:
+        raise ValueError(f"Expected a 3x4 or 4x4 pose, got {pose.shape}")
+    w2c[: pose.shape[0], : pose.shape[1]] = pose
+    conversion = np.diag((1.0, -1.0, -1.0, 1.0))
+    return conversion @ np.linalg.inv(w2c) @ conversion
+
+
+def _look_at_c2w_opengl(look_at: np.ndarray, eye: np.ndarray) -> np.ndarray:
+    """Build a proper right-handed OpenGL camera-to-world matrix.
+
+    Columns are camera right, up, and backward.  ``gaussian_render`` performs
+    the single OpenGL-to-COLMAP conversion expected by gsplat afterwards.
+    """
+
+    backward = eye - look_at
+    backward = backward / (np.linalg.norm(backward) + 1e-8)
+    world_up = np.array([0.0, 1.0, 0.0], dtype=np.float32)
+    right = np.cross(world_up, backward)
+    if np.linalg.norm(right) < 1e-6:
+        world_up = np.array([0.0, 0.0, 1.0], dtype=np.float32)
+        right = np.cross(world_up, backward)
+    right = right / (np.linalg.norm(right) + 1e-8)
+    up = np.cross(backward, right)
+    up = up / (np.linalg.norm(up) + 1e-8)
+
+    c2w = np.eye(4, dtype=np.float32)
+    c2w[:3, 0] = right
+    c2w[:3, 1] = up
+    c2w[:3, 2] = backward
+    c2w[:3, 3] = eye
+    return c2w
+
+
 class VGGTRepresentation:
     """VGGT Representation model for 3D scene reconstruction."""
     
@@ -214,9 +269,15 @@ class VGGTRepresentation:
         nn_med = float(nn.median().item())
 
         scene_radius = float(np.linalg.norm(points - scene_center[None, :], axis=1).max() + 1e-8)
-        min_scale = max(scene_radius / 5000.0, 1e-4)
-        max_scale = max(scene_radius / 300.0, min_scale)
-        return float(np.clip(nn_med * 0.6, min_scale, max_scale))
+        # ``nn_med`` is measured only among the sampled points.  VGGT clouds
+        # are dense image surfaces, so 2D sampling density makes neighbor
+        # spacing scale with sqrt(sample/full).  Without this correction the
+        # 6.7M-point kitchen cloud hit the old maximum scale and rendered as
+        # large blurry blobs instead of a point-aligned splat surface.
+        density_correction = float(np.sqrt(sample_n / max(len(points), 1)))
+        min_scale = max(scene_radius / 100000.0, 1e-6)
+        max_scale = max(scene_radius / 500.0, min_scale)
+        return float(np.clip(nn_med * density_correction * 1.2, min_scale, max_scale))
 
     def render_with_3dgs(
         self,
@@ -249,8 +310,7 @@ class VGGTRepresentation:
 
         radius_raw = float(camera_config.get("radius", 1.0 * scene_radius))
         radius_norm = max(radius_raw / scene_radius, 1e-3)
-        # +180° yaw so camera is on the opposite side (scene faces camera, not back).
-        yaw_deg = float(camera_config.get("yaw", 0.0)) + 180.0
+        yaw_deg = float(camera_config.get("yaw", 0.0))
         pitch_deg = float(camera_config.get("pitch", 0.0))
 
         yaw = np.deg2rad(yaw_deg)
@@ -259,37 +319,6 @@ class VGGTRepresentation:
         cam_y = center_norm[1] + radius_norm * np.sin(pitch)
         cam_z = center_norm[2] + radius_norm * np.cos(pitch) * np.cos(yaw)
         cam_pos = np.array([cam_x, cam_y, cam_z], dtype=np.float32)
-
-        def build_c2w(
-            look_at: np.ndarray,
-            eye: np.ndarray,
-            reverse_forward: bool = False,
-            basis_layout: str = "row",
-        ) -> np.ndarray:
-            forward = (eye - look_at) if reverse_forward else (look_at - eye)
-            forward = forward / (np.linalg.norm(forward) + 1e-8)
-            up = np.array([0.0, 1.0, 0.0], dtype=np.float32)
-            right = np.cross(forward, up)
-            right_norm = np.linalg.norm(right)
-            if right_norm < 1e-6:
-                up = np.array([0.0, 0.0, 1.0], dtype=np.float32)
-                right = np.cross(forward, up)
-                right_norm = np.linalg.norm(right)
-            right = right / (right_norm + 1e-8)
-            up = np.cross(right, forward)
-            up = up / (np.linalg.norm(up) + 1e-8)
-
-            c2w_local = np.eye(4, dtype=np.float32)
-            if basis_layout == "row":
-                c2w_local[0, :3] = right
-                c2w_local[1, :3] = up
-                c2w_local[2, :3] = forward
-            else:
-                c2w_local[:3, 0] = right
-                c2w_local[:3, 1] = up
-                c2w_local[:3, 2] = forward
-            c2w_local[:3, 3] = eye
-            return c2w_local
 
         fx = 0.5 * image_width / np.tan(np.deg2rad(60.0) / 2.0)
         fy = 0.5 * image_height / np.tan(np.deg2rad(45.0) / 2.0)
@@ -303,6 +332,7 @@ class VGGTRepresentation:
         rotation[:, 0] = 1.0
         opacity = torch.full((xyz.shape[0], 1), 0.95, device=device, dtype=torch.float32)
         color_tensor = torch.from_numpy(np.clip(colors, 0.0, 1.0)).to(device=device, dtype=torch.float32)
+        color_tensor = _rgb_to_sh0(color_tensor)
 
         gaussian_params = torch.cat([xyz, opacity, scale, rotation, color_tensor], dim=-1).unsqueeze(0)
         intr = torch.tensor([[fx, fy, cx, cy]], dtype=torch.float32, device=device).unsqueeze(0)
@@ -311,16 +341,8 @@ class VGGTRepresentation:
         near_dynamic = max(near_plane, radius_norm * 0.01)
         far_dynamic = max(far_plane, radius_norm * 20.0)
 
-        if not hasattr(self, "_render_variant_cache"):
-            self._render_variant_cache = {}
-
-        def render_candidate(reverse_forward: bool, basis_layout: str):
-            c2w_local = build_c2w(
-                look_at=center_norm,
-                eye=cam_pos,
-                reverse_forward=reverse_forward,
-                basis_layout=basis_layout,
-            )
+        def render_candidate():
+            c2w_local = _look_at_c2w_opengl(look_at=center_norm, eye=cam_pos)
             test_c2ws_local = torch.from_numpy(c2w_local).unsqueeze(0).unsqueeze(0).to(device=device, dtype=torch.float32)
             rgb_local, _ = gaussian_render(
                 gaussian_params,
@@ -341,48 +363,11 @@ class VGGTRepresentation:
             score = non_bg_ratio + 0.5 * std_v
             return rgb_img_local, score, non_bg_ratio
 
-        cached_variant = self._render_variant_cache.get(
-            ply_path,
-            {"reverse_forward": False, "basis_layout": "row"},
-        )
-        rgb_img, best_score, best_non_bg_ratio = render_candidate(
-            reverse_forward=bool(cached_variant["reverse_forward"]),
-            basis_layout=str(cached_variant["basis_layout"]),
-        )
-
-        # If the cached/default pose is too empty, probe multiple camera conventions once.
-        if best_score < 0.03 or best_non_bg_ratio < 0.001:
-            candidates = [
-                {"reverse_forward": False, "basis_layout": "row"},
-                {"reverse_forward": True, "basis_layout": "row"},
-                {"reverse_forward": False, "basis_layout": "col"},
-                {"reverse_forward": True, "basis_layout": "col"},
-            ]
-            best_variant = cached_variant
-            for cand in candidates:
-                rgb_try, score_try, non_bg_try = render_candidate(
-                    reverse_forward=bool(cand["reverse_forward"]),
-                    basis_layout=str(cand["basis_layout"]),
-                )
-                if score_try > best_score:
-                    rgb_img = rgb_try
-                    best_score = score_try
-                    best_non_bg_ratio = non_bg_try
-                    best_variant = cand
-            self._render_variant_cache[ply_path] = best_variant
+        rgb_img, best_score, best_non_bg_ratio = render_candidate()
 
         # If gsplat still fails (near-empty), fallback to deterministic point projection.
         if best_score < 0.03 or best_non_bg_ratio < 0.001:
-            best_variant = self._render_variant_cache.get(
-                ply_path,
-                {"reverse_forward": False, "basis_layout": "row"},
-            )
-            c2w_best = build_c2w(
-                look_at=center_norm,
-                eye=cam_pos,
-                reverse_forward=bool(best_variant["reverse_forward"]),
-                basis_layout=str(best_variant["basis_layout"]),
-            )
+            c2w_best = _look_at_c2w_opengl(look_at=center_norm, eye=cam_pos)
 
             img_fallback = np.zeros((image_height, image_width, 3), dtype=np.float32)
             depth_buf = np.full((image_height, image_width), np.inf, dtype=np.float32)
@@ -453,5 +438,4 @@ class VGGTRepresentation:
             .numpy()
             .astype(np.uint8)
         )
-        rgb_np = np.flipud(rgb_np)
         return Image.fromarray(rgb_np)

@@ -9,8 +9,17 @@ instead of a misleading generic unsupported-task error.
 from __future__ import annotations
 
 import os
+import shutil
+import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
+
+from PIL import Image
+
+from worldfoundry.runtime.in_tree_cli import ensure_in_tree_runtime, execute_in_tree, require_path
+
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[4]
 
 
 SUPPORTED_IN_TREE_TASKS = ("worldrecon", "panorama")
@@ -168,12 +177,121 @@ def raise_hy_world_2p0_worldgen_not_integrated(task: str = "worldgen") -> None:
     )
 
 
+class HYWorld2WorldgenRuntime:
+    """Render a WRBench trajectory through a pre-materialized HY-World scene.
+
+    This wraps the official ``traj_render.py`` stage only. It does not claim
+    to run the separate WorldNav, WorldStereo, or 3DGS training stages.
+    """
+
+    SOURCE_REVISION = "7f668e67c74338d50684e57be46a438459b6bbe1"
+
+    def __init__(
+        self,
+        *,
+        scene_path: Any = None,
+        python_executable: Any = None,
+        device: str = "cuda",
+        env: Mapping[str, Any] | None = None,
+    ) -> None:
+        self.repo_root = ensure_in_tree_runtime(self.bundled_repo_root(), package_file=__file__)
+        configured_scene = scene_path or os.environ.get("HYWORLD_SCENE_PATH")
+        self.scene_path = Path(configured_scene).expanduser() if configured_scene else None
+        self.python_executable = str(python_executable or sys.executable)
+        self.device = device
+        self.env = dict(env or {})
+
+    @staticmethod
+    def bundled_repo_root() -> Path:
+        return Path(__file__).resolve().parent / "hy_world_2p0_worldgen_runtime"
+
+    @classmethod
+    def from_pretrained(cls, pretrained_model_path: Any = None, **kwargs: Any) -> "HYWorld2WorldgenRuntime":
+        if pretrained_model_path and "scene_path" not in kwargs:
+            kwargs["scene_path"] = pretrained_model_path
+        return cls(**kwargs)
+
+    def plan(self, **kwargs: Any) -> dict[str, Any]:
+        return {
+            "model_id": "hyworld-worldgen",
+            "stage": "trajectory_rendering",
+            "repo_root": str(self.repo_root),
+            "source_revision": self.SOURCE_REVISION,
+            "scene_path": str(self.scene_path) if self.scene_path else None,
+            "inputs": {key: str(value) for key, value in kwargs.items()},
+        }
+
+    def predict(
+        self,
+        *,
+        image_path: Any,
+        camera_json: Any,
+        output_path: Any,
+        width: int = 832,
+        height: int = 480,
+        seed: int = 1024,
+        return_dict: bool = True,
+        **_: Any,
+    ) -> Any:
+        source_scene = require_path(self.scene_path, "HY-World materialized scene", kind="dir")
+        source_pcd = require_path(
+            source_scene / "render_results" / "global_pcd.ply",
+            "HY-World global point cloud",
+            kind="file",
+        )
+        image = require_path(image_path, "HY-World trajectory start frame", kind="file")
+        camera = require_path(camera_json, "HY-World camera JSON", kind="file")
+        output = Path(output_path).expanduser().resolve()
+        input_dir = output.parent / f".{output.stem}_hyworld_inputs"
+        scene = input_dir / "scene"
+        render_results = scene / "render_results"
+        view = render_results / "view0"
+        trajectory = view / "traj_wrbench"
+        trajectory.mkdir(parents=True, exist_ok=True)
+
+        panorama = scene / "panorama.png"
+        with Image.open(image) as first_frame:
+            first_frame.convert("RGB").resize((int(width), int(height)), Image.Resampling.LANCZOS).save(panorama)
+        shutil.copy2(panorama, view / "start_frame.png")
+        shutil.copy2(camera, trajectory / "camera.json")
+        staged_pcd = render_results / "global_pcd.ply"
+        if not staged_pcd.exists():
+            staged_pcd.symlink_to(source_pcd.resolve())
+
+        env = {str(key): str(value) for key, value in self.env.items()}
+        if self.device.startswith("cuda:") and "CUDA_VISIBLE_DEVICES" not in env:
+            env["CUDA_VISIBLE_DEVICES"] = self.device.split(":", 1)[1]
+        worldgen_root = self.repo_root / "hyworld2" / "worldgen"
+        command = [
+            self.python_executable,
+            "-m",
+            "torch.distributed.run",
+            "--nproc_per_node=1",
+            "traj_render.py",
+            "--target_path",
+            scene,
+            "--seed",
+            str(seed),
+        ]
+        result = execute_in_tree(
+            command,
+            cwd=worldgen_root,
+            output_path=output,
+            search_roots=(trajectory,),
+            preferred_names=("render.mp4",),
+            env=env,
+            python_paths=(_PROJECT_ROOT, worldgen_root, self.repo_root),
+        )
+        return result if return_dict else result.get("video")
+
+
 __all__ = [
     "HYWorld2WorldgenNotIntegratedError",
     "OFFICIAL_WORLDGEN_REQUIRED_FILES",
     "OFFICIAL_WORLDGEN_STAGES",
     "SUPPORTED_IN_TREE_TASKS",
     "UNSUPPORTED_WORLDGEN_TASKS",
+    "HYWorld2WorldgenRuntime",
     "get_hy_world_2p0_worldgen_plan",
     "inspect_official_worldgen_checkout",
     "raise_hy_world_2p0_worldgen_not_integrated",

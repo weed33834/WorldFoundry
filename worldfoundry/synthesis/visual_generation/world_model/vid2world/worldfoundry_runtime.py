@@ -5,7 +5,7 @@ from pathlib import Path
 from worldfoundry.core.io.paths import resolve_data_path
 
 
-RUNTIME_DIR = Path(__file__).resolve().parent / "vid2world_runtime"
+RUNTIME_DIR = Path(__file__).resolve().parent
 OFFICIAL_ENTRYPOINT = RUNTIME_DIR / "main" / "inference.py"
 CONFIG_ROOT = resolve_data_path("models", "runtime", "configs", "vid2world")
 DEFAULT_CONFIG = "game/config_csgo_test.yaml"

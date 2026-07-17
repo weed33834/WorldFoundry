@@ -11,10 +11,7 @@ import torch.distributed as dist
 from torch.utils.data import DataLoader, SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
 
-from pipeline import (
-    CausalDiffusionInferencePipeline,
-    CausalInferencePipeline,
-)
+from pipeline.causal_inference import CausalInferencePipeline
 from eval_inputs import TextDataset, TextImagePairDataset
 from worldfoundry.core.utils.torch_utils import set_seed_everywhere
 
@@ -67,6 +64,10 @@ if hasattr(config, 'denoising_step_list'):
     pipeline = CausalInferencePipeline(config, device=device)
 else:
     # Multi-step diffusion inference
+    from worldfoundry.synthesis.visual_generation.forcing.shared.pipeline.causal_diffusion_inference import (
+        CausalDiffusionInferencePipeline,
+    )
+
     pipeline = CausalDiffusionInferencePipeline(config, device=device)
 
 if args.checkpoint_path:

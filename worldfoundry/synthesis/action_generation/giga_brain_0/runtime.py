@@ -449,7 +449,7 @@ class GigaBrain0RuntimeConfig:
 
 
 class GigaBrain0Runtime:
-    """Lazy in-tree GigaBrain-0 runtime backed by vendored official code.
+    """Lazy in-tree GigaBrain-0 inference runtime.
 
     This class handles the loading and inference of the GigaBrain-0 model,
     deferring the actual model loading until the first `predict_action` call.
@@ -476,15 +476,9 @@ class GigaBrain0Runtime:
         """
         if self.policy is not None:
             return
-        # Lazy import to avoid loading heavy dependencies unless needed
-        from worldfoundry.synthesis.action_generation.giga_brain_0.giga_brain_0_runtime import install_aliases
-
-        install_aliases()
-
         import torch
 
-        # Lazy import of the core GigaBrain-0 pipeline class
-        from worldfoundry.synthesis.action_generation.giga_brain_0.giga_brain_0_runtime.giga_models.pipelines.vla.giga_brain_0 import GigaBrain0Pipeline
+        from worldfoundry.synthesis.action_generation.giga_brain_0.pipeline import GigaBrain0Pipeline
 
         # Load and parse normalization statistics from the JSON file
         payload = json.loads(self.config.norm_stats_path.read_text(encoding="utf-8"))

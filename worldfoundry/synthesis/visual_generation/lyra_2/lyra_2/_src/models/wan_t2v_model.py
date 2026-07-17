@@ -18,23 +18,21 @@ from __future__ import annotations
 
 import collections
 import os
-from contextlib import contextmanager
 from functools import partial
 from typing import Any, Callable, Dict, Mapping, Optional, Tuple
 
 import attrs
-import numpy as np
 import torch
 from einops import rearrange
 from torch import Tensor
-from torch.distributed._composable.fsdp import FSDPModule, fully_shard
+from torch.distributed._composable.fsdp import fully_shard
 from torch.distributed._tensor.api import DTensor
 from torch.distributed.checkpoint.state_dict import StateDictOptions, get_model_state_dict, set_model_state_dict
 from torch.distributed.tensor import distribute_tensor
 from torch.nn.modules.module import _IncompatibleKeys
 
 try:
-    from megatron.core import parallel_state
+    from worldfoundry.core.distributed.megatron_compat import parallel_state
 except ModuleNotFoundError:
 
     class _ParallelStateFallback:
@@ -58,47 +56,37 @@ except ImportError:
     _find_minimal_target_modules = None
     BaseTunerLayer = None
 
-from lyra_2._ext.imaginaire.lazy_config import LazyDict
-from lyra_2._ext.imaginaire.lazy_config import instantiate as lazy_instantiate
-from lyra_2._ext.imaginaire.model import ImaginaireModel
-from worldfoundry.base_models.diffusion_model.video.cosmos.cosmos2.runtime.cosmos_predict2.cosmos_predict2._src.imaginaire.utils.denoise_prediction import (
-    DenoisePrediction,
-)
-from lyra_2._ext.imaginaire.utils import log, misc
-from lyra_2._ext.imaginaire.utils.checkpointer import non_strict_load_model
-from lyra_2._ext.imaginaire.utils.count_params import count_params
-from lyra_2._ext.imaginaire.utils.ema import FastEmaModelUpdater
-from worldfoundry.core.distributed.fsdp_runtime import hsdp_device_mesh
-from lyra_2._src.utils.resolution import VIDEO_RES_SIZE_INFO
-from lyra_2._src.models.fm_solvers_unipc import FlowUniPCMultistepScheduler
 from lyra_2._src.models.utils import (
     _convert_musubi_wan_lora_to_non_diffusers_wan,
     _convert_non_diffusers_wan_lora_to_diffusers,
 )
-from worldfoundry.core.model_loading import load_state_dict
 from lyra_2._src.modules.conditioner import DataType, T2VCondition
-from lyra_2._src.tokenizers.base_vae import BaseVAE
+from lyra_2._src.utils.resolution import VIDEO_RES_SIZE_INFO
+
+from worldfoundry.base_models.diffusion_model.video.cosmos.cosmos2.runtime.cosmos_predict2.cosmos_predict2._src.predict2.models.fm_solvers_unipc import (
+    FlowUniPCMultistepScheduler,
+)
+from worldfoundry.base_models.diffusion_model.video.cosmos.cosmos2.runtime.cosmos_predict2.cosmos_predict2._src.predict2.tokenizers.base_vae import (
+    BaseVAE,
+)
+from worldfoundry.base_models.diffusion_model.video.cosmos.shared.diffusion_types import DenoisePrediction
+from worldfoundry.core.configuration.lazy_config import LazyDict
+from worldfoundry.core.configuration.lazy_config import instantiate as lazy_instantiate
+from worldfoundry.core.distributed import broadcast_dtensor_model_states
 from worldfoundry.core.distributed.context_parallel import (
     broadcast,
     broadcast_split_tensor,
     cat_outputs_cp,
 )
-from worldfoundry.core.distributed import DTensorFastEmaModelUpdater, broadcast_dtensor_model_states
+from worldfoundry.core.distributed.fsdp_runtime import hsdp_device_mesh
+from worldfoundry.core.distributed.logging import log
+from worldfoundry.core.model_loading import InferenceModel, load_state_dict, non_strict_load_model
 from worldfoundry.core.time import CudaSyncTimer as sync_timer
+from worldfoundry.core.utils import count_parameters as count_params
+from worldfoundry.core.utils import inference_runtime as misc
 
 IS_PREPROCESSED_KEY = "is_preprocessed"
 NUM_EMBEDDING_PADDING_TOKENS = 512
-
-
-@attrs.define(slots=False)
-class EMAConfig:
-    """
-    Config for the EMA.
-    """
-
-    enabled: bool = True
-    rate: float = 0.1
-    iteration_shift: int = 0
 
 
 @attrs.define(slots=False)
@@ -116,7 +104,6 @@ class T2VModelConfig:
     tokenizer: LazyDict = None
     conditioner: LazyDict = None
     net: LazyDict = None
-    ema: EMAConfig = EMAConfig()
 
     fsdp_shard_size: int = 1
     precision: str = "bfloat16"
@@ -136,7 +123,7 @@ class T2VModelConfig:
     use_dynamic_shift: bool = False
 
 
-class WANDiffusionModel(ImaginaireModel):
+class WANDiffusionModel(InferenceModel):
     """
     Diffusion model.
     """
@@ -249,32 +236,16 @@ class WANDiffusionModel(ImaginaireModel):
     @misc.timer("DiffusionModel: set_up_model")
     def set_up_model(self):
         config = self.config
-        with misc.timer("Creating PyTorch model and ema if enabled"):
+        with misc.timer("Creating PyTorch model"):
             self.conditioner = lazy_instantiate(config.conditioner)
             assert sum(p.numel() for p in self.conditioner.parameters() if p.requires_grad) == 0, (
                 "conditioner should not have learnable parameters"
             )
             self.net = self.build_net()
             self._param_count = count_params(self.net, verbose=False)
-
-            if config.ema.enabled:
-                self.net_ema = self.build_net()
-                self.net_ema.requires_grad_(False)
-
-                if self.fsdp_device_mesh:
-                    self.net_ema_worker = DTensorFastEmaModelUpdater()
-                else:
-                    self.net_ema_worker = FastEmaModelUpdater()
-
-                s = config.ema.rate
-                self.ema_exp_coefficient = np.roots([1, 7, 16 - s**-2, 12 - s**-2]).real.max()
-
-                self.net_ema_worker.copy_to(src_model=self.net, tgt_model=self.net_ema)
         torch.cuda.empty_cache()
 
     def prepare_runtime(self, memory_format: torch.memory_format = torch.preserve_format) -> None:
-        if self.config.ema.enabled:
-            self.net_ema.to(dtype=torch.float32)
         if hasattr(self.tokenizer, "reset_dtype"):
             self.tokenizer.reset_dtype()
         self.net = self.net.to(memory_format=memory_format, **self.tensor_kwargs)
@@ -284,7 +255,7 @@ class WANDiffusionModel(ImaginaireModel):
                 log.warning(
                     "torch.compile in Pytorch version older than 2.3 doesn't work well with activation checkpointing.\n"
                     "It's very likely there will be no significant speedup from torch.compile.\n"
-                    "Please use at least 24.04 Pytorch container, or imaginaire4:v7 container."
+                    "Please use at least 24.04 Pytorch container, or the WorldFoundry unified CUDA environment."
                 )
             # Increasing cache size. It's required because of the model size and dynamic input shapes resulting in
             # multiple different triton kernels. For 28 TransformerBlocks, the cache limit of 256 should be enough for
@@ -789,82 +760,27 @@ class WANDiffusionModel(ImaginaireModel):
     # ------------------ Checkpointing ------------------
 
     def state_dict(self) -> Dict[str, Any]:
-        net_state_dict = self.net.state_dict(prefix="net.")
-        if self.config.ema.enabled:
-            ema_state_dict = self.net_ema.state_dict(prefix="net_ema.")
-            net_state_dict.update(ema_state_dict)
-        return net_state_dict
+        return self.net.state_dict(prefix="net.")
 
     def load_state_dict(
         self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False, pretrain_copy: bool = False
-    ) -> None:
-        """Only called when using .pth checkpoint
-        Loads a state dictionary into the model and optionally its EMA counterpart.
-        Different from torch strict=False mode, the method will not raise error for unmatched state shape while raise warning.
-
-        Parameters:e
-            state_dict (Mapping[str, Any]): A dictionary containing separate state dictionaries for the model and
-                                            potentially for an EMA version of the model under the keys 'model' and 'ema', respectively.
-            strict (bool, optional): If True, the method will enforce that the keys in the state dict match exactly
-                                    those in the model and EMA model (if applicable). Defaults to True.
-            assign (bool, optional): If True and in strict mode, will assign the state dictionary directly rather than
-                                    matching keys one-by-one. This is typically used when loading parts of state dicts
-                                    or using customized loading procedures. Defaults to False.
-        """
-
+    ) -> _IncompatibleKeys:
+        """Load regular inference weights from a consolidated checkpoint."""
         if pretrain_copy:
-            if strict:
-                reg_results: _IncompatibleKeys = self.net.load_state_dict(state_dict, strict=strict, assign=assign)
-
-                if self.config.ema.enabled:
-                    ema_results: _IncompatibleKeys = self.net_ema.load_state_dict(
-                        state_dict, strict=strict, assign=assign
-                    )
-
-                return _IncompatibleKeys(
-                    missing_keys=reg_results.missing_keys
-                    + (ema_results.missing_keys if self.config.ema.enabled else []),
-                    unexpected_keys=reg_results.unexpected_keys
-                    + (ema_results.unexpected_keys if self.config.ema.enabled else []),
-                )
-            else:
-                log.critical("load model in non-strict mode")
-                log.critical(non_strict_load_model(self.net, state_dict), rank0_only=False)
-                if self.config.ema.enabled:
-                    log.critical("load ema model in non-strict mode")
-                    log.critical(non_strict_load_model(self.net_ema, state_dict), rank0_only=False)
+            model_state = state_dict
         else:
-            _reg_state_dict = collections.OrderedDict()
-            _ema_state_dict = collections.OrderedDict()
-            for k, v in state_dict.items():
-                if k.startswith("net."):
-                    _reg_state_dict[k.replace("net.", "")] = v
-                elif k.startswith("net_ema."):
-                    _ema_state_dict[k.replace("net_ema.", "")] = v
-                else:
-                    _reg_state_dict[k] = v
+            model_state = collections.OrderedDict()
+            for key, value in state_dict.items():
+                if key.startswith("net."):
+                    model_state[key.removeprefix("net.")] = value
+                elif not key.startswith("net_ema."):
+                    model_state[key] = value
 
-            state_dict = _reg_state_dict
-            if strict:
-                reg_results: _IncompatibleKeys = self.net.load_state_dict(_reg_state_dict, strict=strict, assign=assign)
+        if strict:
+            return self.net.load_state_dict(model_state, strict=True, assign=assign)
 
-                if self.config.ema.enabled:
-                    ema_results: _IncompatibleKeys = self.net_ema.load_state_dict(
-                        _ema_state_dict, strict=strict, assign=assign
-                    )
-
-                return _IncompatibleKeys(
-                    missing_keys=reg_results.missing_keys
-                    + (ema_results.missing_keys if self.config.ema.enabled else []),
-                    unexpected_keys=reg_results.unexpected_keys
-                    + (ema_results.unexpected_keys if self.config.ema.enabled else []),
-                )
-            else:
-                log.warning("load model in non-strict mode")
-                log.warning(non_strict_load_model(self.net, _reg_state_dict), rank0_only=False)
-                if self.config.ema.enabled:
-                    log.warning("load ema model in non-strict mode")
-                    log.warning(non_strict_load_model(self.net_ema, _ema_state_dict), rank0_only=False)
+        log.warning("load model in non-strict mode")
+        return non_strict_load_model(self.net, model_state)
 
     def is_image_batch(self, data_batch: dict[str, Tensor]) -> bool:
         """We hanlde two types of data_batch. One comes from a joint_dataloader where "dataset_name" can be used to differenciate image_batch and video_batch.
@@ -876,12 +792,6 @@ class WANDiffusionModel(ImaginaireModel):
             "Only one of the input_image_key or input_data_key should be present in the data_batch."
         )
         return is_image
-
-    def return_data_type(self, data_batch: dict[str, Tensor]) -> DataType:
-        if self.is_image_batch(data_batch):
-            return "image"
-        else:
-            return "video"
 
     def denoise(self, xt_B_C_T_H_W: torch.Tensor, timestep: torch.Tensor, condition: T2VCondition) -> DenoisePrediction:
         """
@@ -927,28 +837,6 @@ class WANDiffusionModel(ImaginaireModel):
 
     def get_num_video_latent_frames(self) -> int:
         return self.config.state_t
-
-    @contextmanager
-    def ema_scope(self, context=None, is_cpu=False):
-        if self.config.ema.enabled:
-            # https://github.com/pytorch/pytorch/issues/144289
-            for module in self.net.modules():
-                if isinstance(module, FSDPModule):
-                    module.reshard()
-            self.net_ema_worker.cache(self.net.parameters(), is_cpu=is_cpu)
-            self.net_ema_worker.copy_to(src_model=self.net_ema, tgt_model=self.net)
-            if context is not None:
-                log.info(f"{context}: Switched to EMA weights")
-        try:
-            yield None
-        finally:
-            if self.config.ema.enabled:
-                for module in self.net.modules():
-                    if isinstance(module, FSDPModule):
-                        module.reshard()
-                self.net_ema_worker.restore(self.net.parameters())
-                if context is not None:
-                    log.info(f"{context}: Restored runtime weights")
 
 
 NUM_CONDITIONAL_FRAMES_KEY: str = "num_conditional_frames"

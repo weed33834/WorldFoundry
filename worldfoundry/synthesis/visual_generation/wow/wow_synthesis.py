@@ -13,8 +13,9 @@ from typing import Any, Mapping
 import torch
 from PIL import Image
 
-from ...base_synthesis import BaseSynthesis
+from worldfoundry.core.io.paths import resolve_local_hf_model_path
 
+from ...base_synthesis import BaseSynthesis
 
 WAN_DEFAULT_NEGATIVE_PROMPT = "low quality, distorted, ugly, bad anatomy"
 DIT_DEFAULT_NEGATIVE_PROMPT = (
@@ -33,22 +34,18 @@ def _as_local_dir(path: str | os.PathLike[str], label: str) -> Path:
         return model_root
 
     path_text = str(path)
-    is_hf_repo_id = (
-        "/" in path_text
-        and not path_text.startswith(("/", ".", "~"))
-        and "://" not in path_text
-    )
+    is_hf_repo_id = "/" in path_text and not path_text.startswith(("/", ".", "~")) and "://" not in path_text
     if is_hf_repo_id:
         try:
-            from huggingface_hub import snapshot_download
-        except Exception as exc:  # pragma: no cover - depends on optional runtime env
+            return resolve_local_hf_model_path(path_text)
+        except FileNotFoundError as exc:
             raise FileNotFoundError(
-                f"{label} points to Hugging Face repo {path_text!r}, but huggingface_hub is not available."
+                f"{label} repository {path_text!r} is not staged locally. "
+                "Pre-download the pinned checkpoint before WoW inference."
             ) from exc
-        return Path(snapshot_download(repo_id=path_text))
 
     raise FileNotFoundError(
-        f"{label} must be a local checkpoint directory or Hugging Face repo id for WoW in-tree inference: {model_root}"
+        f"{label} must resolve to a local checkpoint directory for WoW in-tree inference: {model_root}"
     )
 
 
@@ -66,8 +63,7 @@ def _find_wan_dit_paths(model_root: Path) -> list[str]:
         return [str(path) for path in discovered]
 
     raise FileNotFoundError(
-        "WoW Wan checkpoint directory is missing diffusion_pytorch_model*.safetensors files: "
-        f"{model_root}"
+        f"WoW Wan checkpoint directory is missing diffusion_pytorch_model*.safetensors files: {model_root}"
     )
 
 
@@ -88,7 +84,7 @@ def _load_wow_dit_video2world_module() -> Any:
     if not module_path.is_file():
         raise FileNotFoundError(f"WoW DiT video2world runtime not found: {module_path}")
 
-    # The official script imports the sibling imaginaire package as a top-level module.
+    # The official script still imports its model-specific sibling modules by top-level name.
     runtime_dir_text = str(runtime_dir)
     if runtime_dir_text not in sys.path:
         sys.path.insert(0, runtime_dir_text)
@@ -189,7 +185,7 @@ class WoWSynthesis(BaseSynthesis):
     @classmethod
     def from_pretrained(
         cls,
-        pretrained_model_path: str | Mapping[str, Any] | None = "WoW-world-model/WoW-1-Wan-14B-600k",
+        pretrained_model_path: str | Mapping[str, Any] | None = "X-Humanoid/WoW-1-Wan-14B-600k",
         synthesis_args: Any = None,
         device: str = "cuda",
         **kwargs: Any,
@@ -212,9 +208,7 @@ class WoWSynthesis(BaseSynthesis):
             )
 
         backend = str(
-            options.pop("runtime_backend", None)
-            or getattr(synthesis_args, "runtime_backend", "wan")
-            or "wan"
+            options.pop("runtime_backend", None) or getattr(synthesis_args, "runtime_backend", "wan") or "wan"
         ).lower()
         if backend in {"dit", "dit-2b", "dit2b", "cosmos", "cosmos2"}:
             return cls._from_dit2b(
@@ -270,7 +264,11 @@ class WoWSynthesis(BaseSynthesis):
         custom_checkpoint = _custom_checkpoint_path(model_root, custom_checkpoint_name)
         if custom_checkpoint is not None:
             if custom_checkpoint.is_file():
-                state_dict = torch.load(str(custom_checkpoint), map_location="cpu")
+                state_dict = torch.load(
+                    str(custom_checkpoint),
+                    map_location="cpu",
+                    weights_only=True,
+                )
                 dit_model = mm.fetch_model("wan_video_dit")
                 if dit_model is not None:
                     dit_model.load_state_dict(state_dict, strict=False)
@@ -280,9 +278,8 @@ class WoWSynthesis(BaseSynthesis):
 
         pipeline = Wan22VideoPusaPipeline.from_model_manager(mm, torch_dtype=torch.bfloat16, device=device)
 
-        enable_vram = (
-            getattr(synthesis_args, "enable_vram_management", True)
-            and not getattr(synthesis_args, "no_vram_management", False)
+        enable_vram = getattr(synthesis_args, "enable_vram_management", True) and not getattr(
+            synthesis_args, "no_vram_management", False
         )
         if enable_vram:
             persistent_param_gb = getattr(synthesis_args, "persistent_param_gb", 70)

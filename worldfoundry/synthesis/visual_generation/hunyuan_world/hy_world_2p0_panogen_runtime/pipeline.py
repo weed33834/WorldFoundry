@@ -8,8 +8,8 @@ Usage:
     output = pipeline('input.png')
     output.save('output_panorama.png')
 
-    # Python API — download from HuggingFace
-    pipeline = HunyuanPanoPipeline.from_pretrained('tencent/HY-Pano-2.0')
+    # Python API — pre-downloaded local Hugging Face snapshot
+    pipeline = HunyuanPanoPipeline.from_pretrained('/models/tencent--HY-Pano-2.0')
     output = pipeline(
         'input.png',
         prompt='Expand this image to a 360-degree equirectangular panorama. Sunny day.',
@@ -161,7 +161,7 @@ class HunyuanPanoPipeline:
         print(f"[Init] Loading model from {model_dir} ...")
         kwargs = dict(
             attn_implementation=attn_impl,
-            trust_remote_code=True,
+            local_files_only=True,
             torch_dtype="auto",
             device_map="auto",
             moe_impl=moe_impl,

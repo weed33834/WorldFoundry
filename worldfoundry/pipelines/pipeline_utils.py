@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import inspect
-from collections.abc import Generator, Iterable
+from collections.abc import Generator, Iterable, Mapping
 from pathlib import Path
 from typing import Any, ClassVar, Sequence
 
@@ -252,13 +252,24 @@ class PipelineABC:
         """Call component pipeline for PipelineABC."""
         if self.synthesis_model is None:
             raise RuntimeError(f"{self.__class__.__name__} synthesis_model is not initialized.")
+        ref_image_path = kwargs.pop("ref_image_path", None)
+        explicit_operator_kwargs = kwargs.pop("operator_kwargs", {})
+        if explicit_operator_kwargs is None:
+            explicit_operator_kwargs = {}
+        if not isinstance(explicit_operator_kwargs, Mapping):
+            raise TypeError("operator_kwargs must be a mapping")
+        # Workspace and the CLI expose model controls as normal call kwargs.
+        # Operators need those values too so state, camera keys, variants and
+        # seeds are represented in the normalized observation. Explicit
+        # operator kwargs retain precedence for advanced callers.
+        operator_inputs = {**kwargs, **dict(explicit_operator_kwargs)}
         processed = self.process(
             prompt=prompt,
             images=images,
             video=video,
             interactions=interactions,
-            ref_image_path=kwargs.pop("ref_image_path", None),
-            **kwargs.pop("operator_kwargs", {}),
+            ref_image_path=ref_image_path,
+            **operator_inputs,
         )
         model_specific = {
             key: value for key, value in processed.items() if key not in self.RESERVED_SYNTHESIS_KEYS

@@ -24,7 +24,6 @@ def register_lyra2():
         ),
         model=dict(
             config=dict(
-                ema=dict(enabled=False),
                 framepack_type="f1k1f4s2f1s1f16k4f2k2f1k1_g20",
                 max_segments=13,
                 apply_corruption_to_spatial_region="noise_with_sigma",
@@ -54,8 +53,6 @@ def register_lyra2():
             context_parallel_size=1,
         ),
         checkpoint=dict(
-            save_iter=100,
-            save_to_object_store=dict(enabled=False),
             load_from_object_store=dict(enabled=False),
             load_path="",
             strict_resume=False,

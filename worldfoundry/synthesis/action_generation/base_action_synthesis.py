@@ -6,6 +6,8 @@ identifier and sets the stage for defining its architecture, runtime, and infere
 """
 from __future__ import annotations
 
+from typing import Any
+
 from worldfoundry.evaluation.models.runtime.profiles import RuntimeProfileSynthesis
 
 
@@ -19,3 +21,14 @@ class ActionModelSynthesis(RuntimeProfileSynthesis):
     """
 
     MODEL_ID = "action-model"
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        """Expose ``predict`` through the standard Workspace pipeline contract.
+
+        Some action entries are intentionally registered as their concrete
+        synthesis class instead of a component pipeline.  Studio invokes every
+        loaded pipeline through ``__call__``; forwarding here keeps those direct
+        entries equivalent to component-backed action pipelines.
+        """
+
+        return self.predict(*args, **kwargs)

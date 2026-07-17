@@ -131,15 +131,35 @@ class LongViePipeline(PipelineABC):
         return result.get("video") or result.get("artifact_path") or result
 
     def stream(self, *args: Any, reset_memory: bool = False, **kwargs: Any) -> Any:
-        """Stream visual generation outputs chunk by chunk."""
-        if reset_memory and self.synthesis_model is not None:
+        """Generate the next queued 81-frame segment using resident state.
+
+        LongVie is a full diffusion segment generator, not a low-latency key
+        controller. The previous final frame, eight-frame history, and noise
+        are reused automatically; callers provide new dense/sparse control
+        videos for every continuation segment.
+        """
+        if self.synthesis_model is None:
+            raise RuntimeError("LongVie synthesis model is not loaded. Use from_pretrained() first.")
+        if reset_memory:
             self.synthesis_model.reset_memory()
+        elif self.synthesis_model.last_frame is None:
+            raise RuntimeError(
+                "LongVie EXTEND requires a completed segment in this resident pipeline. "
+                "Run the first segment before extending; a newly started process cannot "
+                "reconstruct the official eight-frame/noise continuation state."
+            )
+        kwargs["continue_from_memory"] = not reset_memory
         return self(*args, **kwargs)
 
     def reset_memory(self) -> None:
         """Reset memory for LongViePipeline."""
         if self.synthesis_model is not None:
             self.synthesis_model.reset_memory()
+
+    def stream_state_ready(self) -> bool:
+        """Return whether an honest history/noise continuation is available."""
+
+        return bool(self.synthesis_model is not None and self.synthesis_model.last_frame is not None)
 
 
 class LongVie1Pipeline(LongViePipeline):

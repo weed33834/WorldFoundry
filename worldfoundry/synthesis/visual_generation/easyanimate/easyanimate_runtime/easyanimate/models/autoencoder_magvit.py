@@ -24,6 +24,8 @@ from diffusers.models.modeling_utils import ModelMixin
 from diffusers.utils import logging
 from diffusers.utils.accelerate_utils import apply_forward_hook
 
+from worldfoundry.core.checkpoint import load_tensor_state_dict
+
 try:
     from diffusers.loaders import FromOriginalVAEMixin
 except:
@@ -494,7 +496,7 @@ class AutoencoderKLMagvit(ModelMixin, ConfigMixin, FromOriginalVAEMixin):
         else:
             if not os.path.isfile(model_file):
                 raise RuntimeError(f"{model_file} does not exist")
-            state_dict = torch.load(model_file, map_location="cpu")
+            state_dict = load_tensor_state_dict(model_file)
         m, u = model.load_state_dict(state_dict, strict=False)
         print(f"### missing keys: {len(m)}; \n### unexpected keys: {len(u)};")
         print(m, u)

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from ...synthesis.visual_generation.memory.runtime import RuntimeMemory
 from ...operators.world_model_runtime_operator import WorldModelRuntimeOperator
+from ...synthesis.visual_generation.memory.runtime import RuntimeMemory
 from ...synthesis.visual_generation.world_model.runtime_manifest import WorldModelRuntimeSynthesis
 from ..pipeline_utils import PipelineABC
 
@@ -59,6 +59,13 @@ class LeWorldModelPipeline(WorldModelRuntimePipeline):
     MODEL_ID = "leworldmodel"
 
 
+class MIRAPipeline(WorldModelRuntimePipeline):
+    """Inference-only Workspace pipeline for MIRA."""
+
+    MODEL_ID = "mira"
+    MODEL_PATH_OPTION = "checkpoint_path"
+
+
 class MineWorldPipeline(WorldModelRuntimePipeline):
     """Pipeline implementation for MineWorld visual generation."""
     MODEL_ID = "mineworld"
@@ -87,11 +94,6 @@ class StarWMPipeline(WorldModelRuntimePipeline):
 class TesserActPipeline(WorldModelRuntimePipeline):
     """Pipeline implementation for TesserAct visual generation."""
     MODEL_ID = "tesseract"
-
-
-class DreamXWorld5BCamPipeline(WorldModelRuntimePipeline):
-    """Pipeline implementation for DreamXWorld5BCam visual generation."""
-    MODEL_ID = "dreamx-world-5b-cam"
 
 
 class DROIDWPipeline(WorldModelRuntimePipeline):
@@ -195,7 +197,6 @@ __all__ = [
     "DIAMONDPipeline",
     "DinoWMPipeline",
     "DROIDWPipeline",
-    "DreamXWorld5BCamPipeline",
     "EgoWMPipeline",
     "GenieEnvisionerPipeline",
     "GigaWorld0Pipeline",
@@ -203,6 +204,7 @@ __all__ = [
     "HappyOysterPipeline",
     "HunyuanWorld1Pipeline",
     "LeWorldModelPipeline",
+    "MIRAPipeline",
     "MineWorldPipeline",
     "MosaicMemPipeline",
     "MotionBricksPipeline",

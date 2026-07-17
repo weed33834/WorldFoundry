@@ -5,7 +5,12 @@ from dataclasses import dataclass
 import numpy as np
 import torch
 from einops import rearrange
-from transformers import CLIPTextModelWithProjection, CLIPTokenizer, CLIPImageProcessor, MT5Tokenizer, T5EncoderModel
+from transformers import CLIPImageProcessor, CLIPTextModelWithProjection, CLIPTokenizer, T5EncoderModel
+
+try:  # transformers < 5 exposed the multilingual alias at package level.
+    from transformers import MT5Tokenizer
+except ImportError:  # transformers 5 consolidated it with the T5 tokenizer.
+    from transformers import T5Tokenizer as MT5Tokenizer
 
 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 from diffusers.callbacks import MultiPipelineCallbacks, PipelineCallback

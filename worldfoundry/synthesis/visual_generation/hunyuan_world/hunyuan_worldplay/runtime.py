@@ -3,6 +3,7 @@ import json
 import os
 import random
 import re
+from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
 
@@ -1193,6 +1194,246 @@ class _HunyuanWorldPlayInternalPipeline(DiffusionPipeline):
                 {"k_vision": None, "v_vision": None, "k_txt": None, "v_txt": None}
             )
 
+    def prepare_ar_text_cache(
+        self,
+        *,
+        latents,
+        prompt_embeds,
+        prompt_mask,
+        vision_states,
+        task_type,
+        extra_kwargs,
+        device,
+    ):
+        """Build the immutable text KV portion used by every AR chunk."""
+
+        self.init_kv_cache()
+        positive_idx = 1 if self.do_classifier_free_guidance else 0
+        with (
+            torch.autocast(
+                device_type="cuda",
+                dtype=self.target_dtype,
+                enabled=self.autocast_enabled,
+            ),
+            auto_offload_model(
+                self.transformer, self.execution_device, enabled=self.enable_offloading
+            ),
+        ):
+            extra_kwargs_pos = {
+                "byt5_text_states": extra_kwargs["byt5_text_states"][positive_idx, None, ...],
+                "byt5_text_mask": extra_kwargs["byt5_text_mask"][positive_idx, None, ...],
+            }
+            timestep_txt = torch.tensor([0], device=device, dtype=latents.dtype)
+            self._kv_cache = self.transformer(
+                bi_inference=False,
+                ar_txt_inference=True,
+                ar_vision_inference=False,
+                timestep_txt=timestep_txt,
+                text_states=prompt_embeds[positive_idx, None, ...],
+                encoder_attention_mask=prompt_mask[positive_idx, None, ...],
+                vision_states=vision_states[positive_idx, None, ...],
+                mask_type=task_type,
+                extra_kwargs=extra_kwargs_pos,
+                kv_cache=self._kv_cache,
+                cache_txt=True,
+            )
+            if self.do_classifier_free_guidance:
+                extra_kwargs_neg = {
+                    "byt5_text_states": extra_kwargs["byt5_text_states"][0, None, ...],
+                    "byt5_text_mask": extra_kwargs["byt5_text_mask"][0, None, ...],
+                }
+                self._kv_cache_neg = self.transformer(
+                    bi_inference=False,
+                    ar_txt_inference=True,
+                    ar_vision_inference=False,
+                    timestep_txt=timestep_txt,
+                    text_states=prompt_embeds[0, None, ...],
+                    encoder_attention_mask=prompt_mask[0, None, ...],
+                    vision_states=vision_states[0, None, ...],
+                    mask_type=task_type,
+                    extra_kwargs=extra_kwargs_neg,
+                    kv_cache=self._kv_cache_neg,
+                    cache_txt=True,
+                )
+        return self._kv_cache, self._kv_cache_neg
+
+    def select_ar_context_indices(
+        self,
+        *,
+        viewmats,
+        current_frame_idx: int,
+        chunk_latent_frames: int,
+        device,
+    ) -> list[int]:
+        """Select the same geometry-aligned memory used by offline rollout."""
+
+        selected_frame_indices: list[int] = []
+        for chunk_start_idx in range(
+            current_frame_idx,
+            current_frame_idx + chunk_latent_frames,
+            4,
+        ):
+            selected_frame_indices += select_aligned_memory_frames(
+                viewmats[0].cpu().detach().numpy(),
+                chunk_start_idx,
+                memory_frames=20,
+                temporal_context_size=12,
+                pred_latent_size=4,
+                points_local=self.points_local,
+                device=device,
+            )
+        selected = sorted(set(selected_frame_indices))
+        generated = set(range(current_frame_idx, current_frame_idx + chunk_latent_frames))
+        return [index for index in selected if index not in generated]
+
+    def rebuild_ar_vision_cache(
+        self,
+        *,
+        latents,
+        cond_latents,
+        viewmats,
+        Ks,
+        action,
+        selected_frame_indices,
+        timesteps,
+        task_type,
+        device,
+    ):
+        """Replace the geometry-dependent vision KV while preserving text KV."""
+
+        if not selected_frame_indices:
+            return
+        context_latents = latents[:, :, selected_frame_indices]
+        context_cond = cond_latents[:, :, selected_frame_indices]
+        context_input = torch.concat([context_latents, context_cond], dim=1)
+        context_timestep = torch.full(
+            (len(selected_frame_indices),),
+            14,
+            device=device,
+            dtype=timesteps.dtype,
+        )
+        with (
+            torch.autocast(
+                device_type="cuda",
+                dtype=self.target_dtype,
+                enabled=self.autocast_enabled,
+            ),
+            auto_offload_model(
+                self.transformer, self.execution_device, enabled=self.enable_offloading
+            ),
+        ):
+            common = dict(
+                bi_inference=False,
+                ar_txt_inference=False,
+                ar_vision_inference=True,
+                hidden_states=context_input,
+                timestep=context_timestep,
+                timestep_r=None,
+                mask_type=task_type,
+                return_dict=False,
+                viewmats=viewmats[:, selected_frame_indices].to(device=device, dtype=self.target_dtype),
+                Ks=Ks[:, selected_frame_indices].to(device=device, dtype=self.target_dtype),
+                action=action[:, selected_frame_indices].to(device=device, dtype=self.target_dtype),
+                cache_vision=True,
+                rope_temporal_size=context_input.shape[2],
+                start_rope_start_idx=0,
+            )
+            self._kv_cache = self.transformer(kv_cache=self._kv_cache, **common)
+            if self.do_classifier_free_guidance:
+                self._kv_cache_neg = self.transformer(kv_cache=self._kv_cache_neg, **common)
+
+    def denoise_ar_chunk(
+        self,
+        *,
+        latents,
+        cond_latents,
+        timesteps,
+        task_type,
+        viewmats,
+        Ks,
+        action,
+        start_idx: int,
+        chunk_latent_frames: int,
+        selected_frame_indices,
+        device,
+        show_progress: bool = True,
+    ):
+        """Denoise one native AR block using the resident text/vision caches."""
+
+        end_idx = start_idx + chunk_latent_frames
+        progress_context = (
+            self.progress_bar(total=self.num_inference_steps)
+            if show_progress
+            else nullcontext(None)
+        )
+        with (
+            progress_context as progress_bar,
+            auto_offload_model(
+                self.transformer, self.execution_device, enabled=self.enable_offloading
+            ),
+        ):
+            for step_index, timestep in enumerate(timesteps):
+                timestep_input = torch.full(
+                    (chunk_latent_frames,),
+                    timestep,
+                    device=device,
+                    dtype=timesteps.dtype,
+                )
+                latent_model_input = latents[:, :, start_idx:end_idx]
+                condition_input = cond_latents[:, :, start_idx:end_idx]
+                viewmats_input = viewmats[:, start_idx:end_idx].to(device)
+                intrinsics_input = Ks[:, start_idx:end_idx].to(device)
+                action_input = action[:, start_idx:end_idx].to(device)
+                model_input = torch.concat([latent_model_input, condition_input], dim=1)
+                model_input = self.scheduler.scale_model_input(model_input, timestep)
+                transformer_kwargs = dict(
+                    bi_inference=False,
+                    ar_txt_inference=False,
+                    ar_vision_inference=True,
+                    hidden_states=model_input,
+                    timestep=timestep_input,
+                    timestep_r=None,
+                    mask_type=task_type,
+                    return_dict=False,
+                    viewmats=viewmats_input.to(self.target_dtype),
+                    Ks=intrinsics_input.to(self.target_dtype),
+                    action=action_input.to(self.target_dtype),
+                    cache_vision=False,
+                    rope_temporal_size=model_input.shape[2] + len(selected_frame_indices),
+                    start_rope_start_idx=len(selected_frame_indices),
+                )
+                with torch.autocast(
+                    device_type="cuda",
+                    dtype=self.target_dtype,
+                    enabled=self.autocast_enabled,
+                ):
+                    noise_pred = self.transformer(
+                        kv_cache=self._kv_cache, **transformer_kwargs
+                    )[0]
+                    if self.do_classifier_free_guidance:
+                        noise_pred_uncond = self.transformer(
+                            kv_cache=self._kv_cache_neg, **transformer_kwargs
+                        )[0]
+                if self.do_classifier_free_guidance:
+                    noise_pred = noise_pred_uncond + self.guidance_scale * (
+                        noise_pred - noise_pred_uncond
+                    )
+                latent_model_input = self.scheduler.step(
+                    noise_pred, timestep, latent_model_input, return_dict=False
+                )[0]
+                latents[:, :, start_idx:end_idx] = latent_model_input[
+                    :, :, -chunk_latent_frames:
+                ]
+                if progress_bar is not None and (
+                    step_index == len(timesteps) - 1
+                    or (
+                        (step_index + 1) > self.num_warmup_steps
+                        and (step_index + 1) % self.scheduler.order == 0
+                    )
+                ):
+                    progress_bar.update()
+        return latents[:, :, start_idx:end_idx]
+
     def ar_rollout(
         self,
         latents,
@@ -1208,252 +1449,50 @@ class _HunyuanWorldPlayInternalPipeline(DiffusionPipeline):
         action,
         device,
     ):
-        self.init_kv_cache()
-        positive_idx = 1 if self.do_classifier_free_guidance else 0
-        stabilization_level = 15
-        # text, siglip, byt5 embedding cache
-        with (
-            torch.autocast(
-                device_type="cuda",
-                dtype=self.target_dtype,
-                enabled=self.autocast_enabled,
-            ),
-            auto_offload_model(
-                self.transformer, self.execution_device, enabled=self.enable_offloading
-            ),
-        ):
-            extra_kwargs_pos = {
-                "byt5_text_states": extra_kwargs["byt5_text_states"][
-                    positive_idx, None, ...
-                ],
-                "byt5_text_mask": extra_kwargs["byt5_text_mask"][
-                    positive_idx, None, ...
-                ],
-            }
-            t_expand_txt = torch.tensor([0]).to(device).to(latents.dtype)
-            self._kv_cache = self.transformer(
-                bi_inference=False,
-                ar_txt_inference=True,
-                ar_vision_inference=False,
-                timestep_txt=t_expand_txt,
-                text_states=prompt_embeds[positive_idx, None, ...],
-                encoder_attention_mask=prompt_mask[positive_idx, None, ...],
-                vision_states=vision_states[positive_idx, None, ...],
-                mask_type=task_type,
-                extra_kwargs=extra_kwargs_pos,
-                kv_cache=self._kv_cache,
-                cache_txt=True,
-            )
-            if self.do_classifier_free_guidance:
-                extra_kwargs_neg = {
-                    "byt5_text_states": extra_kwargs["byt5_text_states"][0, None, ...],
-                    "byt5_text_mask": extra_kwargs["byt5_text_mask"][0, None, ...],
-                }
-                t_expand_txt = torch.tensor([0]).to(device).to(latents.dtype)
-                self._kv_cache_neg = self.transformer(
-                    bi_inference=False,
-                    ar_txt_inference=True,
-                    ar_vision_inference=False,
-                    timestep_txt=t_expand_txt,
-                    text_states=prompt_embeds[0, None, ...],
-                    encoder_attention_mask=prompt_mask[0, None, ...],
-                    vision_states=vision_states[0, None, ...],
-                    mask_type=task_type,
-                    extra_kwargs=extra_kwargs_neg,
-                    kv_cache=self._kv_cache_neg,
-                    cache_txt=True,
-                )
-
-        selected_frame_indices = []
-
+        self.prepare_ar_text_cache(
+            latents=latents,
+            prompt_embeds=prompt_embeds,
+            prompt_mask=prompt_mask,
+            vision_states=vision_states,
+            task_type=task_type,
+            extra_kwargs=extra_kwargs,
+            device=device,
+        )
+        selected_frame_indices: list[int] = []
         for chunk_i in range(self.chunk_num):
-            if chunk_i > 0:
-                current_frame_idx = (
-                    chunk_i * self.chunk_latent_frames
-                )  # the current frame index to generate
-
-                selected_frame_indices = []
-                for chunk_start_idx in range(
-                    current_frame_idx, current_frame_idx + self.chunk_latent_frames, 4
-                ):
-                    selected_history_frame_id = select_aligned_memory_frames(
-                        viewmats[0].cpu().detach().numpy(),
-                        chunk_start_idx,
-                        memory_frames=20,
-                        temporal_context_size=12,
-                        pred_latent_size=4,
-                        points_local=self.points_local,
-                        device=device,
-                    )
-                    selected_frame_indices += selected_history_frame_id
-                selected_frame_indices = sorted(list(set(selected_frame_indices)))
-                to_remove = list(
-                    range(
-                        current_frame_idx, current_frame_idx + self.chunk_latent_frames
-                    )
-                )
-                selected_frame_indices = [
-                    x for x in selected_frame_indices if x not in to_remove
-                ]
-
-                context_latents = latents[:, :, selected_frame_indices]
-                context_cond_latents_input = cond_latents[:, :, selected_frame_indices]
-                context_latents_input = torch.concat(
-                    [context_latents, context_cond_latents_input], dim=1
-                )
-
-                context_viewmats = viewmats[:, selected_frame_indices].to(device)
-                context_Ks = Ks[:, selected_frame_indices].to(device)
-                context_action = action[:, selected_frame_indices].to(device)
-
-                context_timestep = torch.full(
-                    (len(selected_frame_indices),),
-                    stabilization_level - 1,
-                    device=device,
-                    dtype=timesteps.dtype,
-                )
-                # compute kv cache
-                with (
-                    torch.autocast(
-                        device_type="cuda",
-                        dtype=self.target_dtype,
-                        enabled=self.autocast_enabled,
-                    ),
-                    auto_offload_model(
-                        self.transformer,
-                        self.execution_device,
-                        enabled=self.enable_offloading,
-                    ),
-                ):
-                    self._kv_cache = self.transformer(
-                        bi_inference=False,
-                        ar_txt_inference=False,
-                        ar_vision_inference=True,
-                        hidden_states=context_latents_input,
-                        timestep=context_timestep,
-                        timestep_r=None,
-                        mask_type=task_type,
-                        return_dict=False,
-                        viewmats=context_viewmats.to(self.target_dtype),
-                        Ks=context_Ks.to(self.target_dtype),
-                        action=context_action.to(self.target_dtype),
-                        kv_cache=self._kv_cache,
-                        cache_vision=True,
-                        rope_temporal_size=context_latents_input.shape[2],
-                        start_rope_start_idx=0,
-                    )
-                    if self.do_classifier_free_guidance:
-                        self._kv_cache_neg = self.transformer(
-                            bi_inference=False,
-                            ar_txt_inference=False,
-                            ar_vision_inference=True,
-                            hidden_states=context_latents_input,
-                            timestep=context_timestep,
-                            timestep_r=None,
-                            mask_type=task_type,
-                            return_dict=False,
-                            viewmats=context_viewmats.to(self.target_dtype),
-                            Ks=context_Ks.to(self.target_dtype),
-                            action=context_action.to(self.target_dtype),
-                            kv_cache=self._kv_cache_neg,
-                            cache_vision=True,
-                            rope_temporal_size=context_latents_input.shape[2],
-                            start_rope_start_idx=0,
-                        )
-
-                self.scheduler.set_timesteps(self.num_inference_steps, device=device)
-
             start_idx = chunk_i * self.chunk_latent_frames
-            end_idx = chunk_i * self.chunk_latent_frames + self.chunk_latent_frames
-
-            with (
-                self.progress_bar(total=self.num_inference_steps) as progress_bar,
-                auto_offload_model(
-                    self.transformer,
-                    self.execution_device,
-                    enabled=self.enable_offloading,
-                ),
-            ):
-                for i, t in enumerate(timesteps):
-                    timestep_input = torch.full(
-                        (self.chunk_latent_frames,),
-                        t,
-                        device=device,
-                        dtype=timesteps.dtype,
-                    )
-                    latent_model_input = latents[:, :, start_idx:end_idx]
-                    cond_latents_input = cond_latents[:, :, start_idx:end_idx]
-
-                    viewmats_input = viewmats[:, start_idx:end_idx].to(device)
-                    Ks_input = Ks[:, start_idx:end_idx].to(device)
-                    action_input = action[:, start_idx:end_idx].to(device)
-
-                    latents_concat = torch.concat(
-                        [latent_model_input, cond_latents_input], dim=1
-                    )
-                    latents_concat = self.scheduler.scale_model_input(latents_concat, t)
-
-                    with torch.autocast(
-                        device_type="cuda",
-                        dtype=self.target_dtype,
-                        enabled=self.autocast_enabled,
-                    ):
-                        noise_pred = self.transformer(
-                            bi_inference=False,
-                            ar_txt_inference=False,
-                            ar_vision_inference=True,
-                            hidden_states=latents_concat,
-                            timestep=timestep_input,
-                            timestep_r=None,
-                            mask_type=task_type,
-                            return_dict=False,
-                            viewmats=viewmats_input.to(self.target_dtype),
-                            Ks=Ks_input.to(self.target_dtype),
-                            action=action_input.to(self.target_dtype),
-                            kv_cache=self._kv_cache,
-                            cache_vision=False,
-                            rope_temporal_size=latents_concat.shape[2]
-                            + len(selected_frame_indices),
-                            start_rope_start_idx=len(selected_frame_indices),
-                        )[0]
-                        if self.do_classifier_free_guidance:
-                            noise_pred_uncond = self.transformer(
-                                bi_inference=False,
-                                ar_txt_inference=False,
-                                ar_vision_inference=True,
-                                hidden_states=latents_concat,
-                                timestep=timestep_input,
-                                timestep_r=None,
-                                mask_type=task_type,
-                                return_dict=False,
-                                viewmats=viewmats_input.to(self.target_dtype),
-                                Ks=Ks_input.to(self.target_dtype),
-                                action=action_input.to(self.target_dtype),
-                                kv_cache=self._kv_cache_neg,
-                                cache_vision=False,
-                                rope_temporal_size=latents_concat.shape[2]
-                                + len(selected_frame_indices),
-                                start_rope_start_idx=len(selected_frame_indices),
-                            )[0]
-
-                    if self.do_classifier_free_guidance:
-                        noise_pred = noise_pred_uncond + self.guidance_scale * (
-                            noise_pred - noise_pred_uncond
-                        )
-
-                    latent_model_input = self.scheduler.step(
-                        noise_pred, t, latent_model_input, return_dict=False
-                    )[0]
-                    latents[:, :, start_idx:end_idx] = latent_model_input[
-                        :, :, -self.chunk_latent_frames :
-                    ]
-
-                    if i == len(timesteps) - 1 or (
-                        (i + 1) > self.num_warmup_steps
-                        and (i + 1) % self.scheduler.order == 0
-                    ):
-                        if progress_bar is not None:
-                            progress_bar.update()
+            if chunk_i > 0:
+                selected_frame_indices = self.select_ar_context_indices(
+                    viewmats=viewmats,
+                    current_frame_idx=start_idx,
+                    chunk_latent_frames=self.chunk_latent_frames,
+                    device=device,
+                )
+                self.rebuild_ar_vision_cache(
+                    latents=latents,
+                    cond_latents=cond_latents,
+                    viewmats=viewmats,
+                    Ks=Ks,
+                    action=action,
+                    selected_frame_indices=selected_frame_indices,
+                    timesteps=timesteps,
+                    task_type=task_type,
+                    device=device,
+                )
+                self.scheduler.set_timesteps(self.num_inference_steps, device=device)
+            self.denoise_ar_chunk(
+                latents=latents,
+                cond_latents=cond_latents,
+                timesteps=timesteps,
+                task_type=task_type,
+                viewmats=viewmats,
+                Ks=Ks,
+                action=action,
+                start_idx=start_idx,
+                chunk_latent_frames=self.chunk_latent_frames,
+                selected_frame_indices=selected_frame_indices,
+                device=device,
+            )
         return latents
 
     def bi_rollout(

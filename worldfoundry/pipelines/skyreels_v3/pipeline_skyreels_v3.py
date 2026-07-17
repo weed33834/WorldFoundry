@@ -98,12 +98,14 @@ class SkyReelsV3Pipeline(PipelineABC):
             **processed["kwargs"],
         )
         if return_dict:
-            return {
+            response = dict(result) if isinstance(result, dict) else {}
+            response.update({
                 "result": result,
                 "prompt": processed["prompt"],
                 "model_name": self.MODEL_ID,
                 "task_type": selected_task,
-            }
+            })
+            return response
         return result
 
     def stream(self, prompt: str, **kwargs: Any) -> Any:

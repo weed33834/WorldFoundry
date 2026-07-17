@@ -16,9 +16,8 @@ import tempfile
 from pathlib import Path
 from typing import Iterable, Optional, Sequence
 
-from huggingface_hub import snapshot_download
-
 from worldfoundry.base_models.diffusion_model.video.wan import wan_variant_root
+from worldfoundry.core.io.paths import resolve_local_hf_model_path
 
 
 DEFAULT_FANTASY_WORLD_WAN21_REPO = "acvlab/FantasyWorld-Wan2.1-I2V-14B-480P"
@@ -219,19 +218,16 @@ def _iter_candidate_paths(source_value: Optional[str | os.PathLike]) -> Iterable
                 yield candidate.resolve()
 
 
-def _download_snapshot(repo_id: str, allow_patterns: Sequence[str]) -> Path:
-    """
-    Downloads a snapshot of a Hugging Face Hub repository.
+def _resolve_local_snapshot(repo_id: str, required_files: Sequence[str] = ()) -> Path:
+    """Resolve a fully staged snapshot without performing runtime network I/O."""
 
-    Args:
-        repo_id (str): The ID of the repository to download.
-        allow_patterns (Sequence[str]): A list of glob patterns to filter which files
-            are downloaded from the repository.
-
-    Returns:
-        Path: The absolute path to the downloaded repository snapshot directory.
-    """
-    return Path(snapshot_download(repo_id=repo_id, allow_patterns=list(allow_patterns))).resolve()
+    try:
+        return resolve_local_hf_model_path(repo_id, required_files=tuple(required_files))
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(
+            f"FantasyWorld checkpoint {repo_id!r} is not staged locally. "
+            "Download it during asset preparation and retry inference."
+        ) from exc
 
 
 def _resolve_file(
@@ -285,14 +281,20 @@ def _resolve_file(
     if not repo_id:
         raise FileNotFoundError(f"Unable to locate expected file candidates: {list(expected_filenames)}")
 
-    # Attempt to download from Hugging Face Hub
-    snapshot_root = _download_snapshot(repo_id, expected_filenames)
+    # Resolve each alternative filename independently so a repository that
+    # exposes only one of the accepted names remains usable offline.
     for filename in expected_filenames:
+        try:
+            snapshot_root = _resolve_local_snapshot(repo_id, (filename,))
+        except FileNotFoundError:
+            continue
         target = snapshot_root / filename
         if target.is_file():
             return target.resolve()
 
-    raise FileNotFoundError(f"Unable to locate any of {list(expected_filenames)} in snapshot for {repo_id}.")
+    raise FileNotFoundError(
+        f"Unable to locate any of {list(expected_filenames)} in a local snapshot for {repo_id}."
+    )
 
 
 def _resolve_dir_with_files(
@@ -347,13 +349,13 @@ def _resolve_dir_with_files(
     if not repo_id:
         raise FileNotFoundError(f"Unable to locate required files: {list(required_files)}")
 
-    # Attempt to download from Hugging Face Hub
-    snapshot_root = _download_snapshot(repo_id, allow_patterns or required_files)
-    # After download, verify that all required files exist in the snapshot root
+    snapshot_root = _resolve_local_snapshot(repo_id, required_files)
     if all((snapshot_root / name).exists() for name in required_files):
         return snapshot_root.resolve()
 
-    raise FileNotFoundError(f"Unable to locate required files {list(required_files)} in snapshot for {repo_id}.")
+    raise FileNotFoundError(
+        f"Unable to locate required files {list(required_files)} in a local snapshot for {repo_id}."
+    )
 
 
 def resolve_fantasy_world_wan21_checkpoint(source_value: Optional[str | os.PathLike]) -> Path:
@@ -477,16 +479,14 @@ def _resolve_wan22_snapshot_or_cached_dir(
             return candidate_dir
         raise FileNotFoundError(f"Unable to locate required files {list(must_contain)} under {candidate_dir}.")
 
-    # If not found locally, attempt to download from Hugging Face Hub
-    snapshot_root = _download_snapshot(
-        str(source_value) if source_value else fallback_repo_id,
-        allow_patterns=allow_patterns,
+    # Asset preparation owns downloads; inference only resolves staged data.
+    snapshot_root = _resolve_local_snapshot(
+        str(source_value) if source_value else fallback_repo_id
     )
-    # After download, verify that all required files are in the snapshot root
     if all((snapshot_root / name).exists() for name in must_contain):
         return snapshot_root.resolve()
     raise FileNotFoundError(
-        f"Unable to locate required files {list(must_contain)} in snapshot for "
+        f"Unable to locate required files {list(must_contain)} in a local snapshot for "
         f"{str(source_value) if source_value else fallback_repo_id}."
     )
 

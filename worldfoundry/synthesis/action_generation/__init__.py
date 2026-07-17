@@ -3,6 +3,16 @@
 Concrete synthesis classes are exposed from their model-specific packages.
 """
 
-from .base_action_synthesis import ActionModelSynthesis
+from __future__ import annotations
+
+from typing import Any
+
+
+def __getattr__(name: str) -> Any:
+    if name == "ActionModelSynthesis":
+        from .base_action_synthesis import ActionModelSynthesis
+
+        return ActionModelSynthesis
+    raise AttributeError(name)
 
 __all__ = ["ActionModelSynthesis"]

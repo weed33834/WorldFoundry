@@ -1,15 +1,58 @@
-from typing import List, Optional
-import numpy as np
+from dataclasses import dataclass
+from typing import Any, Dict, List, Mapping, Optional
 import torch
-import time
-import copy
 
 from einops import rearrange
-from ..utils.wan_wrapper import WanDiffusionWrapper, WanVAEWrapper
-from worldfoundry.core.io.artifacts import process_game_control_video as process_video
-import torch.nn.functional as F
-from ..utils.vae_runtime.constant import ZERO_VAE_CACHE
+from ..utils.wan_wrapper import WanDiffusionWrapper
 from tqdm import tqdm
+
+
+# The Matrix-Game-2 streaming VAE exposes 32 recurrent feature-cache slots.
+# Keep this lightweight: importing ``ZERO_VAE_CACHE`` allocates roughly 2 GiB of
+# CPU tensors before inference starts, even though inference immediately replaces
+# every one of those tensors with ``None``.
+VAE_CACHE_SLOTS = 32
+
+
+@dataclass
+class CausalInferenceSession:
+    """Mutable state for one resident Matrix-Game-2 rollout.
+
+    The diffusion, action-attention, cross-attention, and VAE caches are owned by
+    the session and survive between calls to :meth:`generate_next_block`.
+    ``current_start_frame`` is measured in latent frames, not decoded RGB frames.
+
+    ``conditional_dict`` is intentionally retained by reference. Interactive
+    actions update its preallocated mouse/keyboard timelines in place, matching
+    the original Matrix-Game-2 conditioning algorithm.
+    """
+
+    conditional_dict: Dict[str, Any]
+    mode: str
+    batch_size: int
+    dtype: torch.dtype
+    device: torch.device
+    kv_cache: List[Dict[str, Any]]
+    mouse_kv_cache: List[Dict[str, Any]]
+    keyboard_kv_cache: List[Dict[str, Any]]
+    crossattn_cache: List[Dict[str, Any]]
+    vae_cache: List[Optional[torch.Tensor]]
+    current_start_frame: int = 0
+    initial_latent: Optional[torch.Tensor] = None
+    last_model_ms: Optional[float] = None
+    last_decode_ms: Optional[float] = None
+
+
+@dataclass(frozen=True)
+class CausalInferenceBlock:
+    """One increment produced by :meth:`generate_next_block`."""
+
+    latent: torch.Tensor
+    video: torch.Tensor
+    start_frame: int
+    end_frame: int
+    model_ms: Optional[float] = None
+    decode_ms: Optional[float] = None
 
 def get_current_action(mode="universal"):
 
@@ -111,9 +154,25 @@ def cond_current(conditional_dict, current_start_frame, num_frame_per_block, rep
     
     new_cond = {}
     
-    new_cond["cond_concat"] = conditional_dict["cond_concat"][:, :, current_start_frame: current_start_frame + num_frame_per_block]
+    cond_concat_start = int(conditional_dict.get("_cond_concat_start_frame", 0))
+    local_start_frame = current_start_frame - cond_concat_start
+    if local_start_frame < 0:
+        raise ValueError(
+            "cond_concat starts after the requested global latent frame: "
+            f"offset={cond_concat_start}, requested={current_start_frame}"
+        )
+    cond_concat = conditional_dict["cond_concat"][
+        :, :, local_start_frame:local_start_frame + num_frame_per_block
+    ]
+    if cond_concat.shape[2] != num_frame_per_block:
+        raise ValueError(
+            "cond_concat does not cover the requested latent block: "
+            f"offset={cond_concat_start}, requested={current_start_frame}, "
+            f"available={conditional_dict['cond_concat'].shape[2]}"
+        )
+    new_cond["cond_concat"] = cond_concat
     new_cond["visual_context"] = conditional_dict["visual_context"]
-    if replace != None:
+    if replace is not None:
         if current_start_frame == 0:
             last_frame_num = 1 + 4 * (num_frame_per_block - 1)
         else:
@@ -126,7 +185,7 @@ def cond_current(conditional_dict, current_start_frame, num_frame_per_block, rep
         new_cond["mouse_cond"] = conditional_dict["mouse_cond"][:, : 1 + 4 * (current_start_frame + num_frame_per_block - 1)]
     new_cond["keyboard_cond"] = conditional_dict["keyboard_cond"][:, : 1 + 4 * (current_start_frame + num_frame_per_block - 1)]
 
-    if replace != None:
+    if replace is not None:
         return new_cond, conditional_dict
     else:
         return new_cond
@@ -168,210 +227,353 @@ class CausalInferencePipeline(torch.nn.Module):
         if self.num_frame_per_block > 1:
             self.generator.model.num_frame_per_block = self.num_frame_per_block
 
+        self._session: Optional[CausalInferenceSession] = None
+        self._last_block: Optional[CausalInferenceBlock] = None
+
+    @property
+    def session(self) -> Optional[CausalInferenceSession]:
+        """Return the active rollout state, if one has been started."""
+
+        return self._session
+
+    @property
+    def last_block(self) -> Optional[CausalInferenceBlock]:
+        """Return the most recent block and its model/decode timings."""
+
+        return self._last_block
+
+    def reset_session(self) -> None:
+        """Drop the active rollout state without touching resident model weights."""
+
+        self._session = None
+        self._last_block = None
+        self.kv_cache1 = None
+        self.kv_cache_mouse = None
+        self.kv_cache_keyboard = None
+        self.crossattn_cache = None
+
+    def start_session(
+        self,
+        conditional_dict: Mapping[str, Any],
+        *,
+        initial_latent: Optional[torch.Tensor] = None,
+        reference_tensor: Optional[torch.Tensor] = None,
+        mode: str = "universal",
+    ) -> CausalInferenceSession:
+        """Allocate a rollout's caches and optionally seed clean latent context.
+
+        With no ``initial_latent``, starting a session performs no model
+        generation. If one is supplied, it is consumed once to seed the causal
+        attention caches. Matrix-Game-2 image conditioning normally leaves it
+        unset and generates its first block from ``cond_concat`` on the first
+        call to :meth:`step_session`.
+        """
+
+        # An explicit reference wins so legacy inference keeps allocating caches
+        # from the noise tensor exactly as before, even when context is supplied.
+        reference = reference_tensor
+        if reference is None:
+            reference = initial_latent
+        if reference is None:
+            reference = conditional_dict.get("cond_concat")
+        if reference is None or reference.ndim < 1:
+            raise ValueError(
+                "initial_latent, reference_tensor, or cond_concat is required"
+            )
+
+        batch_size = reference.shape[0]
+        self._initialize_kv_cache(
+            batch_size=batch_size,
+            dtype=reference.dtype,
+            device=reference.device,
+        )
+        self._initialize_kv_cache_mouse_and_keyboard(
+            batch_size=batch_size,
+            dtype=reference.dtype,
+            device=reference.device,
+        )
+        self._initialize_crossattn_cache(
+            batch_size=batch_size,
+            dtype=reference.dtype,
+            device=reference.device,
+        )
+
+        session = CausalInferenceSession(
+            conditional_dict=(
+                conditional_dict
+                if isinstance(conditional_dict, dict)
+                else dict(conditional_dict)
+            ),
+            mode=mode,
+            batch_size=batch_size,
+            dtype=reference.dtype,
+            device=reference.device,
+            kv_cache=self.kv_cache1,
+            mouse_kv_cache=self.kv_cache_mouse,
+            keyboard_kv_cache=self.kv_cache_keyboard,
+            crossattn_cache=self.crossattn_cache,
+            vae_cache=[None] * VAE_CACHE_SLOTS,
+            initial_latent=initial_latent,
+        )
+        self._session = session
+        if initial_latent is not None:
+            self._seed_session(session, initial_latent)
+        return session
+
+    def _seed_session(
+        self,
+        session: CausalInferenceSession,
+        initial_latent: torch.Tensor,
+    ) -> None:
+        """Populate a fresh session's caches with clean initial context once."""
+
+        if session.current_start_frame != 0:
+            raise RuntimeError("a Matrix-Game-2 session can only be seeded once")
+        if initial_latent.ndim != 5 or initial_latent.shape[0] != session.batch_size:
+            raise ValueError("initial_latent must have shape [B, C, F, H, W]")
+        if initial_latent.shape[2] % self.num_frame_per_block != 0:
+            raise ValueError(
+                "initial_latent frames must be divisible by num_frame_per_block"
+            )
+
+        num_input_blocks = initial_latent.shape[2] // self.num_frame_per_block
+        for _ in range(num_input_blocks):
+            start_frame = session.current_start_frame
+            current_ref_latents = initial_latent[
+                :, :, start_frame:start_frame + self.num_frame_per_block
+            ]
+            timestep = torch.zeros(
+                [session.batch_size, 1],
+                device=session.device,
+                dtype=torch.int64,
+            )
+            self.generator(
+                noisy_image_or_video=current_ref_latents,
+                conditional_dict=cond_current(
+                    session.conditional_dict,
+                    start_frame,
+                    self.num_frame_per_block,
+                    mode=session.mode,
+                ),
+                timestep=timestep,
+                kv_cache=session.kv_cache,
+                kv_cache_mouse=session.mouse_kv_cache,
+                kv_cache_keyboard=session.keyboard_kv_cache,
+                crossattn_cache=session.crossattn_cache,
+                current_start=start_frame * self.frame_seq_length,
+            )
+            session.current_start_frame += self.num_frame_per_block
+
+    def step_session(
+        self,
+        noise: torch.Tensor,
+        conditional_dict: Optional[Mapping[str, Any]] = None,
+        *,
+        action: Optional[Mapping[str, torch.Tensor]] = None,
+        mode: Optional[str] = None,
+        profile: bool = False,
+    ) -> torch.Tensor:
+        """Generate and decode one block on the active resident session."""
+
+        if self._session is None:
+            raise RuntimeError("start_session() must be called before step_session()")
+        if conditional_dict is not None:
+            self._session.conditional_dict = (
+                conditional_dict
+                if isinstance(conditional_dict, dict)
+                else dict(conditional_dict)
+            )
+        if mode is not None:
+            self._session.mode = mode
+        block = self.generate_next_block(
+            self._session,
+            noise,
+            action=action,
+            profile=profile,
+        )
+        return block.video
+
+    def generate_next_block(
+        self,
+        session: CausalInferenceSession,
+        noise: torch.Tensor,
+        *,
+        action: Optional[Mapping[str, torch.Tensor]] = None,
+        profile: bool = False,
+    ) -> CausalInferenceBlock:
+        """Generate exactly one latent block and retain every causal cache."""
+
+        expected_prefix = (session.batch_size, 16, self.num_frame_per_block)
+        if noise.ndim != 5 or tuple(noise.shape[:3]) != expected_prefix:
+            raise ValueError(
+                "noise must have shape "
+                f"[B, 16, {self.num_frame_per_block}, H, W]; "
+                f"got {tuple(noise.shape)}"
+            )
+        if noise.device != session.device or noise.dtype != session.dtype:
+            raise ValueError("noise device and dtype must match the session")
+        if self.denoising_step_list.numel() == 0:
+            raise RuntimeError("denoising_step_list must not be empty")
+
+        start_frame = session.current_start_frame
+        if action is None:
+            current_condition = cond_current(
+                session.conditional_dict,
+                start_frame,
+                self.num_frame_per_block,
+                mode=session.mode,
+            )
+        else:
+            current_condition, updated_condition = cond_current(
+                session.conditional_dict,
+                start_frame,
+                self.num_frame_per_block,
+                replace=action,
+                mode=session.mode,
+            )
+            session.conditional_dict = updated_condition
+
+        model_start = model_end = decode_end = None
+        if noise.is_cuda:
+            timing_stream = torch.cuda.current_stream(session.device)
+            model_start = torch.cuda.Event(enable_timing=True)
+            model_end = torch.cuda.Event(enable_timing=True)
+            decode_end = torch.cuda.Event(enable_timing=True)
+            model_start.record(timing_stream)
+
+        noisy_input = noise
+        denoised_pred: Optional[torch.Tensor] = None
+        timestep: Optional[torch.Tensor] = None
+        for index, current_timestep in enumerate(self.denoising_step_list):
+            timestep = torch.ones(
+                [session.batch_size, self.num_frame_per_block],
+                device=session.device,
+                dtype=torch.int64,
+            ) * current_timestep
+            _, denoised_pred = self.generator(
+                noisy_image_or_video=noisy_input,
+                conditional_dict=current_condition,
+                timestep=timestep,
+                kv_cache=session.kv_cache,
+                kv_cache_mouse=session.mouse_kv_cache,
+                kv_cache_keyboard=session.keyboard_kv_cache,
+                crossattn_cache=session.crossattn_cache,
+                current_start=start_frame * self.frame_seq_length,
+            )
+
+            if index < len(self.denoising_step_list) - 1:
+                next_timestep = self.denoising_step_list[index + 1]
+                flat_prediction = rearrange(
+                    denoised_pred, "b c f h w -> (b f) c h w"
+                )
+                noisy_input = self.scheduler.add_noise(
+                    flat_prediction,
+                    torch.randn_like(flat_prediction),
+                    next_timestep * torch.ones(
+                        [session.batch_size * self.num_frame_per_block],
+                        device=session.device,
+                        dtype=torch.long,
+                    ),
+                )
+                noisy_input = rearrange(
+                    noisy_input,
+                    "(b f) c h w -> b c f h w",
+                    b=denoised_pred.shape[0],
+                )
+
+        assert denoised_pred is not None and timestep is not None
+        context_timestep = torch.ones_like(timestep) * self.args.context_noise
+        self.generator(
+            noisy_image_or_video=denoised_pred,
+            conditional_dict=current_condition,
+            timestep=context_timestep,
+            kv_cache=session.kv_cache,
+            kv_cache_mouse=session.mouse_kv_cache,
+            kv_cache_keyboard=session.keyboard_kv_cache,
+            crossattn_cache=session.crossattn_cache,
+            current_start=start_frame * self.frame_seq_length,
+        )
+
+        if model_end is not None:
+            model_end.record(torch.cuda.current_stream(session.device))
+
+        session.current_start_frame += self.num_frame_per_block
+        decoded_input = denoised_pred.transpose(1, 2)
+        video, session.vae_cache = self.vae_decoder(
+            decoded_input.half(), *session.vae_cache
+        )
+
+        model_ms = decode_ms = None
+        if decode_end is not None:
+            decode_end.record(torch.cuda.current_stream(session.device))
+            torch.cuda.synchronize(device=session.device)
+            assert model_start is not None and model_end is not None
+            model_ms = model_start.elapsed_time(model_end)
+            decode_ms = model_end.elapsed_time(decode_end)
+
+        if profile and model_ms is not None and decode_ms is not None:
+            total_ms = model_ms + decode_ms
+            print(f"model_time: {model_ms}", flush=True)
+            print(f"decode_time: {decode_ms}", flush=True)
+            fps = video.shape[1] * 1000 / total_ms
+            print(f"  - FPS: {fps:.2f}")
+
+        session.last_model_ms = model_ms
+        session.last_decode_ms = decode_ms
+        block = CausalInferenceBlock(
+            latent=denoised_pred,
+            video=video,
+            start_frame=start_frame,
+            end_frame=session.current_start_frame,
+            model_ms=model_ms,
+            decode_ms=decode_ms,
+        )
+        self._last_block = block
+        return block
+
     def inference(
         self,
         noise: torch.Tensor,
-        conditional_dict,
-        initial_latent = None,
-        return_latents = False,
-        mode = 'universal',
-        profile = False,
+        conditional_dict: Mapping[str, Any],
+        initial_latent: Optional[torch.Tensor] = None,
+        return_latents: bool = False,
+        mode: str = "universal",
+        profile: bool = False,
     ) -> torch.Tensor:
-        """
-        Supports streaming inference with memory input.
+        """Run the legacy finite rollout through the resident block API."""
 
-        The `global_end_index` and `local_end_index` variables are used to manage the circular indexing of Key (k) and Value (v) tensors. 
+        if noise.ndim != 5 or noise.shape[1] != 16:
+            raise ValueError("noise must have shape [B, 16, F, H, W]")
+        num_frames = noise.shape[2]
+        if num_frames % self.num_frame_per_block != 0:
+            raise ValueError("noise frames must be divisible by num_frame_per_block")
 
-        Specifically, `local_end_index` operates as a circular buffer pointer. At each inference step, only a 2-second window (6 frames) 
-
-        of the KV cache is supplied to the model.
-        Perform inference on the given noise and text prompts.
-        Inputs:
-            noise (torch.Tensor): The input noise tensor of shape
-                (batch_size, num_output_frames, num_channels, height, width).
-            text_prompts (List[str]): The list of text prompts.
-            initial_latent (torch.Tensor): The initial latent tensor of shape
-                (batch_size, num_input_frames, num_channels, height, width).
-                If num_input_frames is 1, perform image to video.
-                If num_input_frames is greater than 1, perform video extension.
-            return_latents (bool): Whether to return the latents.
-        Outputs:
-            video (torch.Tensor): The generated video tensor of shape
-                (batch_size, num_output_frames, num_channels, height, width).
-                It is normalized to be in the range [0, 1].
-        """
-        
-        assert noise.shape[1] == 16
-        batch_size, num_channels, num_frames, height, width = noise.shape
-        
-        assert num_frames % self.num_frame_per_block == 0
-        num_blocks = num_frames // self.num_frame_per_block
-
-        num_input_frames = initial_latent.shape[2] if initial_latent is not None else 0
-        num_output_frames = num_frames + num_input_frames  # add the initial latent frames
-
-        output = torch.zeros(
-            [batch_size, num_channels, num_output_frames, height, width],
-            device=noise.device,
-            dtype=noise.dtype
+        session = self.start_session(
+            conditional_dict,
+            initial_latent=initial_latent,
+            reference_tensor=noise,
+            mode=mode,
         )
-        videos = []
-        vae_cache = copy.deepcopy(ZERO_VAE_CACHE)
-        for j in range(len(vae_cache)):
-            vae_cache[j] = None
-
-        self.kv_cache1 = self.kv_cache_keyboard = self.kv_cache_mouse = self.crossattn_cache=None
-        # Step 1: Initialize KV cache to all zeros
-        if self.kv_cache1 is None:
-            self._initialize_kv_cache(
-                batch_size=batch_size,
-                dtype=noise.dtype,
-                device=noise.device
+        videos: List[torch.Tensor] = []
+        generated_latents: List[torch.Tensor] = []
+        num_blocks = num_frames // self.num_frame_per_block
+        for block_index in tqdm(range(num_blocks)):
+            noise_start = block_index * self.num_frame_per_block
+            block = self.generate_next_block(
+                session,
+                noise[:, :, noise_start:noise_start + self.num_frame_per_block],
+                profile=profile,
             )
-            self._initialize_kv_cache_mouse_and_keyboard(
-                batch_size=batch_size,
-                dtype=noise.dtype,
-                device=noise.device
-            )
-            
-            self._initialize_crossattn_cache(
-                batch_size=batch_size,
-                dtype=noise.dtype,
-                device=noise.device
-            )
-        else:
-            # reset cross attn cache
-            for block_index in range(self.num_transformer_blocks):
-                self.crossattn_cache[block_index]["is_init"] = False
-            # reset kv cache
-            for block_index in range(len(self.kv_cache1)):
-                self.kv_cache1[block_index]["global_end_index"] = torch.tensor(
-                    [0], dtype=torch.long, device=noise.device)
-                self.kv_cache1[block_index]["local_end_index"] = torch.tensor(
-                    [0], dtype=torch.long, device=noise.device)
-                self.kv_cache_mouse[block_index]["global_end_index"] = torch.tensor(
-                    [0], dtype=torch.long, device=noise.device)
-                self.kv_cache_mouse[block_index]["local_end_index"] = torch.tensor(
-                    [0], dtype=torch.long, device=noise.device)
-                self.kv_cache_keyboard[block_index]["global_end_index"] = torch.tensor(
-                    [0], dtype=torch.long, device=noise.device)
-                self.kv_cache_keyboard[block_index]["local_end_index"] = torch.tensor(
-                    [0], dtype=torch.long, device=noise.device)
-
-        # Step 2: Cache context feature
-        current_start_frame = 0
-        if initial_latent is not None:
-            timestep = torch.ones([batch_size, 1], device=noise.device, dtype=torch.int64) * 0
-            # Assume num_input_frames is self.num_frame_per_block * num_input_blocks
-            assert num_input_frames % self.num_frame_per_block == 0
-            num_input_blocks = num_input_frames // self.num_frame_per_block
-
-            for _ in range(num_input_blocks):
-                current_ref_latents = \
-                    initial_latent[:, :, current_start_frame:current_start_frame + self.num_frame_per_block]
-                output[:, :, current_start_frame:current_start_frame + self.num_frame_per_block] = current_ref_latents
-                
-                self.generator(
-                    noisy_image_or_video=current_ref_latents,
-                    conditional_dict=cond_current(conditional_dict, current_start_frame, self.num_frame_per_block, mode=mode),
-                    timestep=timestep * 0,
-                    kv_cache=self.kv_cache1,
-                    kv_cache_mouse=self.kv_cache_mouse,
-                    kv_cache_keyboard=self.kv_cache_keyboard,
-                    crossattn_cache=self.crossattn_cache,
-                    current_start=current_start_frame * self.frame_seq_length,
-                )
-                current_start_frame += self.num_frame_per_block
-
-        # Step 3: Temporal denoising loop
-        all_num_frames = [self.num_frame_per_block] * num_blocks
-        if profile:
-            diffusion_start = torch.cuda.Event(enable_timing=True)
-            diffusion_end = torch.cuda.Event(enable_timing=True)
-        for current_num_frames in tqdm(all_num_frames):
-
-            noisy_input = noise[
-                :, :, current_start_frame - num_input_frames:current_start_frame + current_num_frames - num_input_frames]
-
-            # Step 3.1: Spatial denoising loop
-            if profile:
-                torch.cuda.synchronize()
-                diffusion_start.record()
-            for index, current_timestep in enumerate(self.denoising_step_list):
-                # set current timestep
-                timestep = torch.ones(
-                    [batch_size, current_num_frames],
-                    device=noise.device,
-                    dtype=torch.int64) * current_timestep
-
-                if index < len(self.denoising_step_list) - 1:
-                    _, denoised_pred = self.generator(
-                        noisy_image_or_video=noisy_input,
-                        conditional_dict=cond_current(conditional_dict, current_start_frame, self.num_frame_per_block, mode=mode),
-                        timestep=timestep,
-                        kv_cache=self.kv_cache1,
-                        kv_cache_mouse=self.kv_cache_mouse,
-                        kv_cache_keyboard=self.kv_cache_keyboard,
-                        crossattn_cache=self.crossattn_cache,
-                        current_start=current_start_frame * self.frame_seq_length
-                    )
-                    next_timestep = self.denoising_step_list[index + 1]
-                    noisy_input = self.scheduler.add_noise(
-                        rearrange(denoised_pred, 'b c f h w -> (b f) c h w'),# .flatten(0, 1),
-                        torch.randn_like(rearrange(denoised_pred, 'b c f h w -> (b f) c h w')),
-                        next_timestep * torch.ones(
-                            [batch_size * current_num_frames], device=noise.device, dtype=torch.long)
-                    )
-                    noisy_input = rearrange(noisy_input, '(b f) c h w -> b c f h w', b=denoised_pred.shape[0])
-                else:
-                    # for getting real output
-                    _, denoised_pred = self.generator(
-                        noisy_image_or_video=noisy_input,
-                        conditional_dict=cond_current(conditional_dict, current_start_frame, self.num_frame_per_block, mode=mode),
-                        timestep=timestep,
-                        kv_cache=self.kv_cache1,
-                        kv_cache_mouse=self.kv_cache_mouse,
-                        kv_cache_keyboard=self.kv_cache_keyboard,
-                        crossattn_cache=self.crossattn_cache,
-                        current_start=current_start_frame * self.frame_seq_length
-                    )
-
-            # Step 3.2: record the model's output
-            output[:, :, current_start_frame:current_start_frame + current_num_frames] = denoised_pred
-
-            # Step 3.3: rerun with timestep zero to update KV cache using clean context
-            context_timestep = torch.ones_like(timestep) * self.args.context_noise
-            
-            self.generator(
-                noisy_image_or_video=denoised_pred,
-                conditional_dict=cond_current(conditional_dict, current_start_frame, self.num_frame_per_block, mode=mode),
-                timestep=context_timestep,
-                kv_cache=self.kv_cache1,
-                kv_cache_mouse=self.kv_cache_mouse,
-                kv_cache_keyboard=self.kv_cache_keyboard,
-                crossattn_cache=self.crossattn_cache,
-                current_start=current_start_frame * self.frame_seq_length,
-            )
-
-            # Step 3.4: update the start and end frame indices
-            current_start_frame += current_num_frames
-
-            denoised_pred = denoised_pred.transpose(1,2)
-            video, vae_cache = self.vae_decoder(denoised_pred.half(), *vae_cache)
-            videos += [video]
-
-            if profile:
-                torch.cuda.synchronize()
-                diffusion_end.record()
-                diffusion_time = diffusion_start.elapsed_time(diffusion_end)
-                print(f"diffusion_time: {diffusion_time}", flush=True)
-                fps = video.shape[1]*1000/ diffusion_time
-                print(f"  - FPS: {fps:.2f}")
+            videos.append(block.video)
+            generated_latents.append(block.latent)
 
         if return_latents:
-            return output
-        else:
-            return videos
+            latent_parts: List[torch.Tensor] = []
+            if initial_latent is not None:
+                latent_parts.append(initial_latent)
+            latent_parts.extend(generated_latents)
+            return torch.cat(latent_parts, dim=2)
+        return videos
 
     def _initialize_kv_cache(self, batch_size, dtype, device):
         """

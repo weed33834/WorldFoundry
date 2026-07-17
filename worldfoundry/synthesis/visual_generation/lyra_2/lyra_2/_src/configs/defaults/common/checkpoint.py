@@ -16,7 +16,7 @@
 
 from hydra.core.config_store import ConfigStore
 
-from lyra_2._ext.imaginaire.config import CheckpointConfig, ObjectStoreConfig
+from worldfoundry.core.configuration import CheckpointConfig, ObjectStoreConfig
 
 object_store = ObjectStoreConfig(
     enabled=False,
@@ -32,8 +32,6 @@ object_store_s3_vsr = ObjectStoreConfig(
 
 
 CHECKPOINT_LOCAL = CheckpointConfig(
-    save_to_object_store=object_store,
-    save_iter=1000,
     load_from_object_store=object_store,
     load_path="",
     strict_resume=True,
@@ -41,8 +39,6 @@ CHECKPOINT_LOCAL = CheckpointConfig(
 
 
 CHECKPOINT_S3_VSR = CheckpointConfig(
-    save_to_object_store=object_store_s3_vsr,
-    save_iter=1000,
     load_from_object_store=object_store_s3_vsr,
     load_path="",
     strict_resume=True,

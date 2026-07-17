@@ -9,8 +9,14 @@ import scipy.spatial.transform as spt
 from omegaconf import OmegaConf
 import shutil
 
-from modeling.pipeline import VMemPipeline
-from utils import load_img_and_K, transform_img_and_K, get_default_intrinsics
+from worldfoundry.synthesis.visual_generation.vmem.vmem_runtime.modeling.pipeline import (
+    VMemPipeline,
+)
+from worldfoundry.synthesis.visual_generation.vmem.vmem_runtime.utils.util import (
+    get_default_intrinsics,
+    load_img_and_K,
+    transform_img_and_K,
+)
 
 
 
@@ -432,4 +438,3 @@ class Navigator:
         print(f"Camera poses saved to {output_path}")
     
    
-

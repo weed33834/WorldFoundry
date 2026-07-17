@@ -11,7 +11,7 @@ from typing import Any, Mapping
 
 import yaml
 
-from worldfoundry.evaluation.utils import worldfoundry_data_path
+from worldfoundry.core.io.paths import resolve_data_path
 
 
 def _read_yaml_object(path: Path) -> dict[str, Any]:
@@ -55,13 +55,13 @@ def load_vla_va_wam_runtime_config(model_id: str, config_path: str | Path | None
     """
     if config_path is None:
         # Construct the default path for the model's runtime config within the data package.
-        path = worldfoundry_data_path("models", "runtime", "configs", "vla_va_wam", f"{model_id}.yaml")
+        path = resolve_data_path("models", "runtime", "configs", "vla_va_wam", f"{model_id}.yaml")
     else:
         # Resolve user-provided config_path, expanding user home directory if '~' is used.
         path = Path(config_path).expanduser()
         # If the provided path is relative, prepend the default VLA/VA/WAM config directory.
         if not path.is_absolute():
-            path = worldfoundry_data_path("models", "runtime", "configs", "vla_va_wam") / path
+            path = resolve_data_path("models", "runtime", "configs", "vla_va_wam") / path
     # Resolve the final path to its canonical form before reading the YAML file.
     return _read_yaml_object(path.resolve())
 

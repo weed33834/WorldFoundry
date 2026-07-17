@@ -8,6 +8,7 @@ by those scripts before their module graph imports torchvision.io.
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -119,5 +120,6 @@ def _install_flash_attention_fallback() -> None:
     model_module.flash_attention = flash_attention_fallback
 
 
-_install_write_video()
-_install_flash_attention_fallback()
+if not Path(sys.argv[0]).name.startswith("pip"):
+    _install_write_video()
+    _install_flash_attention_fallback()

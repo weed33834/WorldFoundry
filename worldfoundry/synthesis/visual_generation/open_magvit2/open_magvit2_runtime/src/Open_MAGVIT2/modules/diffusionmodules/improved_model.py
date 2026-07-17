@@ -55,7 +55,7 @@ class ResBlock(nn.Module):
     
 class Encoder(nn.Module):
     def __init__(self, *, ch, out_ch, in_channels, num_res_blocks, z_channels, ch_mult=(1, 2, 2, 4), 
-                resolution, double_z=False,
+                resolution, double_z=False, model_type="en18",
                 ):
         super().__init__()
 
@@ -100,6 +100,7 @@ class Encoder(nn.Module):
         ### end
         self.norm_out = nn.GroupNorm(32, block_out, eps=1e-6)
         self.conv_out = nn.Conv2d(block_out, z_channels, kernel_size=(1, 1))
+        self.model_type = model_type
             
     def forward(self, x):
 
@@ -119,7 +120,8 @@ class Encoder(nn.Module):
 
         x = self.norm_out(x)
         x = swish(x)
-        x = self.conv_out(x)
+        if self.model_type != "en512":
+            x = self.conv_out(x)
 
         return x
 

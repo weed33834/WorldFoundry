@@ -217,7 +217,11 @@ class CameraNet(ModelMixin):
             print(f"There is no model file in {pretrained_model_path}")
         print(f"loaded CameraNet's pretrained weights from {pretrained_model_path}.")
 
-        state_dict = torch.load(pretrained_model_path, map_location="cpu")
+        state_dict = torch.load(
+            pretrained_model_path,
+            map_location="cpu",
+            weights_only=True,
+        )
         model = CameraNet(in_channels=6, downscale_coef=8, out_channels=16)
         model.load_state_dict(state_dict, strict=True)
         return model

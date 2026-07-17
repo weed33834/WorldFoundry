@@ -149,15 +149,6 @@ GigaBrain0Pipeline = _component_pipeline_class(
     synthesis_target="worldfoundry.synthesis.action_generation.giga_brain_0.giga_brain_0_synthesis:GigaBrain0Synthesis",
     generation_type="vla_policy",
 )
-GigaWorldPolicyPipeline = _component_pipeline_class(
-    "GigaWorldPolicyPipeline",
-    doc="WorldFoundry WAM pipeline contract for GigaWorld-Policy.",
-    model_id="giga-world-policy",
-    operator_target="worldfoundry.operators.giga_world_policy_operator:GigaWorldPolicyOperator",
-    memory_target="worldfoundry.synthesis.action_generation.memory:GigaWorldPolicyMemory",
-    synthesis_target="worldfoundry.synthesis.action_generation.giga_world_policy.giga_world_policy_synthesis:GigaWorldPolicySynthesis",
-    generation_type="world_action_model",
-)
 GR00TPipeline = _component_pipeline_class(
     "GR00TPipeline",
     doc="WorldFoundry VLA policy pipeline for NVIDIA GR00T-style action generation.",
@@ -317,6 +308,18 @@ HYEmbodiedPipeline = _official_policy_pipeline(
     model_id="hy-embodied",
     doc="WorldFoundry VLA policy pipeline for HY-Embodied.",
 )
+LingBotVLAPipeline = _independent_action_pipeline(
+    "LingBotVLAPipeline",
+    model_id="lingbot-vla",
+    doc="WorldFoundry VLA policy pipeline for LingBot-VLA v1 action generation.",
+    synthesis_target="worldfoundry.synthesis.action_generation.lingbot_vla:LingBotVLASynthesis",
+)
+LingBotVLAV2Pipeline = _independent_action_pipeline(
+    "LingBotVLAV2Pipeline",
+    model_id="lingbot-vla-v2",
+    doc="WorldFoundry VLA policy pipeline for LingBot-VLA v2 batched action generation.",
+    synthesis_target="worldfoundry.synthesis.action_generation.lingbot_vla_v2:LingBotVLAV2Synthesis",
+)
 LastR1Pipeline = _official_policy_pipeline(
     "LastR1Pipeline",
     model_id="last-r1",
@@ -399,11 +402,14 @@ WallOSSPipeline = _official_policy_pipeline(
     model_id="wall-oss",
     doc="WorldFoundry VLA policy pipeline for Wall-OSS.",
 )
-XVLAPipeline = _official_policy_pipeline(
+XVLAPipeline = _independent_action_pipeline(
     "XVLAPipeline",
     model_id="xvla",
     doc="WorldFoundry cross-embodiment VLA policy pipeline for X-VLA.",
+    operator_target="worldfoundry.operators.xvla_operator:XVLAOperator",
+    synthesis_target="worldfoundry.synthesis.action_generation.xvla:XVLASynthesis",
 )
+XVLAPipeline.MODEL_PATH_OPTION = "checkpoint_path"
 
 AnimateDiffPipeline = _component_pipeline_class(
     "AnimateDiffPipeline",
@@ -537,7 +543,6 @@ __all__ = [
     "FastWAMPipeline",
     "GaussianActorPipeline",
     "GigaBrain0Pipeline",
-    "GigaWorldPolicyPipeline",
     "GR00TPipeline",
     "HYEmbodiedPipeline",
     "IRASimPipeline",
@@ -545,6 +550,8 @@ __all__ = [
     "LastR1Pipeline",
     "LiberoParaPipeline",
     "LingBotVAPipeline",
+    "LingBotVLAPipeline",
+    "LingBotVLAV2Pipeline",
     "MMEVLAPipeline",
     "MolmoAct2Pipeline",
     "MolmoBotPipeline",

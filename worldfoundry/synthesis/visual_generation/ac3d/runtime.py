@@ -15,6 +15,7 @@ import imageio.v3 as iio
 import numpy as np
 
 from worldfoundry.core.io.paths import checkpoint_root_path
+from worldfoundry.core.io.video import materialize_video_input
 
 
 DEFAULT_AC3D_REPO_ID = "snap-research/ac3d"
@@ -134,6 +135,143 @@ def _normalize_realestate10k_root(video_root_dir: str | Path, annotation_json: s
         if clip_path.startswith("video_clips/"):
             return root.parent
     return root
+
+
+def _camera_pose_rows(value: Any, *, num_frames: int) -> np.ndarray:
+    rows = np.asarray(value, dtype=np.float64)
+    expected_shape = (int(num_frames), 19)
+    if rows.shape != expected_shape:
+        raise ValueError(
+            "AC3D camera_pose_rows must contain one 19-value RealEstate10K row "
+            f"per output frame; expected {expected_shape}, got {rows.shape}."
+        )
+    if not np.isfinite(rows).all():
+        raise ValueError("AC3D camera_pose_rows contains non-finite values.")
+    for frame_index, flat_w2c in enumerate(rows[:, 7:19]):
+        w2c = np.eye(4, dtype=np.float64)
+        w2c[:3, :4] = flat_w2c.reshape(3, 4)
+        if abs(float(np.linalg.det(w2c[:3, :3]))) < 1e-8:
+            raise ValueError(f"AC3D camera_pose_rows[{frame_index}] has a singular W2C rotation.")
+    return rows
+
+
+def _decodable_video_frame_count(video_path: Path, *, stop_at: int) -> int:
+    imageio_error: Exception | None = None
+    decoded_frames = 0
+    try:
+        for _frame in iio.imiter(str(video_path)):
+            decoded_frames += 1
+            if decoded_frames >= int(stop_at):
+                return decoded_frames
+        return decoded_frames
+    except Exception as error:
+        imageio_error = error
+
+    ffprobe = shutil.which("ffprobe")
+    if ffprobe:
+        probe = subprocess.run(
+            [
+                ffprobe,
+                "-v",
+                "error",
+                "-count_frames",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=nb_read_frames,nb_frames",
+                "-of",
+                "json",
+                str(video_path),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if probe.returncode == 0:
+            try:
+                stream = json.loads(probe.stdout)["streams"][0]
+                for field in ("nb_read_frames", "nb_frames"):
+                    value = str(stream.get(field, ""))
+                    if value.isdigit():
+                        return int(value)
+            except (IndexError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+                pass
+    raise ValueError(f"could not decode or probe video frames: {imageio_error}")
+
+
+def stage_direct_camera_dataset(
+    *,
+    video: Any,
+    camera_pose_rows: Any,
+    root: str | Path,
+    num_frames: int,
+    fps: int = 8,
+    caption: str = "",
+) -> dict[str, str]:
+    """Materialize the minimal RealEstate10K layout used by official AC3D inference."""
+
+    root_path = Path(root).expanduser().resolve()
+    video_dir = root_path / "video_clips"
+    pose_dir = root_path / "poses"
+    annotation_dir = root_path / "annotations"
+    for directory in (video_dir, pose_dir, annotation_dir):
+        directory.mkdir(parents=True, exist_ok=True)
+
+    source_path = Path(
+        materialize_video_input(
+            video,
+            output_dir=str(video_dir),
+            filename="input.mp4",
+            fps=int(fps),
+        )
+    ).expanduser().resolve()
+    suffix = source_path.suffix.lower() or ".mp4"
+    staged_video = video_dir / f"input{suffix}"
+    if source_path != staged_video.resolve(strict=False):
+        try:
+            staged_video.symlink_to(source_path)
+        except OSError:
+            shutil.copyfile(source_path, staged_video)
+
+    try:
+        decoded_frames = _decodable_video_frame_count(staged_video, stop_at=int(num_frames))
+    except Exception as error:
+        raise ValueError(f"AC3D could not decode source video {source_path}: {error}") from error
+    if decoded_frames < int(num_frames):
+        raise ValueError(
+            f"AC3D source video has only {decoded_frames} decodable frames; "
+            f"{int(num_frames)} are required for stride-1 camera control."
+        )
+
+    rows = _camera_pose_rows(camera_pose_rows, num_frames=int(num_frames))
+    pose_path = pose_dir / "input.txt"
+    pose_lines = ["worldfoundry-ac3d-direct-input"]
+    pose_lines.extend(" ".join(f"{float(item):.17g}" for item in row) for row in rows)
+    pose_path.write_text("\n".join(pose_lines) + "\n", encoding="utf-8")
+
+    annotation_path = annotation_dir / "test.json"
+    annotation_path.write_text(
+        json.dumps(
+            [
+                {
+                    "clip_path": staged_video.relative_to(root_path).as_posix(),
+                    "clip_name": "input",
+                    "caption": str(caption),
+                    "pose_file": pose_path.relative_to(root_path).as_posix(),
+                }
+            ],
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return {
+        "video_root_dir": str(root_path),
+        "annotation_json": annotation_path.relative_to(root_path).as_posix(),
+        "video_path": str(staged_video),
+        "pose_path": str(pose_path),
+        "annotation_path": str(annotation_path),
+    }
 
 
 class AC3DRuntime:
@@ -360,10 +498,44 @@ class AC3DRuntime:
         show_progress: bool = True,
         **kwargs: Any,
     ) -> dict[str, Any] | np.ndarray:
-        del images, video, fps
+        del images
         options = {**self.defaults, **kwargs}
         if "video_root_dir" not in options or not options["video_root_dir"]:
-            raise ValueError("AC3D requires video_root_dir pointing to a RealEstate10K-style dataset root.")
+            camera_rows = options.pop("camera_pose_rows", None)
+            if video is None or camera_rows is None:
+                raise ValueError(
+                    "AC3D requires either video_root_dir for an existing RealEstate10K-style dataset, "
+                    "or direct video plus camera_pose_rows."
+                )
+            with tempfile.TemporaryDirectory(prefix="worldfoundry_ac3d_input_") as temporary_root:
+                staged = stage_direct_camera_dataset(
+                    video=video,
+                    camera_pose_rows=camera_rows,
+                    root=temporary_root,
+                    num_frames=int(options["num_frames"]),
+                    fps=int(fps or 8),
+                    caption=prompt,
+                )
+                options.update(
+                    {
+                        "video_root_dir": staged["video_root_dir"],
+                        "annotation_json": staged["annotation_json"],
+                        "stride_min": 1,
+                        "stride_max": 1,
+                        "start_camera_idx": 0,
+                        "end_camera_idx": 1,
+                    }
+                )
+                return self.predict(
+                    prompt=prompt,
+                    video=None,
+                    interactions=(),
+                    output_path=output_path,
+                    fps=fps,
+                    return_dict=return_dict,
+                    show_progress=show_progress,
+                    **options,
+                )
         if interactions:
             indices = [int(item) for item in interactions]
             options["start_camera_idx"] = min(indices)
@@ -537,4 +709,4 @@ if __name__ == "__main__":
     main()
 
 
-__all__ = ["AC3DRuntime"]
+__all__ = ["AC3DRuntime", "stage_direct_camera_dataset"]

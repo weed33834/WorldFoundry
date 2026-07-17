@@ -55,9 +55,17 @@ def create_byt5(args, device):
     # Load custom checkpoint if provided
     if args["byT5_ckpt_path"] is not None:
         if "cuda" not in str(device):
-            byt5_state_dict = torch.load(args["byT5_ckpt_path"], map_location=device)
+            byt5_state_dict = torch.load(
+                args["byT5_ckpt_path"],
+                map_location=device,
+                weights_only=True,
+            )
         else:
-            byt5_state_dict = torch.load(args["byT5_ckpt_path"], map_location=device)
+            byt5_state_dict = torch.load(
+                args["byT5_ckpt_path"],
+                map_location=device,
+                weights_only=True,
+            )
         if "state_dict" in byt5_state_dict:
             sd = byt5_state_dict["state_dict"]
             newsd = {}

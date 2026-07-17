@@ -1,25 +1,26 @@
 """World Model visual generation pipeline module."""
 
+from ..dreamx_world import DreamXWorld5BARPipeline, DreamXWorld5BCamPipeline
 from .pipeline_runtime_manifest import (
     AdaWorldPipeline,
     CtrlWorldPipeline,
     DIAMONDPipeline,
     DinoWMPipeline,
     DROIDWPipeline,
-    DreamXWorld5BCamPipeline,
     EgoWMPipeline,
     GenieEnvisionerPipeline,
     GigaWorld0Pipeline,
-    HMAPipeline,
     HappyOysterPipeline,
+    HMAPipeline,
     HunyuanWorld1Pipeline,
     LeWorldModelPipeline,
     MineWorldPipeline,
+    MIRAPipeline,
     MosaicMemPipeline,
     MotionBricksPipeline,
     NWMPipeline,
-    OmniForcingPipeline,
     Oasis500MPipeline,
+    OmniForcingPipeline,
     PointWorldPipeline,
     SanaWMPipeline,
     ShotStreamPipeline,
@@ -32,9 +33,9 @@ from .pipeline_runtime_manifest import (
     ViewCrafterPipeline,
     WildDet3DPipeline,
     WildWorldPipeline,
-    WorldModelRuntimePipeline,
     WorldGrowPipeline,
     WorldMemPipeline,
+    WorldModelRuntimePipeline,
 )
 
 __all__ = [
@@ -43,6 +44,7 @@ __all__ = [
     "DIAMONDPipeline",
     "DinoWMPipeline",
     "DROIDWPipeline",
+    "DreamXWorld5BARPipeline",
     "DreamXWorld5BCamPipeline",
     "EgoWMPipeline",
     "GenieEnvisionerPipeline",
@@ -51,6 +53,7 @@ __all__ = [
     "HappyOysterPipeline",
     "HunyuanWorld1Pipeline",
     "LeWorldModelPipeline",
+    "MIRAPipeline",
     "MineWorldPipeline",
     "MosaicMemPipeline",
     "MotionBricksPipeline",

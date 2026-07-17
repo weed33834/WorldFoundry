@@ -5,13 +5,13 @@ from pathlib import Path
 
 from worldfoundry.core.io.paths import checkpoint_root_path, resolve_data_path
 
-RUNTIME_DIR = Path(__file__).resolve().parent / "diamond_runtime"
+RUNTIME_DIR = Path(__file__).resolve().parent
 OFFICIAL_ENTRYPOINT = RUNTIME_DIR / "play.py"
 CONFIG_DIR = resolve_data_path("models", "runtime", "configs", "diamond", "config")
 DEFAULT_PRETRAINED_DIR = checkpoint_root_path("diamond")
 BLOCKED_REASON = (
     "DIAMOND official play/inference source is vendored in-tree; execution requires "
-    "a local checkpoint or non-interactive pretrained HF download plus an Atari runtime."
+    "a local checkpoint or local pretrained snapshot plus an Atari runtime."
 )
 
 
@@ -29,7 +29,6 @@ def missing_requirements(*, options, runtime_root, entrypoint, profile):
     if not config_dir.is_dir() or not (config_dir / "trainer.yaml").is_file():
         missing.append({"kind": "asset", "path": str(config_dir), "reason": "DIAMOND runtime config directory is missing trainer.yaml"})
     for module_name in (
-        "huggingface_hub",
         "hydra",
         "omegaconf",
         "pygame",
@@ -53,7 +52,7 @@ def missing_requirements(*, options, runtime_root, entrypoint, profile):
             )
         elif not Path(str(checkpoint)).expanduser().is_file():
             missing.append({"kind": "checkpoint", "path": str(checkpoint), "reason": "DIAMOND checkpoint file does not exist"})
-    elif "pretrained_dir" in options or pretrained_dir.is_dir():
+    else:
         for relative in (
             f"atari_100k/models/{pretrained_game}.pt",
             "atari_100k/config/agent/default.yaml",

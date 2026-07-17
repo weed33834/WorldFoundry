@@ -18,6 +18,7 @@ from abc import ABC, abstractmethod
 
 import torch
 
+
 class VideoTokenizerInterface(ABC):
     def __init__(self):
         self.backend_args = None

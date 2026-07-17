@@ -15,20 +15,16 @@
 
 """Depth model utilities: MoGe monocular depth and Depth Anything 3 loaders."""
 
+import importlib
 import os
 import re
 import sys
-import importlib
 from typing import Tuple
 
 import cv2
 import torch
 
-try:
-    from lyra_2._ext.imaginaire.utils import log
-except ModuleNotFoundError:
-    from worldfoundry.synthesis.visual_generation.lyra_2.lyra_2._ext.imaginaire.utils import log
-
+from worldfoundry.core.distributed.logging import log
 
 DA3_CANONICAL_PACKAGE = "worldfoundry.base_models.three_dimensions.depth.depth_anything.depth_anything_v3"
 
@@ -44,6 +40,7 @@ def install_da3_legacy_aliases():
 # MoGe
 # ---------------------------------------------------------------------------
 
+
 def load_moge_model(device: torch.device):
     # Disable xformers for MoGe's DINOv2 backbone so it doesn't dispatch to
     # flash_attn CUDA kernels that segfault on aarch64 / Grace Hopper.
@@ -51,9 +48,7 @@ def load_moge_model(device: torch.device):
     try:
         from worldfoundry.base_models.three_dimensions.depth.moge.model.v1 import MoGeModel
     except Exception as e:
-        raise ImportError(
-            "WorldFoundry canonical MoGe is required for --input_image_path flow. Error: " + str(e)
-        )
+        raise ImportError("WorldFoundry canonical MoGe is required for --input_image_path flow. Error: " + str(e))
 
     for _name, _mod in sys.modules.items():
         if "moge" in _name and hasattr(_mod, "XFORMERS_ENABLED"):
@@ -108,6 +103,7 @@ def moge_infer_depth_intrinsics(
 # ---------------------------------------------------------------------------
 # Depth Anything 3
 # ---------------------------------------------------------------------------
+
 
 def _import_da3_api():
     """Lazy-import DepthAnything3 from the canonical WorldFoundry base model."""
@@ -165,10 +161,7 @@ def load_da3_from_custom_checkpoint(
     """Load DepthAnything3 from a custom finetuned checkpoint."""
     DepthAnything3 = _import_da3_api()
     local_model_name = _resolve_da3_local_model_name(pretrained_path)
-    log.info(
-        f"Initializing DA3 architecture from local config: {local_model_name} "
-        f"(requested={pretrained_path})"
-    )
+    log.info(f"Initializing DA3 architecture from local config: {local_model_name} (requested={pretrained_path})")
     model = DepthAnything3(model_name=local_model_name)
 
     log.info(f"Loading custom checkpoint from {ckpt_path}")
@@ -183,7 +176,7 @@ def load_da3_from_custom_checkpoint(
 
     # Strip "model." prefix
     prefix = "model."
-    converted = {k[len(prefix):]: v for k, v in state_dict.items() if k.startswith(prefix)}
+    converted = {k[len(prefix) :]: v for k, v in state_dict.items() if k.startswith(prefix)}
 
     missing, unexpected = model.model.load_state_dict(converted, strict=strict)
     if missing and not strict:

@@ -63,7 +63,11 @@ def load_hunyuan_world_state_dict(
     # Load the state dictionary from the checkpoint file.
     # The map_location lambda ensures tensors are loaded onto the CPU,
     # preventing device mismatches if the original checkpoint was saved on a GPU.
-    state_dict = torch.load(checkpoint_path, map_location=lambda storage, loc: storage)
+    state_dict = torch.load(
+        checkpoint_path,
+        map_location=lambda storage, loc: storage,
+        weights_only=True,
+    )
     
     # Identify the key under which the actual model state dictionary is stored within the checkpoint.
     # This handles cases where the checkpoint might contain other metadata or be wrapped.

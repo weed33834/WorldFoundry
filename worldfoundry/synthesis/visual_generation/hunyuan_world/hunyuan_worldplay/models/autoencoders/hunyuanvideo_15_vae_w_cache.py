@@ -1259,6 +1259,71 @@ class AutoencoderKLConv3D(ModelMixin, ConfigMixin):
         self._enc_conv_num = self._cached_conv_counts["encoder"]
         self._enc_conv_idx = [0]
         self._enc_feat_map = [None] * self._enc_conv_num
+        self._stream_decode_active = False
+        self._stream_decode_started = False
+
+    def reset_stream_decode(self):
+        """Release state owned by an incremental causal decode."""
+
+        self.clear_cache()
+        self._stream_decode_active = False
+        self._stream_decode_started = False
+
+    def begin_stream_decode(self):
+        """Start a causal decode whose convolution state survives API calls.
+
+        Spatial/tile-parallel decode owns a feature map per tile and cannot be
+        represented by the single decoder cache used here.  Reject it explicitly
+        instead of silently returning temporally discontinuous frames.
+        """
+
+        if self.use_slicing:
+            raise RuntimeError("Streaming VAE decode does not support batch slicing.")
+        if self.use_temporal_tiling or self.use_spatial_tiling or self._tile_parallelism_enabled:
+            raise RuntimeError(
+                "Streaming VAE decode requires the non-tiled decoder; persistent "
+                "per-tile feature maps are not supported. Disable VAE tiling/parallelism."
+            )
+        self.clear_cache()
+        self._stream_decode_active = True
+        self._stream_decode_started = False
+
+    def decode_stream(self, z: Tensor, return_dict: bool = True, generator=None):
+        """Decode one latent block while preserving causal decoder ``feat_map``.
+
+        ``decode`` intentionally retains its original reset-per-call behavior for
+        offline generation.  Resident world sessions opt in to this method and
+        call :meth:`reset_stream_decode` when the session ends.
+        """
+
+        del generator  # Kept for parity with ``decode``'s public signature.
+        if len(z.shape) != 5:
+            raise ValueError(f"Expected (B, C, T, H, W) latents, got {tuple(z.shape)}.")
+        if z.shape[0] != 1:
+            raise RuntimeError("Streaming VAE decode currently supports batch size one.")
+        if not getattr(self, "_stream_decode_active", False):
+            self.begin_stream_decode()
+        if self.use_temporal_tiling or self.use_spatial_tiling or self._tile_parallelism_enabled:
+            raise RuntimeError(
+                "VAE tiling/parallelism changed after stream initialization; reset "
+                "the resident session before decoding."
+            )
+
+        chunks = []
+        for frame_index in range(z.shape[2]):
+            self._conv_idx = [0]
+            decoded = self.decoder(
+                z[:, :, frame_index : frame_index + 1],
+                feat_cache=self._feat_map,
+                feat_idx=self._conv_idx,
+                first_chunk=not self._stream_decode_started,
+            )
+            self._stream_decode_started = True
+            chunks.append(decoded)
+        sample = torch.cat(chunks, dim=2)
+        if not return_dict:
+            return (sample,)
+        return DecoderOutput(sample=sample)
 
     def encode(self, x: Tensor, return_dict: bool = True):
 

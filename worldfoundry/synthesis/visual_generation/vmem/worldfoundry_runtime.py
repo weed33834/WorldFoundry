@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, Optional, Sequence
@@ -9,7 +8,6 @@ import numpy as np
 import torch
 from PIL import Image
 
-from worldfoundry.core.io.paths import checkpoint_root_path
 from worldfoundry.synthesis.visual_generation.vmem.runtime_env import (
     default_config_path,
     ensure_vmem_runtime,
@@ -18,151 +16,6 @@ from worldfoundry.synthesis.visual_generation.vmem.runtime_env import (
 
 DEFAULT_VMEM_REPO = "liguang0115/vmem"
 DEFAULT_VMEM_SURFEL_REPO = "liguang0115/cut3r"
-OPENCLIP_VITH14_NAMES = {
-    "laion2b_s32b_b79k",
-    "laion/CLIP-ViT-H-14-laion2B-s32B-b79K",
-    "hf-hub:laion/CLIP-ViT-H-14-laion2B-s32B-b79K",
-}
-
-
-def _local_weight_candidates(repo_or_path: str, filename: str) -> list[Path]:
-    value = str(repo_or_path or "").strip()
-    candidates: list[Path] = []
-    if value:
-        path = Path(value).expanduser()
-        if path.is_file():
-            candidates.append(path)
-        candidates.append(path / filename)
-
-    if value == DEFAULT_VMEM_REPO:
-        candidates.append(checkpoint_root_path("vmem", filename))
-    elif value == DEFAULT_VMEM_SURFEL_REPO:
-        candidates.append(checkpoint_root_path("cut3r", filename))
-    return candidates
-
-
-def _local_weight_file(repo_or_path: str, filename: str) -> Optional[Path]:
-    for candidate in _local_weight_candidates(repo_or_path, filename):
-        try:
-            resolved = candidate.resolve()
-        except OSError:
-            continue
-        if resolved.is_file():
-            return resolved
-    return None
-
-
-def _local_sd21_base_path() -> Optional[Path]:
-    candidates = [
-        checkpoint_root_path("stable-diffusion-2-1-base"),
-        checkpoint_root_path("hfd", "stabilityai--stable-diffusion-2-1-base"),
-        checkpoint_root_path("models--stabilityai--stable-diffusion-2-1-base"),
-    ]
-    for candidate in candidates:
-        try:
-            resolved = candidate.resolve()
-        except OSError:
-            continue
-        if (resolved / "vae" / "config.json").is_file():
-            return resolved
-    return None
-
-
-def _local_open_clip_pretrained(model_name: Any, pretrained: Any) -> Optional[Path]:
-    if str(model_name) != "ViT-H-14" or str(pretrained) not in OPENCLIP_VITH14_NAMES:
-        return None
-    for filename in ("open_clip_pytorch_model.bin", "open_clip_model.safetensors"):
-        candidate = checkpoint_root_path("CLIP-ViT-H-14-laion2B-s32B-b79K", filename)
-        if candidate.is_file():
-            return candidate
-    return None
-
-
-@contextmanager
-def _prefer_local_open_clip():
-    try:
-        import open_clip
-    except Exception:
-        yield
-        return
-
-    original_create_model_and_transforms = open_clip.create_model_and_transforms
-
-    def _worldfoundry_create_model_and_transforms(model_name, *args, **kwargs):
-        args_list = list(args)
-        pretrained = kwargs.get("pretrained", args_list[0] if args_list else None)
-        local_file = _local_open_clip_pretrained(model_name, pretrained)
-        if local_file is not None:
-            if "pretrained" in kwargs:
-                kwargs["pretrained"] = str(local_file)
-            elif args_list:
-                args_list[0] = str(local_file)
-            else:
-                kwargs["pretrained"] = str(local_file)
-        return original_create_model_and_transforms(model_name, *args_list, **kwargs)
-
-    open_clip.create_model_and_transforms = _worldfoundry_create_model_and_transforms
-    try:
-        yield
-    finally:
-        open_clip.create_model_and_transforms = original_create_model_and_transforms
-
-
-@contextmanager
-def _prefer_local_hf_weights(model_ref: str, surfel_ref: str):
-    import huggingface_hub
-
-    original_hf_hub_download = huggingface_hub.hf_hub_download
-
-    def _hf_hub_download(repo_id, filename, *args, **kwargs):
-        filename_str = str(filename)
-        repo_id_str = str(repo_id)
-        if filename_str == "vmem_weights.pth":
-            local_file = _local_weight_file(repo_id_str, filename_str)
-        elif filename_str == "cut3r_512_dpt_4_64.pth":
-            local_file = _local_weight_file(repo_id_str, filename_str)
-        else:
-            local_file = None
-        if local_file is not None:
-            return str(local_file)
-        return original_hf_hub_download(repo_id, filename, *args, **kwargs)
-
-    huggingface_hub.hf_hub_download = _hf_hub_download
-    try:
-        yield
-    finally:
-        huggingface_hub.hf_hub_download = original_hf_hub_download
-
-
-@contextmanager
-def _prefer_local_sd21_vae():
-    import torch.nn as nn
-
-    from modeling.modules import autoencoder as autoencoder_module
-
-    local_base = _local_sd21_base_path()
-    if local_base is None:
-        yield
-        return
-
-    original_init = autoencoder_module.AutoEncoder.__init__
-
-    def _worldfoundry_autoencoder_init(self, chunk_size: int):
-        nn.Module.__init__(self)
-        self.module = autoencoder_module.AutoencoderKL.from_pretrained(
-            str(local_base),
-            subfolder="vae",
-            force_download=False,
-            low_cpu_mem_usage=False,
-        )
-        self.module.eval().requires_grad_(False)
-        self.chunk_size = chunk_size
-
-    autoencoder_module.AutoEncoder.__init__ = _worldfoundry_autoencoder_init
-    try:
-        yield
-    finally:
-        autoencoder_module.AutoEncoder.__init__ = original_init
 
 
 def _to_pil_image(data: Any) -> Image.Image:
@@ -238,9 +91,14 @@ class VMemRuntime:
     ) -> "VMemRuntime":
         ensure_vmem_runtime(runtime_root)
 
-        from modeling.pipeline import VMemPipeline as RuntimeVMemPipeline
         from omegaconf import OmegaConf
-        from utils import get_default_intrinsics, transform_img_and_K
+        from worldfoundry.synthesis.visual_generation.vmem.vmem_runtime.modeling.pipeline import (
+            VMemPipeline as RuntimeVMemPipeline,
+        )
+        from worldfoundry.synthesis.visual_generation.vmem.vmem_runtime.utils.util import (
+            get_default_intrinsics,
+            transform_img_and_K,
+        )
 
         resolved_config_path = default_config_path(runtime_root) if config_path is None else config_path
         config = OmegaConf.load(str(resolved_config_path)) if args is None else deepcopy(args)
@@ -285,16 +143,11 @@ class VMemRuntime:
             if key in kwargs:
                 config.surfel[key] = kwargs.pop(key)
         device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        with (
-            _prefer_local_hf_weights(str(config.model.model_path), str(config.surfel.model_path)),
-            _prefer_local_open_clip(),
-            _prefer_local_sd21_vae(),
-        ):
-            runtime_pipeline = RuntimeVMemPipeline(
-                config=config,
-                device=device,
-                dtype=weight_dtype,
-            )
+        runtime_pipeline = RuntimeVMemPipeline(
+            config=config,
+            device=device,
+            dtype=weight_dtype,
+        )
         return cls(
             runtime_pipeline=runtime_pipeline,
             config=config,

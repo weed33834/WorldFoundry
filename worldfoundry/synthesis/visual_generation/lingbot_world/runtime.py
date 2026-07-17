@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import random
 import sys
 import tempfile
 from inspect import signature
@@ -18,7 +19,7 @@ from worldfoundry.synthesis.visual_generation.lingbot_world.lingbot_world_runtim
 
 DEFAULT_LINGBOT_BASE_REPO = "robbyant/lingbot-world-base-cam"
 DEFAULT_LINGBOT_FAST_REPO = "robbyant/lingbot-world-fast"
-DEFAULT_LINGBOT_ACT_REPO = DEFAULT_LINGBOT_BASE_REPO
+DEFAULT_LINGBOT_ACT_REPO = "robbyant/lingbot-world-base-act-preview"
 DEFAULT_LINGBOT_HFD_ROOT = Path(__file__).resolve().parents[6] / "cache" / "hfd"
 SUPPORTED_LINGBOT_TASKS = frozenset({"i2v-A14B"})
 
@@ -96,12 +97,23 @@ class LingBotWorldRuntime:
         convert_model_dtype=False,
         runtime_variant: Optional[str] = None,
         fast_model_path: Optional[str] = None,
+        control_type: Optional[str] = None,
         **kwargs,
     ):
         if task not in SUPPORTED_LINGBOT_TASKS:
             raise ValueError(f"Unsupported task: {task}")
 
         wan_configs, wan_i2v, wan_i2v_fast = _load_runtime_components()
+        config = wan_configs[task]
+        cls._validate_parallelism(
+            config=config,
+            rank=int(rank),
+            t5_fsdp=bool(t5_fsdp),
+            dit_fsdp=bool(dit_fsdp),
+            ulysses_size=int(ulysses_size),
+            t5_cpu=bool(t5_cpu),
+            offload_model=bool(offload_model),
+        )
         use_fast = cls._should_use_fast_runtime(
             pretrained_model_path=pretrained_model_path,
             runtime_variant=runtime_variant,
@@ -120,7 +132,7 @@ class LingBotWorldRuntime:
         use_sp = ulysses_size > 1
         core_model_cls = wan_i2v_fast if use_fast else wan_i2v
         core_model_kwargs = dict(
-            config=wan_configs[task],
+            config=config,
             checkpoint_dir=base_model_path,
             device_id=device_id,
             rank=rank,
@@ -129,11 +141,54 @@ class LingBotWorldRuntime:
             use_sp=use_sp,
             t5_cpu=t5_cpu,
             convert_model_dtype=convert_model_dtype,
+            control_type=control_type,
         )
         if use_fast and "fast_checkpoint_dir" in signature(core_model_cls.__init__).parameters:
             core_model_kwargs["fast_checkpoint_dir"] = resolved_fast_model_path
         core_model = core_model_cls(**core_model_kwargs)
         return cls(core_model=core_model, default_offload_model=offload_model)
+
+    @staticmethod
+    def _validate_parallelism(
+        *,
+        config: Any,
+        rank: int,
+        t5_fsdp: bool,
+        dit_fsdp: bool,
+        ulysses_size: int,
+        t5_cpu: bool,
+        offload_model: bool,
+    ) -> None:
+        """Fail closed when FSDP/Ulysses does not match the active process group."""
+
+        dist = torch.distributed
+        initialized = dist.is_available() and dist.is_initialized()
+        world_size = int(dist.get_world_size()) if initialized else 1
+        if not initialized and (t5_fsdp or dit_fsdp or ulysses_size > 1):
+            raise RuntimeError(
+                "LingBot-World FSDP/Ulysses requires an initialized torchrun process group. "
+                "Launch through Workspace or initialize torch.distributed before from_pretrained()."
+            )
+        if initialized and world_size == 1 and (t5_fsdp or dit_fsdp):
+            raise ValueError("LingBot-World FSDP requires a process group with more than one rank.")
+        if t5_cpu and t5_fsdp:
+            raise ValueError("LingBot-World t5_cpu and t5_fsdp are mutually exclusive.")
+        if offload_model and dit_fsdp:
+            raise ValueError("LingBot-World offload_model is not supported together with DiT FSDP.")
+        if initialized and rank != int(dist.get_rank()):
+            raise ValueError(
+                f"LingBot-World rank={rank} does not match process-group rank={dist.get_rank()}."
+            )
+        if ulysses_size > 1 and ulysses_size != world_size:
+            raise ValueError(
+                "LingBot-World ulysses_size must equal torchrun WORLD_SIZE; "
+                f"got ulysses_size={ulysses_size}, WORLD_SIZE={world_size}."
+            )
+        num_heads = int(config.num_heads)
+        if ulysses_size > 1 and num_heads % ulysses_size:
+            raise ValueError(
+                f"LingBot-World num_heads={num_heads} is not divisible by ulysses_size={ulysses_size}."
+            )
 
     @staticmethod
     def _looks_like_fast_repo(path_or_repo: Optional[str]) -> bool:
@@ -325,6 +380,8 @@ class LingBotWorldRuntime:
         if device.startswith("cuda:"):
             return int(device.split(":")[-1])
         if device == "cuda":
+            if torch.cuda.is_available():
+                return int(torch.cuda.current_device())
             return 0
         raise ValueError(f"Unsupported device for LingBotWorldRuntime: {device}")
 
@@ -368,9 +425,37 @@ class LingBotWorldRuntime:
         return ((tensor.permute(1, 2, 3, 0) + 1.0) / 2.0).clamp(0.0, 1.0).float().numpy()
 
     @staticmethod
-    def _save_camera_controls(action_dir: str, c2ws: np.ndarray, Ks: np.ndarray) -> None:
+    def _save_camera_controls(
+        action_dir: str,
+        c2ws: np.ndarray,
+        Ks: np.ndarray,
+        action_matrix: Optional[np.ndarray] = None,
+    ) -> None:
         np.save(os.path.join(action_dir, "poses.npy"), np.asarray(c2ws, dtype=np.float32))
         np.save(os.path.join(action_dir, "intrinsics.npy"), np.asarray(Ks, dtype=np.float32))
+        if action_matrix is not None:
+            actions = np.asarray(action_matrix, dtype=np.float32)
+            if actions.ndim != 2 or actions.shape[1] != 4:
+                raise ValueError(f"LingBot Base-Act action_matrix must have shape [F,4], got {actions.shape}.")
+            if actions.shape[0] < len(c2ws):
+                actions = np.pad(actions, ((0, len(c2ws) - actions.shape[0]), (0, 0)), mode="constant")
+            np.save(os.path.join(action_dir, "action.npy"), actions[: len(c2ws)])
+
+    @staticmethod
+    def _synchronized_seed(seed: int) -> int:
+        """Resolve negative seeds once so every SP rank owns one global latent."""
+
+        resolved = int(seed)
+        dist = torch.distributed
+        if dist.is_available() and dist.is_initialized() and dist.get_world_size() > 1:
+            payload = [
+                resolved if resolved >= 0 else random.randint(0, sys.maxsize)
+                if dist.get_rank() == 0
+                else 0
+            ]
+            dist.broadcast_object_list(payload, src=0)
+            return int(payload[0])
+        return resolved if resolved >= 0 else random.randint(0, sys.maxsize)
 
     def _generate_video(self, *, prompt: str, pil_image: Image.Image, offload_model: bool, **kwargs):
         generate = self.core_model.generate
@@ -409,17 +494,24 @@ class LingBotWorldRuntime:
         vis_ui: bool = False,
         allow_act2cam: bool = False,
         action_string: Optional[str] = None,
+        action_matrix: Optional[np.ndarray] = None,
         **kwargs,
     ):
         pil_image = self._to_pil_image(pil_image=pil_image, image_tensor=image_tensor)
         offload_model = self.default_offload_model if offload_model is None else offload_model
+        seed = self._synchronized_seed(seed)
 
         if action_path is None and (c2ws is None) != (Ks is None):
             raise ValueError("'c2ws' and 'Ks' must be provided together when 'action_path' is omitted.")
 
         if action_path is None and c2ws is not None and Ks is not None:
+            control_type = str(getattr(self.core_model, "control_type", ""))
+            if control_type == "act" and action_matrix is None:
+                raise ValueError("LingBot Base-Act requires action_matrix alongside c2ws/Ks.")
+            if control_type == "act" and allow_act2cam:
+                raise ValueError("allow_act2cam is a Base-Cam conversion mode and cannot be used with Base-Act weights.")
             with tempfile.TemporaryDirectory(prefix="lingbot_action_") as action_dir:
-                self._save_camera_controls(action_dir, c2ws, Ks)
+                self._save_camera_controls(action_dir, c2ws, Ks, action_matrix=action_matrix)
                 video = self._generate_video(
                     prompt=prompt,
                     pil_image=pil_image,

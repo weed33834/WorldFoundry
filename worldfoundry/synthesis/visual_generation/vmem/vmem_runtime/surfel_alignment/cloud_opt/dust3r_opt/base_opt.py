@@ -23,7 +23,7 @@ from worldfoundry.synthesis.visual_generation.vmem.vmem_runtime.surfel_alignment
     segment_sky,
 )
 
-from .commons import (
+from ..commons import (
     edge_str,
     ALL_DISTS,
     NoGradParamDict,

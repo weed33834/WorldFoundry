@@ -35,6 +35,7 @@ _init_dist_env()
 __all__ = [
     "HunyuanVideoPipelineOutput",
     "HunyuanWorldPlayRuntime",
+    "HunyuanWorldPlayRealtimeSession",
     "_HunyuanWorldPlayInternalPipeline",
     "find_free_port",
     "get_gpu_memory",
@@ -43,6 +44,10 @@ __all__ = [
 
 
 def __getattr__(name: str) -> Any:
+    if name == "HunyuanWorldPlayRealtimeSession":
+        value = getattr(import_module(".realtime", __name__), name)
+        globals()[name] = value
+        return value
     if name in {
         "HunyuanVideoPipelineOutput",
         "HunyuanWorldPlayRuntime",

@@ -2,9 +2,18 @@ from typing import List, Optional
 import time
 import torch
 
-from utils.wan_wrapper import WanDiffusionWrapper, WanTextEncoder, WanVAEWrapper
+from worldfoundry.synthesis.visual_generation.forcing.shared.wan_wrapper import (
+    WanDiffusionWrapper,
+    WanTextEncoder,
+    WanVAEWrapper,
+)
 
-from runtime_utils.memory import gpu, get_cuda_free_memory_gb, DynamicSwapInstaller, move_model_to_device_with_memory_preservation
+from worldfoundry.synthesis.visual_generation.forcing.self_forcing_runtime.runtime_utils.memory import (
+    DynamicSwapInstaller,
+    get_cuda_free_memory_gb,
+    gpu,
+    move_model_to_device_with_memory_preservation,
+)
 import tqdm
 
 class CausalInferencePipeline(torch.nn.Module):

@@ -1,20 +1,25 @@
 """Lingbot World visual generation pipeline module."""
 
-from ..pipeline_utils import PipelineABC
+from pathlib import Path
+from typing import Any, Dict, Optional, Union
+
 import numpy as np
 from PIL import Image
-from typing import Optional, Any, Dict, Union
 
 from ...operators.lingbot_world_operator import LingBotOperator
-from ...synthesis.visual_generation.lingbot_world.lingbot_world_synthesis import LingBotSynthesis
-from ...synthesis.visual_generation.memory.stream import VisualFrameMemory
 from ...synthesis.visual_generation.lingbot_world.lingbot_world_runtime.utils.wasd_ijkl_to_c2ws import (
     generate_and_save_trajectory,
 )
-
+from ...synthesis.visual_generation.lingbot_world.lingbot_world_synthesis import LingBotSynthesis
+from ...synthesis.visual_generation.lingbot_world.runtime import (
+    DEFAULT_LINGBOT_ACT_REPO,
+    DEFAULT_LINGBOT_BASE_REPO,
+)
+from ...synthesis.visual_generation.memory.stream import VisualFrameMemory
+from ..pipeline_utils import PipelineABC
 
 WMFACTORY_BASE_INTRINSICS = np.asarray(
-    [415.5298, 415.6922, 415.77786, 239.77779],
+    [502.9116, 503.10812, 415.77786, 239.77779],
     dtype=np.float32,
 )
 WMFACTORY_INTERACTION_KEYS: Dict[str, tuple[str, ...]] = {
@@ -73,13 +78,16 @@ class LingBotPipeline(PipelineABC):
                  operators: Optional[LingBotOperator] = None,
                  synthesis_model: Optional[LingBotSynthesis] = None,
                  memory_module: Optional[Any] = None,
-                 device: str = "cuda"
+                 device: str = "cuda",
+                 model_id: str = "lingbot-world",
                  ):
         """Initialize the pipeline and configure runtime components."""
         self.synthesis_model = synthesis_model
         self.operators = operators
         self.memory_module = memory_module
         self.device = device
+        self.model_id = model_id
+        self._realtime_session = None
 
     @classmethod
     def from_pretrained(cls,
@@ -93,30 +101,40 @@ class LingBotPipeline(PipelineABC):
         if isinstance(model_path, dict):
             component_options.update(model_path)
             model_path = component_options.pop("model_path", None)
+        resolved_model_id = str(
+            component_options.get("model_id")
+            or component_options.get("profile_id")
+            or kwargs.get("model_id")
+            or "lingbot-world"
+        )
         mode = component_options.pop("mode", mode)
         kwargs = cls._strip_framework_loading_options({**component_options, **kwargs})
-        model_path = model_path or "robbyant/lingbot-world-base-cam"
-        
+        model_path = model_path or (
+            DEFAULT_LINGBOT_ACT_REPO if resolved_model_id == "lingbot-world-act" else DEFAULT_LINGBOT_BASE_REPO
+        )
+
         print(f"Loading LingBot World Model from {model_path}...")
-        
+
         synthesis_model = LingBotSynthesis.from_pretrained(
             pretrained_model_path=model_path,
             task=mode,
             device=device,
+            control_type="act" if resolved_model_id == "lingbot-world-act" else "cam",
             **kwargs
         )
-        
+
         operators = LingBotOperator()
-        memory_module = VisualFrameMemory(model_id="lingbot-world")
+        memory_module = VisualFrameMemory(model_id=resolved_model_id)
 
         pipeline = cls(
             operators=operators,
             synthesis_model=synthesis_model,
             memory_module=memory_module,
-            device=device
+            device=device,
+            model_id=resolved_model_id,
         )
         return pipeline
-    
+
     def process(self,
                 images: Any = None,
                 prompt: Optional[str] = None,
@@ -125,8 +143,10 @@ class LingBotPipeline(PipelineABC):
                 resize_H: int = 480,
                 resize_W: int = 832,
                 num_frames: Optional[int] = 81,
-                wmfactory_action_controls: bool = False): 
-        
+                wmfactory_action_controls: bool = False,
+                poses_c2ws: Any = None,
+                poses_Ks: Any = None):
+
         """Process and normalize input arguments and conditions for inference."""
         if isinstance(images, str):
             images = Image.open(images).convert("RGB")
@@ -141,7 +161,12 @@ class LingBotPipeline(PipelineABC):
             "Ks": None,
         }
 
-        if action_path is None and interactions:
+        if action_path is None and poses_c2ws is not None:
+            if poses_Ks is None:
+                raise ValueError("LingBot direct pose input requires both poses_c2ws and poses_Ks.")
+            output_dict["c2ws"] = np.asarray(poses_c2ws, dtype=np.float32)
+            output_dict["Ks"] = np.asarray(poses_Ks, dtype=np.float32)
+        elif action_path is None and interactions:
             if wmfactory_action_controls:
                 c2ws, Ks = _wmfactory_trajectory_from_interactions(interactions, num_frames or 81)
             else:
@@ -169,10 +194,18 @@ class LingBotPipeline(PipelineABC):
                   allow_act2cam: bool = False,
                   action_string: Optional[str] = None,
                   wmfactory_action_controls: bool = False,
-                  seed: int = 42, 
+                  poses_c2ws: Any = None,
+                  poses_Ks: Any = None,
+                  action_matrix: Any = None,
+                  output_path: str | Path | None = None,
+                  fps: int = 16,
+                  return_dict: bool = False,
+                  operator_kwargs: Any = None,
+                  seed: int = 42,
                   **kwds):
-        
+
         """Execute the complete pipeline generation flow."""
+        del operator_kwargs
         processed_inputs = self.process(
             images=images,
             prompt=prompt,
@@ -182,8 +215,10 @@ class LingBotPipeline(PipelineABC):
             resize_W=resize_W,
             num_frames=num_frames,
             wmfactory_action_controls=wmfactory_action_controls,
+            poses_c2ws=poses_c2ws,
+            poses_Ks=poses_Ks,
         )
-        
+
         output_video = self.synthesis_model.predict(
             prompt=processed_inputs["prompt"],
             pil_image=processed_inputs["pil_image"],
@@ -195,12 +230,32 @@ class LingBotPipeline(PipelineABC):
             vis_ui=vis_ui,
             allow_act2cam=allow_act2cam,
             action_string=action_string,
+            action_matrix=action_matrix,
             seed=seed,
             **kwds
         )
-        
+
+        if output_video is None:
+            raise RuntimeError("LingBot did not return video frames on the current rank.")
+        artifact_path = None
+        if output_path is not None:
+            from worldfoundry.core.io import save_video_frames
+
+            output = Path(output_path).expanduser().resolve()
+            output.parent.mkdir(parents=True, exist_ok=True)
+            save_video_frames(output_video, output, fps=int(fps))
+            artifact_path = str(output)
+        if return_dict:
+            return {
+                "status": "success",
+                "model_id": self.model_id,
+                "artifact_kind": "generated_video",
+                "artifact_path": artifact_path,
+                "generated_video_path": artifact_path,
+                "video": output_video,
+            }
         return output_video
-    
+
     def stream(self,
                 prompt: Optional[str] = None,
                 interactions: Optional[list[str]] = None,
@@ -216,14 +271,14 @@ class LingBotPipeline(PipelineABC):
                 wmfactory_action_controls: bool = False,
                 seed: int = 42,
                 **kwds) -> np.ndarray:
-        
+
         # 1. Initialize Memory if images provided (First Turn)
         """Stream visual generation outputs chunk by chunk."""
         if images is not None:
             print("--- Stream Started ---")
             self.memory_module.manage(action="reset") # Clear old memory
             self.memory_module.record(images, type="image")
-        
+
         # 2. Retrieve Context (Input for this turn)
         current_img = self.memory_module.select()
         if current_img is None:
@@ -252,3 +307,78 @@ class LingBotPipeline(PipelineABC):
             self.memory_module.record(video_output, type="video_chunk")
 
         return video_output
+
+    def _ensure_realtime_session(self):
+        """Build the resident fast session once per loaded pipeline."""
+
+        if self._realtime_session is None:
+            from ...synthesis.visual_generation.lingbot_world.realtime import (
+                LingBotRealtimeSession,
+            )
+
+            core_model = getattr(self.synthesis_model, "core_model", None)
+            self._realtime_session = LingBotRealtimeSession(core_model)
+        return self._realtime_session
+
+    def prepare_realtime(self) -> dict[str, Any]:
+        """Load realtime-only components without creating a rollout."""
+
+        session = self._ensure_realtime_session()
+        return {"realtime_spec": session.realtime_spec().to_payload()}
+
+    def configure_realtime(
+        self,
+        images: Any,
+        prompt: Optional[str] = None,
+        seed: int = 42,
+        fps: int = 16,
+        **_: Any,
+    ) -> dict[str, Any]:
+        """Initialize prompt, image, VAE, and transformer state once."""
+
+        if isinstance(images, str):
+            images = Image.open(images).convert("RGB")
+        if not isinstance(images, Image.Image):
+            raise ValueError("LingBot realtime configuration requires a PIL image or image path.")
+        self.memory_module.manage(action="reset")
+        self.memory_module.record(images, type="image")
+        return self._ensure_realtime_session().configure(
+            image=images,
+            prompt=prompt or "",
+            seed=seed,
+            fps=fps,
+        )
+
+    def stream_realtime(
+        self,
+        prompt: Optional[str] = None,
+        interactions: Optional[list[str]] = None,
+        realtime_segments: Optional[list[dict[str, Any]]] = None,
+        seed: int = 42,
+        **_: Any,
+    ) -> Optional[dict[str, Any]]:
+        """Advance the existing autoregressive rollout by one model chunk."""
+
+        session = self._ensure_realtime_session()
+        if prompt is not None:
+            session.update_prompt(prompt)
+        result = session.generate(
+            interactions=interactions or [],
+            control_segments=realtime_segments,
+            seed=seed,
+        )
+        if result is not None and result.get("video") is not None:
+            self.memory_module.record(result["video"], type="video_chunk")
+        return result
+
+    def realtime_next_output_frames(self) -> int:
+        """Return 9 for the causal seed chunk and 12 thereafter."""
+
+        return int(self._ensure_realtime_session().next_output_frames())
+
+    def reset_realtime(self) -> None:
+        """Drop rollout state while retaining model and decoder weights."""
+
+        if self._realtime_session is not None:
+            self._realtime_session.reset()
+        self.memory_module.manage(action="reset")

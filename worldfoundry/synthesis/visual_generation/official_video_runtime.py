@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from worldfoundry.core.io import load_serialized, resolve_data_path
-from worldfoundry.runtime import expand_worldfoundry_path
+from worldfoundry.runtime.assets import expand_worldfoundry_path
 
 
 def _expand_value(value: Any) -> Any:
@@ -95,6 +95,12 @@ def _format_command(items: list[str], variables: Mapping[str, Any]) -> list[str]
         for key, value in variables.items()
     }
     for item in items:
+        placeholder = str(item).strip()
+        if placeholder == "{pyramid_num_inference_steps_list}" and isinstance(
+            variables.get("pyramid_num_inference_steps_list"), (list, tuple)
+        ):
+            rendered.extend(str(part) for part in variables["pyramid_num_inference_steps_list"])
+            continue
         if str(item).strip() == "{torchrun}" and isinstance(variables.get("torchrun"), (list, tuple)):
             python = str(variables.get("python") or "")
             if python and (not rendered or rendered[-1] != python):
@@ -119,7 +125,17 @@ def _absolute_cli_path(value: Any) -> Any:
 def _normalize_cli_path_variables(variables: Mapping[str, Any]) -> dict[str, Any]:
     normalized = dict(variables)
     for key, value in tuple(normalized.items()):
-        if key in {"repo_root", "checkpoint_path", "output_path", "output_dir", "image_path", "video_path"}:
+        if key in {
+            "repo_root",
+            "checkpoint_path",
+            "output_path",
+            "output_dir",
+            "image_path",
+            "video_path",
+            "eval_dir",
+            "vae",
+            "text_encoder",
+        }:
             normalized[key] = _absolute_cli_path(value)
     return normalized
 
@@ -221,7 +237,12 @@ class OfficialVideoRuntime:
                 "official repo checkout not found; checked "
                 f"{repo_sources}"
             )
-        if kind in {"official_cli", "diffusers_pipeline", "transformers_generation"} and checkpoint_path is None:
+        checkpoint_optional = bool(self.runtime.get("checkpoint_optional", False))
+        if (
+            kind in {"official_cli", "diffusers_pipeline", "transformers_generation"}
+            and checkpoint_path is None
+            and not checkpoint_optional
+        ):
             missing.append(
                 "checkpoint/assets not found; checked "
                 f"{checkpoint_sources}"
@@ -370,6 +391,44 @@ class OfficialVideoRuntime:
             "metadata": dict(metadata),
         }
 
+    @staticmethod
+    def _materialize_cli_artifacts(
+        produced: Path,
+        output_path: Path,
+        *,
+        since: float,
+    ) -> tuple[Path, tuple[Path, ...]]:
+        """Copy fresh direct CLI outputs without changing their media type."""
+
+        supported = {".mp4", ".mov", ".webm", ".gif", ".png", ".jpg", ".jpeg", ".wav", ".flac", ".mp3", ".aac"}
+        candidates = [produced]
+        candidates.extend(
+            path
+            for path in produced.parent.iterdir()
+            if path.is_file()
+            and path != produced
+            and path.suffix.lower() in supported
+            and path.stat().st_mtime >= since - 1.0
+        )
+        materialized: list[Path] = []
+        primary: Path | None = None
+        used_suffixes: set[str] = set()
+        for candidate in candidates:
+            suffix = candidate.suffix.lower() or output_path.suffix.lower()
+            if suffix in used_suffixes:
+                continue
+            used_suffixes.add(suffix)
+            target = output_path if suffix == output_path.suffix.lower() else output_path.with_suffix(suffix)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if candidate.resolve() != target.resolve():
+                shutil.copy2(candidate, target)
+            if primary is None:
+                primary = target
+            materialized.append(target)
+        if primary is None:
+            raise RuntimeError(f"official CLI produced no materializable artifact: {produced}")
+        return primary, tuple(materialized)
+
     def _run_official_cli(
         self,
         *,
@@ -410,10 +469,11 @@ class OfficialVideoRuntime:
             cwd = str(Path(cwd_template.format(**{name: str(item) for name, item in variables.items()})).expanduser())
         env = os.environ.copy()
         src_root = Path(__file__).resolve().parents[3]
+        prepend_repo_root = bool(self.runtime.get("prepend_repo_root_to_pythonpath", True))
         env["PYTHONPATH"] = os.pathsep.join(
             item
             for item in (
-                str(repo_root) if repo_root else "",
+                str(repo_root) if repo_root and prepend_repo_root else "",
                 str(src_root),
                 env.get("PYTHONPATH", ""),
             )
@@ -476,10 +536,10 @@ class OfficialVideoRuntime:
                 "error": f"official CLI completed but no artifact was found at or near {output_path}",
                 "metadata": {"command": rendered, "log_path": str(log_path)},
             }
-        if produced != output_path:
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(produced, output_path)
-        return self._success_result(output_path, metadata={"command": rendered, "log_path": str(log_path)})
+        primary, artifacts = self._materialize_cli_artifacts(produced, output_path, since=started_at)
+        result = self._success_result(primary, metadata={"command": rendered, "log_path": str(log_path)})
+        result["artifact_paths"] = [str(path) for path in artifacts]
+        return result
 
     def _resolve_produced_artifact(
         self,
@@ -575,10 +635,25 @@ class OfficialVideoRuntime:
             pipe = pipe.to(self.device)
         call_kwargs = dict(self.runtime.get("call_kwargs") or {})
         call_kwargs.update(extra)
+        # Some Diffusers pipelines condition on ``target_fps`` while others do
+        # not accept an FPS argument at all. Preserve the requested playback
+        # rate before signature filtering so the encoded artifact still honors
+        # the Workspace request.
+        output_fps = int(
+            call_kwargs.get("fps")
+            or call_kwargs.get("target_fps")
+            or self.runtime.get("fps")
+            or 16
+        )
         seed = call_kwargs.pop("seed", None)
         signature = inspect.signature(pipe.__call__)
         parameters = signature.parameters
         accepts_kwargs = any(parameter.kind == inspect.Parameter.VAR_KEYWORD for parameter in parameters.values())
+        # ``fps`` is the Workspace playback control. Pipelines such as
+        # I2VGen-XL call the corresponding generation micro-condition
+        # ``target_fps``; keep conditioning and encoded playback in sync.
+        if extra.get("fps") is not None and "target_fps" in parameters and "target_fps" not in extra:
+            call_kwargs["target_fps"] = int(extra["fps"])
         if seed is not None and (accepts_kwargs or "generator" in parameters):
             generator_device = self.device if str(self.device).startswith("cuda") and torch.cuda.is_available() else "cpu"
             call_kwargs["generator"] = torch.Generator(device=generator_device).manual_seed(int(seed))
@@ -598,7 +673,7 @@ class OfficialVideoRuntime:
         if frames and isinstance(frames, list) and frames and isinstance(frames[0], list):
             frames = frames[0]
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        imageio.mimsave(str(output_path), frames, fps=int(call_kwargs.get("fps") or self.runtime.get("fps") or 16))
+        imageio.mimsave(str(output_path), frames, fps=output_fps)
         return self._success_result(output_path, metadata={"pipeline_target": self.runtime.get("pipeline_target")})
 
     def _run_modelscope_text_to_video(

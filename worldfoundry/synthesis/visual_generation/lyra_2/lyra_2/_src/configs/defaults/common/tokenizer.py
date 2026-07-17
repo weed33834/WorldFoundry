@@ -15,7 +15,6 @@
 
 
 from hydra.core.config_store import ConfigStore
-
 from lyra_2._src.tokenizers.wan2pt1 import (
     Wan2pt1VAEConfig,
 )

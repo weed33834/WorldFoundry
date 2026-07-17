@@ -10,7 +10,12 @@ from einops import rearrange
 from PIL import Image
 import decord
 
-from transformers import CLIPTextModelWithProjection, CLIPTokenizer, CLIPImageProcessor, MT5Tokenizer, T5EncoderModel
+from transformers import CLIPImageProcessor, CLIPTextModelWithProjection, CLIPTokenizer, T5EncoderModel
+
+try:  # transformers < 5 exposed the multilingual alias at package level.
+    from transformers import MT5Tokenizer
+except ImportError:  # transformers 5 consolidated it with the T5 tokenizer.
+    from transformers import T5Tokenizer as MT5Tokenizer
 import torch.nn.functional as F
 from torchvision.transforms import Compose, Lambda, Resize
 

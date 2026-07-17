@@ -362,8 +362,7 @@ class VideoPredictionEmbedderWithLAMEncoder(AbstractEmbModel):
     def forward(self, vid):
         input_dtype = vid.dtype
         vid = rearrange(vid, "b t c h w -> b t h w c")
-        lam_input = {"videos": vid}
-        outputs = self.lam.lam(lam_input)
+        outputs = self.lam.encode(vid)
         z_rep = outputs["z_rep"].squeeze(1).to(input_dtype)
         return [z_rep, z_rep.squeeze(1)]  # crossattn (32), vector (32)
 

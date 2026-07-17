@@ -17,6 +17,7 @@
 # from Copyright 2024-2025 The Alibaba Wan Team Authors. All rights reserved.
 
 import math
+from collections import namedtuple
 from typing import Optional
 
 import torch
@@ -39,17 +40,18 @@ try:
 except ImportError:
     _TransformerEngineDotProductAttention = None
 
-from lyra_2._ext.imaginaire.utils import log
 from worldfoundry.base_models.diffusion_model.video.cosmos.cosmos2.runtime.cosmos_predict2.cosmos_predict2._src.predict2.networks.selective_activation_checkpoint import (
     CheckpointMode,
 )
-from worldfoundry.base_models.diffusion_model.video.cosmos.cosmos2.runtime.cosmos_predict2.cosmos_predict2._src.predict2.networks.selective_activation_checkpoint import SACConfig as SACConfig
+from worldfoundry.base_models.diffusion_model.video.cosmos.cosmos2.runtime.cosmos_predict2.cosmos_predict2._src.predict2.networks.selective_activation_checkpoint import (
+    SACConfig as SACConfig,
+)
+from worldfoundry.core.attention import scaled_dot_product_attention as _worldfoundry_scaled_dot_product_attention
 from worldfoundry.core.distributed.context_parallel import split_inputs_cp
+from worldfoundry.core.distributed.logging import log
 
 T5_CONTEXT_TOKEN_NUMBER = 512
 FIRST_LAST_FRAME_CONTEXT_TOKEN_NUMBER = 257 * 2
-from collections import namedtuple
-from worldfoundry.core.attention import scaled_dot_product_attention as _worldfoundry_scaled_dot_product_attention
 
 VideoSize = namedtuple("VideoSize", ["T", "H", "W"])
 

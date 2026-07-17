@@ -11,6 +11,7 @@ interface for model execution and artifact handling.
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -38,6 +39,10 @@ FRAMEWORK_KEYS = {
     "profile_id",
     "profile_path",
 }
+
+LONGVIE_SEGMENT_FRAMES = 81
+LONGVIE_SEGMENT_FPS = 16
+LONGVIE_HISTORY_FRAMES = 8
 
 
 class LongVieSynthesis(BaseSynthesis):
@@ -75,6 +80,8 @@ class LongVieSynthesis(BaseSynthesis):
         self.execute_by_default = bool(execute_by_default)
         self.history: list[Any] = []  # Stores a list of generated frames for memory/continuity
         self.noise: Any = None  # Stores the noise tensor for memory/continuity
+        self.last_frame: Any = None
+        self.segment_index = 0
 
     @classmethod
     def from_pretrained(
@@ -114,12 +121,16 @@ class LongVieSynthesis(BaseSynthesis):
             options["longvie_weight_dir"] = str(pretrained_model_path)
         options.update(kwargs)
 
+        requested_model_id = options.pop("model_id", None)
+
         # Remove framework-specific keys from the options to avoid passing them to the runtime.
         for key in FRAMEWORK_KEYS:
             options.pop(key, None)
 
         # Determine the model ID, prioritizing 'variant', then 'model_id', then the class default.
-        resolved_model_id = str(options.pop("variant", None) or model_id or cls.MODEL_ID)
+        resolved_model_id = str(
+            options.pop("variant", None) or requested_model_id or model_id or cls.MODEL_ID
+        )
         # Normalize model ID aliases to standard forms.
         if resolved_model_id in {"longvie2", "longvie-v2"}:
             resolved_model_id = "longvie-2"
@@ -129,6 +140,23 @@ class LongVieSynthesis(BaseSynthesis):
         # Extract weight directories, handling common aliases.
         weight_dir = options.pop("longvie_weight_dir", options.pop("weight_dir", None))
         # Initialize the official LongVie runtime with all resolved and provided options.
+        use_usp = bool(options.pop("use_usp", False))
+        ring_degree = int(options.pop("ring_degree", 1))
+        ulysses_degree = int(options.pop("ulysses_degree", 1))
+        if resolved_model_id == "longvie-2":
+            try:
+                world_size = max(int(os.getenv("WORLD_SIZE", "1") or "1"), 1)
+            except ValueError as exc:
+                raise ValueError("LongVie 2 requires an integer WORLD_SIZE.") from exc
+            if world_size not in {1, 4}:
+                raise ValueError(
+                    "LongVie 2 supports either one GPU or its official four-rank USP topology; "
+                    f"got WORLD_SIZE={world_size}."
+                )
+            use_usp = world_size == 4
+            ring_degree = 1
+            ulysses_degree = world_size
+
         runtime = LongVieOfficialRuntime(
             control_weight_path=options.pop("control_weight_path", None),
             dit_weight_path=options.pop("dit_weight_path", None),
@@ -137,9 +165,9 @@ class LongVieSynthesis(BaseSynthesis):
             tokenizer_dir=options.pop("tokenizer_dir", options.pop("tokenizer_path", None)),
             device=str(device or options.pop("device", "cuda")),
             torch_dtype=str(options.pop("torch_dtype", "bfloat16")),
-            use_usp=bool(options.pop("use_usp", False)),
-            ring_degree=int(options.pop("ring_degree", 1)),
-            ulysses_degree=int(options.pop("ulysses_degree", 1)),
+            use_usp=use_usp,
+            ring_degree=ring_degree,
+            ulysses_degree=ulysses_degree,
             enable_vram_management=bool(options.pop("enable_vram_management", True)),
             control_layers=int(options.pop("control_layers", 12)),
             variant=resolved_model_id,
@@ -180,11 +208,19 @@ class LongVieSynthesis(BaseSynthesis):
         return max(5, ((num_frames - 1) // 4) * 4 + 1)
 
     @staticmethod
-    def _fit_control_frames(frames: list[Any], num_frames: int) -> list[Any]:
+    def _fit_control_frames(
+        frames: list[Any],
+        num_frames: int,
+        *,
+        control_name: str = "control video",
+        allow_padding: bool = False,
+    ) -> list[Any]:
         """Adjusts the list of control frames to match the target `num_frames`.
 
-        If the input `frames` list is shorter than `num_frames`, it will be
-        padded by repeating the last frame. If it's longer, it will be truncated.
+        Full-quality LongVie segments need one control frame per generated
+        frame. Short controls therefore fail by default instead of silently
+        freezing the last depth/track frame for the remainder of the segment.
+        Padding remains available as an explicit compatibility opt-in.
 
         Args:
             frames: A list of control frames (e.g., depth images, sparse tracks).
@@ -197,13 +233,44 @@ class LongVieSynthesis(BaseSynthesis):
             ValueError: If the input `frames` list is empty.
         """
         if not frames:
-            raise ValueError("LongVie control video must contain at least one frame.")
+            raise ValueError(f"LongVie {control_name} must contain at least one frame.")
+        if len(frames) < num_frames and not allow_padding:
+            raise ValueError(
+                f"LongVie {control_name} has {len(frames)} frame(s), but the requested "
+                f"segment needs {num_frames}. Provide a complete control-video segment "
+                "or explicitly set allow_control_padding=True."
+            )
         # Take up to `num_frames` from the input list.
         fitted = list(frames[:num_frames])
         # If the fitted list is shorter than required, pad by repeating the last frame.
         if len(fitted) < num_frames:
             fitted.extend([fitted[-1]] * (num_frames - len(fitted)))
         return fitted
+
+    @staticmethod
+    def _segment_spec(*, fps: int, num_frames: int, segment_index: int) -> dict[str, Any]:
+        """Describe LongVie as queued segment generation, not live key control."""
+
+        return {
+            "mode": "queued_control_video_segments",
+            "realtime": False,
+            "keyboard_controls": False,
+            "fps": int(fps),
+            "segment_frames": int(num_frames),
+            # The first frame is the segment boundary/anchor, so 81 frames at
+            # 16 FPS span the official five-second (80 interval) timeline.
+            "segment_seconds": float(max(num_frames - 1, 0)) / float(fps),
+            "encoded_duration_seconds": float(num_frames) / float(fps),
+            "history_frames": LONGVIE_HISTORY_FRAMES,
+            "segment_index": int(segment_index),
+            "required_inputs": [
+                "prompt",
+                "initial_image_for_first_segment",
+                "dense_depth_video_for_each_segment",
+                "sparse_pointmap_or_track_video_for_each_segment",
+            ],
+            "continuation": "previous_final_frame_plus_last_8_frames_plus_noise",
+        }
 
     def predict(
         self,
@@ -259,10 +326,29 @@ class LongVieSynthesis(BaseSynthesis):
 
         # Check if execution is explicitly requested; LongVie requires immediate execution.
         execute = bool(kwargs.pop("execute", self.execute_by_default))
+        continue_from_memory = bool(kwargs.pop("continue_from_memory", False))
         # Determine the input image, prioritizing kwargs then the 'images' argument.
-        input_image = first_present(pop_first(kwargs, "input_image", "image", "first_frame"), images)
+        supplied_image = first_present(pop_first(kwargs, "input_image", "image", "first_frame"), images)
+        input_image = self.last_frame if continue_from_memory and self.last_frame is not None else supplied_image
         if not execute:
             raise RuntimeError("LongVie requires execute=True; request-plan artifacts are no longer emitted.")
+
+        missing: list[str] = []
+        if not str(prompt or "").strip():
+            missing.append("a non-empty prompt")
+        if input_image is None:
+            missing.append("an initial image")
+        if dense_video is None:
+            missing.append("a dense depth control video")
+        if sparse_video is None:
+            missing.append("a sparse pointmap/track control video")
+        if missing:
+            raise ValueError(
+                "LongVie segment generation requires user-provided conditioning. Missing: "
+                + ", ".join(missing)
+                + ". Every continuation segment needs new dense and sparse control videos; "
+                "the initial image is reused automatically from the previous segment's final frame."
+            )
 
         # Determine target size and convert input image and control videos to frames.
         target_size = tuple(kwargs.pop("target_size", TARGET_SIZE))
@@ -272,13 +358,28 @@ class LongVieSynthesis(BaseSynthesis):
 
         # Normalize the number of frames for generation and fit control frames to this count.
         requested_frames = kwargs.pop("num_frames", None)
-        num_frames = self._normalize_num_frames(requested_frames if requested_frames is not None else 81)
-        dense_frames = self._fit_control_frames(dense_frames, num_frames)
-        sparse_frames = self._fit_control_frames(sparse_frames, num_frames)
+        num_frames = self._normalize_num_frames(
+            requested_frames if requested_frames is not None else LONGVIE_SEGMENT_FRAMES
+        )
+        allow_control_padding = bool(kwargs.pop("allow_control_padding", False))
+        dense_frames = self._fit_control_frames(
+            dense_frames,
+            num_frames,
+            control_name="dense depth control video",
+            allow_padding=allow_control_padding,
+        )
+        sparse_frames = self._fit_control_frames(
+            sparse_frames,
+            num_frames,
+            control_name="sparse pointmap/track control video",
+            allow_padding=allow_control_padding,
+        )
 
         # Retrieve history and noise from kwargs or instance memory.
-        history = kwargs.pop("history", self.history)
-        noise = kwargs.pop("noise", self.noise)
+        memory_history = self.history if continue_from_memory else []
+        memory_noise = self.noise if continue_from_memory else None
+        history = list(kwargs.pop("history", memory_history) or [])[-LONGVIE_HISTORY_FRAMES:]
+        noise = kwargs.pop("noise", memory_noise)
         negative_prompt = kwargs.pop("negative_prompt", LONGVIE_NEGATIVE_PROMPT)
         update_memory = bool(kwargs.pop("update_memory", True))
 
@@ -303,16 +404,29 @@ class LongVieSynthesis(BaseSynthesis):
             **kwargs,
         )
 
+        if generated is None or len(generated) == 0:
+            raise RuntimeError("LongVie official runtime returned an empty video segment.")
+
         # Update the model's internal memory (history and noise) if `update_memory` is True.
         if update_memory:
-            self.history = list(generated[-8:])  # Store last 8 frames for history.
+            self.history = list(generated[-LONGVIE_HISTORY_FRAMES:])
             self.noise = next_noise
+            self.last_frame = generated[-1]
+            self.segment_index += 1
 
         artifact_path = None
         # Save the generated video if an output path is provided.
-        if output_path is not None:
+        if output_path is not None and self.runtime.is_output_rank():
             artifact = self.runtime.save_video(generated, output_path, fps=int(fps or 16), quality=10)
             artifact_path = str(artifact)
+
+        effective_fps = int(fps or LONGVIE_SEGMENT_FPS)
+        segment_index = self.segment_index if update_memory else self.segment_index + 1
+        segment_spec = self._segment_spec(
+            fps=effective_fps,
+            num_frames=len(generated),
+            segment_index=segment_index,
+        )
 
         # Prepare the result dictionary with metadata and artifact information.
         result = {
@@ -325,15 +439,34 @@ class LongVieSynthesis(BaseSynthesis):
             "runtime": "worldfoundry.base_models.diffusion_model.diffsynth",  # Indicative runtime
             "backend_quality": "official_vendored_runtime",
             "metadata": {
-                "fps": int(fps or 16),
+                "fps": effective_fps,
                 "frames": len(generated),
                 "target_size": list(target_size),
                 "use_usp": self.runtime.use_usp,
                 "ring_degree": self.runtime.ring_degree,
                 "ulysses_degree": self.runtime.ulysses_degree,
+                "interaction_mode": "queued_control_video_segments",
+                "resident_weights": self.runtime.loaded,
+                "history_frames": len(self.history),
+                "continued_from_previous_final_frame": bool(
+                    continue_from_memory and supplied_image is not input_image
+                ),
             },
             "video": generated,
             "noise": next_noise,
+            "last_frame": generated[-1],
+            "segment_spec": segment_spec,
+            # RealtimeSpec-shaped metadata lets Studio display the correct
+            # 81-frame cadence while the explicit transport/mode prevents this
+            # offline diffusion workflow from being presented as WASD realtime.
+            "realtime_spec": {
+                "fps": effective_fps,
+                "first_chunk_frames": len(generated),
+                "steady_chunk_frames": len(generated),
+                "controls": ["dense_depth_video", "sparse_pointmap_or_track_video"],
+                "transport": "queued-segment-rgb",
+                "stateful": True,
+            },
         }
         if return_dict:
             return result
@@ -347,3 +480,5 @@ class LongVieSynthesis(BaseSynthesis):
         """
         self.history = []
         self.noise = None
+        self.last_frame = None
+        self.segment_index = 0

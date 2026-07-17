@@ -13,37 +13,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 import math
-import torch.nn as nn
-from typing import Optional, List, Tuple
+from typing import List, Optional, Tuple
+
+import torch
 import torch.amp as amp
-from einops import rearrange
-from torchvision import transforms
-from torch.distributed._composable.fsdp import fully_shard
+import torch.nn as nn
+from einops import rearrange, repeat
 from lyra_2._src.networks.wan2pt1 import (
-    WanLayerNorm,
-    WanSelfAttention,
     WAN_CROSSATTENTION_CLASSES,
-    VideoSize,
-    sinusoidal_embedding_1d,
     Head,
     MLPProj,
     VideoRopePosition3DEmb,
-)
-from worldfoundry.base_models.diffusion_model.video.cosmos.cosmos2.runtime.cosmos_predict2.cosmos_predict2._src.predict2.networks.selective_activation_checkpoint import (
-    SACConfig,
-    CheckpointMode,
-    mm_only_context_fn,
-)
-from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import checkpoint_wrapper as ptd_checkpoint_wrapper
-from lyra_2._ext.imaginaire.utils import log
-from einops import repeat
-from worldfoundry.core.distributed.context_parallel import (
-    split_inputs_cp,
-    cat_outputs_cp_with_grad,
+    VideoSize,
+    WanLayerNorm,
+    WanSelfAttention,
+    sinusoidal_embedding_1d,
 )
 from torch.distributed import ProcessGroup, get_process_group_ranks
+from torch.distributed._composable.fsdp import fully_shard
+from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import checkpoint_wrapper as ptd_checkpoint_wrapper
+from torchvision import transforms
+
+from worldfoundry.base_models.diffusion_model.video.cosmos.cosmos2.runtime.cosmos_predict2.cosmos_predict2._src.predict2.networks.selective_activation_checkpoint import (
+    CheckpointMode,
+    SACConfig,
+)
+from worldfoundry.core.distributed.context_parallel import (
+    cat_outputs_cp_with_grad,
+    split_inputs_cp,
+)
+from worldfoundry.core.distributed.logging import log
 
 
 class Lyra2AttentionBlock(nn.Module):
@@ -53,6 +53,7 @@ class Lyra2AttentionBlock(nn.Module):
     into the self-attention input (pre-attention add). If buffer_dim > 0, injects
     buffer embeddings similarly.
     """
+
     def __init__(
         self,
         cross_attn_type,
@@ -121,7 +122,7 @@ class Lyra2AttentionBlock(nn.Module):
         self.norm2.reset_parameters()
         self.norm3.reset_parameters()
 
-        std = 1.0 / (self.dim ** 0.5)
+        std = 1.0 / (self.dim**0.5)
         torch.nn.init.trunc_normal_(self.modulation, std=std)
         if self.cam_encoder is not None:
             torch.nn.init.trunc_normal_(self.cam_encoder.weight, std=std, a=-3 * std, b=3 * std)
@@ -140,7 +141,7 @@ class Lyra2AttentionBlock(nn.Module):
         x_float = x.float()
         embeds = []
         for i in range(int(multires)):
-            freq = (2.0 ** i) * math.pi
+            freq = (2.0**i) * math.pi
             embeds.append(torch.sin(x_float * freq))
             embeds.append(torch.cos(x_float * freq))
         out = torch.cat(embeds, dim=-1)
@@ -355,7 +356,9 @@ class Lyra2WanModel(nn.Module):
             self.enable_selective_checkpoint(sac_config, self.blocks)
 
     # ------------------------- Clean Embeddings -------------------------
-    def init_clean_patch_embeddings(self, clean_latent_frame_kernel_sizes: List[int], clean_latent_frame_kernel_types: List[str] | None = None) -> None:
+    def init_clean_patch_embeddings(
+        self, clean_latent_frame_kernel_sizes: List[int], clean_latent_frame_kernel_types: List[str] | None = None
+    ) -> None:
         """Construct clean patch embedding layers without copying weights.
 
         This only creates `nn.Linear` layers with the correct input feature size
@@ -382,7 +385,9 @@ class Lyra2WanModel(nn.Module):
         if clean_latent_frame_kernel_types is None:
             clean_latent_frame_kernel_types = ["k"] * len(clean_latent_frame_kernel_sizes)
 
-        assert len(clean_latent_frame_kernel_types) == len(clean_latent_frame_kernel_sizes), "kernel sizes/types length mismatch"
+        assert len(clean_latent_frame_kernel_types) == len(clean_latent_frame_kernel_sizes), (
+            "kernel sizes/types length mismatch"
+        )
 
         for k, t in zip(clean_latent_frame_kernel_sizes, clean_latent_frame_kernel_types):
             if t == "s":  # spatial-only packing (T unchanged)
@@ -420,9 +425,7 @@ class Lyra2WanModel(nn.Module):
         buf_lin = buf_lin.to(dtype=base_dtype, device=base_device)
         self.patch_embedding_buffer = buf_lin
         self.buffer_in_dim = int(buffer_in_dim)
-        log.info(
-            f"Constructed patch_embedding_buffer with extra_in_dim={self.buffer_in_dim} (weights not yet copied)."
-        )
+        log.info(f"Constructed patch_embedding_buffer with extra_in_dim={self.buffer_in_dim} (weights not yet copied).")
 
     def copy_weights_to_clean_patch_embeddings(self) -> None:
         """Copy/base-initialize clean patch embeddings from `self.patch_embedding`.
@@ -464,7 +467,7 @@ class Lyra2WanModel(nn.Module):
                         hk=k,
                         wk=k,
                     )
-                    divisor = (k ** 2)
+                    divisor = k**2
                 else:
                     # Temporal-style: expand along T, H, W
                     tiled = repeat(
@@ -474,7 +477,7 @@ class Lyra2WanModel(nn.Module):
                         hk=k,
                         wk=k,
                     )
-                    divisor = (k ** 3)
+                    divisor = k**3
                 tiled = rearrange(tiled, "o c pt ph pw -> o (c pt ph pw)")
                 tiled = tiled / divisor
                 clean_lin.weight.copy_(tiled)
@@ -511,7 +514,9 @@ class Lyra2WanModel(nn.Module):
             x = torch.nn.functional.pad(x, (0, pad_w, 0, pad_h, 0, pad_t), mode="replicate")
         return x
 
-    def _patchify_linear(self, x: torch.Tensor, patch: Tuple[int, int, int], lin: nn.Linear) -> Tuple[torch.Tensor, Tuple[int, int, int]]:
+    def _patchify_linear(
+        self, x: torch.Tensor, patch: Tuple[int, int, int], lin: nn.Linear
+    ) -> Tuple[torch.Tensor, Tuple[int, int, int]]:
         """Patchify via einops+Linear, returning tokens and (f,h,w) grid size.
 
         Args:
@@ -532,7 +537,9 @@ class Lyra2WanModel(nn.Module):
         x = rearrange(x, "b f h w d -> b (f h w) d")
         return x, (f, hh, ww)
 
-    def _pixelshuffle_tokens(self, x: torch.Tensor, patch: Tuple[int, int, int]) -> Tuple[torch.Tensor, Tuple[int, int, int]]:
+    def _pixelshuffle_tokens(
+        self, x: torch.Tensor, patch: Tuple[int, int, int]
+    ) -> Tuple[torch.Tensor, Tuple[int, int, int]]:
         """Rearrange patches into channels without a linear projection."""
         pt, ph, pw = patch
         x = self._pad_for_linear_patch(x, patch)
@@ -560,7 +567,14 @@ class Lyra2WanModel(nn.Module):
         framepack_kernel_types: List[str] | None = None,
         camera: Optional[torch.Tensor] = None,
         buffer_B_C_T_H_W: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor], Tuple[int, int], Tuple[int, int, int]]:
+    ) -> Tuple[
+        torch.Tensor,
+        torch.Tensor,
+        Optional[torch.Tensor],
+        Optional[torch.Tensor],
+        Tuple[int, int],
+        Tuple[int, int, int],
+    ]:
         """Lyra2-aware patchify.
 
         Splits time dimension according to `framepack_splits`. For each chunk,
@@ -576,10 +590,8 @@ class Lyra2WanModel(nn.Module):
             gen_range: (gen_start, gen_end) token range for generation part
             gen_grid: (f, h, w) grid for generation part
         """
-        assert self.clean_patch_embeddings is not None, (
-            "clean_patch_embeddings must be initialized before using Lyra2"
-        )
-        xs = x[:,:,framepack_indices].split(framepack_splits, dim=2)  # split along T
+        assert self.clean_patch_embeddings is not None, "clean_patch_embeddings must be initialized before using Lyra2"
+        xs = x[:, :, framepack_indices].split(framepack_splits, dim=2)  # split along T
         inds = framepack_indices.split(framepack_splits)
 
         # Determine base T,H,W for token grid and precompute base RoPE freqs once
@@ -603,7 +615,7 @@ class Lyra2WanModel(nn.Module):
         buf_splits = None
         buffer_full_match = False
         if buffer_B_C_T_H_W is not None:
-            buffer_full_match = (int(buffer_B_C_T_H_W.shape[2]) == int(x.shape[2]))
+            buffer_full_match = int(buffer_B_C_T_H_W.shape[2]) == int(x.shape[2])
             if buffer_full_match:
                 buf_splits = buffer_B_C_T_H_W[:, :, framepack_indices].split(framepack_splits, dim=2)
         gen_start = None
@@ -637,7 +649,13 @@ class Lyra2WanModel(nn.Module):
                     buf_tokens, _ = self._pixelshuffle_tokens(buf, self.patch_size)
                     buf_chunks.append(buf_tokens)
                     buf_validity_chunks.append(
-                        torch.ones(buf_tokens.shape[0], buf_tokens.shape[1], 1, device=buf_tokens.device, dtype=buf_tokens.dtype)
+                        torch.ones(
+                            buf_tokens.shape[0],
+                            buf_tokens.shape[1],
+                            1,
+                            device=buf_tokens.device,
+                            dtype=buf_tokens.dtype,
+                        )
                     )
                 else:
                     x_tokens, (f, h, w) = self._patchify_linear(x_chunk, self.patch_size, self.patch_embedding)
@@ -731,12 +749,14 @@ class Lyra2WanModel(nn.Module):
                         buf_is_real = False
                     buf_chunks.append(buf_tokens)
                     validity_val = 1.0 if buf_is_real else 0.0
-                    buf_validity_chunks.append(torch.full(
-                        (buf_tokens.shape[0], buf_tokens.shape[1], 1),
-                        validity_val,
-                        device=buf_tokens.device,
-                        dtype=buf_tokens.dtype,
-                    ))
+                    buf_validity_chunks.append(
+                        torch.full(
+                            (buf_tokens.shape[0], buf_tokens.shape[1], 1),
+                            validity_val,
+                            device=buf_tokens.device,
+                            dtype=buf_tokens.dtype,
+                        )
+                    )
 
                 # Pool from base freqs with kernel equal to ratio enlarged/base
                 # Slice along T using provided indices and pad so dims divisible by pool_k (except when pool_k[0]==1)
@@ -907,7 +927,8 @@ class Lyra2WanModel(nn.Module):
             camera_5d = rearrange(
                 camera,
                 "b c t (h h2) (w w2) -> b (c h2 w2) t h w",
-                h2=2, w2=2,
+                h2=2,
+                w2=2,
             )
 
         if self.concat_padding_mask and padding_mask is not None:
@@ -925,14 +946,16 @@ class Lyra2WanModel(nn.Module):
 
         assert self.clean_patch_embeddings is not None
 
-        x_tokens, freqs_tokens, camera_tokens, buffer_tokens, (gen_start, gen_end), (f_gen, h_gen, w_gen) = self._patchify_lyra2(
-            x_B_C_T_H_W,
-            framepack_indices,
-            framepack_splits,
-            framepack_kernel_ids,
-            framepack_kernel_types,
-            camera=camera_5d,
-            buffer_B_C_T_H_W=y_buffer_B_C_T_H_W,
+        x_tokens, freqs_tokens, camera_tokens, buffer_tokens, (gen_start, gen_end), (f_gen, h_gen, w_gen) = (
+            self._patchify_lyra2(
+                x_B_C_T_H_W,
+                framepack_indices,
+                framepack_splits,
+                framepack_kernel_ids,
+                framepack_kernel_types,
+                camera=camera_5d,
+                buffer_B_C_T_H_W=y_buffer_B_C_T_H_W,
+            )
         )
 
         # Context Parallel after Lyra2 patchify: split tokens along L if enabled

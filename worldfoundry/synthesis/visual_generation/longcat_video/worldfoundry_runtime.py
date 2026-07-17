@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from worldfoundry.core import cuda_visible_devices_from_device, jsonable
-from worldfoundry.runtime import expand_worldfoundry_path
+from worldfoundry.runtime.assets import expand_worldfoundry_path
 
 
 SRC_ROOT = Path(__file__).resolve().parents[4]

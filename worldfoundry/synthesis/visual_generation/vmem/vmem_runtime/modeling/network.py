@@ -5,7 +5,7 @@ import torch.nn as nn
 
 from typing import Union
 
-from modeling.modules.layers import (
+from worldfoundry.synthesis.visual_generation.vmem.vmem_runtime.modeling.modules.layers import (
     Downsample,
     GroupNorm32,
     ResBlock,
@@ -13,7 +13,9 @@ from modeling.modules.layers import (
     Upsample,
     timestep_embedding,
 )
-from modeling.modules.transformer import MultiviewTransformer
+from worldfoundry.synthesis.visual_generation.vmem.vmem_runtime.modeling.modules.transformer import (
+    MultiviewTransformer,
+)
 
 
 @dataclass

@@ -6,7 +6,6 @@ import torch
 import torch.nn.functional as F
 from einops import rearrange
 from torch import nn
-from torch.utils.checkpoint import checkpoint
 from worldfoundry.core.attention import scaled_dot_product_attention as _worldfoundry_scaled_dot_product_attention
 
 SDP_IS_AVAILABLE = callable(getattr(F, "scaled_dot_product_attention", None))
@@ -314,9 +313,7 @@ class BasicTransformerBlock(nn.Module):
         self.norm1 = nn.LayerNorm(dim)
         self.norm2 = nn.LayerNorm(dim)
         self.norm3 = nn.LayerNorm(dim)
-        self.use_checkpoint = use_checkpoint
-        if use_checkpoint:
-            print(f"{self.__class__.__name__} is using checkpointing")
+        del use_checkpoint
 
     def forward(self, x, context=None, additional_tokens=None):
         kwargs = {"x": x}
@@ -325,10 +322,7 @@ class BasicTransformerBlock(nn.Module):
         if additional_tokens is not None:
             kwargs.update({"additional_tokens": additional_tokens})
 
-        if self.use_checkpoint:
-            return checkpoint(self._forward, x, context)
-        else:
-            return self._forward(**kwargs)
+        return self._forward(**kwargs)
 
     def _forward(self, x, context=None, additional_tokens=None):
         # Spatial self-attn

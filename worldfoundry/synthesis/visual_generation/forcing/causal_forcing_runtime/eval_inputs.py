@@ -1,4 +1,7 @@
-from utils.lmdb_ import get_array_shape_from_lmdb, retrieve_row_from_lmdb
+from worldfoundry.synthesis.visual_generation.forcing.self_forcing_runtime.utils.lmdb import (
+    get_array_shape_from_lmdb,
+    retrieve_row_from_lmdb,
+)
 from torch.utils.data import Dataset
 import numpy as np
 import torch

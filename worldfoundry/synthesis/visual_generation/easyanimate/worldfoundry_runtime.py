@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 from typing import Any, Literal
 
+from worldfoundry.core.io.paths import resolve_local_hf_model_path
 from worldfoundry.evaluation.utils import worldfoundry_data_path
 
 from .easyanimate_runtime import load_easyanimate_components
@@ -122,6 +123,13 @@ class EasyAnimate:
             height: Optional per-call frame height override.
             width: Optional per-call frame width override.
         """
+        for name in ("HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE", "DIFFUSERS_OFFLINE"):
+            value = os.environ.get(name)
+            if value is not None and value.strip().lower() not in {"1", "true", "yes", "on"}:
+                raise ValueError(
+                    f"EasyAnimate inference requires offline model loading; {name}={value!r} is not allowed."
+                )
+            os.environ[name] = "1"
         self.model_name = model_name
         # Apply height/width overrides to sample_size if provided.
         if height is not None and width is not None:
@@ -136,7 +144,11 @@ class EasyAnimate:
         self.negative_prompt = negative_prompt
         self.config_path = resolve_config_path(config_path)
         # Resolve the model path, using the default if not explicitly provided.
-        self.model_path = str(Path(model_path or default_model_path()).expanduser())
+        requested_model_path = str(model_path or default_model_path())
+        local_model_path = Path(requested_model_path).expanduser()
+        if not local_model_path.is_dir():
+            local_model_path = resolve_local_hf_model_path(requested_model_path)
+        self.model_path = str(local_model_path.resolve())
         self.vae = None
         self.pipeline = None
 

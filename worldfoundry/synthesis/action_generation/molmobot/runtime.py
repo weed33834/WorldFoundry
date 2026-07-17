@@ -6,15 +6,18 @@ from worldfoundry.synthesis.action_generation._native_policy_runtime import (
     collect_images,
     completed_action_result,
     first_present,
-    import_from_workdir,
     option_bool,
     option_int,
-    resolve_source_workdir,
 )
 
 
 _RUNTIME_CACHE: dict[tuple[Any, ...], Any] = {}
-_IN_TREE_RUNTIME = "worldfoundry/synthesis/action_generation/molmobot/molmobot_runtime"
+
+
+def clear_runtime_cache() -> None:
+    from worldfoundry.core.runtime_cache import clear_inference_runtime_cache
+
+    clear_inference_runtime_cache(_RUNTIME_CACHE)
 
 
 def _runtime_for(location: str, device: str, options: Mapping[str, Any]) -> Any:
@@ -24,15 +27,7 @@ def _runtime_for(location: str, device: str, options: Mapping[str, Any]) -> Any:
             "MolmoBot-Pi0 direct policy construction depends on OpenPI and molmo_spaces extras; "
             "the native WorldFoundry runtime currently supports the OLMo SynthManip MolmoBot path."
         )
-    workdir = resolve_source_workdir(
-        options,
-        "molmobot",
-        specific_env="WORLDFOUNDRY_MOLMOBOT_REPO",
-        default_subdir="MolmoBot",
-        in_tree_subdir=_IN_TREE_RUNTIME,
-    )
     key = (
-        str(workdir),
         location,
         device,
         options.get("num_flow_steps"),
@@ -46,8 +41,9 @@ def _runtime_for(location: str, device: str, options: Mapping[str, Any]) -> Any:
     if agent is not None:
         return agent
 
-    module = import_from_workdir("olmo.models.molmobot.inference_wrapper", workdir)
-    agent = module.SynthManipMolmoInferenceWrapper(
+    from .policy import SynthManipMolmoInferenceWrapper
+
+    agent = SynthManipMolmoInferenceWrapper(
         checkpoint_path=location,
         device=device,
         num_flow_steps=None if options.get("num_flow_steps") in (None, "") else option_int(options.get("num_flow_steps"), 10),
@@ -94,8 +90,11 @@ def predict_action(
         device=device,
         runtime="worldfoundry.molmobot.native_in_process",
         metadata={
-            "official_entrypoint": "olmo.models.molmobot.inference_wrapper:SynthManipMolmoInferenceWrapper.get_action_chunk",
+            "entrypoint": "worldfoundry.synthesis.action_generation.molmobot.policy:SynthManipMolmoInferenceWrapper.get_action_chunk",
             "camera_keys": list(camera_keys),
             "agent_config": getattr(agent, "config", {}),
         },
     )
+
+
+__all__ = ["clear_runtime_cache", "predict_action"]

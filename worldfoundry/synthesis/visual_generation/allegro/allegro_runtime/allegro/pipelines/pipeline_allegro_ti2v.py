@@ -60,7 +60,7 @@ EXAMPLE_DOC_STRING = """
         >>> import torch
 
         >>> # You can replace the your_path_to_model with your own path.
-        >>> pipe = AllegroTI2VPipeline.from_pretrained(your_path_to_model, torch_dtype=torch.float16, trust_remote_code=True)
+        >>> pipe = AllegroTI2VPipeline.from_pretrained(your_path_to_model, torch_dtype=torch.float16, local_files_only=True)
 
         >>> prompt = "A small cactus with a happy face in the Sahara desert."
         >>> image = pipe(prompt).video[0]

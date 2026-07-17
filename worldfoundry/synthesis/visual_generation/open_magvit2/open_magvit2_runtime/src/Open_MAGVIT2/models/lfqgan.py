@@ -14,6 +14,7 @@ class VQModel(nn.Module):
                 embed_dim,
                 sample_minimization_weight,
                 batch_maximization_weight,
+                lossconfig = None,
                 ckpt_path = None,
                 ignore_keys = [],
                 image_key = "image",
@@ -21,11 +22,13 @@ class VQModel(nn.Module):
                 monitor = None,
                 token_factorization = False,
                 stage = None,
-                factorized_bits = [9, 9]
+                factorized_bits = [9, 9],
+                model_type = "en18",
+                **_unused,
                 ):
         super().__init__()
         self.image_key = image_key
-        self.encoder = Encoder(**ddconfig)
+        self.encoder = Encoder(**ddconfig, model_type=model_type)
         self.decoder = Decoder(**ddconfig)
         self.quantize = LFQ(dim=embed_dim, codebook_size=n_embed, 
                             sample_minimization_weight=sample_minimization_weight, 

@@ -59,7 +59,7 @@ class DiffusionPolicySynthesis(ActionModelSynthesis):
         )
         self.runtime_options = dict(runtime_options or {})
         self._runtime: DiffusionPolicyRuntime | None = None
-        self._runtime_key: tuple[str, str, str] | None = None
+        self._runtime_key: tuple[str, str] | None = None
 
     @classmethod
     def from_pretrained(
@@ -123,7 +123,12 @@ class DiffusionPolicySynthesis(ActionModelSynthesis):
             runtime_options=options,
         )
 
-    def _runtime_config(self, options: Mapping[str, Any]) -> DiffusionPolicyRuntimeConfig:
+    def _runtime_config(
+        self,
+        options: Mapping[str, Any],
+        *,
+        require_checkpoint: bool = True,
+    ) -> DiffusionPolicyRuntimeConfig:
         """Constructs a `DiffusionPolicyRuntimeConfig` from provided options and instance settings.
 
         Args:
@@ -143,12 +148,11 @@ class DiffusionPolicySynthesis(ActionModelSynthesis):
         checkpoint = select_diffusion_policy_checkpoint(
             checkpoint_path=checkpoint_path,
             checkpoints=self.profile.checkpoints,
+            require_exists=require_checkpoint,
         )
-        output_dir = options.get("output_dir") or self.runtime_options.get("output_dir")
         return DiffusionPolicyRuntimeConfig(
             checkpoint_path=checkpoint,
             device=str(options.get("device") or self.runtime_options.get("device") or self.device),
-            output_dir=Path(output_dir).expanduser().resolve() if output_dir else None,
         )
 
     def _runtime_for(self, config: DiffusionPolicyRuntimeConfig) -> DiffusionPolicyRuntime:
@@ -167,7 +171,6 @@ class DiffusionPolicySynthesis(ActionModelSynthesis):
         key = (
             str(config.checkpoint_path),
             config.device,
-            "" if config.output_dir is None else str(config.output_dir),
         )
         # If the cached runtime is None or the key does not match, create a new runtime.
         if self._runtime is None or self._runtime_key != key:
@@ -244,11 +247,13 @@ class DiffusionPolicySynthesis(ActionModelSynthesis):
             extra=kwargs,
         )
 
-        # Prepare runtime options, ensuring device and output directory are set.
+        # Prepare runtime options for inference.
         runtime_options = dict(kwargs)
         runtime_options.setdefault("device", self.device)
-        runtime_options.setdefault("output_dir", str(run_dir))
-        runtime_config = self._runtime_config(runtime_options)
+        runtime_config = self._runtime_config(
+            runtime_options,
+            require_checkpoint=not plan_only,
+        )
 
         # Construct and save a plan file detailing the intended execution.
         plan_path = run_dir / "runtime_profile_plan.json"

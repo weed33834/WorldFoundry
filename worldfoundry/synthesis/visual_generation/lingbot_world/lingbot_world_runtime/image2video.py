@@ -55,6 +55,7 @@ class WanI2V:
         t5_cpu=False,
         init_on_cpu=True,
         convert_model_dtype=False,
+        control_type=None,
     ):
         r"""
         Initializes the image-to-video generation model components.
@@ -95,10 +96,14 @@ class WanI2V:
         if t5_fsdp or dit_fsdp or use_sp:
             self.init_on_cpu = False
 
-        if 'cam' in checkpoint_dir:
-            self.control_type = 'cam'
-        elif 'act' in checkpoint_dir:
-            self.control_type = 'act'
+        inferred_control_type = control_type
+        if inferred_control_type is None and 'cam' in checkpoint_dir:
+            inferred_control_type = 'cam'
+        elif inferred_control_type is None and 'act' in checkpoint_dir:
+            inferred_control_type = 'act'
+        if inferred_control_type not in {'cam', 'act'}:
+            raise ValueError("LingBot control_type must be 'cam' or 'act'; pass it explicitly for custom checkpoint paths.")
+        self.control_type = inferred_control_type
 
         shard_fn = partial(shard_model, device_id=device_id)
         self.text_encoder = T5EncoderModel(

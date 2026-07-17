@@ -1,19 +1,7 @@
-"""Initialization file for the 'being_h05' package.
-
-This module serves as the primary entry point for the 'being_h05' package,
-exposing core functionalities and components. It re-exports `RUNTIME_ROOT`
-and `install_aliases` directly, and implements lazy loading for
-`BeingH05Synthesis` to improve import performance and reduce startup overhead
-when `BeingH05Synthesis` is not immediately required.
-
-The `__all__` variable explicitly defines the public API of this module when
-imported using `from being_h05 import *`.
-"""
+"""Inference-only Being-H0.5 integration."""
 from __future__ import annotations
 
-from .being_h05_runtime import RUNTIME_ROOT, install_aliases
-
-__all__ = ["BeingH05Synthesis", "RUNTIME_ROOT", "install_aliases"]
+__all__ = ["BeingH05Synthesis"]
 
 
 def __getattr__(name: str):

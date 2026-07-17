@@ -19,7 +19,7 @@ from worldfoundry.evaluation.models.runtime.profiles import load_runtime_profile
 from ..base_action_synthesis import ActionModelSynthesis
 
 if TYPE_CHECKING:
-    from worldfoundry.synthesis.action_generation.rt1.rt1_runtime.saved_model_runtime import RT1RuntimeConfig, RT1SavedModelRuntime
+    from worldfoundry.synthesis.action_generation.rt1.runtime import RT1RuntimeConfig, RT1SavedModelRuntime
 
 
 class RT1Synthesis(ActionModelSynthesis):
@@ -182,7 +182,7 @@ class RT1Synthesis(ActionModelSynthesis):
             An `RT1RuntimeConfig` object containing the resolved configuration.
         """
 
-        from worldfoundry.synthesis.action_generation.rt1.rt1_runtime.saved_model_runtime import RT1RuntimeConfig
+        from worldfoundry.synthesis.action_generation.rt1.runtime import RT1RuntimeConfig
 
         checkpoint_dir = self._select_checkpoint(options)
         return RT1RuntimeConfig(
@@ -203,7 +203,7 @@ class RT1Synthesis(ActionModelSynthesis):
             An instance of `RT1SavedModelRuntime` corresponding to the provided configuration.
         """
 
-        from worldfoundry.synthesis.action_generation.rt1.rt1_runtime.saved_model_runtime import RT1SavedModelRuntime
+        from worldfoundry.synthesis.action_generation.rt1.runtime import RT1SavedModelRuntime
 
         key = (str(config.checkpoint_dir), config.device)
         # Check if the cached runtime exists and matches the current configuration key.
@@ -313,7 +313,7 @@ class RT1Synthesis(ActionModelSynthesis):
                 "backend": "worldfoundry.rt1.in_tree_savedmodel.action_signature",
                 "checkpoint_dir": str(runtime_config.checkpoint_dir),
                 "device": runtime_config.device,
-                "runtime_package": "worldfoundry.synthesis.action_generation.rt1.rt1_runtime",
+                "runtime_package": "worldfoundry.synthesis.action_generation.rt1",
             },
         }
         # Write the plan to a JSON file in the run directory.

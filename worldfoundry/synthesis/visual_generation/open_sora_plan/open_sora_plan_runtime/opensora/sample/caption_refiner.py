@@ -14,10 +14,10 @@ class OpenSoraCaptionRefiner(nn.Module):
     def __init__(self, args, dtype, device):
         super().__init__()
         self.tokenizer = AutoTokenizer.from_pretrained(
-            args.caption_refiner, trust_remote_code=True
+            args.caption_refiner, local_files_only=True
             )
         self.model = AutoModelForCausalLM.from_pretrained(
-            args.caption_refiner, torch_dtype=dtype, trust_remote_code=True
+            args.caption_refiner, torch_dtype=dtype, local_files_only=True
             ).to(device).eval()
         self.device = device
         

@@ -96,4 +96,28 @@ class CausalForcingOperator(_BaseForcingOperator):
     DISPLAY_NAME = "Causal-Forcing"
 
 
-__all__ = ["CausalForcingOperator", "SelfForcingOperator"]
+class RollingForcingOperator(_BaseForcingOperator):
+    """Operator contract for RollingForcing text-to-video inference."""
+
+    MODEL_ID = "rolling-forcing"
+    DISPLAY_NAME = "RollingForcing"
+    DEFAULT_INPUT_SCHEMA = {
+        "prompt": True,
+        "image": False,
+        "video": False,
+        "actions": ["seed"],
+    }
+
+    def process_perception(
+        self,
+        images: Any = None,
+        video: Any = None,
+        ref_image_path: str | Path | None = None,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        if images is not None or ref_image_path is not None or video is not None:
+            raise ValueError("RollingForcing's released inference route accepts text only.")
+        return {"images": None, "video": None, "extra_inputs": dict(kwargs)}
+
+
+__all__ = ["CausalForcingOperator", "RollingForcingOperator", "SelfForcingOperator"]

@@ -20,7 +20,11 @@ from pipeline import (
 from eval_inputs import TextDataset, TextImagePairDataset
 from worldfoundry.core.utils.torch_utils import set_seed_everywhere
 
-from runtime_utils.memory import gpu, get_cuda_free_memory_gb, DynamicSwapInstaller
+from worldfoundry.synthesis.visual_generation.forcing.self_forcing_runtime.runtime_utils.memory import (
+    DynamicSwapInstaller,
+    get_cuda_free_memory_gb,
+    gpu,
+)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--config_path", type=str, help="Path to the config file")

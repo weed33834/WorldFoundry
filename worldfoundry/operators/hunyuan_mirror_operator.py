@@ -77,17 +77,27 @@ class HunyuanMirrorOperator(BaseOperator):
         # 默认相机参数
         default_cam_vec = torch.tensor([
             0.0, 0.0, 0.0,  # 位置 (x, y, z)
-            1.0, 0.0, 0.0, 0.0,  # 旋转 (quaternion: w, x, y, z)
+            0.0, 0.0, 0.0, 1.0,  # 旋转 (quaternion: x, y, z, w; scalar-last)
             torch.pi / 3,  # 垂直FOV
             torch.pi / 3   # 水平FOV
         ])
+
+        def with_axis_angle(vec, axis, angle):
+            """Return ``vec`` with a normalized scalar-last axis-angle quaternion."""
+            axis = torch.as_tensor(axis, dtype=vec.dtype, device=vec.device)
+            axis = axis / axis.norm().clamp_min(torch.finfo(vec.dtype).eps)
+            half_angle = torch.as_tensor(angle * 0.5, dtype=vec.dtype, device=vec.device)
+            quaternion = torch.cat((axis * torch.sin(half_angle), torch.cos(half_angle)[None]))
+            adjusted = vec.clone()
+            adjusted[3:7] = quaternion
+            return adjusted
         
         # 相机参数调整量
         cam_adjustments = {
-            "camera_look_up": lambda vec: torch.cat([vec[:2], vec[2:3], vec[3:7] + torch.tensor([0.0, 0.1, 0.0, 0.0]), vec[7:]]),
-            "camera_look_down": lambda vec: torch.cat([vec[:2], vec[2:3], vec[3:7] + torch.tensor([0.0, -0.1, 0.0, 0.0]), vec[7:]]),
-            "camera_look_left": lambda vec: torch.cat([vec[:2], vec[2:3], vec[3:7] + torch.tensor([0.0, 0.0, 0.0, 0.1]), vec[7:]]),
-            "camera_look_right": lambda vec: torch.cat([vec[:2], vec[2:3], vec[3:7] + torch.tensor([0.0, 0.0, 0.0, -0.1]), vec[7:]]),
+            "camera_look_up": lambda vec: with_axis_angle(vec, (1.0, 0.0, 0.0), 0.2),
+            "camera_look_down": lambda vec: with_axis_angle(vec, (1.0, 0.0, 0.0), -0.2),
+            "camera_look_left": lambda vec: with_axis_angle(vec, (0.0, 0.0, 1.0), 0.2),
+            "camera_look_right": lambda vec: with_axis_angle(vec, (0.0, 0.0, 1.0), -0.2),
             "camera_zoom_in": lambda vec: torch.cat([vec[:2], vec[2:3] - 0.1, vec[3:7], vec[7:]]),  # 靠近物体
             "camera_zoom_out": lambda vec: torch.cat([vec[:2], vec[2:3] + 0.1, vec[3:7], vec[7:]]),  # 远离物体
             "reset_camera": lambda vec: default_cam_vec.clone(),  # 重置相机

@@ -1,12 +1,15 @@
-from __future__ import annotations
-
 """Visual generation synthesis modules."""
+
+from __future__ import annotations
 
 from importlib import import_module
 
 _EXPORTS = {
     "AnimateDiffSynthesis": ".animatediff",
     "CameraCtrlSynthesis": ".camera_control",
+    "CogVideoX2bT2VSynthesis": ".cogvideox",
+    "CogVideoX5bI2VSynthesis": ".cogvideox",
+    "CogVideoX5bT2VSynthesis": ".cogvideox",
     "DreamDojoSynthesis": ".dreamdojo",
     "FantasyWorldWan21Synthesis": ".fantasy_world",
     "FantasyWorldWan22Synthesis": ".fantasy_world",
@@ -26,15 +29,19 @@ _EXPORTS = {
     "Lyra1Synthesis": ".lyra_1",
     "Lyra2Synthesis": ".lyra_2",
     "MotionCtrlSynthesis": ".camera_control",
+    "MoVerseSynthesis": ".moverse",
     "NeoVerseSynthesis": ".neoverse",
     "OpenMAGVIT2Synthesis": ".open_magvit2",
     "PandoraSynthesis": ".pandora",
     "PixelSplatSynthesis": ".pixelsplat",
+    "RollingForcingSynthesis": ".rolling_forcing",
     "SanaSynthesis": ".sana",
     "SCOPESynthesis": ".scope",
     "ShowOSynthesis": ".show_o",
     "Splatt3RSynthesis": ".splatt3r",
+    "StableVideoInfinitySynthesis": ".stable_video_infinity",
     "StepVideoT2VSynthesis": ".step_video",
+    "Uni3CSynthesis": ".uni3c",
     "VMemSynthesis": ".vmem",
     "VideoCrafter1I2VSynthesis": ".videocrafter",
     "VideoCrafter1T2VSynthesis": ".videocrafter",

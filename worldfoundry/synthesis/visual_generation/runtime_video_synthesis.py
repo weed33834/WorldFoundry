@@ -20,7 +20,7 @@ import torch
 from ..base_synthesis import BaseSynthesis
 from ...pipelines.lyra.lyra_utils import load_pil_image, materialize_image_input
 from worldfoundry.core.io import load_serialized, resolve_data_path
-from worldfoundry.runtime import expand_worldfoundry_path
+from worldfoundry.runtime.assets import expand_worldfoundry_path
 
 
 def _frames_to_uint8_array(frames) -> np.ndarray:
@@ -428,6 +428,8 @@ class RuntimeVideoSynthesis(BaseSynthesis):
 
         # Defines aliases for common parameters that might have different names.
         aliases = {
+            "fps": ("fps", "frame_rate"),
+            "frame_rate": ("frame_rate", "fps"),
             "num_frames": ("frames", "num_frames"),
             "frame_num": ("frames", "num_frames"),
             "max_frames": ("frames", "num_frames"),
@@ -450,6 +452,7 @@ class RuntimeVideoSynthesis(BaseSynthesis):
             "frames",
             "num_frames",
             "fps",
+            "frame_rate",
             "height",
             "width",
             "sample_steps",
@@ -497,17 +500,18 @@ class RuntimeVideoSynthesis(BaseSynthesis):
 
         # Apply explicit 'fps' override.
         if fps is not None:
-            add_supported(("fps",), fps)
+            add_supported(("fps", "frame_rate"), fps)
         # Process other keyword arguments.
         for key, value in kwargs.items():
             if value is None:
                 continue
-            if key in direct_keys:
-                add_supported((key,), value)
-                continue
             mapped = aliases.get(key)
             if mapped:
                 add_supported(mapped, value)
+                continue
+            if key in direct_keys:
+                add_supported((key,), value)
+                continue
         return overrides
 
     def _apply_prediction_runtime_overrides(self, overrides: Mapping[str, Any]) -> None:
@@ -566,14 +570,19 @@ class RuntimeVideoSynthesis(BaseSynthesis):
             self._apply_prediction_runtime_overrides(runtime_overrides)
         # Ensure the generator is instantiated before making a prediction.
         generator = self._ensure_generator()
-        image_path = None
-        # If image input is provided, materialize it to a temporary file.
+        # Materialized inputs are needed only for the synchronous runtime call;
+        # clean them immediately afterwards so long-lived Studio workers do not
+        # accumulate one directory per prediction below /tmp.
         if images is not None:
-            temp_dir = tempfile.mkdtemp(prefix=f"{self.model_name}_")
-            image_path = materialize_image_input(load_pil_image(images), temp_dir, filename="input.png")
-
-        # Call the underlying generator's video generation method.
-        frames = generator.generate_video(prompt=prompt, image_path=image_path)
+            with tempfile.TemporaryDirectory(prefix=f"{self.model_name}_") as temp_dir:
+                image_path = materialize_image_input(
+                    load_pil_image(images),
+                    temp_dir,
+                    filename="input.png",
+                )
+                frames = generator.generate_video(prompt=prompt, image_path=image_path)
+        else:
+            frames = generator.generate_video(prompt=prompt, image_path=None)
         # Convert the generated frames to a standardized uint8 NumPy array.
         video = _frames_to_uint8_array(frames)
         save_path = None

@@ -93,10 +93,19 @@ class DreamDojoRuntime:
             return checkpoint_path
         distcp_dir = checkpoint_dir / "model"
         if distcp_dir.is_dir():
-            raise RuntimeError(
-                "DreamDojo checkpoint is still in distributed checkpoint format. Convert it to "
-                f"{checkpoint_path} before running in-tree inference."
+            subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "worldfoundry.synthesis.visual_generation.dreamdojo.convert_distcp",
+                    str(distcp_dir),
+                    str(checkpoint_dir),
+                ],
+                check=True,
             )
+            if checkpoint_path.is_file():
+                return checkpoint_path
+            raise RuntimeError(f"DreamDojo checkpoint conversion did not create {checkpoint_path}")
         raise FileNotFoundError(f"DreamDojo checkpoint not found: {checkpoint_path}")
 
     def predict(
@@ -155,11 +164,3 @@ inference(setup, infer_args, Path({str(checkpoint_path)!r}))
         }
         write_json(metadata_path, payload)
         return {**payload, "artifact_path": str(metadata_path)}
-
-
-__all__ = [
-    "DEFAULT_DREAMDOJO_CHECKPOINTS",
-    "DEFAULT_DREAMDOJO_DATASET",
-    "DEFAULT_DREAMDOJO_ROOT",
-    "DreamDojoRuntime",
-]

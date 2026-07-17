@@ -165,7 +165,6 @@ _OPERATOR_EXPORTS = {
     "DBCogACTOperator": ".vla_native_operator",
     "GigaBrain0Operator": ".giga_brain_0_operator",
     "GR00TOperator": ".gr00t_operator",
-    "GigaWorldPolicyOperator": ".giga_world_policy_operator",
     "LAPAOperator": ".lapa_operator",
     "LingBotVAOperator": ".lingbot_va_operator",
     "MMEVLAOperator": ".vla_native_operator",

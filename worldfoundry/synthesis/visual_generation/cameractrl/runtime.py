@@ -19,7 +19,7 @@ import torch
 from omegaconf import OmegaConf
 
 from worldfoundry.evaluation.utils import worldfoundry_data_path
-from worldfoundry.runtime import resolve_hfd_root
+from worldfoundry.runtime.env import resolve_hfd_root
 
 
 DEFAULT_CAMERACTRL_CONFIG = worldfoundry_data_path(

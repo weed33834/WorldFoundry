@@ -1,10 +1,12 @@
+import os
 from typing import Dict, List, Optional
 
 import torch
-import torch.nn as nn
-
-from lyra_2._src.modules.clip import CLIPModel
 from lyra_2._src.modules.conditioner import AbstractEmbModel
+
+from worldfoundry.base_models.diffusion_model.video.cosmos.cosmos2.runtime.cosmos_predict2.cosmos_predict2._src.predict2.networks.clip import (
+    CLIPModel,
+)
 
 
 class Wan2pt1CLIPEmbLyra2(AbstractEmbModel):
@@ -20,7 +22,14 @@ class Wan2pt1CLIPEmbLyra2(AbstractEmbModel):
         super().__init__()
         self.num_token = num_token
         self.model_dim = 1280
-        self.clip_model = CLIPModel()
+        self.clip_model = CLIPModel(
+            checkpoint_path=os.environ.get(
+                "LYRA2_IMAGE_ENCODER_CKPT",
+                "./checkpoints/image_encoder/model.pth",
+            ),
+            tokenizer_path=os.environ.get("LYRA2_CLIP_TOKENIZER", "xlm-roberta-large"),
+            credential_path=None,
+        )
 
         self._input_key = input_key
         self._output_key = None

@@ -44,7 +44,11 @@ def save_random_state(output_dir, process_index):
 
 def load_random_state(input_dir, process_index):
     try:
-        states = torch.load(os.path.join(input_dir, f"{RNG_STATE_NAME}_{process_index}.pkl"))
+        states = torch.load(
+            os.path.join(input_dir, f"{RNG_STATE_NAME}_{process_index}.pkl"),
+            map_location="cpu",
+            weights_only=True,
+        )
         random.setstate(states["random_state"])
         np.random.set_state(states["numpy_random_seed"])
         torch.set_rng_state(states["torch_manual_seed"])

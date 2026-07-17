@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import importlib
 import json
 import time
 from dataclasses import dataclass
@@ -11,9 +10,6 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from worldfoundry.core.io.paths import project_root, resolve_worldfoundry_path
-
-from worldfoundry.synthesis.action_generation.being_h05 import install_aliases
-
 
 def _jsonable(value: Any) -> Any:
     """Recursively converts a value to a JSON-serializable type.
@@ -158,6 +154,7 @@ class BeingH05RuntimeConfig:
     embodiment_tag: str
     instruction_template: str
     device: str
+    torch_dtype: str
     enable_rtc: bool
     metadata_variant: str | None
     stats_selection_mode: str
@@ -287,11 +284,8 @@ def _policy_modalities(config: BeingH05RuntimeConfig) -> tuple[tuple[str, ...], 
             - A tuple of strings for state keys.
             - A string for the language key.
     """
-    # Install aliases to ensure BeingH module imports work correctly.
-    install_aliases()
-    # Import BeingH-specific data configuration components.
-    from BeingH.inference_support.data_config import DATA_CONFIG_MAP
-    from BeingH.utils.schema import EmbodimentTag
+    from .preprocessing.data_config import DATA_CONFIG_MAP
+    from .preprocessing.schema import EmbodimentTag
 
     # Load the specific data configuration class based on the config name.
     data_config_cls = DATA_CONFIG_MAP[config.data_config_name]
@@ -406,19 +400,16 @@ class BeingH05Runtime:
         if self._policy is not None:
             return self._policy
 
-        # Install aliases specific to BeingH internal imports.
-        install_aliases()
-        # Dynamically import the BeingHPolicy module.
-        module = importlib.import_module("BeingH.inference.beingh_policy")
-        policy_cls = module.BeingHPolicy
+        from .policy import BeingHPolicy
         # Instantiate the policy with parameters from the runtime configuration.
-        self._policy = policy_cls(
+        self._policy = BeingHPolicy(
             model_path=str(self.config.checkpoint_dir),
             data_config_name=self.config.data_config_name,
             dataset_name=self.config.dataset_name,
             embodiment_tag=self.config.embodiment_tag,
             instruction_template=self.config.instruction_template,
             device=self.config.device,
+            torch_dtype=self.config.torch_dtype,
             enable_rtc=self.config.enable_rtc,
             metadata_variant=self.config.metadata_variant,
             stats_selection_mode=self.config.stats_selection_mode,

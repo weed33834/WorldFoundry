@@ -34,7 +34,11 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     device = torch.device('cuda')
-    tokenizer = AutoTokenizer.from_pretrained(args.mode_path, trust_remote_code=True)
-    model = AutoModelForCausalLM.from_pretrained(args.mode_path,torch_dtype=torch.bfloat16, trust_remote_code=True).to(device).eval()
+    tokenizer = AutoTokenizer.from_pretrained(args.mode_path, local_files_only=True)
+    model = AutoModelForCausalLM.from_pretrained(
+        args.mode_path,
+        torch_dtype=torch.bfloat16,
+        local_files_only=True,
+    ).to(device).eval()
 
     response = get_output(args.prompt)

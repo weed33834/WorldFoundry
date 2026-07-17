@@ -16,6 +16,7 @@ import yaml
 from worldfoundry.evaluation.models.runtime.profiles import load_runtime_profile
 from worldfoundry.evaluation.utils import REPO_ROOT
 from worldfoundry.synthesis.base_synthesis import BaseSynthesis
+from worldfoundry.studio.visualization.core.geometry import depth_to_world_points
 
 
 @dataclass(frozen=True)
@@ -374,7 +375,17 @@ class ThreeDFourDRuntimeSynthesis(BaseSynthesis):
             if artifact_path.resolve() != target.resolve():
                 shutil.copy2(artifact_path, target)
                 artifact_path = target
-        return {
+        visualization_path = None
+        if self.spec.command_kind == "monst3r_demo":
+            seq_name = str(kwargs.get("seq_name", self.options.get("seq_name")) or "worldfoundry")
+            confidence_threshold = float(
+                kwargs.get("min_conf_thr", self.options.get("min_conf_thr", 1.1))
+            )
+            visualization_path = _build_monst3r_rerun_recording(
+                output.parent / seq_name,
+                confidence_threshold=confidence_threshold,
+            )
+        result = {
             "status": "succeeded",
             "model_id": self.model_id,
             "artifact_kind": self.spec.artifact_kind,
@@ -387,6 +398,10 @@ class ThreeDFourDRuntimeSynthesis(BaseSynthesis):
             "backend_quality": "model_entrypoint",
             "metadata": {**plan_payload, "log_path": str(log_path)},
         }
+        if visualization_path is not None:
+            result["visualization_artifact_path"] = str(visualization_path)
+            result["metadata"]["rrd_path"] = str(visualization_path)
+        return result
 
     @property
     def entrypoint(self) -> Path | None:
@@ -493,6 +508,7 @@ class ThreeDFourDRuntimeSynthesis(BaseSynthesis):
             env["WORLDFOUNDRY_DEPTH_ANYTHING2_MODEL_PATH"] = str(da2_model_path)
             env["WORLDFOUNDRY_DA2_MODEL_PATH"] = str(da2_model_path)
         ckpt_root = _ckpt_root()
+        env.setdefault("TORCH_HOME", str(ckpt_root / "torch_hub"))
         for offline_key in ("HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE", "HF_DATASETS_OFFLINE"):
             env.pop(offline_key, None)
         hf_home_candidates = [
@@ -1236,6 +1252,114 @@ def _safe_name(value: str) -> str:
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(_jsonable(payload), ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _tum_pose(row: Any) -> Any:
+    """Convert one TUM ``timestamp tx ty tz qx qy qz qw`` row to camera-to-world."""
+
+    import numpy as np
+
+    values = np.asarray(row, dtype=np.float64)
+    x, y, z, w = values[4:8]
+    norm = max(float(np.linalg.norm([x, y, z, w])), 1e-12)
+    x, y, z, w = x / norm, y / norm, z / norm, w / norm
+    rotation = np.array(
+        [
+            [1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+            [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+            [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)],
+        ]
+    )
+    pose = np.eye(4)
+    pose[:3, :3] = rotation
+    pose[:3, 3] = values[1:4]
+    return pose
+
+
+def _build_monst3r_rerun_recording(
+    sequence_dir: Path,
+    *,
+    confidence_threshold: float,
+) -> Path | None:
+    """Build a time-varying 4D viewer from MonST3R's official saved outputs."""
+
+    try:
+        import imageio.v2 as iio
+        import numpy as np
+        import rerun as rr
+    except ImportError:
+        return None
+
+    depth_paths = sorted(sequence_dir.glob("frame_*.npy"))
+    trajectory_path = sequence_dir / "pred_traj.txt"
+    intrinsics_path = sequence_dir / "pred_intrinsics.txt"
+    if not depth_paths or not trajectory_path.is_file() or not intrinsics_path.is_file():
+        return None
+
+    trajectory = np.atleast_2d(np.loadtxt(trajectory_path))
+    intrinsics = np.atleast_2d(np.loadtxt(intrinsics_path)).reshape(-1, 3, 3)
+    frame_count = min(len(depth_paths), len(trajectory), len(intrinsics))
+    recording_path = sequence_dir.parent / "monst3r_sequence.rrd"
+    rr.init("worldfoundry_monst3r", recording_id=sequence_dir.parent.name, spawn=False)
+    rr.save(recording_path)
+    rr.log("world", rr.ViewCoordinates.RDF, static=True)
+    rr.log("trajectory", rr.ViewCoordinates.RDF, static=True)
+    poses = [_tum_pose(row) for row in trajectory[:frame_count]]
+    rr.log(
+        "trajectory/camera_path",
+        rr.LineStrips3D([np.stack([pose[:3, 3] for pose in poses])]),
+        static=True,
+    )
+    for frame_id, (depth_path, pose, intrinsic) in enumerate(
+        zip(depth_paths[:frame_count], poses, intrinsics[:frame_count])
+    ):
+        if hasattr(rr, "set_time"):
+            rr.set_time("frame", sequence=frame_id)
+        else:
+            rr.set_time_sequence("frame", frame_id)
+        color_path = sequence_dir / f"frame_{frame_id:04d}.png"
+        confidence_path = sequence_dir / f"init_conf_{frame_id}.npy"
+        if not color_path.is_file() or not confidence_path.is_file():
+            continue
+        color = iio.imread(color_path)
+        depth = np.load(depth_path)
+        confidence = np.load(confidence_path)
+        points = depth_to_world_points(depth, intrinsic, pose)
+        valid = (
+            np.isfinite(points).all(axis=-1)
+            & np.isfinite(confidence)
+            & (confidence > confidence_threshold)
+        )
+        rr.log("world/dynamic_points", rr.Points3D(points[valid], colors=color[valid], radii=0.001))
+        rr.log(
+            "world/current_camera",
+            rr.Transform3D(translation=pose[:3, 3], mat3x3=pose[:3, :3], from_parent=True),
+        )
+        rr.log(
+            "world/current_camera",
+            rr.Pinhole(
+                image_from_camera=intrinsic,
+                resolution=[color.shape[1], color.shape[0]],
+                camera_xyz=rr.ViewCoordinates.RDF,
+                image_plane_distance=0.03,
+            ),
+        )
+        rr.log("world/current_camera/rgb", rr.Image(color))
+        rr.log(
+            "observations/depth",
+            rr.DepthImage(
+                depth,
+                meter=1.0,
+                depth_range=[float(np.percentile(depth, 1)), float(np.percentile(depth, 99))],
+            ),
+        )
+        mask_path = sequence_dir / f"dynamic_mask_{frame_id}.png"
+        if mask_path.is_file():
+            dynamic_mask = iio.imread(mask_path)
+            if np.any(dynamic_mask):
+                rr.log("diagnostics/dynamic_mask", rr.Image(dynamic_mask))
+    rr.disconnect()
+    return recording_path
 
 
 def _jsonable(value: Any) -> Any:

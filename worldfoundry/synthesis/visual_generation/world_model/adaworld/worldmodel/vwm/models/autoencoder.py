@@ -1,13 +1,11 @@
 import math
 from abc import abstractmethod
-from contextlib import contextmanager
 from typing import Dict, Tuple, Union
 
 import torch
 import torch.nn as nn
 from pytorch_lightning import LightningModule
 from vwm.modules.autoencoding.regularizer import AbstractRegularizer
-from vwm.modules.ema import LitEma
 from vwm.util import instantiate_from_config
 
 
@@ -20,39 +18,14 @@ class AbstractAutoencoder(LightningModule):
 
     def __init__(
             self,
-            ema_decay: Union[None, float] = None,
-            monitor: Union[None, str] = None,
             input_key: str = "img"
     ):
         super(AbstractAutoencoder, self).__init__()
         self.input_key = input_key
-        self.use_ema = ema_decay is not None
-
-        if monitor is not None:
-            self.monitor = monitor
-
-        if self.use_ema:
-            self.model_ema = LitEma(self, decay=ema_decay)
-            print(f"Keeping EMAs of {len(list(self.model_ema.buffers()))}")
 
     @abstractmethod
     def get_input(self, batch):
         raise NotImplementedError
-
-    @contextmanager
-    def ema_scope(self, context=None):
-        if self.use_ema:
-            self.model_ema.store(self.parameters())
-            self.model_ema.copy_to(self)
-            if context is not None:
-                print(f"{context}: Switched to EMA weights")
-        try:
-            yield None
-        finally:
-            if self.use_ema:
-                self.model_ema.restore(self.parameters())
-                if context is not None:
-                    print(f"{context}: Restored training weights")
 
     @abstractmethod
     def encode(self, *args, **kwargs) -> torch.Tensor:
@@ -75,14 +48,12 @@ class AutoencodingEngine(AbstractAutoencoder):
             *args,
             encoder_config: Dict,
             decoder_config: Dict,
-            loss_config: Dict,
             regularizer_config: Dict,
             **kwargs
     ):
         super(AutoencodingEngine, self).__init__(*args, **kwargs)
         self.encoder: nn.Module = instantiate_from_config(encoder_config)
         self.decoder: nn.Module = instantiate_from_config(decoder_config)
-        self.loss: nn.Module = instantiate_from_config(loss_config)
         self.regularization: AbstractRegularizer = instantiate_from_config(regularizer_config)
 
     def get_input(self, batch: Dict) -> torch.Tensor:

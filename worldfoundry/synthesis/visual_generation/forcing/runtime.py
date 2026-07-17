@@ -9,12 +9,16 @@ import tempfile
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-import imageio.v3 as iio
 import numpy as np
 
-from worldfoundry.core.io.paths import package_module_root as package_root
-from worldfoundry.core.io.paths import checkpoint_root_path, resolve_data_path
-
+from worldfoundry.core.io.paths import (
+    checkpoint_root_path,
+    hfd_root_path,
+    resolve_data_path,
+)
+from worldfoundry.core.io.paths import (
+    package_module_root as package_root,
+)
 
 DEFAULT_PROMPT = "A cinematic video with coherent motion, rich detail, and realistic lighting."
 TORCHVISION_VIDEO_COMPAT_DIR = Path(__file__).resolve().parent / "torchvision_video_compat"
@@ -26,6 +30,9 @@ MODEL_ALIASES = {
     "causal": "causal-forcing",
     "causal-forcing": "causal-forcing",
     "causalforcing": "causal-forcing",
+    "rolling": "rolling-forcing",
+    "rolling-forcing": "rolling-forcing",
+    "rollingforcing": "rolling-forcing",
 }
 
 
@@ -40,19 +47,65 @@ def _first_existing(paths: Sequence[Path]) -> Path | None:
     return None
 
 
+def _hf_snapshot_file_candidates(repo_id: str, relative_path: str | Path) -> tuple[Path, ...]:
+    """Return local Hub-cache candidates without contacting Hugging Face."""
+
+    hf_home = Path(os.environ.get("HF_HOME", Path.home() / ".cache" / "huggingface")).expanduser()
+    cache_roots = tuple(
+        dict.fromkeys(
+            path.expanduser()
+            for path in (
+                Path(os.environ["HF_HUB_CACHE"]) if os.environ.get("HF_HUB_CACHE") else hf_home / "hub",
+                hf_home / "hub",
+            )
+        )
+    )
+    relative = Path(relative_path)
+    candidates: list[Path] = []
+    namespace = repo_id.replace("/", "--")
+    for cache_root in cache_roots:
+        repo_root = cache_root / f"models--{namespace}"
+        snapshots = repo_root / "snapshots"
+        main_ref = repo_root / "refs" / "main"
+        if main_ref.is_file():
+            revision = main_ref.read_text(encoding="utf-8").strip()
+            if revision:
+                candidates.append(snapshots / revision / relative)
+        if snapshots.is_dir():
+            candidates.extend(
+                snapshot / relative
+                for snapshot in sorted(snapshots.iterdir(), reverse=True)
+                if snapshot.is_dir()
+            )
+    return tuple(dict.fromkeys(candidates))
+
+
 def _canonical_model_id(value: Any) -> str:
     text = str(value or "self-forcing").strip().lower().replace("_", "-")
     if text in MODEL_ALIASES:
         return MODEL_ALIASES[text]
+    if "rolling" in text:
+        return "rolling-forcing"
     if "causal" in text:
         return "causal-forcing"
     if "self" in text:
         return "self-forcing"
-    raise ValueError(f"Unsupported forcing model id: {value!r}. Expected self-forcing or causal-forcing.")
+    raise ValueError(
+        f"Unsupported forcing model id: {value!r}. "
+        "Expected self-forcing, causal-forcing, or rolling-forcing."
+    )
 
 
 def _local_repo_candidates(model_id: str) -> tuple[Path, ...]:
-    env_name = "WORLDFOUNDRY_CAUSAL_FORCING_REPO_ROOT" if model_id == "causal-forcing" else "WORLDFOUNDRY_SELF_FORCING_REPO_ROOT"
+    if model_id == "rolling-forcing":
+        # RollingForcing is deliberately source-closed inside WorldFoundry: no
+        # checkout of the upstream repository is consulted at runtime.
+        return (FORCING_RUNTIME_DIR.parent / "rolling_forcing",)
+    env_name = (
+        "WORLDFOUNDRY_CAUSAL_FORCING_REPO_ROOT"
+        if model_id == "causal-forcing"
+        else "WORLDFOUNDRY_SELF_FORCING_REPO_ROOT"
+    )
     in_tree = FORCING_RUNTIME_DIR / (
         "causal_forcing_runtime" if model_id == "causal-forcing" else "self_forcing_runtime"
     )
@@ -62,8 +115,17 @@ def _local_repo_candidates(model_id: str) -> tuple[Path, ...]:
 
 
 def _ckpt_root_candidates(model_id: str) -> tuple[Path, ...]:
+    if model_id == "rolling-forcing":
+        return (
+            checkpoint_root_path("RollingForcing", specific_env="WORLDFOUNDRY_ROLLING_FORCING_CKPT_ROOT"),
+            hfd_root_path("TencentARC--RollingForcing"),
+        )
     ckpt_name = "Causal-Forcing" if model_id == "causal-forcing" else "Self-Forcing"
-    env_name = "WORLDFOUNDRY_CAUSAL_FORCING_CKPT_ROOT" if model_id == "causal-forcing" else "WORLDFOUNDRY_SELF_FORCING_CKPT_ROOT"
+    env_name = (
+        "WORLDFOUNDRY_CAUSAL_FORCING_CKPT_ROOT"
+        if model_id == "causal-forcing"
+        else "WORLDFOUNDRY_SELF_FORCING_CKPT_ROOT"
+    )
     return (checkpoint_root_path(ckpt_name, specific_env=env_name),)
 
 
@@ -87,7 +149,20 @@ def _default_ckpt_root(model_id: str) -> Path:
 
 def _default_checkpoint_path(model_id: str) -> str:
     root = _default_ckpt_root(model_id)
-    if model_id == "causal-forcing":
+    if model_id == "rolling-forcing":
+        roots = _ckpt_root_candidates(model_id)
+        candidates = tuple(
+            path
+            for candidate_root in roots
+            for path in (
+                candidate_root / "checkpoints" / "rolling_forcing_dmd.pt",
+                candidate_root / "rolling_forcing_dmd.pt",
+            )
+        ) + _hf_snapshot_file_candidates(
+            "TencentARC/RollingForcing",
+            "checkpoints/rolling_forcing_dmd.pt",
+        )
+    elif model_id == "causal-forcing":
         candidates = (
             root / "chunkwise" / "causal_forcing.pt",
             root / "framewise" / "causal_forcing.pt",
@@ -107,8 +182,15 @@ def _default_checkpoint_path(model_id: str) -> str:
 
 
 def _default_config_path(model_id: str, runtime_root: str | Path) -> str:
-    name = "causal_forcing_dmd_chunkwise.yaml" if model_id == "causal-forcing" else "self_forcing_dmd.yaml"
-    family = "causal_forcing" if model_id == "causal-forcing" else "self_forcing"
+    if model_id == "rolling-forcing":
+        name = "rolling_forcing_dmd.yaml"
+        family = "rolling_forcing"
+    elif model_id == "causal-forcing":
+        name = "causal_forcing_dmd_chunkwise.yaml"
+        family = "causal_forcing"
+    else:
+        name = "self_forcing_dmd.yaml"
+        family = "self_forcing"
     candidates = (
         resolve_data_path("models", "runtime", "configs", family, name),
         Path(runtime_root).expanduser() / "configs" / name,
@@ -124,7 +206,7 @@ def _default_wan_models_root() -> str:
 def _canonical_wan_variant_parent(model_id: str, runtime_root: str | Path) -> str:
     if model_id == "self-forcing":
         variant = "self_forcing"
-    elif Path(runtime_root).expanduser().name == "long_video":
+    elif model_id == "rolling-forcing" or Path(runtime_root).expanduser().name == "long_video":
         variant = "causal_forcing_long_video"
     else:
         variant = "causal_forcing"
@@ -133,6 +215,8 @@ def _canonical_wan_variant_parent(model_id: str, runtime_root: str | Path) -> st
 
 
 def _load_video_frames(video_path: str | Path) -> np.ndarray:
+    import imageio.v3 as iio
+
     frames = [np.asarray(frame).astype(np.uint8) for frame in iio.imiter(str(video_path))]
     if not frames:
         raise ValueError(f"No frames found in generated forcing video: {video_path}")
@@ -263,6 +347,7 @@ class _ForcingRuntime:
     DISPLAY_NAMES = {
         "self-forcing": "Self-Forcing",
         "causal-forcing": "Causal-Forcing",
+        "rolling-forcing": "RollingForcing",
     }
 
     def __init__(
@@ -283,7 +368,9 @@ class _ForcingRuntime:
         resolved_runtime_root = str(Path(runtime_root or _default_repo_root(resolved_model_id)).expanduser())
         self.model_id = resolved_model_id
         self.model_name = self.DISPLAY_NAMES[resolved_model_id]
-        self.generation_type = "text_or_image_to_video"
+        self.generation_type = (
+            "text_to_video" if resolved_model_id == "rolling-forcing" else "text_or_image_to_video"
+        )
         self.runtime_root = resolved_runtime_root
         self.checkpoint_path = str(checkpoint_path or _default_checkpoint_path(resolved_model_id))
         self.config_path = str(config_path or _default_config_path(resolved_model_id, resolved_runtime_root))
@@ -291,11 +378,11 @@ class _ForcingRuntime:
         self.device = device
         self.python_executable = python_executable or sys.executable
         self.defaults = {
-            "num_output_frames": 21,
+            "num_output_frames": 126 if resolved_model_id == "rolling-forcing" else 21,
             "seed": 0,
             "num_samples": 1,
             "fps": 16,
-            "use_ema": resolved_model_id == "self-forcing",
+            "use_ema": resolved_model_id in {"self-forcing", "rolling-forcing"},
             "save_with_index": resolved_model_id == "self-forcing",
             "report_timing": False,
         }
@@ -361,6 +448,11 @@ class _ForcingRuntime:
             "wan_14b_exists": (Path(self.wan_models_root) / "Wan2.1-T2V-14B").is_dir(),
             "python_executable": self.python_executable,
             "i2v": bool(options.get("i2v", False)),
+            "license": (
+                "RollingForcing academic-only; commercial and production use prohibited"
+                if self.model_id == "rolling-forcing"
+                else None
+            ),
         }
 
     def _runtime_cwd(self, root: Path) -> Path:
@@ -384,6 +476,9 @@ class _ForcingRuntime:
             env.get("PYTHONPATH", ""),
         ]
         env["PYTHONPATH"] = os.pathsep.join(item for item in pythonpath if item)
+        env["WORLDFOUNDRY_WAN_MODELS_ROOT"] = str(
+            Path(self.wan_models_root).expanduser().resolve()
+        )
         env.setdefault("TOKENIZERS_PARALLELISM", "false")
         env.setdefault("PYTHONUNBUFFERED", "1")
         if self.device.startswith("cuda:"):
@@ -462,8 +557,12 @@ class _ForcingRuntime:
             "--seed",
             str(int(options.get("seed", 0))),
         ]
-        if self.model_id == "self-forcing":
+        if self.model_id in {"self-forcing", "rolling-forcing"}:
             command.extend(["--num_samples", str(int(options.get("num_samples", 1)))])
+            if self.model_id == "rolling-forcing":
+                command.extend(
+                    ["--wan_models_root", str(Path(self.wan_models_root).expanduser().resolve())]
+                )
             if extended_prompt_path is not None:
                 command.extend(["--extended_prompt_path", str(extended_prompt_path)])
             if _as_bool(options.get("save_with_index", True)):
@@ -500,6 +599,10 @@ class _ForcingRuntime:
         output_target = output_target.resolve()
         prompt_text = prompt or DEFAULT_PROMPT
         i2v = images is not None or _as_bool(options.get("i2v", False))
+        if self.model_id == "rolling-forcing" and i2v:
+            raise ValueError(
+                "RollingForcing's released checkpoint and official inference route are text-to-video only."
+            )
 
         with tempfile.TemporaryDirectory(prefix=f"worldfoundry_{self.model_id}_") as temp_dir_raw:
             temp_dir = Path(temp_dir_raw)
@@ -554,15 +657,21 @@ class _ForcingRuntime:
 
 
 class SelfForcingRuntime(_ForcingRuntime):
-    """External runtime bridge for the official Self-Forcing runner."""
+    """In-tree runtime bridge for the official Self-Forcing runner."""
 
     MODEL_ID = "self-forcing"
 
 
 class CausalForcingRuntime(_ForcingRuntime):
-    """External runtime bridge for the official Causal-Forcing runner."""
+    """In-tree runtime bridge for the official Causal-Forcing runner."""
 
     MODEL_ID = "causal-forcing"
 
 
-__all__ = ["CausalForcingRuntime", "SelfForcingRuntime"]
+class RollingForcingRuntime(_ForcingRuntime):
+    """In-tree runtime bridge for the official RollingForcing runner."""
+
+    MODEL_ID = "rolling-forcing"
+
+
+__all__ = ["CausalForcingRuntime", "RollingForcingRuntime", "SelfForcingRuntime"]

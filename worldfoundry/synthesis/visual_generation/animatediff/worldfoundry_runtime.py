@@ -17,7 +17,7 @@ from typing import Any, Sequence
 import numpy as np
 
 from worldfoundry.evaluation.utils import REPO_ROOT, worldfoundry_data_path
-from worldfoundry.runtime import resolve_hfd_root
+from worldfoundry.runtime.env import resolve_hfd_root
 
 
 # Default paths for AnimateDiff repository, integrated assets, configurations, and models.

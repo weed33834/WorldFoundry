@@ -14,9 +14,8 @@
 # of rights and permissions under this agreement.
 # See the License for the specific language governing permissions and limitations under the License.
 
-from typing import Any, List, Tuple, Optional, Union, Dict
+from typing import Any, Tuple, Optional, Union, Dict
 
-import os
 import torch
 import torch.nn as nn
 from einops import rearrange, repeat
@@ -50,7 +49,6 @@ from worldfoundry.core.distributed.sequence_parallel.communication_op import seq
 from ..text_encoders.byT5 import ByT5Mapper
 
 from worldfoundry.core.distributed.sequence_mesh_state import get_parallel_state
-from trainer.configs.models.dits import HunyuanVideoConfig
 
 def is_blocks(n: str, m) -> bool:
     is_valid = ("double_blocks" in n and str.isdigit(n.split(".")[-1])) or (
@@ -623,7 +621,7 @@ class ARHunyuanVideo_1_5_DiffusionTransformer(ModelMixin, ConfigMixin):
         use_cond_type_embedding (bool): Use condition type embedding.
     """
 
-    _fsdp_shard_conditions = HunyuanVideoConfig()._fsdp_shard_conditions
+    _fsdp_shard_conditions = [is_blocks]
 
     _supports_gradient_checkpointing = True
 

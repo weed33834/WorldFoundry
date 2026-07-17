@@ -3,15 +3,24 @@ import open_clip
 import torch
 from torch import nn
 
+from worldfoundry.core.io.paths import resolve_local_checkpoint_file
+
+
+DEFAULT_OPENCLIP_REPO = "laion/CLIP-ViT-H-14-laion2B-s32B-b79K"
+
 
 class CLIPConditioner(nn.Module):
     mean: torch.Tensor
     std: torch.Tensor
 
-    def __init__(self):
+    def __init__(self, model_path: str = DEFAULT_OPENCLIP_REPO):
         super().__init__()
+        try:
+            pretrained = resolve_local_checkpoint_file(model_path, "open_clip_pytorch_model.bin")
+        except FileNotFoundError:
+            pretrained = resolve_local_checkpoint_file(model_path, "open_clip_model.safetensors")
         self.module = open_clip.create_model_and_transforms(
-            "ViT-H-14", pretrained="laion2b_s32b_b79k"
+            "ViT-H-14", pretrained=str(pretrained)
         )[0]
         self.module.eval().requires_grad_(False)  # type: ignore
         self.register_buffer(

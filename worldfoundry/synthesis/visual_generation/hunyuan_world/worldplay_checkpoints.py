@@ -7,6 +7,8 @@ import os
 import shutil
 from pathlib import Path
 
+from worldfoundry.core.io.paths import resolve_local_hf_model_path
+
 LOGGER = logging.getLogger(__name__)
 
 ACTION_CKPT_FILENAMES = (
@@ -52,18 +54,15 @@ def first_existing_worldplay_action_ckpt(root: str | os.PathLike[str]) -> str | 
     return str(candidates[0]) if candidates else None
 
 
-def _hf_download_worldplay_action_ckpt(repo_id: str) -> str:
-    from huggingface_hub import hf_hub_download
-
-    last_error: Exception | None = None
-    for filename in ACTION_CKPT_FILENAMES:
-        try:
-            return hf_hub_download(repo_id=repo_id, filename=filename)
-        except Exception as exc:
-            last_error = exc
-    raise FileNotFoundError(
-        f"No supported HY-WorldPlay action checkpoint was found in Hugging Face repo {repo_id!r}."
-    ) from last_error
+def _resolve_local_worldplay_action_ckpt(repo_id: str) -> str:
+    root = resolve_local_hf_model_path(repo_id)
+    checkpoint = first_existing_worldplay_action_ckpt(root)
+    if checkpoint is None:
+        raise FileNotFoundError(
+            f"Local HY-WorldPlay snapshot {root} has no supported action checkpoint. "
+            "Pre-download the complete pinned repository before inference."
+        )
+    return checkpoint
 
 
 def _stage_worldplay_action_ckpt_if_requested(path: str) -> str:
@@ -202,9 +201,13 @@ def resolve_worldplay_action_ckpt(action_ckpt: str | os.PathLike[str] | None) ->
         return _stage_worldplay_action_ckpt_if_requested(local)
 
     if _looks_like_hf_repo_id(value):
-        return _stage_worldplay_action_ckpt_if_requested(_hf_download_worldplay_action_ckpt(value))
+        return _stage_worldplay_action_ckpt_if_requested(
+            _resolve_local_worldplay_action_ckpt(value)
+        )
 
-    return value
+    raise FileNotFoundError(
+        f"HY-WorldPlay action checkpoint is not available locally: {value}"
+    )
 
 
 def resolve_worldplay_video_model_path(
@@ -217,4 +220,11 @@ def resolve_worldplay_video_model_path(
         return value
     if Path(value).expanduser().is_dir():
         return _stage_worldplay_video_model_if_requested(value, transformer_version)
-    return value
+    if _looks_like_hf_repo_id(value):
+        local_root = resolve_local_hf_model_path(value)
+        return _stage_worldplay_video_model_if_requested(
+            str(local_root), transformer_version
+        )
+    raise FileNotFoundError(
+        f"HY-WorldPlay video model is not available locally: {value}"
+    )
