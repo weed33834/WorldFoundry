@@ -29,7 +29,10 @@ Join the **WorldFoundry Community** [Discord](https://discord.gg/ybUQMDA4x) or W
       <strong>Group 1 — Full</strong>
     </td>
     <td align="center">
-      <strong>Group 2 — Open</strong>
+      <strong>Group 2 — Full</strong>
+    </td>
+    <td align="center">
+      <strong>Group 3 — Open</strong>
     </td>
   </tr>
   <tr>
@@ -47,12 +50,19 @@ Join the **WorldFoundry Community** [Discord](https://discord.gg/ybUQMDA4x) or W
         width="280"
       >
     </td>
+    <td align="center">
+      <img
+        src="docs/fumadocs/public/wechat_qr_3.png"
+        alt="WorldFoundry WeChat Group 3"
+        width="280"
+      >
+    </td>
   </tr>
 </table>
 
 <p align="center">
   <em>
-    WeChat Group 1 is full. Please scan the Group 2 QR code to join the community.<br>
+    WeChat Groups 1 and 2 are full. Please scan the Group 3 QR code to join the community.<br>
     The QR codes will be updated if they expire.
   </em>
 </p>
