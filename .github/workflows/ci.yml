@@ -53,3 +53,4 @@ jobs:
 
       - name: Run documented CLI checks
         run: make docs-check
+# workflow-registration-trigger: 2026-07-23
